@@ -7,6 +7,10 @@ import dev.kosmx.playerAnim.api.layered.IAnimation;
 import dev.kosmx.playerAnim.api.layered.KeyframeAnimationPlayer;
 import dev.kosmx.playerAnim.api.layered.ModifierLayer;
 import dev.kosmx.playerAnim.api.layered.modifier.AbstractFadeModifier;
+import dev.kosmx.playerAnim.api.layered.modifier.AdjustmentModifier;
+import dev.kosmx.playerAnim.core.util.Vec3f;
+import net.minecraft.world.phys.Vec3;
+import java.util.Optional;
 import dev.kosmx.playerAnim.core.util.Ease;
 import dev.kosmx.playerAnim.minecraftApi.PlayerAnimationAccess;
 import dev.kosmx.playerAnim.minecraftApi.PlayerAnimationFactory;
@@ -53,6 +57,8 @@ public final class PeakAnimationController {
     private static final class Playback {
         int mode = NONE;
         int releaseUntil = -1;
+        Vec3 contact = Vec3.ZERO;
+        boolean contactReady;
     }
 
     private PeakAnimationController() {}
@@ -66,7 +72,7 @@ public final class PeakAnimationController {
         public static void setup(FMLClientSetupEvent event) {
             event.enqueueWork(() ->
                     PlayerAnimationFactory.ANIMATION_DATA_FACTORY.registerFactory(
-                            LAYER_ID, 880, player -> new ModifierLayer<IAnimation>()));
+                            LAYER_ID, 880, PeakAnimationController::createLayer));
         }
     }
 
@@ -85,6 +91,18 @@ public final class PeakAnimationController {
             ModifierLayer<IAnimation> layer = (ModifierLayer<IAnimation>) raw;
             Playback playback = PLAYBACKS.computeIfAbsent(client, ignored -> new Playback());
             PeakVisuals.Pose state = PeakVisuals.pose(client);
+            if (state != null && state.normal().lengthSqr() > .5) {
+                if (!playback.contactReady) {
+                    playback.contact = state.contactPoint();
+                    playback.contactReady = true;
+                } else if (playback.contact.distanceToSqr(state.contactPoint()) > 4) {
+                    // Teleport or huge moving-structure correction: snap safely
+                    // rather than interpolating an arm across the whole world.
+                    playback.contact = state.contactPoint();
+                } else {
+                    playback.contact = playback.contact.lerp(state.contactPoint(), 0.28);
+                }
+            } else playback.contactReady = false;
             int desired = state == null ? NONE : Math.min(CEILING_TRAVERSE, Math.max(HANG, state.action()));
 
             if (desired == NONE && playback.mode >= HANG && playback.mode <= CEILING_TRAVERSE) {
@@ -102,6 +120,42 @@ public final class PeakAnimationController {
                 playback.mode = NONE;
             }
         }
+    }
+
+    private static ModifierLayer<IAnimation> createLayer(AbstractClientPlayer client) {
+        ModifierLayer<IAnimation> layer = new ModifierLayer<>();
+        Playback playback = PLAYBACKS.computeIfAbsent(client, ignored -> new Playback());
+        // Player Animator's supported adjustment API: small arm corrections are
+        // derived from the CURRENT WORLD CONTACT, not player look pitch.
+        // This is a bounded contact correction atop authored keyframes, not a
+        // claim of an exact two-bone wrist IK solver.
+        layer.addModifierBefore(new AdjustmentModifier(part ->
+                contactCorrection(client, playback, part)));
+        return layer;
+    }
+
+    private static Optional<AdjustmentModifier.PartModifier> contactCorrection(
+            AbstractClientPlayer client, Playback playback, String part) {
+        boolean isLeft = part.equals("leftArm") || part.equals("left_arm");
+        boolean isRight = part.equals("rightArm") || part.equals("right_arm");
+        if ((!isLeft && !isRight) || !playback.contactReady) return Optional.empty();
+        PeakVisuals.Pose pose = PeakVisuals.pose(client);
+        if (pose == null || !pose.climbing() || pose.normal().lengthSqr() < .5)
+            return Optional.empty();
+        double yaw = Math.toRadians(pose.bodyYaw());
+        Vec3 sideways = new Vec3(-Math.cos(yaw), 0, -Math.sin(yaw));
+        Vec3 toward = new Vec3(-Math.sin(yaw), 0, Math.cos(yaw));
+        double armSide = isLeft ? -1 : 1;
+        Vec3 shoulder = client.position().add(0, 1.43, 0).add(sideways.scale(armSide*.25));
+        Vec3 target = playback.contact.add(sideways.scale(armSide*.27));
+        Vec3 delta = target.subtract(shoulder);
+        // Maximum ~1 vanilla model pixel / 0.13 radians per component.
+        float lateral = (float)Math.max(-1, Math.min(1, delta.dot(sideways)*1.4));
+        float vertical = (float)Math.max(-1, Math.min(1, delta.y * .65));
+        float forward = (float)Math.max(-1, Math.min(1, delta.dot(toward)*.65));
+        Vec3f rotation = new Vec3f(-.10f*vertical, .12f*lateral, -.07f*armSide*lateral);
+        Vec3f offset = new Vec3f(.72f*lateral, .58f*vertical, .60f*forward);
+        return Optional.of(new AdjustmentModifier.PartModifier(rotation, offset));
     }
 
     private static void swap(ModifierLayer<IAnimation> layer, int action) {
