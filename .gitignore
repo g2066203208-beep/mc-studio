@@ -1,0 +1,14 @@
+local/
+references/
+**/.gradle/
+**/build/
+**/runs/
+**/run/
+**/repo/
+**/logs/
+**/crash-reports/
+**/saves/
+**/.idea/
+*.iml
+.env
+*.local.json
