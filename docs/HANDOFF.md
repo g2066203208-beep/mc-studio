@@ -59,3 +59,25 @@ GitHub 是整个 Minecraft 工作室的开发中心。代码、需求、研究�
 - 早期 Java 编译成功（Actions 39406601421）仅验证 head 761a7b41...；已经加入 JUnit 测试与 XML 证据保存。请重新确认 PR #3 当前 head 的最新 Actions 状态。
 - 尚无真实客户端、专服、Sable 飞船或整合包游戏内验证；不得合入 main 宣称正式完成。下一步优先执行实机测试，修复视觉反馈、动态 tracking 重复继承速度及客户端/服务端预测偏差。
 - PR #3 以 PR #2 未合并研究文档分支为起点，合并 PR #3 后不得反向重复合并 PR #2。
+
+## 自动化验收结果（2026-10-20，功能源码 HEAD 58def67a099c7e413a7cae4df1f36f33d031fe48）
+
+GitHub Actions: https://github.com/g2066203208-beep/mc-studio/actions/runs/39409432696
+
+- Java 21 + NeoForge 21.1.248：compileJava、compileTestJava、JUnit 5 test、JAR 打包及 artifact 上传均成功。
+- 真正启动无界面 Minecraft GameTestServer：2/2 个测试通过。第一项验证四面墙、地板和天花板的表面抓点/移动方向；第二项验证左/右手独立抓取和释放、被抓方块被移除自动失效。
+- 以 -PwithSable 下载并加载官方 Sable NeoForge 2.0.6；Sable 的 Rapier Physics Scene 初始化并完成同样 2/2 GameTests，证明最小运行环境下共同启动成功。
+- 归档的证据：
+  - JAR: https://github.com/g2066203208-beep/mc-studio/actions/runs/39409432696/artifacts/12259500091
+  - JUnit XML: https://github.com/g2066203208-beep/mc-studio/actions/runs/39409432696/artifacts/12259310285
+  - 普通 GameTest 日志: https://github.com/g2066203208-beep/mc-studio/actions/runs/39409432696/artifacts/12259200820
+  - Sable 物理 Mod 运行日志: https://github.com/g2066203208-beep/mc-studio/actions/runs/39409432696/artifacts/12258772673
+- Sable 单独运行日志中出现 create:flywheel 方块未知的错误级别日志（该最小测试环境未加载 Create），但物理场景和测试均正常完成；后续整合包环境单独核查。
+- **尚未完成真实客户端图形游玩、手臂在第一人称的外观检查、动态 Sable 子世界中的旋转/平移抓取、双人 dedicated server、正式整合包兼容。** CI 绿灯不是这些验收的替代证明。
+
+## 下一会话具体开发任务
+
+1. 从 PR #3 当前 head 及 docs/climbing 目录开始。不要重复初始化工作台；分支上的编译和 Sable 服务器启动已验证。
+2. 在独立开发客户端（包括真实 Sable Mod）打开世界，用 G + LMB/RMB 检查墙壁、天花板、平地的手感、原版两只手显示和碰撞，记录错误并修复。
+3. 在 Sable 真实 Sub-level 中以 0、匀速、旋转、急停速度测试锚点局部坐标及其随动，检查重复获得船体速度问题。
+4. 再跑专服双人/高延迟/整合包 Create Aeronautics TerraFirmaCraft，全部满足才可把 Draft PR 变 Ready 并考虑合入 main。玩家存档仍未动。

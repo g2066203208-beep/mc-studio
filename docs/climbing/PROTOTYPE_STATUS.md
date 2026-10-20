@@ -20,7 +20,7 @@
 - ClimbMotion：基于重力、接触面切线和单/双手最大长度的速度约束试验；不直接传送玩家或关闭重力。超远锚点和过快结构跳跃释放。
 - GripRules、GripRulesTest：独立 Java 逻辑、JUnit 5 自动化测试，覆盖意图重放/非法数值/单向绳长约束/极端结构跳跃/速度边界。
 
-重要：项目没有新增骨骼动画或角色贴图，玩家仍使用原版第一人称手臂和皮肤；当前也没有真正的第一人称握拳或左右手贴紧方块的可视化动作同步。
+重要：项目没有新增骨骼动画或角色贴图，玩家仍使用原版第一人称手臂和皮肤；已增加 VanillaGripHands：仅通过 RenderHandEvent 平移/旋转原版已存在的第一人称手臂，不更换模型贴图；原版可能不绘制空的副手，此限制与具体视觉效果仍需实际客户端验证。
 
 ## 控制（预设）
 
@@ -82,3 +82,18 @@
 | 正式发布 | 不允许；功能 PR 保持 Draft |
 
 相关路线图：SPEC.md / DEV_PROMPT.md / TEST_PLAN.md / OPEN_SOURCE.md。
+
+## 自动化验收结果（2026-10-20，功能源码 HEAD 58def67a099c7e413a7cae4df1f36f33d031fe48）
+
+GitHub Actions: https://github.com/g2066203208-beep/mc-studio/actions/runs/39409432696
+
+- Java 21 + NeoForge 21.1.248：compileJava、compileTestJava、JUnit 5 test、JAR 打包及 artifact 上传均成功。
+- 真正启动无界面 Minecraft GameTestServer：2/2 个测试通过。第一项验证四面墙、地板和天花板的表面抓点/移动方向；第二项验证左/右手独立抓取和释放、被抓方块被移除自动失效。
+- 以 -PwithSable 下载并加载官方 Sable NeoForge 2.0.6；Sable 的 Rapier Physics Scene 初始化并完成同样 2/2 GameTests，证明最小运行环境下共同启动成功。
+- 归档的证据：
+  - JAR: https://github.com/g2066203208-beep/mc-studio/actions/runs/39409432696/artifacts/12259500091
+  - JUnit XML: https://github.com/g2066203208-beep/mc-studio/actions/runs/39409432696/artifacts/12259310285
+  - 普通 GameTest 日志: https://github.com/g2066203208-beep/mc-studio/actions/runs/39409432696/artifacts/12259200820
+  - Sable 物理 Mod 运行日志: https://github.com/g2066203208-beep/mc-studio/actions/runs/39409432696/artifacts/12258772673
+- Sable 单独运行日志中出现 create:flywheel 方块未知的错误级别日志（该最小测试环境未加载 Create），但物理场景和测试均正常完成；后续整合包环境单独核查。
+- **尚未完成真实客户端图形游玩、手臂在第一人称的外观检查、动态 Sable 子世界中的旋转/平移抓取、双人 dedicated server、正式整合包兼容。** CI 绿灯不是这些验收的替代证明。

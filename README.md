@@ -70,3 +70,7 @@ bash scripts/build.sh
 [实验版功能与验收记录](docs/climbing/PROTOTYPE_STATUS.md) · [玩法规格](docs/climbing/SPEC.md) · [测试](docs/climbing/TEST_PLAN.md)
 
 已新增 Java 代码：G 切换攀爬、左右手抓握、非空气且存在 outline 形状的任意方向方块表面、Sable 子世界坐标抓点、玩家单/双手运动约束、服务端意图校验与客户端锚点快照。本功能正在 [PR #3](https://github.com/g2066203208-beep/mc-studio/pull/3) 中开发。编译成功不代表真实游戏、Sable 运动平台、专服及整合包测试完成。正式玩家存档未部署或更改。
+
+## Sable Hands alpha 最新构建
+
+已提交 0.2.0-alpha.1 双手独立抓握代码和轻量原版手臂姿态，完整证据在 [Actions 39409432696](https://github.com/g2066203208-beep/mc-studio/actions/runs/39409432696)。Java/JUnit、普通 Minecraft GameTest 2/2 和带 Sable 2.0.6 的集成 GameTest 2/2 均通过。具体可安装 JAR 从该运行的 Artifacts 获取。功能仍在 [Draft PR #3](https://github.com/g2066203208-beep/mc-studio/pull/3)，动态运动船体与游戏画面未实机验收，不要安装到正式存档。
