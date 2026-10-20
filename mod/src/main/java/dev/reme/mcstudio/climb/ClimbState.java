@@ -23,8 +23,15 @@ public final class ClimbState {
     public boolean mantleRequiresRelease;
     public int mantleTicks;
     public double mantleTargetY;
+    public Vec3 mantleOrigin = Vec3.ZERO;
     public Vec3 mantleInward = Vec3.ZERO;
-    public byte poseAction; // 0 hang, 1 up, 2 traverse, 3 mantle
+    public byte poseAction; // 0 wall hang, 1 climb, 2 traverse, 3 mantle, 4 roof hang, 5 roof crawl
+    /** Stable facing established by the actual grabbed surface; not the camera. */
+    public float grabYaw;
+    public Vec3 contactNormal = Vec3.ZERO;
+    public Vec3 contactPoint = Vec3.ZERO;
+    /** Track the REAL last world-space contact, only on an unchanged Sable anchor. */
+    public boolean hasContact;
     public float forward, strafe;
     @Nullable public GripAnchor left;
     @Nullable public GripAnchor right;
@@ -42,6 +49,9 @@ public final class ClimbState {
         left = null;
         right = null;
         lastLeft = Vec3.ZERO;
+        contactPoint = Vec3.ZERO;
+        contactNormal = Vec3.ZERO;
+        hasContact = false;
         lastRight = Vec3.ZERO;
         lungeRequested = false;
         mantleTicks = 0;

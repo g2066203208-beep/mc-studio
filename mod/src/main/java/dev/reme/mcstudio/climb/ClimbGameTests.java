@@ -11,7 +11,7 @@ import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
-/** Three in-game smoke tests for PEAK style continuous grab and terrain geometry. */
+/** Contact-space and collision-regression tests for PEAK held-grip. */
 @GameTestHolder(StudioMod.MOD_ID)
 @PrefixGameTestTemplate(false)
 public final class ClimbGameTests {
@@ -125,6 +125,56 @@ public final class ClimbGameTests {
         helper.assertTrue(!state.mantleRequiresRelease, "Releasing RMB must re-arm grabbing");
         ClimbState.remove(player);
         helper.setBlock(wall, Blocks.AIR);
+        helper.succeed();
+    }
+
+    @GameTest(template="climb_test", timeoutTicks=80)
+    public static void ceilingHasDistinctMovementAndCameraIndependentFacing(GameTestHelper helper) {
+        BlockPos roof = new BlockPos(3,4,3);
+        helper.setBlock(roof,Blocks.STONE);
+        Player player = helper.makeMockPlayer(GameType.CREATIVE);
+        BlockPos origin = helper.absolutePos(new BlockPos(3,2,3));
+        player.moveTo(origin.getX()+.5,origin.getY(),origin.getZ()+.5,0,-90);
+        ClimbState.remove(player);
+        ClimbState state=ClimbState.of(player);
+        ClimbRuntime.accept(player,1,-1,true,false,1,0);
+        helper.assertTrue(state.gripping(), "RMB must grip roof underside");
+        ClimbMotion.tick(player,state);
+        helper.assertTrue(state.poseAction==5, "Roof crawl must select separate animation");
+        double initialTravel = player.getDeltaMovement().z;
+        helper.assertTrue(initialTravel>.19,"Roof crawl must be faster than old speed");
+        player.setYRot(155); // Look elsewhere but do not change body grip heading.
+        ClimbRuntime.accept(player,2,-1,true,false,1,0);
+        ClimbMotion.tick(player,state);
+        helper.assertTrue(player.getDeltaMovement().z>0,
+                "Turning the camera rotated ceiling motion and body orientation");
+        helper.assertTrue(state.contactNormal.y<-.7,
+                "Roof animation must be selected by actual surface normal");
+        ClimbRuntime.accept(player,3,-1,false,false,0,0);
+        ClimbState.remove(player);
+        helper.setBlock(roof,Blocks.AIR);
+        helper.succeed();
+    }
+
+    @GameTest(template="climb_test", timeoutTicks=80)
+    public static void regripAndMantleNeverCreateVelocityImpulse(GameTestHelper helper) {
+        Vec3 oneBlock = new Vec3(0,1,0);
+        helper.assertTrue(ClimbSurfaceMath.platformDelta(Vec3.ZERO, oneBlock, false)
+                        .equals(Vec3.ZERO), "Changing static grip blocks produced false platform motion");
+        helper.assertTrue(ClimbSurfaceMath.platformDelta(Vec3.ZERO, new Vec3(3,4,0), true)
+                        .equals(Vec3.ZERO), "Huge teleport should not create a ship velocity impulse");
+        Vec3 platformStep = ClimbSurfaceMath.platformDelta(Vec3.ZERO, new Vec3(.5,0,0),true);
+        helper.assertTrue(platformStep.length() <= ClimbSurfaceMath.MAX_PLATFORM_STEP + 1e-6,
+                "Moving sublevel step exceeded safe clamp");
+        Vec3 motor = ClimbSurfaceMath.motor(new Vec3(900,300,-900),
+                new Vec3(0,.17,0), new Vec3(0,0,-1));
+        helper.assertTrue(motor.length() <= ClimbSurfaceMath.MAX_RELATIVE_SPEED + 1e-8,
+                "An extreme previous velocity launched the player");
+        helper.assertTrue(Math.abs(motor.z) < 1e-8,
+                "Contact motor must project out all previous normal velocity");
+        helper.assertTrue(ClimbSurfaceMath.speed(new Vec3(0,-1,0))
+                        > ClimbSurfaceMath.speed(new Vec3(0,0,-1))*1.6,
+                "Roof speed must be significantly greater than wall speed");
         helper.succeed();
     }
 
