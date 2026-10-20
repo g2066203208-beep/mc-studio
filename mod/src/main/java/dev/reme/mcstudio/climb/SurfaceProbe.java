@@ -16,7 +16,7 @@ import org.jetbrains.annotations.Nullable;
 import java.util.UUID;
 
 /**
- * Geometric hit testing: vanilla collision VoxelShapes and Sable sub-level plot shapes.
+ * Geometric hit testing: vanilla outline VoxelShapes and Sable sub-level plot shapes.
  * All six face orientations are treated identically; there is no block allow-list.
  */
 public final class SurfaceProbe {
@@ -59,12 +59,13 @@ public final class SurfaceProbe {
     }
 
     private static BlockHitResult cast(Level level, Player player, Vec3 from, Vec3 to) {
-        return level.clip(new ClipContext(from, to, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, player));
+        return level.clip(new ClipContext(from, to, ClipContext.Block.OUTLINE, ClipContext.Fluid.NONE, player));
     }
 
     private static boolean valid(Level level, BlockHitResult hit) {
         if (hit.getType() != HitResult.Type.BLOCK) return false;
         BlockPos pos = hit.getBlockPos();
-        return level.isLoaded(pos) && !level.getBlockState(pos).getCollisionShape(level, pos).isEmpty();
+        return level.isLoaded(pos) && !level.getBlockState(pos).isAir()
+                && !level.getBlockState(pos).getShape(level, pos).isEmpty();
     }
 }
