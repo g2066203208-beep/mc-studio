@@ -5,6 +5,11 @@ import java.util.Map;
 import dev.reme.mcstudio.npc.life.LivingPlanner;
 import dev.reme.mcstudio.npc.life.LivingWorldActions;
 import dev.reme.mcstudio.npc.life.ResidentMemory;
+import dev.reme.mcstudio.npc.life.SocietyRules;
+import dev.reme.mcstudio.npc.life.LifeJourney;
+import java.util.LinkedHashSet;
+import java.util.Set;
+import net.minecraft.world.level.ChunkPos;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.ListTag;
 import java.util.UUID;
@@ -24,6 +29,7 @@ import net.minecraft.world.inventory.MenuType;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.PathfinderMob;
 import net.minecraft.world.entity.ai.goal.FloatGoal;
@@ -42,7 +48,7 @@ import net.minecraft.world.level.Level;
 
 public class PlayerNpcEntity extends PathfinderMob {
     public enum Mode { LIVE, FOLLOW, STAY, WANDER, GUARD }
-    public enum Profession { FARMER, BAKER, RESIDENT, GUARD }
+    public enum Profession { FARMER, BAKER, RESIDENT, GUARD, SCOUT, COURIER, BUILDER }
 
     private final SimpleContainer backpack = new SimpleContainer(36) {
         @Override public boolean stillValid(Player player) {
@@ -64,6 +70,16 @@ public class PlayerNpcEntity extends PathfinderMob {
     private LivingPlanner.Decision decision =
         new LivingPlanner.Decision(LivingPlanner.Intent.IDLE, 0, "starting");
     private String lastAction = "just arrived";
+    private SocietyRules.Identity identity = SocietyRules.civilian("river");
+    private LifeJourney journey = new LifeJourney(LifeJourney.Goal.LIVE_PEACEFULLY);
+    @Nullable private BlockPos supplyPos;
+    @Nullable private UUID escortLeader;
+    @Nullable private BlockPos exploreTarget;
+    private final Set<Long> recentChunks = new LinkedHashSet<>();
+    private int parcelsDelivered = 0;
+    private int formationSlot = 0;
+    private boolean buildEnabled = false;
+    private int buildCursor = 0;
     private long nextSocialTick = 0;
     @Nullable private UUID ownerUuid;
 
@@ -91,6 +107,43 @@ public class PlayerNpcEntity extends PathfinderMob {
     }
 
     public SimpleContainer backpack() { return backpack; }
+    public SocietyRules.Identity identity() { return identity; }
+    public void setIdentity(SocietyRules.Identity next) { identity = next; }
+    public boolean hostileTo(PlayerNpcEntity other) {
+        return SocietyRules.hostile(identity, other.identity());
+    }
+    public LifeJourney journey() { return journey; }
+    @Nullable public BlockPos supplyPos() { return supplyPos; }
+    public void setSupplyPos(@Nullable BlockPos pos) {
+        supplyPos = pos == null ? null : pos.immutable();
+    }
+    @Nullable public UUID escortLeader() { return escortLeader; }
+    public int formationSlot() { return formationSlot; }
+    public void setFormationSlot(int slot) { formationSlot = Math.clamp(slot, 0, 15); }
+    public void setEscortLeader(@Nullable UUID uuid) { escortLeader = uuid; }
+    @Nullable public BlockPos exploreTarget() { return exploreTarget; }
+    public void setExploreTarget(@Nullable BlockPos pos) {
+        exploreTarget = pos == null ? null : pos.immutable();
+    }
+    public int parcelsDelivered() { return parcelsDelivered; }
+    public boolean buildEnabled() { return buildEnabled; }
+    public void setBuildEnabled(boolean enabled) { buildEnabled = enabled; }
+    public int buildCursor() { return buildCursor; }
+    public void advanceBuildCursor() { buildCursor++; }
+    public void resetBuildCursor() { buildCursor = 0; }
+    public void recordDelivery() { parcelsDelivered++; journey.succeeded(LifeJourney.Achievement.BARTER); }
+    public boolean visitChunk(int x, int z) {
+        long encoded = ChunkPos.asLong(x, z);
+        if (recentChunks.contains(encoded)) return false;
+        if (recentChunks.size() >= 64) {
+            var iterator = recentChunks.iterator();
+            iterator.next();
+            iterator.remove();
+        }
+        recentChunks.add(encoded);
+        journey.succeeded(LifeJourney.Achievement.VISIT_NEW_CHUNK);
+        return true;
+    }
     public Profession profession() { return profession; }
     public void setProfession(Profession job) { profession = job; }
     public void setHomePos(BlockPos pos) { homePos = pos.immutable(); }
@@ -125,6 +178,15 @@ public class PlayerNpcEntity extends PathfinderMob {
         memory.witness(tick, other.getUUID(), ResidentMemory.Kind.GREETING,
             blockPosition().toShortString());
     }
+    @Override public boolean doHurtTarget(Entity target) {
+        boolean hit = super.doHurtTarget(target);
+        if (hit && mode == Mode.LIVE && profession == Profession.GUARD &&
+            (target instanceof net.minecraft.world.entity.monster.Monster ||
+             target instanceof PlayerNpcEntity other && hostileTo(other))) {
+            journey.succeeded(LifeJourney.Achievement.DEFEND);
+        }
+        return hit;
+    }
     @Override public boolean hurt(DamageSource source, float amount) {
         boolean damaged = super.hurt(source, amount);
         if (damaged && !level().isClientSide && source.getEntity() instanceof Player player) {
@@ -148,7 +210,8 @@ public class PlayerNpcEntity extends PathfinderMob {
         goalSelector.addGoal(0, new FloatGoal(this));
         goalSelector.addGoal(1, new MeleeAttackGoal(this, 1.15, true) {
             @Override public boolean canUse() {
-                return mode != Mode.STAY && mode != Mode.LIVE && super.canUse();
+                return mode != Mode.STAY && (mode != Mode.LIVE || profession == Profession.GUARD)
+                    && super.canUse();
             }
         });
         goalSelector.addGoal(2, new FollowPlayerGoal());
@@ -162,7 +225,11 @@ public class PlayerNpcEntity extends PathfinderMob {
         });
         goalSelector.addGoal(7, new LookAtPlayerGoal(this, Player.class, 8.0F));
         goalSelector.addGoal(8, new RandomLookAroundGoal(this));
-        targetSelector.addGoal(1, new HurtByTargetGoal(this));
+        targetSelector.addGoal(1, new HurtByTargetGoal(this) {
+            @Override public boolean canUse() {
+                return mode != Mode.LIVE && super.canUse();
+            }
+        });
         targetSelector.addGoal(2, new NearestAttackableTargetGoal<>(this, Monster.class, true) {
             @Override public boolean canUse() {
                 return (mode == Mode.GUARD || mode == Mode.WANDER) && super.canUse();
@@ -173,10 +240,48 @@ public class PlayerNpcEntity extends PathfinderMob {
         });
     }
 
+    private boolean sellBread(Player customer, ItemStack payment) {
+        if (profession != Profession.BAKER || !payment.is(Items.EMERALD) ||
+            memory.trust(customer.getUUID()) <= -25) return false;
+        SimpleContainer snapshot = new SimpleContainer(36);
+        for (int i = 0; i < 36; i++) snapshot.setItem(i, backpack.getItem(i).copy());
+        boolean hasBread = false;
+        for (int i = 0; i < 36; i++) {
+            ItemStack stack = snapshot.getItem(i);
+            if (stack.is(Items.BREAD) && !stack.isEmpty()) {
+                stack.shrink(1);
+                hasBread = true;
+                break;
+            }
+        }
+        if (!hasBread || !snapshot.addItem(new ItemStack(Items.EMERALD)).isEmpty())
+            return false;
+        ItemStack loaf = new ItemStack(Items.BREAD);
+        if (!customer.getInventory().add(loaf)) return false;
+        for (int i = 0; i < 36; i++) backpack.setItem(i, snapshot.getItem(i).copy());
+        backpack.setChanged();
+        payment.shrink(1);
+        memory.witness(level().getGameTime(), customer.getUUID(),
+            ResidentMemory.Kind.GIFT, blockPosition().toShortString());
+        journey.succeeded(LifeJourney.Achievement.BARTER);
+        setAction("sold 1 real bread for 1 emerald");
+        return true;
+    }
+
     @Override
     protected InteractionResult mobInteract(Player player, InteractionHand hand) {
         if (level().isClientSide) return InteractionResult.SUCCESS;
         ItemStack held = player.getItemInHand(hand);
+        if (profession == Profession.BAKER && held.is(Items.EMERALD)
+            && memory.trust(player.getUUID()) <= -25) {
+            player.displayClientMessage(Component.literal(getName().getString()
+                + " refuses to trade because of your past aggression."), false);
+            return InteractionResult.CONSUME;
+        }
+        if (sellBread(player, held)) {
+            player.displayClientMessage(Component.literal("Bought real bread for one emerald"), false);
+            return InteractionResult.CONSUME;
+        }
         if (!isOwnedBy(player)) {
             if (held.isEmpty()) {
                 memory.witness(level().getGameTime(), player.getUUID(),
@@ -252,6 +357,19 @@ public class PlayerNpcEntity extends PathfinderMob {
         if (ownerUuid != null) tag.putUUID("NpcOwner", ownerUuid);
         tag.putString("NpcMode", mode.name());
         tag.putString("NpcProfession", profession.name());
+        tag.putString("NpcNation", identity.nation().name());
+        tag.putString("NpcFaction", identity.faction().name());
+        tag.putString("NpcRegion", identity.region());
+        tag.putString("NpcLifeGoal", journey.goal().name());
+        tag.putInt("NpcGoalProgress", journey.progress());
+        if (supplyPos != null) tag.putLong("NpcSupplyPos", supplyPos.asLong());
+        if (escortLeader != null) tag.putUUID("NpcEscortLeader", escortLeader);
+        if (exploreTarget != null) tag.putLong("NpcExploreTarget", exploreTarget.asLong());
+        tag.putLongArray("NpcRecentChunks", recentChunks.stream().mapToLong(Long::longValue).toArray());
+        tag.putInt("NpcParcels", parcelsDelivered);
+        tag.putInt("NpcFormationSlot", formationSlot);
+        tag.putBoolean("NpcBuildEnabled", buildEnabled);
+        tag.putInt("NpcBuildCursor", buildCursor);
         tag.putInt("NpcDiligence", personality.diligence());
         tag.putInt("NpcSociability", personality.sociability());
         tag.putInt("NpcCaution", personality.caution());
@@ -295,6 +413,37 @@ public class PlayerNpcEntity extends PathfinderMob {
         }
         try { profession = Profession.valueOf(tag.getString("NpcProfession")); }
         catch (IllegalArgumentException ignored) { profession = Profession.RESIDENT; }
+        try {
+            identity = new SocietyRules.Identity(
+                SocietyRules.Nation.valueOf(tag.getString("NpcNation")),
+                SocietyRules.Faction.valueOf(tag.getString("NpcFaction")),
+                tag.getString("NpcRegion"));
+        } catch (IllegalArgumentException ignored) {
+            identity = SocietyRules.civilian("river");
+        }
+        try {
+            journey.restore(LifeJourney.Goal.valueOf(tag.getString("NpcLifeGoal")),
+                tag.getInt("NpcGoalProgress"));
+        } catch (IllegalArgumentException ignored) {
+            journey = new LifeJourney(LifeJourney.Goal.LIVE_PEACEFULLY);
+        }
+        supplyPos = tag.contains("NpcSupplyPos", Tag.TAG_LONG)
+            ? BlockPos.of(tag.getLong("NpcSupplyPos")) : null;
+        escortLeader = tag.hasUUID("NpcEscortLeader")
+            ? tag.getUUID("NpcEscortLeader") : null;
+        exploreTarget = tag.contains("NpcExploreTarget", Tag.TAG_LONG)
+            ? BlockPos.of(tag.getLong("NpcExploreTarget")) : null;
+        recentChunks.clear();
+        if (tag.contains("NpcRecentChunks", Tag.TAG_LONG_ARRAY)) {
+            for (long key : tag.getLongArray("NpcRecentChunks")) {
+                if (recentChunks.size() >= 64) break;
+                recentChunks.add(key);
+            }
+        }
+        parcelsDelivered = Math.max(0, tag.getInt("NpcParcels"));
+        formationSlot = Math.clamp(tag.getInt("NpcFormationSlot"), 0, 15);
+        buildEnabled = tag.getBoolean("NpcBuildEnabled");
+        buildCursor = Math.clamp(tag.getInt("NpcBuildCursor"), 0, 100);
         setPersonality(new LivingPlanner.Personality(
             Math.clamp(tag.contains("NpcDiligence") ? tag.getInt("NpcDiligence") : 50, 0, 100),
             Math.clamp(tag.contains("NpcSociability") ? tag.getInt("NpcSociability") : 50, 0, 100),

@@ -7,6 +7,13 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.core.BlockPos;
 import dev.reme.mcstudio.npc.life.LivingPlanner;
+import dev.reme.mcstudio.npc.life.SocietyRules;
+import dev.reme.mcstudio.npc.life.LifeJourney;
+import dev.reme.mcstudio.npc.life.SafeBuilder;
+import java.util.Locale;
+import net.minecraft.world.phys.HitResult;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.level.block.entity.ChestBlockEntity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.phys.AABB;
@@ -29,6 +36,36 @@ public final class NpcCommands {
             .then(Commands.literal("farmer").executes(ctx -> profession(ctx.getSource(), PlayerNpcEntity.Profession.FARMER)))
             .then(Commands.literal("baker").executes(ctx -> profession(ctx.getSource(), PlayerNpcEntity.Profession.BAKER)))
             .then(Commands.literal("resident").executes(ctx -> profession(ctx.getSource(), PlayerNpcEntity.Profession.RESIDENT)))
+            .then(Commands.literal("scout").executes(ctx -> profession(ctx.getSource(), PlayerNpcEntity.Profession.SCOUT)))
+            .then(Commands.literal("courier").executes(ctx -> profession(ctx.getSource(), PlayerNpcEntity.Profession.COURIER)))
+            .then(Commands.literal("guardjob").executes(ctx -> profession(ctx.getSource(), PlayerNpcEntity.Profession.GUARD)))
+            .then(Commands.literal("builder").executes(ctx -> profession(ctx.getSource(), PlayerNpcEntity.Profession.BUILDER)))
+            .then(Commands.literal("buildstart").requires(source -> source.hasPermission(2))
+                .executes(ctx -> construction(ctx.getSource(), true)))
+            .then(Commands.literal("buildstop").requires(source -> source.hasPermission(2))
+                .executes(ctx -> construction(ctx.getSource(), false)))
+            .then(Commands.literal("escort").executes(ctx -> escort(ctx.getSource(), true)))
+            .then(Commands.literal("unescort").executes(ctx -> escort(ctx.getSource(), false)))
+            .then(Commands.literal("squad").executes(ctx -> squad(ctx.getSource(), true)))
+            .then(Commands.literal("disband").executes(ctx -> squad(ctx.getSource(), false)))
+            .then(Commands.literal("setstore").requires(source -> source.hasPermission(2))
+                .executes(ctx -> setStore(ctx.getSource())))
+            .then(Commands.literal("nation").requires(source -> source.hasPermission(2))
+                .then(Commands.argument("id", StringArgumentType.word())
+                    .executes(ctx -> setIdentity(ctx.getSource(), "nation",
+                        StringArgumentType.getString(ctx, "id")))))
+            .then(Commands.literal("faction").requires(source -> source.hasPermission(2))
+                .then(Commands.argument("id", StringArgumentType.word())
+                    .executes(ctx -> setIdentity(ctx.getSource(), "faction",
+                        StringArgumentType.getString(ctx, "id")))))
+            .then(Commands.literal("region").requires(source -> source.hasPermission(2))
+                .then(Commands.argument("id", StringArgumentType.word())
+                    .executes(ctx -> setIdentity(ctx.getSource(), "region",
+                        StringArgumentType.getString(ctx, "id")))))
+            .then(Commands.literal("ambition")
+                .then(Commands.argument("id", StringArgumentType.word())
+                    .executes(ctx -> ambition(ctx.getSource(),
+                        StringArgumentType.getString(ctx, "id")))))
             .then(Commands.literal("sethome").executes(ctx -> anchor(ctx.getSource(), true)))
             .then(Commands.literal("setwork").executes(ctx -> anchor(ctx.getSource(), false)))
             .then(Commands.literal("follow").executes(ctx -> changeMode(ctx.getSource(), PlayerNpcEntity.Mode.FOLLOW)))
@@ -76,9 +113,26 @@ public final class NpcCommands {
             npc.backpack().addItem(new ItemStack(Items.BREAD, 4));
             npc.setPersonality(new LivingPlanner.Personality(
                 30 + i * 11, 80 - i * 9, 30 + i * 8));
-            npc.setProfession(i < 2 ? PlayerNpcEntity.Profession.FARMER
-                : i == 2 ? PlayerNpcEntity.Profession.BAKER
-                : PlayerNpcEntity.Profession.RESIDENT);
+            npc.setProfession(switch (i) {
+                case 0, 1 -> PlayerNpcEntity.Profession.FARMER;
+                case 2 -> PlayerNpcEntity.Profession.BAKER;
+                case 3 -> PlayerNpcEntity.Profession.GUARD;
+                case 4 -> PlayerNpcEntity.Profession.SCOUT;
+                default -> PlayerNpcEntity.Profession.COURIER;
+            });
+            SocietyRules.Faction demoFaction = switch (i) {
+                case 2, 5 -> SocietyRules.Faction.MERCHANTS;
+                case 3, 4 -> SocietyRules.Faction.RANGERS;
+                default -> SocietyRules.Faction.SETTLERS;
+            };
+            npc.setIdentity(new SocietyRules.Identity(SocietyRules.Nation.COMMONWEALTH,
+                demoFaction, "river"));
+            npc.journey().setGoal(switch (i) {
+                case 0, 1 -> LifeJourney.Goal.FEED_COMMUNITY;
+                case 2, 5 -> LifeJourney.Goal.ESTABLISH_TRADE;
+                case 3 -> LifeJourney.Goal.DEFEND_SETTLEMENT;
+                default -> LifeJourney.Goal.EXPLORE_LANDS;
+            });
             int dx = (i % 3) * 3 - 3;
             int dz = (i / 3) * 3 + 3;
             BlockPos spawn = player.blockPosition().offset(dx, 0, dz);
@@ -90,7 +144,7 @@ public final class NpcCommands {
         }
         final int count = created;
         source.sendSuccess(() -> Component.literal("Created " + count +
-            " autonomous residents (2 farmers, 1 baker). Plant wheat and put a crafting table near the bakery anchor; place mature crops near center to test real harvesting. No terrain was changed."), true);
+            " autonomous residents (2 farmers, baker, guard, scout, courier). Plant wheat and put a crafting table near the bakery anchor; place mature crops near center to test real harvesting. No terrain was changed."), true);
         return created;
     }
 
@@ -122,6 +176,132 @@ public final class NpcCommands {
             + (home ? " home" : " workplace")
             + " = " + player.blockPosition().toShortString()), false);
         return 1;
+    }
+
+
+    private static int construction(CommandSourceStack source, boolean start)
+        throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        ServerPlayer player = source.getPlayerOrException();
+        PlayerNpcEntity npc = closestOwnedNpc(player);
+        if (npc == null) return 0;
+        if (!start) {
+            npc.setBuildEnabled(false);
+            source.sendSuccess(() -> Component.literal("Construction paused"), false);
+            return 1;
+        }
+        if (!SafeBuilder.validateSite(player.serverLevel(), npc.workPos())) {
+            source.sendFailure(Component.literal("Build site must be loaded and empty: 5x5 x 3, no entities inside"));
+            return 0;
+        }
+        npc.setProfession(PlayerNpcEntity.Profession.BUILDER);
+        npc.resetBuildCursor();
+        npc.setBuildEnabled(true);
+        npc.setMode(PlayerNpcEntity.Mode.LIVE);
+        source.sendSuccess(() -> Component.literal("Started consented 5x5 shelter build at " +
+            npc.workPos().toShortString() + "; uses actual cobblestone/planks, cannot clear blocks"), true);
+        return 1;
+    }
+
+    private static int setStore(CommandSourceStack source)
+        throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        ServerPlayer player = source.getPlayerOrException();
+        PlayerNpcEntity npc = closestOwnedNpc(player);
+        if (npc == null) {
+            source.sendFailure(Component.literal("No owned NPC within 16 blocks"));
+            return 0;
+        }
+        HitResult hit = player.pick(6.0D, 0.0F, false);
+        if (!(hit instanceof BlockHitResult block) ||
+            !(player.serverLevel().getBlockEntity(block.getBlockPos()) instanceof ChestBlockEntity)) {
+            source.sendFailure(Component.literal("Look at a loaded vanilla chest within 6 blocks"));
+            return 0;
+        }
+        npc.setSupplyPos(block.getBlockPos());
+        source.sendSuccess(() -> Component.literal("Assigned chest to " + npc.getName().getString() +
+            ": " + block.getBlockPos().toShortString() + " (operator opt-in)"), false);
+        return 1;
+    }
+
+    private static int squad(CommandSourceStack source, boolean assemble)
+        throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        ServerPlayer player = source.getPlayerOrException();
+        var nearby = player.level().getEntitiesOfClass(PlayerNpcEntity.class,
+            player.getBoundingBox().inflate(16), npc -> npc.isOwnedBy(player) &&
+            (npc.profession() == PlayerNpcEntity.Profession.GUARD ||
+             npc.profession() == PlayerNpcEntity.Profession.SCOUT));
+        nearby.sort(Comparator.comparingDouble(player::distanceToSqr));
+        int number = 0;
+        for (PlayerNpcEntity npc : nearby) {
+            if (number >= 9) break;
+            npc.setEscortLeader(assemble ? player.getUUID() : null);
+            npc.setFormationSlot(number);
+            if (assemble) npc.setMode(PlayerNpcEntity.Mode.LIVE);
+            number++;
+        }
+        int total = number;
+        source.sendSuccess(() -> Component.literal((assemble ?
+            "Squad assembled: " : "Squad disbanded: ") + total +
+            " guards/scouts in 16-block radius"), false);
+        return number;
+    }
+
+    private static int escort(CommandSourceStack source, boolean enabled)
+        throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        ServerPlayer player = source.getPlayerOrException();
+        PlayerNpcEntity npc = closestOwnedNpc(player);
+        if (npc == null) return 0;
+        npc.setEscortLeader(enabled ? player.getUUID() : null);
+        if (enabled) {
+            npc.setProfession(PlayerNpcEntity.Profession.GUARD);
+            npc.setMode(PlayerNpcEntity.Mode.LIVE);
+        }
+        source.sendSuccess(() -> Component.literal(npc.getName().getString()
+            + (enabled ? " escorting you" : " escort ended")), false);
+        return 1;
+    }
+
+    private static int setIdentity(CommandSourceStack source, String kind, String input)
+        throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        ServerPlayer player = source.getPlayerOrException();
+        PlayerNpcEntity npc = closestOwnedNpc(player);
+        if (npc == null) return 0;
+        SocietyRules.Identity before = npc.identity();
+        try {
+            String name = input.toUpperCase(Locale.ROOT);
+            SocietyRules.Identity next = switch (kind) {
+                case "nation" -> new SocietyRules.Identity(
+                    SocietyRules.Nation.valueOf(name), before.faction(), before.region());
+                case "faction" -> new SocietyRules.Identity(
+                    before.nation(), SocietyRules.Faction.valueOf(name), before.region());
+                case "region" -> new SocietyRules.Identity(
+                    before.nation(), before.faction(), input.toLowerCase(Locale.ROOT));
+                default -> before;
+            };
+            npc.setIdentity(next);
+            source.sendSuccess(() -> Component.literal(npc.getName().getString() +
+                " society: " + next), false);
+            return 1;
+        } catch (IllegalArgumentException invalid) {
+            source.sendFailure(Component.literal("Invalid affiliation: " + input +
+                " (nations COMMONWEALTH/FRONTIER/OUTLANDS; factions SETTLERS/MERCHANTS/RANGERS/RAIDERS)"));
+            return 0;
+        }
+    }
+
+    private static int ambition(CommandSourceStack source, String input)
+        throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        PlayerNpcEntity npc = closestOwnedNpc(source.getPlayerOrException());
+        if (npc == null) return 0;
+        try {
+            LifeJourney.Goal goal = LifeJourney.Goal.valueOf(input.toUpperCase(Locale.ROOT));
+            npc.journey().setGoal(goal);
+            source.sendSuccess(() -> Component.literal(npc.getName().getString()
+                + " now aspires to " + goal), false);
+            return 1;
+        } catch (IllegalArgumentException invalid) {
+            source.sendFailure(Component.literal("Invalid life goal. Use FEED_COMMUNITY, ESTABLISH_TRADE, EXPLORE_LANDS, DEFEND_SETTLEMENT, BUILD_A_HOME or LIVE_PEACEFULLY"));
+            return 0;
+        }
     }
 
     private static PlayerNpcEntity closestOwnedNpc(ServerPlayer player) {
@@ -161,6 +341,11 @@ public final class NpcCommands {
             + " | intent " + npc.intent() + " (" + npc.intentReason() + ")"
             + " | action " + npc.lastAction()
             + " | trust " + npc.memory().trust(player.getUUID())
+            + " | " + npc.identity().nation() + "/" + npc.identity().faction()
+            + "@" + npc.identity().region() + " | dream " + npc.journey().goal()
+            + " " + npc.journey().progress() + "%"
+            + " | supply " + (npc.supplyPos() == null ? "none" : npc.supplyPos().toShortString())
+            + " | delivered " + npc.parcelsDelivered()
             + " | backpack " + used + "/36 slots"), false);
         return 1;
     }

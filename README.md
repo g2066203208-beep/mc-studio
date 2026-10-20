@@ -71,3 +71,8 @@ bash scripts/build.sh
 ## Living World NPC 0.2（实验分支）
 
 已经把 LivingPlanner 与 ResidentMemory 连接到 NPC 实体的服务端 Tick，新增现实资源农田与面包生产/交换、测试六人村庄、个性与持久化。命令、需要准备的原版农田、已知缺失详见 [测试说明](docs/LIVING_WORLD_PLAYTEST.md)。编译证据见 [GitHub Actions 39457871574](https://github.com/g2066203208-beep/mc-studio/actions/runs/39457871574)。**仍需游戏内运行验证；不要用于正式存档。**
+
+
+## Society v0.3 (独立实验分支)
+
+国家/派系/地区、人生目标、道路偏好、守卫护送、侦察员收集、原版箱子物流、商品交换和管理员授权的小屋施工已作为**实验功能**加入 `feature/living-world-society-v03`。指令与限制详见 [Society v0.3 指南](docs/SOCIETY_V03.md)。未经实机和整合包测试，不部署正式存档。
