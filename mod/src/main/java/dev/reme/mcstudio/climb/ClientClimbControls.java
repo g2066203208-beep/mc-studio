@@ -102,7 +102,7 @@ public final class ClientClimbControls {
         ClimbState state = ClimbState.of(mc.player);
         if (state.gripping() || leftUsingItem) {
             if (state.right != null) mc.options.keyUse.setDown(false);
-            if (leftUsingItem) mc.options.keyAttack.setDown(false);
+            if (leftUsingItem || state.left != null) mc.options.keyAttack.setDown(false);
             sendGrip(-1, false, true);
         }
     }
