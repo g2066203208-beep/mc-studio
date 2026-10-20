@@ -18,7 +18,7 @@ public final class ClimbRuntime {
             s.release();
             return;
         }
-        // One left mouse button (LMB) drives the whole climbing interaction.
+        // One right mouse button (RMB) drives the whole climbing interaction.
         s.peakHeld = down;
         s.forward = forward;
         s.strafe = strafe;
@@ -28,7 +28,7 @@ public final class ClimbRuntime {
             s.release();
             return;
         }
-        if (!s.enabled && s.stamina > 0) {
+        if (!s.enabled) {
             GripAnchor hit = SurfaceProbe.trace(player);
             if (PeakGripRules.mayGrab(player, hit)) {
                 s.left = hit;
