@@ -10,7 +10,7 @@ import net.minecraft.world.phys.Vec3;
  * This is an experimental constraint controller, NOT a fully simulated Rapier body.
  */
 public final class ClimbMotion {
-    private static final double ARM_LENGTH = 1.85;
+    private static final double ARM_LENGTH = GripRules.MAX_EXTENSION;
     private static final double MAX_SPEED = 0.33;
     private static final double MAX_ANCHOR_TRAVEL_PER_TICK = 1.5;
     private ClimbMotion() {}
@@ -33,7 +33,7 @@ public final class ClimbMotion {
         if (a != null) {
             if (s.lastLeft != Vec3.ZERO) {
                 Vec3 motion = a.point().subtract(s.lastLeft);
-                if (motion.length() > MAX_ANCHOR_TRAVEL_PER_TICK) {
+                if (GripRules.snapTooFar(motion.length())) {
                     s.left = null; a = null;
                 } else { movedByStructure = movedByStructure.add(motion); movingAnchors++; }
             }
@@ -73,8 +73,8 @@ public final class ClimbMotion {
         if (a != null) velocity = constrain(velocity, a.point().subtract(shoulder));
         if (b != null) velocity = constrain(velocity, b.point().subtract(shoulder));
         double speed = velocity.length();
-        if (speed > MAX_SPEED + movedByStructure.length()) {
-            velocity = velocity.scale((MAX_SPEED + movedByStructure.length()) / speed);
+        if (speed > GripRules.allowedSpeed(movedByStructure.length())) {
+            velocity = velocity.scale(GripRules.allowedSpeed(movedByStructure.length()) / speed);
         }
         player.setDeltaMovement(velocity);
         // A held grip prevents accumulated landing fall damage, not gravity itself.
@@ -90,7 +90,7 @@ public final class ClimbMotion {
             // Subtract outward velocity to stop a hand from extending forever.
             double outward = -velocity.dot(inward);
             if (outward > 0) velocity = velocity.add(inward.scale(outward));
-            return velocity.add(inward.scale(Math.min(0.20, (distance - ARM_LENGTH) * 0.40)));
+            return velocity.add(inward.scale(GripRules.inwardCorrection(distance)));
         }
         return velocity;
     }
