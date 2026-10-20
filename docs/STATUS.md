@@ -46,3 +46,10 @@ Gradle 报告使用了将来不兼容 Gradle 10 的弃用功能；当前固定 W
 - 添加 `reme_studio:player_npc`，详见 `docs/NPC_V1.md`。
 - 编译：首轮 Actions `39453134471` 因错误注册 API 失败；修复后 **Actions `39453494702` push 构建 SUCCESS，Actions `39453501071` PR 构建 SUCCESS**。构建验证提交 `b51773ecebda40705fc54009baa40aee80f34e0e`，产物 `12279378797`，JAR `reme_studio-0.1.0-dev.jar`。编译 != 游戏内实测。
 - 运行：客户端、独立服务器、222 Mod 整合包 **均未测试**。正式世界 **未部署**。
+
+
+## 2026-10-21 NPC 目标调整
+
+- 用户明确否定「听命跟随的人形 NPC」是终点，现阶段 JAR 仅作实体/渲染/背包基础组件。
+- 已研究 Stardew NPC schedule、RDR2 contextual interactions、Skyrim AI packages，以及 MCA Reborn、MineColonies、VillAIgence 三个开源代码库；记录在 `docs/LIVING_WORLD_DESIGN.md`。
+- 生活模拟功能 **尚未通过游戏内验收**。工作重点转为自主生存/工作、需求/关系/情境、世界事件因果链、离线模拟及性能；不再把跟随功能作为“活 NPC”里程碑。
