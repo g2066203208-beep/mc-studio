@@ -25,10 +25,11 @@ public final class ClimbRuntime {
         if (lunge && !s.lastLungeKey) s.lungeRequested = true;
         s.lastLungeKey = lunge;
         if (!down) {
+            s.mantleRequiresRelease = false;
             s.release();
             return;
         }
-        if (!s.enabled) {
+        if (!s.enabled && !s.mantleRequiresRelease) {
             GripAnchor hit = SurfaceProbe.trace(player);
             if (PeakGripRules.mayGrab(player, hit)) {
                 s.left = hit;
