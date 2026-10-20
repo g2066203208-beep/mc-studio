@@ -73,3 +73,10 @@ GitHub 是整个 Minecraft 工作室的开发中心。代码、需求、研究�
 ## 2026-10-21 社会系统 0.3 开发交接
 
 新分支 `feature/living-world-society-v03` 基于 `feature/player-npc-v1` HEAD aff1ad4a4d0baeb9bbd9641185c154791fbff5d8。参见 `docs/SOCIETY_V03.md`。实现 Nation / Faction / Region、LifeJourney、局部道路偏好、守卫护送、侦察员探索/拾取、绑定箱子物流、面包师对玩家实际售货、需管理员确认并使用材料的小屋建造。只读后才能接手，注意原型未做实机验证；不可宣称采矿/钓鱼已完成。
+
+
+## 2026-10-21 v0.3 后续接手
+
+- 独立开发 PR #12（base `feature/player-npc-v1`），任务分支 `feature/living-world-society-v03`。功能增加三列 `/npc squad` 小队编队、`/npc disband`、运输员农田→箱子真实货物、敌对阵营禁交易、负面记忆触发面包师拒售。
+- 未完成采矿/钓鱼/真正领土外交/离屏模拟已创建 Issue #13，生产级世界编辑要按 NeoForge 的 player block event + protection 检查执行。
+- **无真正客户端/服务器运行证据**，只有 CI 源码编译和纯 Java 测试。下一会话先核对 PR #12 的 Actions 与 artifact，再做独立世界实机测试。
