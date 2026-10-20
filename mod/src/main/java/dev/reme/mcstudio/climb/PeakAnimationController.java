@@ -44,7 +44,10 @@ public final class PeakAnimationController {
     private static final int ASCEND = 1;
     private static final int TRAVERSE = 2;
     private static final int MANTLE = 3;
-    private static final int RELEASE = 4;
+    private static final int RELEASE = 7;
+    private static final int CEILING_HANG = 4;
+    private static final int CEILING_CRAWL = 5;
+    private static final int CEILING_TRAVERSE = 6;
     private static boolean warnedMissing;
 
     private static final class Playback {
@@ -82,9 +85,9 @@ public final class PeakAnimationController {
             ModifierLayer<IAnimation> layer = (ModifierLayer<IAnimation>) raw;
             Playback playback = PLAYBACKS.computeIfAbsent(client, ignored -> new Playback());
             PeakVisuals.Pose state = PeakVisuals.pose(client);
-            int desired = state == null ? NONE : Math.min(MANTLE, Math.max(HANG, state.action()));
+            int desired = state == null ? NONE : Math.min(CEILING_TRAVERSE, Math.max(HANG, state.action()));
 
-            if (desired == NONE && playback.mode >= HANG && playback.mode <= MANTLE) {
+            if (desired == NONE && playback.mode >= HANG && playback.mode <= CEILING_TRAVERSE) {
                 swap(layer, RELEASE);
                 playback.mode = RELEASE;
                 playback.releaseUntil = client.tickCount + 9;
@@ -106,6 +109,9 @@ public final class PeakAnimationController {
             case ASCEND -> "peak_ascend";
             case TRAVERSE -> "peak_traverse";
             case MANTLE -> "peak_mantle";
+            case CEILING_HANG -> "peak_ceiling_hang";
+            case CEILING_CRAWL -> "peak_ceiling_crawl";
+            case CEILING_TRAVERSE -> "peak_ceiling_traverse";
             case RELEASE -> "peak_release";
             default -> "peak_hang";
         };
