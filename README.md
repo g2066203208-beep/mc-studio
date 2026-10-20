@@ -74,3 +74,14 @@ bash scripts/build.sh
 ## Sable Hands alpha 最新构建
 
 已提交 0.2.0-alpha.1 双手独立抓握代码和轻量原版手臂姿态，完整证据在 [Actions 39409432696](https://github.com/g2066203208-beep/mc-studio/actions/runs/39409432696)。Java/JUnit、普通 Minecraft GameTest 2/2 和带 Sable 2.0.6 的集成 GameTest 2/2 均通过。具体可安装 JAR 从该运行的 Artifacts 获取。功能仍在 [Draft PR #3](https://github.com/g2066203208-beep/mc-studio/pull/3)，动态运动船体与游戏画面未实机验收，不要安装到正式存档。
+
+
+## PEAK 风格攀爬重构 0.4.0-peak.alpha.1（实验版）
+
+**新功能 PR #5：** https://github.com/g2066203208-beep/mc-studio/pull/5
+
+用户否定了旧 G 切换模式、左右手点击锁定、未伸向墙壁的动画。新方案参照 PEAK：空主手靠近墙壁 **按住左键抓握，WASD 攀爬，Shift 冲跃，松开左键下落**；右键保留原版物品操作；状态包含体力条、自动更新抓点、原版第一人称双臂与第三人称 Steve/Alex 双臂动画、附近玩家网络状态同步。仍保留 Sable Companion 动态子世界探针，不替换玩家皮肤或使用 PEAK 资产。
+
+[玩法与开源参考、验收清单](docs/climbing/PEAK_RESEARCH_AND_ACCEPTANCE.md)。
+
+已确认 `0.4.0-peak.alpha.1` 第一版源代码（git e90e02d... 后加清理与 HUD）通过 Java/JUnit/标准 Minecraft GameTest 3/3/真实 Sable 2.0.6 GameTest 3/3，证据：[Actions 39419885573](https://github.com/g2066203208-beep/mc-studio/actions/runs/39419885573)。GitHub 图形客户端启动实验还需以最新 Actions 结果为准。**没有实机试玩、真实运动/旋转 Sable 船体攀爬或第三人称截图验收，禁止宣称已完全复刻。**

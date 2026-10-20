@@ -11,40 +11,28 @@ import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.client.event.RenderHandEvent;
 
 /**
- * Only transforms Minecraft's existing blocky hands when they are already
- * rendered. No new models, textures or animation dependency.
- *
- * Vanilla may omit rendering an empty offhand. This class does not attempt
- * to replace the renderer or force offhand draw calls.
+ * Animates actual vanilla Steve/Alex hands: extend toward the forward wall;
+ * alternating reach comes from actual held-grip movement phase.
  */
 @EventBusSubscriber(modid = StudioMod.MOD_ID, value = Dist.CLIENT)
 public final class VanillaGripHands {
-    private static float leftBlend;
-    private static float rightBlend;
     private VanillaGripHands() {}
 
     @SubscribeEvent
-    public static void onRender(RenderHandEvent event) {
-        Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.player == null) {
-            leftBlend = 0;
-            rightBlend = 0;
-            return;
-        }
+    public static void onRender(RenderHandEvent e) {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.player == null) return;
+        PeakVisuals.Pose state = PeakVisuals.pose(mc.player);
+        if (state == null || !state.climbing()) return;
 
-        boolean mainHandLeft = minecraft.options.mainHand().get() == HumanoidArm.LEFT;
-        boolean leftHand = (event.getHand() == InteractionHand.MAIN_HAND) == mainHandLeft;
-        ClimbState state = ClimbState.of(minecraft.player);
-        boolean hasGrip = state.enabled && (leftHand ? state.left != null : state.right != null);
-        float previous = leftHand ? leftBlend : rightBlend;
-        float blend = previous + (hasGrip ? 1.0f - previous : -previous) * 0.28f;
-        if (leftHand) leftBlend = blend;
-        else rightBlend = blend;
-        if (blend <= 0.005f) return;
-
-        double mirror = leftHand ? -1 : 1;
-        event.getPoseStack().translate(mirror * 0.07 * blend, 0.17 * blend, -0.20 * blend);
-        event.getPoseStack().mulPose(Axis.XP.rotationDegrees(-25.0f * blend));
-        event.getPoseStack().mulPose(Axis.ZP.rotationDegrees((float) (-mirror * 9.0 * blend)));
+        boolean mainLeft = mc.options.mainHand().get() == HumanoidArm.LEFT;
+        boolean left = (e.getHand() == InteractionHand.MAIN_HAND) == mainLeft;
+        float stride = (float) Math.sin(state.phase() * 7f + (left ? Math.PI : 0));
+        float lift = 0.5f + stride * 0.5f;
+        float sign = left ? -1 : 1;
+        e.getPoseStack().translate(-sign * (0.14 + 0.14 * lift), 0.03 + 0.18 * lift, -0.63 - 0.19 * lift);
+        e.getPoseStack().mulPose(Axis.XP.rotationDegrees(-55 - 29 * lift));
+        e.getPoseStack().mulPose(Axis.YP.rotationDegrees(sign * 16));
+        e.getPoseStack().mulPose(Axis.ZP.rotationDegrees(-sign * (12 + 8 * lift)));
     }
 }

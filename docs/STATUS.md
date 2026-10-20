@@ -63,3 +63,14 @@ GitHub Actions: https://github.com/g2066203208-beep/mc-studio/actions/runs/39409
   - Sable 物理 Mod 运行日志: https://github.com/g2066203208-beep/mc-studio/actions/runs/39409432696/artifacts/12258772673
 - Sable 单独运行日志中出现 create:flywheel 方块未知的错误级别日志（该最小测试环境未加载 Create），但物理场景和测试均正常完成；后续整合包环境单独核查。
 - **尚未完成真实客户端图形游玩、手臂在第一人称的外观检查、动态 Sable 子世界中的旋转/平移抓取、双人 dedicated server、正式整合包兼容。** CI 绿灯不是这些验收的替代证明。
+
+
+## PEAK 攀爬重构状态（2026-10-20）
+
+- 研发主分支候选：`feat/peak-climb-mvp`，Draft PR #5 https://github.com/g2066203208-beep/mc-studio/pull/5 ，base 为旧 V2 功能分支。主线 main 不变，旧 PR #3/#4 不再作为正式攀爬方案。
+- 玩法按真实 PEAK：按住 LMB 抓墙、WASD、松开掉落、Shift 冲跃、体力消耗与回复。代码涉及 ClimbRuntime/ClimbMotion/PeakGripRules/ClientClimbControls/PeakVisuals/VanillaGripHands/PeakStaminaHud。
+- 原版方块手臂保持原纹理及模型：新增 PeakPlayerModelMixin（第三人称手臂、袖子、腿）以及 PeakFirstPersonHandsMixin（试图绘制空副手）、通过 S2C Pose 告知其他玩家。
+- 已确认源代码构建/单测通过；运行 [Actions 39419885573](https://github.com/g2066203208-beep/mc-studio/actions/runs/39419885573) 报告常规 GameTest 3/3 与 Sable 2.0.6 + Rapier 集成 GameTest 3/3 通过。
+- 又增加图形客户端 Xvfb + Mesa 软件渲染 startup smoke job，**请以最终分支 HEAD 对应运行的各项状态为准**，不能沿用早期通过报告。
+- 缺少：实际第一人称双臂显示截图、第三人称 F5 动作画面、连续爬高墙与爬上平台手感、真实 Sable 动态结构移动/旋转、双人服务器、完整 Create/Aeronautics/TFC 整合包。
+- 不进入正式发布、不修改用户游戏存档、不合并 main，直到上面关键实机验收完成。

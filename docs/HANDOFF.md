@@ -88,3 +88,17 @@ GitHub Actions: https://github.com/g2066203208-beep/mc-studio/actions/runs/39409
 用户反馈：已装载 Sable 2.0.6 和 REME 0.2.0-alpha.1，但 G 模式繁琐，第一人称只是手臂偏移、没有向前伸；第三人称完全没有攀爬动作。希望点击一次右键锁定右手抓墙，再点击左键锁定左手；同时能够右手抓墙悬挂、左手取出手枪并单手瞄准射击。相较纯 PEAK 或 White Knuckle，确定采用独立双手抓握核心 + 流畅辅助移动 + 点击锁定/按手物品优先。
 
 完整取代旧输入和渲染的**新目标文档**：[docs/climbing/HAND_INTERACTION_V2.md](climbing/HAND_INTERACTION_V2.md)。已追加入口到 SPEC.md 与 DEV_PROMPT.md。上一轮 0.2.0-alpha.1 的 Java/JUnit 和 Sable GameTests 通过，但**没有任何 V2 代码或枪械/第一第三人称效果的验收**，千万不可将这些指标混为一谈。下一开发阶段先修正常控制冲突、左右手状态、第一人称实际伸手和第三人称同步；再对用户指定枪械进行独立适配，旧 PR #3 保持 Draft。
+
+
+## PEAK Climbing 最新接手指令（2026-10-20，优先于旧双手/弓方案）
+
+用户明确表示 0.2/0.3 alpha 的左右手点按、没有前伸手臂和第三人称动画“反人类”，决定**先完全参考 PEAK 的攀爬操作**，不再实施单手手枪/弓箭作为第一开发优先级。
+
+- 现行开发分支：`feat/peak-climb-mvp`，Draft PR #5 https://github.com/g2066203208-beep/mc-studio/pull/5 。
+- 真实操作：主手空手时，墙前**按住左键抓住、WASD 移动、Shift 单次冲跃、松开左键立即放手、右键保留原版使用**。全方向方块探针仍由 SurfaceProbe/Sable Companion 支撑。不要重新恢复 G 切换模式/左右键各控制一只手/弓箭左键开火协议。
+- 新实现：ClientClimbControls、ClimbRuntime、ClimbMotion、PeakGripRules（体力）、PeakStaminaHud（HUD）、PeakVisuals + ClimbNetwork.Pose（同步其他人动画）、PeakPlayerModelMixin（F5 玩家模型手臂、腿和袖子）、PeakFirstPersonHandsMixin（空副手原版手臂补绘）、VanillaGripHands（第一人称前伸/交替）。
+- 源码参考与许可证及具体手感要求：docs/climbing/PEAK_RESEARCH_AND_ACCEPTANCE.md。
+- 版本 0.4.0-peak.alpha.1 的初版测试已过 Java/JUnit、普通 Minecraft GameTest 3/3、Sable 2.0.6 + Rapier GameTest 3/3，记录在 Actions https://github.com/g2066203208-beep/mc-studio/actions/runs/39419885573 。
+- 图形客户端 Xvfb + Mesa 的 runClient smoke 测试由后续提交新增；**必须重新检查 PR #5 最新 HEAD 的 CI 结果**。即使启动成功，也无法取代人工第一人称与 F5 可视化测试。
+- 下一步：修复所有 client mixin 崩溃，验收原版手臂是否看得到且贴近墙、脚随运动、放手动作；增加连续跨多个方块且可攀上墙顶的实际测试；创建旋转 Sable Sub-level 测试并优化 Sable tracking；最后进行双人 dedicated server。
+- 主线 main、用户 mods 与正式存档均未被改动；不要把已有普通 GameTests 的成功当作真实动船攀爬或完全复刻 PEAK 的证据。

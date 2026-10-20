@@ -1,0 +1,12 @@
+{
+  "required": true,
+  "package": "dev.reme.mcstudio.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "client": [
+    "PeakPlayerModelMixin",
+    "PeakFirstPersonHandsMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
