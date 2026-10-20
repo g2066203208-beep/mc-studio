@@ -7,6 +7,10 @@ import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
@@ -65,13 +69,27 @@ public final class ClimbGameTests {
         ClimbRuntime.accept(mock, 2, 1, true, true, 0, 0);
         helper.assertTrue(state.left != null && state.right != null, "Both hands cannot grip at once");
 
-        ClimbRuntime.accept(mock, 3, 0, false, true, 0, 0);
+        ClimbRuntime.accept(mock, 3, 0, true, true, 0, 0);
         helper.assertTrue(state.left == null && state.right != null,
                 "Releasing left hand also released right");
 
-        ClimbRuntime.accept(mock, 4, 0, false, true, 0, 0);
+        ClimbRuntime.accept(mock, 4, -1, false, true, 0, 0);
         helper.assertTrue(state.right != null, "Releasing an already-free hand changed the held grip");
 
+        // The occupied left hand must not steal or break the right hand grip.
+        mock.setItemInHand(InteractionHand.OFF_HAND, new ItemStack(Items.BOW));
+        ClimbRuntime.accept(mock, 5, 0, true, true, 0, 0);
+        helper.assertTrue(state.left == null && state.right != null,
+                "Attempting to grip with a bow in the left hand changed anchors");
+        if (mock instanceof ServerPlayer player) {
+            // Bow draw uses the native game mode use item pipeline, not a fake projectile.
+            OffhandActions.accept(player, 6, true);
+            helper.assertTrue(state.right != null && player.isUsingItem(),
+                    "Offhand bow failed to start drawing while right hand gripped");
+            OffhandActions.accept(player, 7, false);
+            helper.assertTrue(!state.usingLeftItem && state.right != null,
+                    "Bow release incorrectly removed right hand grip");
+        }
         // Removing the actual block invalidates the remaining anchor.
         helper.setBlock(wall, Blocks.AIR);
         ClimbMotion.tick(mock, state);
