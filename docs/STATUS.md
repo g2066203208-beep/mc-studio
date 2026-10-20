@@ -61,3 +61,11 @@ Gradle 报告使用了将来不兼容 Gradle 10 的弃用功能；当前固定 W
 - `scripts/test-living-planner.sh`：独立 Java 21 断言 **通过**，已经纳入 Actions。
 - Github Actions [39455827090](https://github.com/g2066203208-beep/mc-studio/actions/runs/39455827090) **Build SUCCESS**。曾有一次测试发现配置引发的编译流水线失败 `39455501797`，通过将不使用 JUnit 的独立断言移至 `scripts/living-tests/` 修复。
 - **核心决策/记忆类尚未连入 NPC 实体。不能称为 NPC 已自主生活、已生产、已有跨存档关系，也未做游戏内实测。**
+
+
+## 活世界 0.2 实体执行层（2026-10-21）
+
+- `feature/player-npc-v1` 新增真正的服务端居民日常操作：需求/天气/威胁决策、避险、带库存吃饭、回家休息、真实农田收割并消费补种种子、面包师工作台制作和与农民面对面交易、双向社会事件、个性和 NBT 恢复。
+- 已验证 [push GitHub Actions 39457871574](https://github.com/g2066203208-beep/mc-studio/actions/runs/39457871574) SUCCESS 和 [PR run 39457879491](https://github.com/g2066203208-beep/mc-studio/actions/runs/39457879491) SUCCESS。构建源提交 b27de8cff1f4b7f222255d5adea94038ea4d0634，artifact ID 12281113336。
+- 检查 JAR 类与 neoforge.mods.toml 已包含。
+- 仍未完成实机游戏内验证、主线建筑/商人等职业、离线 NPC 演算、领地保护 API；真正的日常生活效果和存档重载效果尚未得到实机证明。

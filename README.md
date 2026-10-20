@@ -66,3 +66,8 @@ bash scripts/build.sh
 ## 活世界 NPC（新方向）
 
 当前已研究 [Living-world design](docs/LIVING_WORLD_DESIGN.md) 并在 `feature/player-npc-v1` 分支添加独立 Java 的需求规划与事件记忆基础逻辑及自动验证，跟踪 [Issue #11](https://github.com/g2066203208-beep/mc-studio/issues/11) 和 [PR #10](https://github.com/g2066203208-beep/mc-studio/pull/10)。**上述决策内核尚未连接游戏内 NPC；旧 NPC JAR 不是“活的世界 NPC”**。研究参见 MCA、MineColonies、VillAIgence（均须遵守各自许可证，未复制代码）。
+
+
+## Living World NPC 0.2（实验分支）
+
+已经把 LivingPlanner 与 ResidentMemory 连接到 NPC 实体的服务端 Tick，新增现实资源农田与面包生产/交换、测试六人村庄、个性与持久化。命令、需要准备的原版农田、已知缺失详见 [测试说明](docs/LIVING_WORLD_PLAYTEST.md)。编译证据见 [GitHub Actions 39457871574](https://github.com/g2066203208-beep/mc-studio/actions/runs/39457871574)。**仍需游戏内运行验证；不要用于正式存档。**
