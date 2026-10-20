@@ -124,6 +124,8 @@ configurations {
 }
 
 dependencies {
+    // Separate required player-animation Mod; never bundle/shade the API JAR.
+    implementation('maven.modrinth:gedNE4y2:HJZB6bmA') { transitive = false }
     // The real Sable JAR (including its embedded Rapier/Veil libraries) is used
     // only for -PwithSable GameTest runs; never bundled into our published JAR.
     if (project.hasProperty('withSable')) {
@@ -131,6 +133,10 @@ dependencies {
     }
 
     testImplementation 'org.junit.jupiter:junit-jupiter:5.11.4'
+    // Player Animator's codec uses Minecraft's SLF4J and Gson at runtime;
+    // plain JUnit does not receive the game's bundled library classpath.
+    testImplementation 'org.slf4j:slf4j-api:2.0.9'
+    testImplementation 'com.google.code.gson:gson:2.10.1'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 
     // Lightweight Sable interoperability API; included so plain MC worlds also work.

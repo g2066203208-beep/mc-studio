@@ -83,6 +83,47 @@ public final class ClimbGameTests {
         helper.succeed();
     }
 
+    @GameTest(template="climb_test", timeoutTicks=80)
+    public static void physicalMantleChecksCollisionAndRelease(GameTestHelper helper) {
+        BlockPos wall = new BlockPos(3,3,5);
+        helper.setBlock(wall, Blocks.STONE);
+        Player player = helper.makeMockPlayer(GameType.CREATIVE);
+        BlockPos origin = helper.absolutePos(new BlockPos(3,2,3));
+        player.moveTo(origin.getX()+0.5, origin.getY()+0.95,
+                origin.getZ()+0.5, 0, 0);
+        BlockPos absoluteWall = helper.absolutePos(wall);
+        GripAnchor grip = new GripAnchor(null, absoluteWall,
+                new Vec3(absoluteWall.getX()+0.5,absoluteWall.getY()+0.8,absoluteWall.getZ()),
+                new Vec3(0,0,-1));
+        ClimbState.remove(player);
+        ClimbState state = ClimbState.of(player);
+        state.left = grip;
+        state.peakHeld = true;
+        state.enabled = true;
+        state.forward = 1f;
+        GripAnchor.Contact contact = grip.resolve(player.level());
+        helper.assertTrue(contact != null, "The wall contact must be valid");
+        helper.setBlock(wall.above(), Blocks.STONE);
+        helper.assertTrue(!PeakLedgeAssist.start(player,state,contact),
+                "Cannot mantle if the ledge is obstructed above");
+        helper.setBlock(wall.above(), Blocks.AIR);
+        helper.assertTrue(PeakLedgeAssist.start(player,state,contact),
+                "Clear ledge should initiate PEAK mantle");
+        helper.assertTrue(state.poseAction == 3 && state.mantleTicks == PeakLedgeAssist.DURATION,
+                "Mantle must synchronize animation action to clients");
+        PeakLedgeAssist.tick(player,state);
+        helper.assertTrue(player.getDeltaMovement().y > 0,
+                "Mantle must apply actual upward velocity rather than only an animation");
+        // Full travel in a simulated player requires vanilla tick / collision handling;
+        // the test checks transition state and finite completion, not a visual outcome.
+        for(int i=1;i<PeakLedgeAssist.DURATION;i++) PeakLedgeAssist.tick(player,state);
+        helper.assertTrue(!state.gripping() && state.mantleTicks == 0,
+                "Mantle must end and release its anchor within the bounded transition");
+        ClimbState.remove(player);
+        helper.setBlock(wall, Blocks.AIR);
+        helper.succeed();
+    }
+
     private static void assertFace(GameTestHelper helper, Player mock, BlockPos origin,
                                    BlockPos surface, float yaw,float pitch) {
         helper.setBlock(surface,Blocks.STONE);

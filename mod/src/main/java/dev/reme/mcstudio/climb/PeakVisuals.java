@@ -6,19 +6,19 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /** Client-side observations, updated by server snapshots for other players. */
 public final class PeakVisuals {
-    public record Pose(boolean climbing, float phase, float stamina, long gameTick) {}
+    public record Pose(boolean climbing, float phase, float stamina, long gameTick, byte action) {}
     private static final Map<Integer, Pose> SEEN = new ConcurrentHashMap<>();
     private PeakVisuals() {}
 
-    public static void observe(int entityId, boolean active, float phase, float stamina, long gameTick) {
+    public static void observe(int entityId, boolean active, float phase, float stamina, long gameTick, byte action) {
         if (!active) SEEN.remove(entityId);
-        else SEEN.put(entityId, new Pose(true, phase, stamina, gameTick));
+        else SEEN.put(entityId, new Pose(true, phase, stamina, gameTick, action));
     }
 
     public static Pose pose(Player player) {
         ClimbState local = ClimbState.of(player);
         if (local.enabled && local.peakHeld)
-            return new Pose(true, local.peakPhase, local.stamina, player.level().getGameTime());
+            return new Pose(true, local.peakPhase, local.stamina, player.level().getGameTime(), local.poseAction);
         Pose p = SEEN.get(player.getId());
         return p != null && player.level().getGameTime() - p.gameTick() <= 10 ? p : null;
     }

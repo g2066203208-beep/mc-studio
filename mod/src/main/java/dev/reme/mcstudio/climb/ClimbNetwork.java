@@ -37,7 +37,7 @@ public final class ClimbNetwork {
     }
 
     /** Other clients need to see the same hand-over-hand animation as the controlling player. */
-    public record Pose(int entityId, boolean climbing, float phase, float stamina)
+    public record Pose(int entityId, boolean climbing, float phase, float stamina, byte action)
             implements CustomPacketPayload {
         public static final Type<Pose> TYPE = new Type<>(
                 ResourceLocation.fromNamespaceAndPath(StudioMod.MOD_ID, "peak_pose"));
@@ -47,8 +47,9 @@ public final class ClimbNetwork {
                     buf.writeBoolean(p.climbing());
                     buf.writeFloat(p.phase());
                     buf.writeFloat(p.stamina());
+                    buf.writeByte(p.action());
                 },
-                buf -> new Pose(buf.readVarInt(), buf.readBoolean(), buf.readFloat(), buf.readFloat()));
+                buf -> new Pose(buf.readVarInt(), buf.readBoolean(), buf.readFloat(), buf.readFloat(), buf.readByte()));
         @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
     }
 
@@ -83,7 +84,7 @@ public final class ClimbNetwork {
             var clientPlayer = context.player();
             if (clientPlayer != null) {
                 PeakVisuals.observe(packet.entityId(), packet.climbing(),
-                        packet.phase(), packet.stamina(), clientPlayer.level().getGameTime());
+                        packet.phase(), packet.stamina(), clientPlayer.level().getGameTime(), packet.action());
             }
         });
     }
