@@ -9,8 +9,7 @@ public final class ClimbRuntime {
     public static void accept(Player player, int sequence, int hand, boolean down, boolean mode,
                               float forward, float strafe) {
         ClimbState s = ClimbState.of(player);
-        if (sequence <= s.sequence || !Float.isFinite(forward) || !Float.isFinite(strafe)
-                || Math.abs(forward) > 1.001f || Math.abs(strafe) > 1.001f) return;
+        if (!GripRules.validIntent(sequence, s.sequence, forward, strafe)) return;
         s.sequence = sequence;
         s.lastInputTick = player.level().getGameTime();
 
