@@ -5,6 +5,11 @@ import java.util.Map;
 import dev.reme.mcstudio.npc.life.LivingPlanner;
 import dev.reme.mcstudio.npc.life.LivingWorldActions;
 import dev.reme.mcstudio.npc.life.ResidentMemory;
+import dev.reme.mcstudio.npc.life.SocietyRules;
+import dev.reme.mcstudio.npc.life.LifeJourney;
+import java.util.LinkedHashSet;
+import java.util.Set;
+import net.minecraft.world.level.ChunkPos;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.ListTag;
 import java.util.UUID;
@@ -42,7 +47,7 @@ import net.minecraft.world.level.Level;
 
 public class PlayerNpcEntity extends PathfinderMob {
     public enum Mode { LIVE, FOLLOW, STAY, WANDER, GUARD }
-    public enum Profession { FARMER, BAKER, RESIDENT, GUARD }
+    public enum Profession { FARMER, BAKER, RESIDENT, GUARD, SCOUT, COURIER }
 
     private final SimpleContainer backpack = new SimpleContainer(36) {
         @Override public boolean stillValid(Player player) {
@@ -64,6 +69,13 @@ public class PlayerNpcEntity extends PathfinderMob {
     private LivingPlanner.Decision decision =
         new LivingPlanner.Decision(LivingPlanner.Intent.IDLE, 0, "starting");
     private String lastAction = "just arrived";
+    private SocietyRules.Identity identity = SocietyRules.civilian("river");
+    private LifeJourney journey = new LifeJourney(LifeJourney.Goal.LIVE_PEACEFULLY);
+    @Nullable private BlockPos supplyPos;
+    @Nullable private UUID escortLeader;
+    @Nullable private BlockPos exploreTarget;
+    private final Set<Long> recentChunks = new LinkedHashSet<>();
+    private int parcelsDelivered = 0;
     private long nextSocialTick = 0;
     @Nullable private UUID ownerUuid;
 
@@ -91,6 +103,36 @@ public class PlayerNpcEntity extends PathfinderMob {
     }
 
     public SimpleContainer backpack() { return backpack; }
+    public SocietyRules.Identity identity() { return identity; }
+    public void setIdentity(SocietyRules.Identity next) { identity = next; }
+    public boolean hostileTo(PlayerNpcEntity other) {
+        return SocietyRules.hostile(identity, other.identity());
+    }
+    public LifeJourney journey() { return journey; }
+    @Nullable public BlockPos supplyPos() { return supplyPos; }
+    public void setSupplyPos(@Nullable BlockPos pos) {
+        supplyPos = pos == null ? null : pos.immutable();
+    }
+    @Nullable public UUID escortLeader() { return escortLeader; }
+    public void setEscortLeader(@Nullable UUID uuid) { escortLeader = uuid; }
+    @Nullable public BlockPos exploreTarget() { return exploreTarget; }
+    public void setExploreTarget(@Nullable BlockPos pos) {
+        exploreTarget = pos == null ? null : pos.immutable();
+    }
+    public int parcelsDelivered() { return parcelsDelivered; }
+    public void recordDelivery() { parcelsDelivered++; journey.succeeded(LifeJourney.Achievement.BARTER); }
+    public boolean visitChunk(int x, int z) {
+        long encoded = ChunkPos.asLong(x, z);
+        if (recentChunks.contains(encoded)) return false;
+        if (recentChunks.size() >= 64) {
+            var iterator = recentChunks.iterator();
+            iterator.next();
+            iterator.remove();
+        }
+        recentChunks.add(encoded);
+        journey.succeeded(LifeJourney.Achievement.VISIT_NEW_CHUNK);
+        return true;
+    }
     public Profession profession() { return profession; }
     public void setProfession(Profession job) { profession = job; }
     public void setHomePos(BlockPos pos) { homePos = pos.immutable(); }
@@ -148,7 +190,8 @@ public class PlayerNpcEntity extends PathfinderMob {
         goalSelector.addGoal(0, new FloatGoal(this));
         goalSelector.addGoal(1, new MeleeAttackGoal(this, 1.15, true) {
             @Override public boolean canUse() {
-                return mode != Mode.STAY && mode != Mode.LIVE && super.canUse();
+                return mode != Mode.STAY && (mode != Mode.LIVE || profession == Profession.GUARD)
+                    && super.canUse();
             }
         });
         goalSelector.addGoal(2, new FollowPlayerGoal());
@@ -162,7 +205,11 @@ public class PlayerNpcEntity extends PathfinderMob {
         });
         goalSelector.addGoal(7, new LookAtPlayerGoal(this, Player.class, 8.0F));
         goalSelector.addGoal(8, new RandomLookAroundGoal(this));
-        targetSelector.addGoal(1, new HurtByTargetGoal(this));
+        targetSelector.addGoal(1, new HurtByTargetGoal(this) {
+            @Override public boolean canUse() {
+                return mode != Mode.LIVE && super.canUse();
+            }
+        });
         targetSelector.addGoal(2, new NearestAttackableTargetGoal<>(this, Monster.class, true) {
             @Override public boolean canUse() {
                 return (mode == Mode.GUARD || mode == Mode.WANDER) && super.canUse();
@@ -252,6 +299,16 @@ public class PlayerNpcEntity extends PathfinderMob {
         if (ownerUuid != null) tag.putUUID("NpcOwner", ownerUuid);
         tag.putString("NpcMode", mode.name());
         tag.putString("NpcProfession", profession.name());
+        tag.putString("NpcNation", identity.nation().name());
+        tag.putString("NpcFaction", identity.faction().name());
+        tag.putString("NpcRegion", identity.region());
+        tag.putString("NpcLifeGoal", journey.goal().name());
+        tag.putInt("NpcGoalProgress", journey.progress());
+        if (supplyPos != null) tag.putLong("NpcSupplyPos", supplyPos.asLong());
+        if (escortLeader != null) tag.putUUID("NpcEscortLeader", escortLeader);
+        if (exploreTarget != null) tag.putLong("NpcExploreTarget", exploreTarget.asLong());
+        tag.putLongArray("NpcRecentChunks", recentChunks.stream().mapToLong(Long::longValue).toArray());
+        tag.putInt("NpcParcels", parcelsDelivered);
         tag.putInt("NpcDiligence", personality.diligence());
         tag.putInt("NpcSociability", personality.sociability());
         tag.putInt("NpcCaution", personality.caution());
@@ -295,6 +352,34 @@ public class PlayerNpcEntity extends PathfinderMob {
         }
         try { profession = Profession.valueOf(tag.getString("NpcProfession")); }
         catch (IllegalArgumentException ignored) { profession = Profession.RESIDENT; }
+        try {
+            identity = new SocietyRules.Identity(
+                SocietyRules.Nation.valueOf(tag.getString("NpcNation")),
+                SocietyRules.Faction.valueOf(tag.getString("NpcFaction")),
+                tag.getString("NpcRegion"));
+        } catch (IllegalArgumentException ignored) {
+            identity = SocietyRules.civilian("river");
+        }
+        try {
+            journey.restore(LifeJourney.Goal.valueOf(tag.getString("NpcLifeGoal")),
+                tag.getInt("NpcGoalProgress"));
+        } catch (IllegalArgumentException ignored) {
+            journey = new LifeJourney(LifeJourney.Goal.LIVE_PEACEFULLY);
+        }
+        supplyPos = tag.contains("NpcSupplyPos", Tag.TAG_LONG)
+            ? BlockPos.of(tag.getLong("NpcSupplyPos")) : null;
+        escortLeader = tag.hasUUID("NpcEscortLeader")
+            ? tag.getUUID("NpcEscortLeader") : null;
+        exploreTarget = tag.contains("NpcExploreTarget", Tag.TAG_LONG)
+            ? BlockPos.of(tag.getLong("NpcExploreTarget")) : null;
+        recentChunks.clear();
+        if (tag.contains("NpcRecentChunks", Tag.TAG_LONG_ARRAY)) {
+            for (long key : tag.getLongArray("NpcRecentChunks")) {
+                if (recentChunks.size() >= 64) break;
+                recentChunks.add(key);
+            }
+        }
+        parcelsDelivered = Math.max(0, tag.getInt("NpcParcels"));
         setPersonality(new LivingPlanner.Personality(
             Math.clamp(tag.contains("NpcDiligence") ? tag.getInt("NpcDiligence") : 50, 0, 100),
             Math.clamp(tag.contains("NpcSociability") ? tag.getInt("NpcSociability") : 50, 0, 100),
