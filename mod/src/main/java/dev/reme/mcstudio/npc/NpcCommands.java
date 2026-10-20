@@ -46,6 +46,8 @@ public final class NpcCommands {
                 .executes(ctx -> construction(ctx.getSource(), false)))
             .then(Commands.literal("escort").executes(ctx -> escort(ctx.getSource(), true)))
             .then(Commands.literal("unescort").executes(ctx -> escort(ctx.getSource(), false)))
+            .then(Commands.literal("squad").executes(ctx -> squad(ctx.getSource(), true)))
+            .then(Commands.literal("disband").executes(ctx -> squad(ctx.getSource(), false)))
             .then(Commands.literal("setstore").requires(source -> source.hasPermission(2))
                 .executes(ctx -> setStore(ctx.getSource())))
             .then(Commands.literal("nation").requires(source -> source.hasPermission(2))
@@ -218,6 +220,29 @@ public final class NpcCommands {
         source.sendSuccess(() -> Component.literal("Assigned chest to " + npc.getName().getString() +
             ": " + block.getBlockPos().toShortString() + " (operator opt-in)"), false);
         return 1;
+    }
+
+    private static int squad(CommandSourceStack source, boolean assemble)
+        throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        ServerPlayer player = source.getPlayerOrException();
+        var nearby = player.level().getEntitiesOfClass(PlayerNpcEntity.class,
+            player.getBoundingBox().inflate(16), npc -> npc.isOwnedBy(player) &&
+            (npc.profession() == PlayerNpcEntity.Profession.GUARD ||
+             npc.profession() == PlayerNpcEntity.Profession.SCOUT));
+        nearby.sort(Comparator.comparingDouble(player::distanceToSqr));
+        int number = 0;
+        for (PlayerNpcEntity npc : nearby) {
+            if (number >= 9) break;
+            npc.setEscortLeader(assemble ? player.getUUID() : null);
+            npc.setFormationSlot(number);
+            if (assemble) npc.setMode(PlayerNpcEntity.Mode.LIVE);
+            number++;
+        }
+        int total = number;
+        source.sendSuccess(() -> Component.literal((assemble ?
+            "Squad assembled: " : "Squad disbanded: ") + total +
+            " guards/scouts in 16-block radius"), false);
+        return number;
     }
 
     private static int escort(CommandSourceStack source, boolean enabled)

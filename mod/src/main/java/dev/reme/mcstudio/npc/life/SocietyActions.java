@@ -56,9 +56,11 @@ public final class SocietyActions {
         var leader = guard.escortLeader() == null
             ? null : level.getPlayerByUUID(guard.escortLeader());
         if (leader != null && leader.isAlive()) {
-            if (guard.distanceToSqr(leader) > 16) {
-                RoadNavigator.moveToward(guard, level, leader.blockPosition(), 1.08);
-                guard.setAction("escorting player " + leader.getName().getString());
+            BlockPos formation = squadPosition(leader, guard.formationSlot());
+            if (guard.blockPosition().distSqr(formation) > 7) {
+                RoadNavigator.moveToward(guard, level, formation, 1.08);
+                guard.setAction("escorting " + leader.getName().getString() +
+                    " in squad slot " + guard.formationSlot());
             }
             return true;
         }
@@ -70,7 +72,27 @@ public final class SocietyActions {
         return false;
     }
 
+    private static BlockPos squadPosition(Player leader, int slot) {
+        double angle = Math.toRadians(leader.getYRot());
+        int row = slot / 3 + 1;
+        int column = slot % 3 - 1;
+        int dx = (int) Math.round(Math.sin(angle) * (row * 2.0) +
+            Math.cos(angle) * (column * 2.0));
+        int dz = (int) Math.round(-Math.cos(angle) * (row * 2.0) +
+            Math.sin(angle) * (column * 2.0));
+        return leader.blockPosition().offset(dx, 0, dz);
+    }
+
     private static boolean scout(PlayerNpcEntity scout, ServerLevel level, long tick) {
+        Player leader = scout.escortLeader() == null
+            ? null : level.getPlayerByUUID(scout.escortLeader());
+        if (leader != null && leader.isAlive()) {
+            BlockPos target = squadPosition(leader, scout.formationSlot());
+            if (scout.blockPosition().distSqr(target) > 8)
+                RoadNavigator.moveToward(scout, level, target, 1.05);
+            scout.setAction("scouting alongside expedition leader");
+            return true;
+        }
         // Find existing dropped items; no synthetic loot and no acquisition
         // from unloaded chunks. Ownership is not overridden.
         List<ItemEntity> drops = level.getEntitiesOfClass(ItemEntity.class,

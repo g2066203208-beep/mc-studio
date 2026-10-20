@@ -77,6 +77,7 @@ public class PlayerNpcEntity extends PathfinderMob {
     @Nullable private BlockPos exploreTarget;
     private final Set<Long> recentChunks = new LinkedHashSet<>();
     private int parcelsDelivered = 0;
+    private int formationSlot = 0;
     private boolean buildEnabled = false;
     private int buildCursor = 0;
     private long nextSocialTick = 0;
@@ -117,6 +118,8 @@ public class PlayerNpcEntity extends PathfinderMob {
         supplyPos = pos == null ? null : pos.immutable();
     }
     @Nullable public UUID escortLeader() { return escortLeader; }
+    public int formationSlot() { return formationSlot; }
+    public void setFormationSlot(int slot) { formationSlot = Math.clamp(slot, 0, 15); }
     public void setEscortLeader(@Nullable UUID uuid) { escortLeader = uuid; }
     @Nullable public BlockPos exploreTarget() { return exploreTarget; }
     public void setExploreTarget(@Nullable BlockPos pos) {
@@ -357,6 +360,7 @@ public class PlayerNpcEntity extends PathfinderMob {
         if (exploreTarget != null) tag.putLong("NpcExploreTarget", exploreTarget.asLong());
         tag.putLongArray("NpcRecentChunks", recentChunks.stream().mapToLong(Long::longValue).toArray());
         tag.putInt("NpcParcels", parcelsDelivered);
+        tag.putInt("NpcFormationSlot", formationSlot);
         tag.putBoolean("NpcBuildEnabled", buildEnabled);
         tag.putInt("NpcBuildCursor", buildCursor);
         tag.putInt("NpcDiligence", personality.diligence());
@@ -430,6 +434,7 @@ public class PlayerNpcEntity extends PathfinderMob {
             }
         }
         parcelsDelivered = Math.max(0, tag.getInt("NpcParcels"));
+        formationSlot = Math.clamp(tag.getInt("NpcFormationSlot"), 0, 15);
         buildEnabled = tag.getBoolean("NpcBuildEnabled");
         buildCursor = Math.clamp(tag.getInt("NpcBuildCursor"), 0, 100);
         setPersonality(new LivingPlanner.Personality(
