@@ -129,7 +129,8 @@ public final class ClimbMotion {
         player.fallDistance = 0;
         player.hurtMarked = true;
         if (ClimbSurfaceMath.ceiling(normal))
-            s.poseAction = moving ? (byte)5 : (byte)4;
+            s.poseAction = !moving ? (byte)4 : Math.abs(s.forward) >= Math.abs(s.strafe)
+                    ? (byte)5 : (byte)6;
         else
             s.poseAction = !moving ? (byte)0 : Math.abs(s.forward) >= Math.abs(s.strafe)
                     ? (byte)1 : (byte)2;
