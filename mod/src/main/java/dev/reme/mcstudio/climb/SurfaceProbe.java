@@ -36,6 +36,48 @@ public final class SurfaceProbe {
         return castFrom(player, player.getEyePosition().add(offset), surfaceNormal.normalize().scale(-1));
     }
 
+    /**
+     * Actively explore new physical faces at walls, outside corners and
+     * overhead slabs. A single ray back into the old wall could never find
+     * the ceiling's downward face, which caused the missing animation switch.
+     * Rays share the same Sable-local hit testing as ordinary wall probes.
+     */
+    @Nullable
+    public static GripAnchor traceTransition(Player player, GripAnchor.Contact old, Vec3 movement) {
+        if (movement.lengthSqr() < .001) return null;
+        Vec3 dir = movement.normalize();
+        Vec3 n = old.normal().normalize();
+        Vec3 eye = player.getEyePosition();
+        Vec3 predicted = old.point().add(dir.scale(.72));
+        Vec3[] origins = {
+                eye.add(dir.scale(.60)),
+                eye.add(dir.scale(1.05)),
+                old.point().add(n.scale(.52)).add(dir.scale(.65))
+        };
+        Vec3[] rays = {
+                n.scale(-1),
+                new Vec3(0,1,0),new Vec3(0,-1,0),
+                new Vec3(1,0,0),new Vec3(-1,0,0),
+                new Vec3(0,0,1),new Vec3(0,0,-1)
+        };
+        GripAnchor best = null;
+        double bestScore = Double.POSITIVE_INFINITY;
+        for (Vec3 origin : origins) {
+            for (Vec3 ray : rays) {
+                if (ray.dot(dir) > .85) continue; // don't raycast away from surfaces
+                GripAnchor candidate = castFrom(player, origin, ray);
+                if (candidate == null) continue;
+                GripAnchor.Contact c = candidate.resolve(player.level());
+                if (c == null || !ClimbSurfaceMath.canTurn(n,c.normal(),dir)) continue;
+                double fromOld = c.point().distanceTo(old.point());
+                if (fromOld > 1.55 || player.getEyePosition().distanceTo(c.point()) > REACH) continue;
+                double score = c.point().distanceToSqr(predicted) + origin.distanceToSqr(c.point())*.12;
+                if (score < bestScore) { bestScore = score; best = candidate; }
+            }
+        }
+        return best;
+    }
+
     @Nullable
     private static GripAnchor castFrom(Player player, Vec3 start, Vec3 direction) {
         Level level = player.level();
