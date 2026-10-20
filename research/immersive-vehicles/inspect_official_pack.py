@@ -42,7 +42,7 @@ with zipfile.ZipFile(pack) as z:
         if not found: raise RuntimeError("Missing asset: "+filename)
         return found[0],z.read(found[0])
     obj_name,obj_data=asset("objmodels","fordmustang69.obj")
-    tex_name,tex_data=asset("textures","fordmustang69_red.png")
+    tex_name,tex_data=asset("textures/vehicles","fordmustang69_red.png")
 
 vs=[];uvs=[];faces=[];current="unnamed";groupnames=set()
 for line in obj_data.decode("utf-8-sig",errors="replace").splitlines():
