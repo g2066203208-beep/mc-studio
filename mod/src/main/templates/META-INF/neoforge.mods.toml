@@ -6,8 +6,6 @@ modId="${mod_id}"
 version="${mod_version}"
 displayName="${mod_name}"
 description='''PEAK-style hold-to-climb on vanilla and Sable moving block surfaces.'''
-[[mixins]]
-config="reme_studio.mixins.json"
 [[dependencies.${mod_id}]]
 modId="neoforge"
 type="required"
@@ -19,4 +17,11 @@ modId="minecraft"
 type="required"
 versionRange="${minecraft_version_range}"
 ordering="NONE"
+side="BOTH"
+
+[[dependencies.${mod_id}]]
+modId="playeranimator"
+type="required"
+versionRange="[2.0.4,)"
+ordering="AFTER"
 side="BOTH"
