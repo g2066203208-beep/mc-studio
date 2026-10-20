@@ -18,7 +18,6 @@ public final class ClimbState {
     public boolean lungeRequested;
     public boolean previouslySynced;
     public int lungeCooldown;
-    public float stamina = 100f;
     public float peakPhase;
     public int mantleTicks;
     public double mantleTargetY;
