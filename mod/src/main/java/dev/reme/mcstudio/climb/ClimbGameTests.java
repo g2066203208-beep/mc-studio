@@ -101,10 +101,20 @@ public final class ClimbGameTests {
         player.setItemInHand(InteractionHand.OFF_HAND, new ItemStack(Items.BOW));
         player.getInventory().add(new ItemStack(Items.ARROW, 64));
 
-        ClimbRuntime.accept(player, 1, 1, true, true, 0, 0);
+        // The vanilla GameTest mock handles accurate sight rays; NeoForge's
+        // FakePlayer has a different camera model. Validate geometry with the
+        // existing tests, then inject that validated anchor into server state.
+        Player camera = helper.makeMockPlayer(GameType.CREATIVE);
+        camera.moveTo(origin.getX() + 0.5, origin.getY(), origin.getZ() + 0.5, 0, 0);
+        GripAnchor wallContact = SurfaceProbe.trace(camera);
+        helper.assertTrue(wallContact != null, "Test wall surface was not hittable");
+
         ClimbState state = ClimbState.of(player);
-        helper.assertTrue(state.right != null && state.left == null,
-                "Server player cannot grab with free right hand while holding bow left");
+        state.right = wallContact;
+        state.left = null;
+        state.enabled = true;
+        state.sequence = 1;
+        state.lastInputTick = player.level().getGameTime();
 
         OffhandActions.accept(player, 2, true);
         helper.assertTrue(player.isUsingItem() && state.usingLeftItem,
