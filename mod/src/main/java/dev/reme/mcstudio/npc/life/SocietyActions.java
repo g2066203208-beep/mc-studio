@@ -22,6 +22,11 @@ public final class SocietyActions {
             case GUARD -> guard(npc, level, tick);
             case SCOUT -> scout(npc, level, tick);
             case COURIER -> SupplyLogistics.deposit(npc, level);
+            case RESIDENT -> switch (npc.journey().goal()) {
+                case EXPLORE_LANDS -> scout(npc, level, tick);
+                case DEFEND_SETTLEMENT -> guard(npc, level, tick);
+                default -> false;
+            };
             default -> false;
         };
     }
@@ -45,8 +50,6 @@ public final class SocietyActions {
         if (threat != null) {
             guard.setTarget(threat);
             guard.setAction("defending settlement from " + threat.getName().getString());
-            // Count only observable engagement initiation, not hypothetical patrols.
-            guard.journey().succeeded(LifeJourney.Achievement.DEFEND);
             return true;
         }
         guard.setTarget(null);

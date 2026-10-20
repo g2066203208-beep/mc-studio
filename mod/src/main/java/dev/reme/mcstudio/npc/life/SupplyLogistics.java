@@ -60,10 +60,6 @@ public final class SupplyLogistics {
         if (pos == null || !level.hasChunkAt(pos) || count <= 0 || count > 8) return false;
         BlockEntity entity = level.getBlockEntity(pos);
         if (!(entity instanceof ChestBlockEntity chest)) return false;
-        if (npc.blockPosition().distSqr(pos) > 8) {
-            RoadNavigator.moveToward(npc, level, pos, 0.95);
-            return true;
-        }
         SimpleContainer bag = copy(npc.backpack());
         SimpleContainer box = copy(chest);
         int available = 0;
@@ -72,6 +68,10 @@ public final class SupplyLogistics {
             if (stack.is(wanted)) available += stack.getCount();
         }
         if (available < count) return false;
+        if (npc.blockPosition().distSqr(pos) > 8) {
+            RoadNavigator.moveToward(npc, level, pos, 0.95);
+            return true;
+        }
         for (int i = 0; i < box.getContainerSize() && count > 0; i++) {
             ItemStack stack = box.getItem(i);
             if (!stack.is(wanted)) continue;

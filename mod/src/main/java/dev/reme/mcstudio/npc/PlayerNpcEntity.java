@@ -29,6 +29,7 @@ import net.minecraft.world.inventory.MenuType;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.PathfinderMob;
 import net.minecraft.world.entity.ai.goal.FloatGoal;
@@ -173,6 +174,15 @@ public class PlayerNpcEntity extends PathfinderMob {
     public void rememberGreeting(PlayerNpcEntity other, long tick) {
         memory.witness(tick, other.getUUID(), ResidentMemory.Kind.GREETING,
             blockPosition().toShortString());
+    }
+    @Override public boolean doHurtTarget(Entity target) {
+        boolean hit = super.doHurtTarget(target);
+        if (hit && mode == Mode.LIVE && profession == Profession.GUARD &&
+            (target instanceof net.minecraft.world.entity.monster.Monster ||
+             target instanceof PlayerNpcEntity other && hostileTo(other))) {
+            journey.succeeded(LifeJourney.Achievement.DEFEND);
+        }
+        return hit;
     }
     @Override public boolean hurt(DamageSource source, float amount) {
         boolean damaged = super.hurt(source, amount);
