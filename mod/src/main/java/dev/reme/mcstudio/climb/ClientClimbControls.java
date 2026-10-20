@@ -11,7 +11,7 @@ import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
 import net.neoforged.neoforge.network.PacketDistributor;
 import org.lwjgl.glfw.GLFW;
 
-/** PEAK: HOLD LMB near a solid face, use WASD, Shift=lunge, release LMB to fall. */
+/** PEAK: HOLD RMB near a solid face, use WASD, Shift=lunge, release LMB to fall. */
 @EventBusSubscriber(modid = StudioMod.MOD_ID, value = Dist.CLIENT)
 public final class ClientClimbControls {
     private static boolean grabbing;
@@ -27,18 +27,18 @@ public final class ClientClimbControls {
     public static void mouse(InputEvent.MouseButton.Pre event) {
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null || mc.level == null || mc.screen != null) return;
-        if (event.getButton() != GLFW.GLFW_MOUSE_BUTTON_LEFT) return;
+        if (event.getButton() != GLFW.GLFW_MOUSE_BUTTON_RIGHT) return;
         if (event.getAction() == GLFW.GLFW_RELEASE && grabbing) {
             grabbing = false;
             send(false);
-            mc.options.keyAttack.setDown(false);
+            mc.options.keyUse.setDown(false);
             event.setCanceled(true);
         } else if (event.getAction() == GLFW.GLFW_PRESS && !grabbing) {
-            if (!mc.player.getMainHandItem().isEmpty()) return;
+            if (!mc.player.getMainHandItem().isEmpty() || !mc.player.getOffhandItem().isEmpty()) return;
             if (!PeakGripRules.mayGrab(mc.player, SurfaceProbe.trace(mc.player))) return;
             grabbing = true;
             send(true);
-            mc.options.keyAttack.setDown(false);
+            mc.options.keyUse.setDown(false);
             event.setCanceled(true);
         }
     }
@@ -50,13 +50,13 @@ public final class ClientClimbControls {
         boolean lostFocus = GLFW.glfwGetWindowAttrib(mc.getWindow().getWindow(), GLFW.GLFW_FOCUSED) == GLFW.GLFW_FALSE;
         if (grabbing && (mc.screen != null || lostFocus || !mc.player.isAlive()
                 || mc.player.isPassenger() || mc.player.getAbilities().flying
-                || GLFW.glfwGetMouseButton(mc.getWindow().getWindow(), GLFW.GLFW_MOUSE_BUTTON_LEFT)
+                || GLFW.glfwGetMouseButton(mc.getWindow().getWindow(), GLFW.GLFW_MOUSE_BUTTON_RIGHT)
                      != GLFW.GLFW_PRESS)) {
             grabbing = false;
             send(false);
         }
         if (grabbing && mc.screen == null) {
-            mc.options.keyAttack.setDown(false);
+            mc.options.keyUse.setDown(false);
             if (mc.level.getGameTime() != lastSendTick) {
                 send(true);
                 lastSendTick = mc.level.getGameTime();
