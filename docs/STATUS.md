@@ -53,3 +53,11 @@ Gradle 报告使用了将来不兼容 Gradle 10 的弃用功能；当前固定 W
 - 用户明确否定「听命跟随的人形 NPC」是终点，现阶段 JAR 仅作实体/渲染/背包基础组件。
 - 已研究 Stardew NPC schedule、RDR2 contextual interactions、Skyrim AI packages，以及 MCA Reborn、MineColonies、VillAIgence 三个开源代码库；记录在 `docs/LIVING_WORLD_DESIGN.md`。
 - 生活模拟功能 **尚未通过游戏内验收**。工作重点转为自主生存/工作、需求/关系/情境、世界事件因果链、离线模拟及性能；不再把跟随功能作为“活 NPC”里程碑。
+
+
+## 2026-10-21 活世界内核 CI 证据
+
+- `feature/player-npc-v1` 提交 `915c9ec561469f91e81c5dd18dfd5814b291668b`：新增不依赖 Minecraft 的 `LivingPlanner`（时间/天气/需求/危险与个性、惯性）与 `ResidentMemory`（最多 48 条见证事件，分人信任）。
+- `scripts/test-living-planner.sh`：独立 Java 21 断言 **通过**，已经纳入 Actions。
+- Github Actions [39455827090](https://github.com/g2066203208-beep/mc-studio/actions/runs/39455827090) **Build SUCCESS**。曾有一次测试发现配置引发的编译流水线失败 `39455501797`，通过将不使用 JUnit 的独立断言移至 `scripts/living-tests/` 修复。
+- **核心决策/记忆类尚未连入 NPC 实体。不能称为 NPC 已自主生活、已生产、已有跨存档关系，也未做游戏内实测。**

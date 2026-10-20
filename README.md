@@ -61,3 +61,8 @@ bash scripts/build.sh
 ## 玩家型 NPC 原型（开发中）
 
 功能与约束见 [NPC v0.1 文档](docs/NPC_V1.md)。实验分支 `feature/player-npc-v1`。有作弊权限的玩家执行 `/npc spawn 小雷` 创建 NPC；`/npc follow`、`/npc stay`、`/npc wander`、`/npc guard`、`/npc info` 控制附近自己的 NPC。使用现有 Java 21/NeoForge 1.21.1 工程构建。
+
+
+## 活世界 NPC（新方向）
+
+当前已研究 [Living-world design](docs/LIVING_WORLD_DESIGN.md) 并在 `feature/player-npc-v1` 分支添加独立 Java 的需求规划与事件记忆基础逻辑及自动验证，跟踪 [Issue #11](https://github.com/g2066203208-beep/mc-studio/issues/11) 和 [PR #10](https://github.com/g2066203208-beep/mc-studio/pull/10)。**上述决策内核尚未连接游戏内 NPC；旧 NPC JAR 不是“活的世界 NPC”**。研究参见 MCA、MineColonies、VillAIgence（均须遵守各自许可证，未复制代码）。
