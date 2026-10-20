@@ -50,21 +50,24 @@ public final class SurfaceProbe {
         Vec3 eye = player.getEyePosition();
         Vec3 predicted = old.point().add(dir.scale(.72));
         Vec3[] origins = {
+                eye,
+                eye.add(dir.scale(.28)),
                 eye.add(dir.scale(.60)),
-                eye.add(dir.scale(1.05)),
-                old.point().add(n.scale(.52)).add(dir.scale(.65))
+                // In front of the current hit point but not INSIDE the roof:
+                // useful when a wall meets a ceiling one block higher.
+                old.point().add(n.scale(.52)).add(dir.scale(.18))
         };
         Vec3[] rays = {
-                n.scale(-1),
-                new Vec3(0,1,0),new Vec3(0,-1,0),
-                new Vec3(1,0,0),new Vec3(-1,0,0),
-                new Vec3(0,0,1),new Vec3(0,0,-1)
+                n.scale(-1),dir,
+                new Vec3(Math.signum(dir.x),0,0),
+                new Vec3(0,Math.signum(dir.y),0),
+                new Vec3(0,0,Math.signum(dir.z))
         };
         GripAnchor best = null;
         double bestScore = Double.POSITIVE_INFINITY;
         for (Vec3 origin : origins) {
             for (Vec3 ray : rays) {
-                if (ray.dot(dir) > .85) continue; // don't raycast away from surfaces
+                if (ray.lengthSqr() < .01) continue;
                 GripAnchor candidate = castFrom(player, origin, ray);
                 if (candidate == null) continue;
                 GripAnchor.Contact c = candidate.resolve(player.level());
