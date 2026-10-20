@@ -1,4 +1,6 @@
 {
   "key.reme_studio.climb": "切换双手攀爬模式",
-  "key.categories.reme_studio": "REME MC Studio 攀爬"
+  "key.categories.reme_studio": "REME MC Studio 攀爬",
+  "key.reme_studio.release": "紧急松开双手",
+  "message.reme_studio.released": "已松开双手"
 }
