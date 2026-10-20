@@ -25,3 +25,7 @@ Features: full 3D orbit camera, front / right / top / three-quarter views, selec
 - Loose wheels, seats, and other vehicle-part models are attached at runtime by the game; this standalone body-OBJ viewer does **not** falsely display them as though they were in the body OBJ.
 - This is real WebGL 3D model inspection, but **not** a screenshot of a running Minecraft client.
 - Three.js and JSZip load from jsDelivr CDN; internet access is required to launch viewer.
+
+## Deployment verification
+
+GitHub Pages deployment re-triggered after repository visibility / Pages settings were updated (2026-10-21). Check the [deployment workflow](https://github.com/g2066203208-beep/mc-studio/actions/workflows/deploy-viewer.yml) and its green success indicator before treating the public URL as live.
