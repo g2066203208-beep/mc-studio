@@ -20,6 +20,10 @@ public final class ClimbState {
     public int lungeCooldown;
     public float stamina = 100f;
     public float peakPhase;
+    public int mantleTicks;
+    public double mantleTargetY;
+    public Vec3 mantleInward = Vec3.ZERO;
+    public byte poseAction; // 0 hang, 1 up, 2 traverse, 3 mantle
     public float forward, strafe;
     @Nullable public GripAnchor left;
     @Nullable public GripAnchor right;
@@ -39,6 +43,8 @@ public final class ClimbState {
         lastLeft = Vec3.ZERO;
         lastRight = Vec3.ZERO;
         lungeRequested = false;
+        mantleTicks = 0;
+        poseAction = 0;
     }
     public boolean gripping() { return enabled && left != null; }
 }
