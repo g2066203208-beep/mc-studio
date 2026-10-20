@@ -24,16 +24,10 @@ public final class ClimbMotion {
         }
         if (!s.peakHeld) {
             if (s.enabled) s.release();
-            s.stamina = PeakGripRules.staminaNext(s.stamina, false, false, player.onGround());
             return;
         }
         if (s.mantleTicks > 0) {
             PeakLedgeAssist.tick(player, s);
-            return;
-        }
-        if (s.stamina <= 0) {
-            s.release();
-            s.stamina = PeakGripRules.staminaNext(s.stamina,false,false,player.onGround());
             return;
         }
 
@@ -45,10 +39,7 @@ public final class ClimbMotion {
                 s.enabled = true;
                 GripAnchor.Contact c = candidate.resolve(player.level());
                 s.lastLeft = c == null ? Vec3.ZERO : c.point();
-            } else {
-                s.stamina = PeakGripRules.staminaNext(s.stamina, false, false, player.onGround());
-                return;
-            }
+            } else return;
         }
         GripAnchor.Contact current = s.left.resolve(player.level());
         if (current == null) {
@@ -57,9 +48,13 @@ public final class ClimbMotion {
         }
 
         double distance = player.getEyePosition().distanceTo(current.point());
-        // Re-target the current face while moving; do not tether to a single block forever.
-        if (distance > 1.2 || (player.tickCount % 4 == 0 && Math.abs(s.forward) > 0.01f)) {
-            GripAnchor next = SurfaceProbe.trace(player);
+        // Re-target from the *next* shoulder position to keep the hands moving
+        // across adjacent blocks even if the camera pitch points past the wall.
+        boolean steering = Math.abs(s.forward) > 0.01f || Math.abs(s.strafe) > 0.01f;
+        if (distance > 1.15 || (steering && player.tickCount % 3 == 0)) {
+            Vec3 along = desiredTangent(current.normal().normalize(), player.getYRot(), s.forward, s.strafe);
+            GripAnchor next = SurfaceProbe.traceOffset(player, along.scale(0.65), current.normal());
+            if (next == null) next = SurfaceProbe.trace(player);
             if (PeakGripRules.mayGrab(player, next)) {
                 s.left = next;
                 current = next.resolve(player.level());
@@ -76,8 +71,6 @@ public final class ClimbMotion {
         }
 
         boolean moving = Math.abs(s.forward) > 0.01 || Math.abs(s.strafe) > 0.01;
-        s.stamina = PeakGripRules.staminaNext(s.stamina, true, moving, player.onGround());
-        if (s.stamina <= 0) { s.release(); return; }
 
         Vec3 deltaFromStructure = Vec3.ZERO;
         if (!s.lastLeft.equals(Vec3.ZERO)) {
@@ -87,26 +80,21 @@ public final class ClimbMotion {
         s.lastLeft = current.point();
         Vec3 normal = current.normal().normalize();
         Vec3 direction = desiredTangent(normal, player.getYRot(), s.forward, s.strafe);
-        Vec3 velocity = player.getDeltaMovement().scale(0.35).add(direction.scale(0.16))
+        // Project out the old normal component, then ease toward a target
+        // tangent velocity. Reversing input slows before accelerating the
+        // other way; releasing WASD comes to a soft stop while still gripping.
+        Vec3 tangentialPrevious = projection(player.getDeltaMovement(), normal);
+        double speed = Math.abs(normal.y) < 0.65 ? 0.165 : 0.145;
+        Vec3 desired = direction.scale(speed);
+        Vec3 velocity = tangentialPrevious.scale(0.35).add(desired.scale(0.65))
                 .add(deltaFromStructure);
+        // Small wall normal force holds the shoulder close; vanilla collision
+        // resolves real solid blocks. Never enable flight or noClip.
+        velocity = velocity.subtract(normal.scale(0.022));
 
-        // Upward grip force and wall contact are bounded, never infinite flight.
-        if (Math.abs(normal.y) < 0.65) {
-            velocity = new Vec3(velocity.x, direction.y * 0.17, velocity.z);
-            // A small inward normal component holds the body against the surface.
-            velocity = velocity.subtract(normal.scale(0.025));
-        } else if (normal.y < -0.65) {
-            // Ceiling traversal: no gravity-only fall while button is held.
-            velocity = velocity.subtract(normal.scale(0.015));
-        } else {
-            // Ground: retain normal ground contact and friction.
-            velocity = new Vec3(velocity.x, Math.min(velocity.y, 0), velocity.z);
-        }
-
-        if (s.lungeRequested && PeakGripRules.canLunge(s.stamina, s.lungeCooldown, s.enabled)) {
-            s.stamina -= PeakGripRules.LUNGE_COST;
+        if (s.lungeRequested && PeakGripRules.canLunge(s.lungeCooldown, s.enabled)) {
             s.lungeCooldown = 17;
-            velocity = velocity.add(new Vec3(0, 0.30, 0)).add(direction.scale(0.12));
+            velocity = velocity.add(new Vec3(0, 0.30, 0)).add(direction.scale(0.10));
         }
         s.lungeRequested = false;
 
@@ -119,7 +107,7 @@ public final class ClimbMotion {
             if (outward > 0) velocity = velocity.add(inward.scale(outward));
             velocity = velocity.add(inward.scale(Math.min(0.11, (toAnchor.length() - 1.75) * 0.35)));
         }
-        double maxSpeed = 0.35 + deltaFromStructure.length();
+        double maxSpeed = 0.38 + deltaFromStructure.length();
         if (velocity.length() > maxSpeed) velocity = velocity.normalize().scale(maxSpeed);
         player.setDeltaMovement(velocity);
         player.fallDistance = 0;
