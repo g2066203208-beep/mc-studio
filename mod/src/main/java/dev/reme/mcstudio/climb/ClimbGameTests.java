@@ -31,7 +31,7 @@ public final class ClimbGameTests {
     }
 
     @GameTest(template="climb_test", timeoutTicks=80)
-    public static void holdLmbClimbsAndReleaseFalls(GameTestHelper helper) {
+    public static void holdRmbClimbsAndReleaseFalls(GameTestHelper helper) {
         BlockPos wall = new BlockPos(3,3,5);
         helper.setBlock(wall, Blocks.STONE);
         Player player = helper.makeMockPlayer(GameType.CREATIVE);
@@ -39,23 +39,22 @@ public final class ClimbGameTests {
         player.moveTo(origin.getX()+0.5,origin.getY(),origin.getZ()+0.5,0,0);
         ClimbState.remove(player);
         ClimbState state = ClimbState.of(player);
-        state.stamina = 100f;
 
         ClimbRuntime.accept(player,1,-1,true,false,1,0);
-        helper.assertTrue(state.peakHeld && state.gripping(), "Holding LMB didn't grab wall");
+        helper.assertTrue(state.peakHeld && state.gripping(), "Holding RMB didn't grab wall");
         double initialHeight = player.getY();
         ClimbMotion.tick(player,state);
-        helper.assertTrue(state.stamina < 100, "Climbing didn't consume stamina");
+        helper.assertTrue(state.gripping(), "Grip released unexpectedly while RMB was held");
         helper.assertTrue(player.getDeltaMovement().y > 0, "W must impart upward velocity along wall");
         helper.assertTrue(player.getY() == initialHeight, "Climb controller teleported player rather than setting velocity");
         ClimbRuntime.accept(player,2,-1,false,false,0,0);
-        helper.assertTrue(!state.peakHeld && !state.gripping(), "LMB release left character attached");
+        helper.assertTrue(!state.peakHeld && !state.gripping(), "RMB release left character attached");
         ClimbState.remove(player);
         helper.succeed();
     }
 
     @GameTest(template="climb_test", timeoutTicks=80)
-    public static void shiftLungeCostAndAutomaticStamina(GameTestHelper helper) {
+    public static void unlimitedGripAndShiftLungeCooldown(GameTestHelper helper) {
         BlockPos wall = new BlockPos(3,3,5);
         helper.setBlock(wall,Blocks.STONE);
         Player player=helper.makeMockPlayer(GameType.CREATIVE);
@@ -69,8 +68,7 @@ public final class ClimbGameTests {
         helper.assertTrue(s.lungeRequested,"SHIFT rising-edge should trigger one lunge");
         ClimbMotion.tick(player,s);
         helper.assertTrue(s.lungeCooldown>0, "Lunge cooldown did not begin");
-        helper.assertTrue(s.stamina <= PeakGripRules.MAX_STAMINA-PeakGripRules.LUNGE_COST,
-            "SHIFT lunge must expend stamina");
+        helper.assertTrue(s.gripping(), "Shift lunge must keep grip even without stamina");
         helper.assertTrue(!s.lungeRequested,"Lunge edge was not consumed");
 
         helper.assertTrue(ClimbMotion.desiredTangent(new Vec3(0,0,-1),0,1,0).y>0.95,
@@ -119,6 +117,12 @@ public final class ClimbGameTests {
         for(int i=1;i<PeakLedgeAssist.DURATION;i++) PeakLedgeAssist.tick(player,state);
         helper.assertTrue(!state.gripping() && state.mantleTicks == 0,
                 "Mantle must end and release its anchor within the bounded transition");
+        helper.assertTrue(state.mantleRequiresRelease,
+                "Mantling should not immediately re-grip while RMB is still held");
+        ClimbRuntime.accept(player, 2, -1, true, false, 1, 0);
+        helper.assertTrue(!state.gripping(), "Held RMB re-gripped the wall after mantle completion");
+        ClimbRuntime.accept(player, 3, -1, false, false, 0, 0);
+        helper.assertTrue(!state.mantleRequiresRelease, "Releasing RMB must re-arm grabbing");
         ClimbState.remove(player);
         helper.setBlock(wall, Blocks.AIR);
         helper.succeed();

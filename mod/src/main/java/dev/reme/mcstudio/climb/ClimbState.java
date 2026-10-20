@@ -18,8 +18,9 @@ public final class ClimbState {
     public boolean lungeRequested;
     public boolean previouslySynced;
     public int lungeCooldown;
-    public float stamina = 100f;
     public float peakPhase;
+    /** Completed a mantle while RMB remained down; don't grab the ledge again. */
+    public boolean mantleRequiresRelease;
     public int mantleTicks;
     public double mantleTargetY;
     public Vec3 mantleInward = Vec3.ZERO;
