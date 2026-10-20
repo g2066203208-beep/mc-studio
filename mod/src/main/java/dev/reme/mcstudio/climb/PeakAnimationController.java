@@ -153,7 +153,7 @@ public final class PeakAnimationController {
         float lateral = (float)Math.max(-1, Math.min(1, delta.dot(sideways)*1.4));
         float vertical = (float)Math.max(-1, Math.min(1, delta.y * .65));
         float forward = (float)Math.max(-1, Math.min(1, delta.dot(toward)*.65));
-        Vec3f rotation = new Vec3f(-.10f*vertical, .12f*lateral, -.07f*armSide*lateral);
+        Vec3f rotation = new Vec3f(-.10f*vertical, .12f*lateral, -.07f*(float)armSide*lateral);
         Vec3f offset = new Vec3f(.72f*lateral, .58f*vertical, .60f*forward);
         return Optional.of(new AdjustmentModifier.PartModifier(rotation, offset));
     }
