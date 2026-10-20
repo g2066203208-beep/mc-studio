@@ -6,6 +6,8 @@ import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.core.BlockPos;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.phys.AABB;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
 
@@ -69,6 +71,7 @@ public final class NpcCommands {
             npc.setCustomName(Component.literal(names[i]));
             npc.setCustomNameVisible(true);
             npc.setMode(PlayerNpcEntity.Mode.LIVE);
+            npc.backpack().addItem(new ItemStack(Items.BREAD, 4));
             npc.setProfession(i < 2
                 ? PlayerNpcEntity.Profession.FARMER
                 : PlayerNpcEntity.Profession.RESIDENT);
@@ -124,7 +127,8 @@ public final class NpcCommands {
     }
 
     private static int changeMode(CommandSourceStack source, PlayerNpcEntity.Mode mode) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
-        PlayerNpcEntity npc = closestOwnedNpc(source.getPlayerOrException());
+        ServerPlayer player = source.getPlayerOrException();
+        PlayerNpcEntity npc = closestOwnedNpc(player);
         if (npc == null) {
             source.sendFailure(Component.literal("No NPC owned by you within 16 blocks"));
             return 0;
@@ -151,7 +155,7 @@ public final class NpcCommands {
             + " social " + npc.socialNeed() + " | " + npc.profession()
             + " | intent " + npc.intent() + " (" + npc.intentReason() + ")"
             + " | action " + npc.lastAction()
-            + " | trust " + npc.memory().trust(source.getPlayerOrException().getUUID())
+            + " | trust " + npc.memory().trust(player.getUUID())
             + " | backpack " + used + "/36 slots"), false);
         return 1;
     }
