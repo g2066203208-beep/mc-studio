@@ -56,3 +56,18 @@ bash scripts/build.sh
 后续直接在本聊天描述玩法、报错或想修改的 Mod。助手先读取本工作台与本机基线，尽量独立完成技术工作；只有账号授权、目标不明确或确实需要玩家体验判断时才让用户介入。
 
 当前尚未部署到正式游戏，也尚未完成真实客户端与整合包运行测试。最新构建结果见 `docs/STATUS.md`。
+
+
+## 玩家型 NPC 原型（开发中）
+
+功能与约束见 [NPC v0.1 文档](docs/NPC_V1.md)。实验分支 `feature/player-npc-v1`。有作弊权限的玩家执行 `/npc spawn 小雷` 创建 NPC；`/npc follow`、`/npc stay`、`/npc wander`、`/npc guard`、`/npc info` 控制附近自己的 NPC。使用现有 Java 21/NeoForge 1.21.1 工程构建。
+
+
+## 活世界 NPC（新方向）
+
+当前已研究 [Living-world design](docs/LIVING_WORLD_DESIGN.md) 并在 `feature/player-npc-v1` 分支添加独立 Java 的需求规划与事件记忆基础逻辑及自动验证，跟踪 [Issue #11](https://github.com/g2066203208-beep/mc-studio/issues/11) 和 [PR #10](https://github.com/g2066203208-beep/mc-studio/pull/10)。**上述决策内核尚未连接游戏内 NPC；旧 NPC JAR 不是“活的世界 NPC”**。研究参见 MCA、MineColonies、VillAIgence（均须遵守各自许可证，未复制代码）。
+
+
+## Living World NPC 0.2（实验分支）
+
+已经把 LivingPlanner 与 ResidentMemory 连接到 NPC 实体的服务端 Tick，新增现实资源农田与面包生产/交换、测试六人村庄、个性与持久化。命令、需要准备的原版农田、已知缺失详见 [测试说明](docs/LIVING_WORLD_PLAYTEST.md)。编译证据见 [GitHub Actions 39457871574](https://github.com/g2066203208-beep/mc-studio/actions/runs/39457871574)。**仍需游戏内运行验证；不要用于正式存档。**

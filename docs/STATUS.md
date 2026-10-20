@@ -38,3 +38,42 @@ Gradle 报告使用了将来不兼容 Gradle 10 的弃用功能；当前固定 W
 - 尚未针对具体玩法展开上游源码分析与功能实现。
 
 真实游玩文件和存档未被修改。后续先根据用户目标确定实例与功能，再开展对应开发和运行测试。
+
+
+## 玩家型 NPC v0.1 分支（2026-10-20）
+
+- 初始提交：`9215da0d53c03d0d9435b633fcceca5306e1703f`，分支：`feature/player-npc-v1`。
+- 添加 `reme_studio:player_npc`，详见 `docs/NPC_V1.md`。
+- 编译：首轮 Actions `39453134471` 因错误注册 API 失败；修复后 **Actions `39453494702` push 构建 SUCCESS，Actions `39453501071` PR 构建 SUCCESS**。构建验证提交 `b51773ecebda40705fc54009baa40aee80f34e0e`，产物 `12279378797`，JAR `reme_studio-0.1.0-dev.jar`。编译 != 游戏内实测。
+- 运行：客户端、独立服务器、222 Mod 整合包 **均未测试**。正式世界 **未部署**。
+
+
+## 2026-10-21 NPC 目标调整
+
+- 用户明确否定「听命跟随的人形 NPC」是终点，现阶段 JAR 仅作实体/渲染/背包基础组件。
+- 已研究 Stardew NPC schedule、RDR2 contextual interactions、Skyrim AI packages，以及 MCA Reborn、MineColonies、VillAIgence 三个开源代码库；记录在 `docs/LIVING_WORLD_DESIGN.md`。
+- 生活模拟功能 **尚未通过游戏内验收**。工作重点转为自主生存/工作、需求/关系/情境、世界事件因果链、离线模拟及性能；不再把跟随功能作为“活 NPC”里程碑。
+
+
+## 2026-10-21 活世界内核 CI 证据
+
+- `feature/player-npc-v1` 提交 `915c9ec561469f91e81c5dd18dfd5814b291668b`：新增不依赖 Minecraft 的 `LivingPlanner`（时间/天气/需求/危险与个性、惯性）与 `ResidentMemory`（最多 48 条见证事件，分人信任）。
+- `scripts/test-living-planner.sh`：独立 Java 21 断言 **通过**，已经纳入 Actions。
+- Github Actions [39455827090](https://github.com/g2066203208-beep/mc-studio/actions/runs/39455827090) **Build SUCCESS**。曾有一次测试发现配置引发的编译流水线失败 `39455501797`，通过将不使用 JUnit 的独立断言移至 `scripts/living-tests/` 修复。
+- **核心决策/记忆类尚未连入 NPC 实体。不能称为 NPC 已自主生活、已生产、已有跨存档关系，也未做游戏内实测。**
+
+
+## 活世界 0.2 实体执行层（2026-10-21）
+
+- `feature/player-npc-v1` 新增真正的服务端居民日常操作：需求/天气/威胁决策、避险、带库存吃饭、回家休息、真实农田收割并消费补种种子、面包师工作台制作和与农民面对面交易、双向社会事件、个性和 NBT 恢复。
+- 已验证 [push GitHub Actions 39457871574](https://github.com/g2066203208-beep/mc-studio/actions/runs/39457871574) SUCCESS 和 [PR run 39457879491](https://github.com/g2066203208-beep/mc-studio/actions/runs/39457879491) SUCCESS。构建源提交 b27de8cff1f4b7f222255d5adea94038ea4d0634，artifact ID 12281113336。
+- 检查 JAR 类与 neoforge.mods.toml 已包含。
+- 仍未完成实机游戏内验证、主线建筑/商人等职业、离线 NPC 演算、领地保护 API；真正的日常生活效果和存档重载效果尚未得到实机证明。
+
+ 
+## 2026-10-21 最终 v0.2-dev 编译和产物
+
+- 变更版本号 mod_version=0.2.0-dev；源提交 4a8b87d25c56ce7f01639265eaea6afd196a82ea。
+- GitHub Actions push 39458311637 和 PR 39458319744 均 SUCCESS。
+- PR Actions 生成可下载 ZIP artifact ID 12281915935；包内 JAR 预计名为 reme_studio-0.2.0-dev.jar，解包时检查名字。
+- 实机客户端/专用服务器/整合包 **仍未测试**，本项是编译成功，不是玩法验收。
