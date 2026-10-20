@@ -34,7 +34,8 @@ public final class LivingWorldActions {
             npc.setDecision(npc.planner().choose(new LivingPlanner.Context(
                 level.getDayTime(), level.isRaining(), exposed, danger,
                 npc.hunger(), npc.energy(), npc.socialNeed(),
-                npc.profession() == PlayerNpcEntity.Profession.FARMER)));
+                npc.profession() == PlayerNpcEntity.Profession.FARMER ||
+                npc.profession() == PlayerNpcEntity.Profession.BAKER)));
         }
         if (tick % 20 != Math.floorMod(npc.getId(), 20)) return;
         switch (npc.intent()) {
@@ -112,6 +113,10 @@ public final class LivingWorldActions {
     }
 
     private static void work(PlayerNpcEntity npc, ServerLevel level, long tick) {
+        if (npc.profession() == PlayerNpcEntity.Profession.BAKER) {
+            bake(npc, level, tick);
+            return;
+        }
         if (npc.profession() != PlayerNpcEntity.Profession.FARMER) return;
         if (tick % 100 != Math.floorMod(npc.getId(), 100)) return;
         BlockPos anchor = npc.workPos();
@@ -192,6 +197,95 @@ public final class LivingWorldActions {
         bag.setChanged();
         npc.changeNeeds(0, -2, 0);
         npc.setAction("harvested and replanted crop " + pos.toShortString());
+    }
+
+
+    // The baker must work near a real crafting table; the recipe consumes real wheat.
+    private static void bake(PlayerNpcEntity baker, ServerLevel level, long tick) {
+        if (tick % 100 != Math.floorMod(baker.getId(), 100)) return;
+        BlockPos anchor = baker.workPos();
+        if (baker.blockPosition().distSqr(anchor) > 36) {
+            baker.getNavigation().moveTo(anchor.getX() + 0.5,
+                anchor.getY(), anchor.getZ() + 0.5, 1.0);
+            baker.setAction("walking to bakery");
+            return;
+        }
+
+        boolean bench = false;
+        for (BlockPos pos : BlockPos.betweenClosed(anchor.offset(-3, -1, -3),
+                anchor.offset(3, 2, 3))) {
+            if (level.hasChunkAt(pos) && level.getBlockState(pos).is(Blocks.CRAFTING_TABLE)) {
+                bench = true;
+                break;
+            }
+        }
+        if (!bench) {
+            baker.setAction("bakery lacks a real crafting table");
+            return;
+        }
+        SimpleContainer bag = baker.backpack();
+        SimpleContainer trial = cloneBag(bag);
+        if (remove(trial, Items.WHEAT, 3)) {
+            if (trial.addItem(new ItemStack(Items.BREAD)).isEmpty()) {
+                apply(bag, trial);
+                baker.setAction("baked 1 bread using 3 real wheat at workbench");
+                return;
+            }
+        }
+        // If no wheat, visit another loaded farmer and barter 1 real bread for 3 wheat.
+        List<PlayerNpcEntity> farmers = level.getEntitiesOfClass(PlayerNpcEntity.class,
+            baker.getBoundingBox().inflate(14), person ->
+                person != baker && person.isAlive()
+                    && person.profession() == PlayerNpcEntity.Profession.FARMER);
+        for (PlayerNpcEntity farmer : farmers) {
+            if (baker.distanceToSqr(farmer) > 8) {
+                baker.getNavigation().moveTo(farmer, 0.95);
+                baker.setAction("visiting farmer to buy wheat");
+                return;
+            }
+            SimpleContainer farmerTrial = cloneBag(farmer.backpack());
+            SimpleContainer bakerTrial = cloneBag(bag);
+            if (!remove(farmerTrial, Items.WHEAT, 3)
+                || !remove(bakerTrial, Items.BREAD, 1)) continue;
+            if (!farmerTrial.addItem(new ItemStack(Items.BREAD)).isEmpty()
+                || !bakerTrial.addItem(new ItemStack(Items.WHEAT, 3)).isEmpty()) continue;
+            apply(farmer.backpack(), farmerTrial);
+            apply(bag, bakerTrial);
+            baker.rememberGreeting(farmer, tick);
+            farmer.rememberGreeting(baker, tick);
+            baker.setAction("bartered 1 bread for 3 wheat with " + farmer.getName().getString());
+            farmer.setAction("sold 3 wheat to " + baker.getName().getString());
+            return;
+        }
+        baker.setAction("waiting for wheat and bread to trade");
+    }
+
+    private static SimpleContainer cloneBag(SimpleContainer source) {
+        SimpleContainer result = new SimpleContainer(source.getContainerSize());
+        for (int i = 0; i < source.getContainerSize(); i++)
+            result.setItem(i, source.getItem(i).copy());
+        return result;
+    }
+
+    private static void apply(SimpleContainer target, SimpleContainer source) {
+        for (int i = 0; i < target.getContainerSize(); i++)
+            target.setItem(i, source.getItem(i).copy());
+        target.setChanged();
+    }
+
+    private static boolean remove(SimpleContainer bag, Item type, int count) {
+        int available = 0;
+        for (int i = 0; i < bag.getContainerSize(); i++)
+            if (bag.getItem(i).is(type)) available += bag.getItem(i).getCount();
+        if (available < count) return false;
+        for (int i = 0; i < bag.getContainerSize() && count > 0; i++) {
+            ItemStack stack = bag.getItem(i);
+            if (!stack.is(type)) continue;
+            int taken = Math.min(stack.getCount(), count);
+            stack.shrink(taken);
+            count -= taken;
+        }
+        return true;
     }
 
     private static void socialize(PlayerNpcEntity npc, ServerLevel level, long tick) {

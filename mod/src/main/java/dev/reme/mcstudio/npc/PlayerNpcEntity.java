@@ -42,7 +42,7 @@ import net.minecraft.world.level.Level;
 
 public class PlayerNpcEntity extends PathfinderMob {
     public enum Mode { LIVE, FOLLOW, STAY, WANDER, GUARD }
-    public enum Profession { FARMER, RESIDENT, GUARD }
+    public enum Profession { FARMER, BAKER, RESIDENT, GUARD }
 
     private final SimpleContainer backpack = new SimpleContainer(36) {
         @Override public boolean stillValid(Player player) {

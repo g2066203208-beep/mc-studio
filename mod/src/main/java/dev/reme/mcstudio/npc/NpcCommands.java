@@ -27,6 +27,7 @@ public final class NpcCommands {
                 .executes(ctx -> demo(ctx.getSource())))
             .then(Commands.literal("live").executes(ctx -> changeMode(ctx.getSource(), PlayerNpcEntity.Mode.LIVE)))
             .then(Commands.literal("farmer").executes(ctx -> profession(ctx.getSource(), PlayerNpcEntity.Profession.FARMER)))
+            .then(Commands.literal("baker").executes(ctx -> profession(ctx.getSource(), PlayerNpcEntity.Profession.BAKER)))
             .then(Commands.literal("resident").executes(ctx -> profession(ctx.getSource(), PlayerNpcEntity.Profession.RESIDENT)))
             .then(Commands.literal("sethome").executes(ctx -> anchor(ctx.getSource(), true)))
             .then(Commands.literal("setwork").executes(ctx -> anchor(ctx.getSource(), false)))
@@ -75,8 +76,8 @@ public final class NpcCommands {
             npc.backpack().addItem(new ItemStack(Items.BREAD, 4));
             npc.setPersonality(new LivingPlanner.Personality(
                 30 + i * 11, 80 - i * 9, 30 + i * 8));
-            npc.setProfession(i < 2
-                ? PlayerNpcEntity.Profession.FARMER
+            npc.setProfession(i < 2 ? PlayerNpcEntity.Profession.FARMER
+                : i == 2 ? PlayerNpcEntity.Profession.BAKER
                 : PlayerNpcEntity.Profession.RESIDENT);
             int dx = (i % 3) * 3 - 3;
             int dz = (i / 3) * 3 + 3;
@@ -89,7 +90,7 @@ public final class NpcCommands {
         }
         final int count = created;
         source.sendSuccess(() -> Component.literal("Created " + count +
-            " autonomous residents (2 farmers). Place mature crops near center to test real harvesting. No terrain was changed."), true);
+            " autonomous residents (2 farmers, 1 baker). Plant wheat and put a crafting table near the bakery anchor; place mature crops near center to test real harvesting. No terrain was changed."), true);
         return created;
     }
 
