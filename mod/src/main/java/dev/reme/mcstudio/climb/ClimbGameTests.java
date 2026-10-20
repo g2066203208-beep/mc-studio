@@ -117,6 +117,12 @@ public final class ClimbGameTests {
         for(int i=1;i<PeakLedgeAssist.DURATION;i++) PeakLedgeAssist.tick(player,state);
         helper.assertTrue(!state.gripping() && state.mantleTicks == 0,
                 "Mantle must end and release its anchor within the bounded transition");
+        helper.assertTrue(state.mantleRequiresRelease,
+                "Mantling should not immediately re-grip while RMB is still held");
+        ClimbRuntime.accept(player, 2, -1, true, false, 1, 0);
+        helper.assertTrue(!state.gripping(), "Held RMB re-gripped the wall after mantle completion");
+        ClimbRuntime.accept(player, 3, -1, false, false, 0, 0);
+        helper.assertTrue(!state.mantleRequiresRelease, "Releasing RMB must re-arm grabbing");
         ClimbState.remove(player);
         helper.setBlock(wall, Blocks.AIR);
         helper.succeed();
