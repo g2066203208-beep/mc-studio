@@ -34,3 +34,27 @@ jobs:
           name: unit-test-report-${{ github.sha }}
           path: mod/build/test-results/test/*.xml
           if-no-files-found: ignore
+
+  gametest:
+    name: Minecraft GameTest (headless)
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Execute in-engine surface tests
+        working-directory: mod
+        run: bash ./gradlew runGameTestServer --no-daemon --console=plain
+      - name: Upload GameTest diagnostic logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gametest-logs-${{ github.sha }}
+          path: |
+            mod/run/logs/*.log
+            mod/run-gameTestServer/logs/*.log
+          if-no-files-found: ignore
