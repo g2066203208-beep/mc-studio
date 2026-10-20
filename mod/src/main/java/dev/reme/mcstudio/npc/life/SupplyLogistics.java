@@ -9,6 +9,8 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.ChestBlockEntity;
+import java.util.Comparator;
+import java.util.List;
 
 /**
  * Explicitly assigned single vanilla chest logistics only.
@@ -83,6 +85,50 @@ public final class SupplyLogistics {
         apply(npc.backpack(), bag);
         apply(chest, box);
         npc.setAction("collected real goods from assigned supply chest");
+        return true;
+    }
+
+    /**
+     * Community courier collects surplus wheat from a consenting, non-hostile
+     * farmer in the same region. No free items: both bags update as a transaction.
+     */
+    public static boolean collectFromFarmer(PlayerNpcEntity courier, ServerLevel level) {
+        if (courier.supplyPos() == null) return false;
+        List<PlayerNpcEntity> farmers = level.getEntitiesOfClass(PlayerNpcEntity.class,
+            courier.getBoundingBox().inflate(14), other ->
+                other != courier && other.isAlive() &&
+                other.profession() == PlayerNpcEntity.Profession.FARMER &&
+                !courier.hostileTo(other) &&
+                other.identity().region().equals(courier.identity().region()) &&
+                other.backpack().countItem(Items.WHEAT) >= 7);
+        if (farmers.isEmpty()) return false;
+        PlayerNpcEntity farmer = farmers.stream()
+            .min(Comparator.comparingDouble(courier::distanceToSqr)).orElseThrow();
+        if (courier.distanceToSqr(farmer) > 8) {
+            RoadNavigator.moveToward(courier, level, farmer.blockPosition(), 0.95);
+            courier.setAction("travelling to farmer for regional supply delivery");
+            return true;
+        }
+        SimpleContainer c = copy(courier.backpack());
+        SimpleContainer f = copy(farmer.backpack());
+        int available = f.countItem(Items.WHEAT);
+        int amount = Math.min(6, available - 3); // keep a reserve with the farmer
+        if (amount < 1) return false;
+        ItemStack cargo = new ItemStack(Items.WHEAT, amount);
+        if (!c.addItem(cargo).isEmpty()) return false;
+        int left = amount;
+        for (int i = 0; i < f.getContainerSize() && left > 0; i++) {
+            ItemStack stack = f.getItem(i);
+            if (!stack.is(Items.WHEAT)) continue;
+            int taken = Math.min(left, stack.getCount());
+            stack.shrink(taken);
+            left -= taken;
+        }
+        if (left != 0) return false;
+        apply(courier.backpack(), c);
+        apply(farmer.backpack(), f);
+        courier.setAction("collected " + amount + " existing wheat from farmer");
+        farmer.setAction("shared " + amount + " wheat with assigned regional courier");
         return true;
     }
 

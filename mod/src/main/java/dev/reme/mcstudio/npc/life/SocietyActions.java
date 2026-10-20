@@ -21,7 +21,7 @@ public final class SocietyActions {
         return switch (npc.profession()) {
             case GUARD -> guard(npc, level, tick);
             case SCOUT -> scout(npc, level, tick);
-            case COURIER -> SupplyLogistics.deposit(npc, level);
+            case COURIER -> courier(npc, level);
             case RESIDENT -> switch (npc.journey().goal()) {
                 case EXPLORE_LANDS -> scout(npc, level, tick);
                 case DEFEND_SETTLEMENT -> guard(npc, level, tick);
@@ -29,6 +29,14 @@ public final class SocietyActions {
             };
             default -> false;
         };
+    }
+
+    private static boolean courier(PlayerNpcEntity npc, ServerLevel level) {
+        if (npc.supplyPos() == null) return false;
+        if (npc.backpack().countItem(net.minecraft.world.item.Items.WHEAT) > 0)
+            return SupplyLogistics.deposit(npc, level);
+        if (SupplyLogistics.collectFromFarmer(npc, level)) return true;
+        return SupplyLogistics.deposit(npc, level);
     }
 
     private static boolean guard(PlayerNpcEntity guard, ServerLevel level, long tick) {
