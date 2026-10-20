@@ -50,7 +50,8 @@ public final class ClientClimbControls {
     @SubscribeEvent
     public static void tick(ClientTickEvent.Post event) {
         Minecraft mc = Minecraft.getInstance();
-        if (mc.player == null || mc.level == null || mc.screen != null) {
+        if (mc.player == null || mc.level == null || mc.screen != null
+                || GLFW.glfwGetWindowAttrib(mc.getWindow().getWindow(), GLFW.GLFW_FOCUSED) == GLFW.GLFW_FALSE) {
             if (mode) { mode = false; left = false; right = false; send(-1, false); }
             return;
         }
