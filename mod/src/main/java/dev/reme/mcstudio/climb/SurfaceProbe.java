@@ -25,9 +25,21 @@ public final class SurfaceProbe {
 
     @Nullable
     public static GripAnchor trace(Player player) {
+        return castFrom(player, player.getEyePosition(), player.getLookAngle());
+    }
+
+    /** Probe a predicted shoulder position toward the current climbing face.
+     *  Static and Sable-local contacts are both supported by the same cast. */
+    @Nullable
+    public static GripAnchor traceOffset(Player player, Vec3 offset, Vec3 surfaceNormal) {
+        if (offset.lengthSqr() < 0.0001 || surfaceNormal.lengthSqr() < 0.0001) return null;
+        return castFrom(player, player.getEyePosition().add(offset), surfaceNormal.normalize().scale(-1));
+    }
+
+    @Nullable
+    private static GripAnchor castFrom(Player player, Vec3 start, Vec3 direction) {
         Level level = player.level();
-        Vec3 start = player.getEyePosition();
-        Vec3 end = start.add(player.getLookAngle().scale(REACH));
+        Vec3 end = start.add(direction.normalize().scale(REACH));
         BlockHitResult vanilla = cast(level, player, start, end);
         GripAnchor best = null;
         double bestDistance = REACH * REACH + 0.0001;
