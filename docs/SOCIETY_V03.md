@@ -63,3 +63,10 @@
 
 ### 进一步的研发工单
 后续需要严格通过 FakePlayer/权限管线做 **安全挖矿、钓鱼和自由蓝图建造**，以及真正的国家疆域/动态外交/远处离线模拟，见 [Issue #13](https://github.com/g2066203208-beep/mc-studio/issues/13)。不能声称这些已实现。
+
+## 云端测试证据（2026-10-21）
+- 推送源代码提交 `e05f765e65de7234e49ac83b3b0abc999c284310` 的 [GitHub Actions #39518033958](https://github.com/g2066203208-beep/mc-studio/actions/runs/39518033958)：**SUCCESS**，包括 Test living-world planner core、Gradle Build 与 artifact 上传。
+- [PR Actions #39518039426](https://github.com/g2066203208-beep/mc-studio/actions/runs/39518039426)：**SUCCESS**。
+- ZIP artifact ID：`12310085514`，JAR 文件：`reme_studio-0.3.0-dev.jar`；已解压并检查包含 `SocietyActions`、`SocietyRules`、`LifeJourney`、`SupplyLogistics`、`SafeBuilder`、`RoadNavigator`、`NpcCommands`、`PlayerNpcEntity` 和 `neoforge.mods.toml`。
+- JAR SHA-256：`5f480e86d8f2808c52b41662de1a5cf362c3226569099a0f7eead88d2e5eb3f3`。
+- 验收格：源代码编译 YES；独立规划单测 YES；Minecraft 客户端 NO；专用服 NO；仓库多人模拟 NO；原 222 Mod 整合包 NO；真实性能 NO。**不将本 PR 合入 main。**

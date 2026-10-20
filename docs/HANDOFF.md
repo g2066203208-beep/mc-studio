@@ -80,3 +80,10 @@ GitHub 是整个 Minecraft 工作室的开发中心。代码、需求、研究�
 - 独立开发 PR #12（base `feature/player-npc-v1`），任务分支 `feature/living-world-society-v03`。功能增加三列 `/npc squad` 小队编队、`/npc disband`、运输员农田→箱子真实货物、敌对阵营禁交易、负面记忆触发面包师拒售。
 - 未完成采矿/钓鱼/真正领土外交/离屏模拟已创建 Issue #13，生产级世界编辑要按 NeoForge 的 player block event + protection 检查执行。
 - **无真正客户端/服务器运行证据**，只有 CI 源码编译和纯 Java 测试。下一会话先核对 PR #12 的 Actions 与 artifact，再做独立世界实机测试。
+
+
+## 2026-10-21 v0.3 测试已完成（仅 CI）
+
+独立任务分支 `feature/living-world-society-v03`；完整实现代码提交 `e05f765e65de7234e49ac83b3b0abc999c284310`，后续仅更改文档。
+Push CI `39518033958` SUCCESS，PR CI `39518039426` SUCCESS。Artifact `12310085514` 包含 `reme_studio-0.3.0-dev.jar`（SHA-256 5f480e86d8f2808c52b41662de1a5cf362c3226569099a0f7eead88d2e5eb3f3）。已经从 ZIP 检查上述类存在。**仍无客户端游戏实测。**
+后续先读 `docs/SOCIETY_V03.md` 执行隔离世界验收，重点观察国家阵营敌对关系、组队跟随、指定原版箱子资源守恒与 5×5 房屋施工。PR #12 保持 draft。

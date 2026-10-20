@@ -92,3 +92,11 @@ Gradle 报告使用了将来不兼容 Gradle 10 的弃用功能；当前固定 W
 在 0.2 基础上新增：国家/派系/地区标签、预置外交关系、人生目标与进度、附近道路优先导航、守卫和玩家护送、侦察和已加载区块发现、区域农田物资调拨给运输员及显式箱子物流、NPC 面包师向玩家出售真实面包且根据过去袭击拒售、管理员授权且消耗真实材料的小屋逐块建造、最多九人三列小队。
 - 版本 `0.3.0-dev`，GitHub PR #12；最终编译结果请在 Actions 上核对，不得混用旧版 CI 成功证明新版可运行。
 - v0.4 计划 Issue #13 聚焦 FakePlayer 安全采矿/钓鱼/国家实际疆域/离线模拟，均为 TODO。
+
+
+## 0.3.0-dev 最新 CI 证据（2026-10-21）
+
+- 源代码提交 `e05f765e65de7234e49ac83b3b0abc999c284310`。
+- GitHub Actions 39518033958 push SUCCESS；39518039426 PR SUCCESS，Test living-world planner core、Build、JAR 上传全部完成。
+- Artifact `12310085514`，JAR `reme_studio-0.3.0-dev.jar`，SHA-256：`5f480e86d8f2808c52b41662de1a5cf362c3226569099a0f7eead88d2e5eb3f3`。
+- **仍没有游戏客户端/专用服/整合包 222 mods/TPS 的实测记录，不可误报为运行通过**。
