@@ -4,122 +4,130 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * Initial non-teleport grip controller. The server is authoritative; the local
- * client runs the same bounded movement step for responsive camera prediction.
- *
- * This is an experimental constraint controller, NOT a fully simulated Rapier body.
+ * PEAK-style held-grab locomotion. Uses the vanilla player collision resolver,
+ * not noClip or teleport, and regrips as the player moves along a block face.
+ * Sable contacts are still transformed by GripAnchor.resolve each tick.
  */
 public final class ClimbMotion {
-    private static final double ARM_LENGTH = GripRules.MAX_EXTENSION;
-    private static final double MAX_SPEED = 0.33;
-    private static final double MAX_ANCHOR_TRAVEL_PER_TICK = 1.5;
+    private static final double MAX_GRAB_REACH = 2.9;
     private ClimbMotion() {}
 
     public static void tick(Player player, ClimbState s) {
-        if (!s.enabled || !s.gripping() || !player.isAlive() || player.isPassenger()
-                || player.getAbilities().flying || player.isSpectator()) return;
-        if (!player.level().isClientSide() && player.level().getGameTime() - s.lastInputTick > 20) {
-            s.release(); s.enabled = false; return;
+        if (s.lungeCooldown > 0) s.lungeCooldown--;
+        if (player.isPassenger() || player.isSpectator() || !player.isAlive() || player.getAbilities().flying) {
+            s.peakHeld = false; s.release(); return;
+        }
+        if (!player.level().isClientSide() && s.peakHeld
+                && player.level().getGameTime() - s.lastInputTick > 12) {
+            s.peakHeld = false;
+            s.release();
+        }
+        if (!s.peakHeld) {
+            if (s.enabled) s.release();
+            s.stamina = PeakGripRules.staminaNext(s.stamina, false, false, player.onGround());
+            return;
+        }
+        if (s.stamina <= 0) { s.release(); return; }
+
+        // Continuous automatic grip acquisition: one input, no manual hand switching.
+        if (!s.enabled || s.left == null) {
+            GripAnchor candidate = SurfaceProbe.trace(player);
+            if (PeakGripRules.mayGrab(player, candidate)) {
+                s.left = candidate;
+                s.enabled = true;
+                GripAnchor.Contact c = candidate.resolve(player.level());
+                s.lastLeft = c == null ? Vec3.ZERO : c.point();
+            } else return;
+        }
+        GripAnchor.Contact current = s.left.resolve(player.level());
+        if (current == null) {
+            s.release();
+            return;
         }
 
-        GripAnchor.Contact a = s.left == null ? null : s.left.resolve(player.level());
-        GripAnchor.Contact b = s.right == null ? null : s.right.resolve(player.level());
-        if (a == null) { s.left = null; s.lastLeft = Vec3.ZERO; }
-        if (b == null) { s.right = null; s.lastRight = Vec3.ZERO; }
-        // A teleport / structure desync must not leave an infinite-range tether.
-        if (a != null && player.getEyePosition().distanceToSqr(a.point()) > 36) {
-            s.left = null; a = null;
-        }
-        if (b != null && player.getEyePosition().distanceToSqr(b.point()) > 36) {
-            s.right = null; b = null;
-        }
-        if (a == null && b == null) return;
-
-        Vec3 movedByStructure = Vec3.ZERO;
-        int movingAnchors = 0;
-        if (a != null) {
-            if (s.lastLeft != Vec3.ZERO) {
-                Vec3 motion = a.point().subtract(s.lastLeft);
-                if (GripRules.snapTooFar(motion.length())) {
-                    s.left = null; a = null;
-                } else { movedByStructure = movedByStructure.add(motion); movingAnchors++; }
+        double distance = player.getEyePosition().distanceTo(current.point());
+        // Re-target the current face while moving; do not tether to a single block forever.
+        if (distance > 1.2 || (player.tickCount % 4 == 0 && Math.abs(s.forward) > 0.01f)) {
+            GripAnchor next = SurfaceProbe.trace(player);
+            if (PeakGripRules.mayGrab(player, next)) {
+                s.left = next;
+                current = next.resolve(player.level());
             }
-            if (a != null) s.lastLeft = a.point();
         }
-        if (b != null) {
-            if (s.lastRight != Vec3.ZERO) {
-                Vec3 motion = b.point().subtract(s.lastRight);
-                if (motion.length() > MAX_ANCHOR_TRAVEL_PER_TICK) {
-                    s.right = null; b = null;
-                } else { movedByStructure = movedByStructure.add(motion); movingAnchors++; }
-            }
-            if (b != null) s.lastRight = b.point();
+        if (current == null || player.getEyePosition().distanceTo(current.point()) > MAX_GRAB_REACH) {
+            s.release();
+            return;
         }
-        if (a == null && b == null) return;
-        if (movingAnchors > 0) movedByStructure = movedByStructure.scale(1.0 / movingAnchors);
 
-        Vec3 normal = Vec3.ZERO;
-        if (a != null) normal = normal.add(a.normal());
-        if (b != null) normal = normal.add(b.normal());
-        normal = normal.lengthSqr() < 0.1 ? new Vec3(0, 1, 0) : normal.normalize();
+        boolean moving = Math.abs(s.forward) > 0.01 || Math.abs(s.strafe) > 0.01;
+        s.stamina = PeakGripRules.staminaNext(s.stamina, true, moving, player.onGround());
+        if (s.stamina <= 0) { s.release(); return; }
 
-        Vec3 wish = desiredTangent(normal, player.getYRot(), s.forward, s.strafe);
-
-        Vec3 old = player.getDeltaMovement();
-        // Retain a little gravity while the hand constraints carry the player's weight.
-        Vec3 velocity = old.scale(0.65).add(wish.scale(0.12))
-                .add(0, -0.046, 0).add(movedByStructure);
-
-        // A grip acts as a unilateral maximum-length constraint, not free flight.
-        Vec3 shoulder = player.getEyePosition().add(0, -0.22, 0);
-        if (a != null) velocity = constrain(velocity, a.point().subtract(shoulder));
-        if (b != null) velocity = constrain(velocity, b.point().subtract(shoulder));
-        double speed = velocity.length();
-        if (speed > GripRules.allowedSpeed(movedByStructure.length())) {
-            velocity = velocity.scale(GripRules.allowedSpeed(movedByStructure.length()) / speed);
+        Vec3 deltaFromStructure = Vec3.ZERO;
+        if (!s.lastLeft.equals(Vec3.ZERO)) {
+            deltaFromStructure = current.point().subtract(s.lastLeft);
+            if (deltaFromStructure.length() > 1.5) { s.release(); return; }
         }
+        s.lastLeft = current.point();
+        Vec3 normal = current.normal().normalize();
+        Vec3 direction = desiredTangent(normal, player.getYRot(), s.forward, s.strafe);
+        Vec3 velocity = player.getDeltaMovement().scale(0.35).add(direction.scale(0.16))
+                .add(deltaFromStructure);
+
+        // Upward grip force and wall contact are bounded, never infinite flight.
+        if (Math.abs(normal.y) < 0.65) {
+            velocity = new Vec3(velocity.x, direction.y * 0.17, velocity.z);
+            // A small inward normal component holds the body against the surface.
+            velocity = velocity.subtract(normal.scale(0.025));
+        } else if (normal.y < -0.65) {
+            // Ceiling traversal: no gravity-only fall while button is held.
+            velocity = velocity.subtract(normal.scale(0.015));
+        } else {
+            // Ground: retain normal ground contact and friction.
+            velocity = new Vec3(velocity.x, Math.min(velocity.y, 0), velocity.z);
+        }
+
+        if (s.lungeRequested && PeakGripRules.canLunge(s.stamina, s.lungeCooldown, s.enabled)) {
+            s.stamina -= PeakGripRules.LUNGE_COST;
+            s.lungeCooldown = 17;
+            velocity = velocity.add(new Vec3(0, 0.30, 0)).add(direction.scale(0.12));
+        }
+        s.lungeRequested = false;
+
+        // Last safety constraint: camera/shoulder cannot travel arbitrarily far from the face.
+        Vec3 shoulder = player.getEyePosition().add(0, -0.18, 0);
+        Vec3 toAnchor = current.point().subtract(shoulder);
+        if (toAnchor.length() > 1.75) {
+            Vec3 inward = toAnchor.normalize();
+            double outward = -velocity.dot(inward);
+            if (outward > 0) velocity = velocity.add(inward.scale(outward));
+            velocity = velocity.add(inward.scale(Math.min(0.11, (toAnchor.length() - 1.75) * 0.35)));
+        }
+        double maxSpeed = 0.35 + deltaFromStructure.length();
+        if (velocity.length() > maxSpeed) velocity = velocity.normalize().scale(maxSpeed);
         player.setDeltaMovement(velocity);
-        // A held grip prevents accumulated landing fall damage, not gravity itself.
         player.fallDistance = 0;
         player.hurtMarked = true;
+        s.peakPhase += (float) Math.min(0.4, Math.max(0.03, direction.length() * 0.36));
     }
 
-    /**
-     * Maps controls onto a physical surface, not the forward-looking ray.
-     * On a vertical wall W means ascend (even looking straight at the wall);
-     * on the floor and ceiling W means travel toward the horizontal view heading.
-     */
-    public static Vec3 desiredTangent(Vec3 surfaceNormal, float yawDegrees,
-                                       float forwardAmount, float strafeAmount) {
+    /** Natural surface-local movement; W is up on walls and forward on ceilings/floor. */
+    public static Vec3 desiredTangent(Vec3 surfaceNormal, float yawDegrees, float forward, float strafe) {
         Vec3 n = surfaceNormal.normalize();
         double yaw = Math.toRadians(yawDegrees);
         Vec3 facing = new Vec3(-Math.sin(yaw), 0, Math.cos(yaw));
         Vec3 right = new Vec3(-Math.cos(yaw), 0, -Math.sin(yaw));
-        Vec3 horizontalForward = projectTangent(facing, n);
-        Vec3 verticalForward = projectTangent(new Vec3(0, 1, 0), n);
-        Vec3 along = Math.abs(n.y) < 0.70 && verticalForward.lengthSqr() > 0.01
-                ? verticalForward.normalize() : horizontalForward.normalize();
-        Vec3 across = projectTangent(right, n);
-        if (across.lengthSqr() < 0.0001) across = n.cross(along);
-        if (across.lengthSqr() > 0.0001) across = across.normalize();
-        Vec3 wish = along.scale(forwardAmount).add(across.scale(strafeAmount));
-        return wish.lengthSqr() > 1 ? wish.normalize() : wish;
+        Vec3 horizontal = projection(facing, n);
+        Vec3 vertical = projection(new Vec3(0, 1, 0), n);
+        Vec3 along = Math.abs(n.y) < 0.7 && vertical.lengthSqr() > 0.01
+                ? vertical.normalize() : horizontal.normalize();
+        Vec3 across = projection(right, n);
+        if (across.lengthSqr() < 0.001) across = n.cross(along);
+        if (across.lengthSqr() > 0.001) across = across.normalize();
+        Vec3 v = along.scale(forward).add(across.scale(strafe));
+        return v.lengthSqr() > 1 ? v.normalize() : v;
     }
-
-    private static Vec3 projectTangent(Vec3 movement, Vec3 normal) {
+    private static Vec3 projection(Vec3 movement, Vec3 normal) {
         return movement.subtract(normal.scale(movement.dot(normal)));
-    }
-
-    private static Vec3 constrain(Vec3 velocity, Vec3 toAnchor) {
-        double distance = toAnchor.length();
-        if (distance < 1.0e-5) return velocity;
-        if (distance > ARM_LENGTH) {
-            Vec3 inward = toAnchor.scale(1.0 / distance);
-            // Subtract outward velocity to stop a hand from extending forever.
-            double outward = -velocity.dot(inward);
-            if (outward > 0) velocity = velocity.add(inward.scale(outward));
-            return velocity.add(inward.scale(GripRules.inwardCorrection(distance)));
-        }
-        return velocity;
     }
 }
