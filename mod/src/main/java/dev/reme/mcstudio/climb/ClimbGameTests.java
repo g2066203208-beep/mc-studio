@@ -48,6 +48,38 @@ public final class ClimbGameTests {
         helper.succeed();
     }
 
+
+    @GameTest(template = "climb_test", timeoutTicks = 80)
+    public static void independentLeftAndRightHands(GameTestHelper helper) {
+        Player mock = helper.makeMockPlayer(GameType.CREATIVE);
+        BlockPos player = helper.absolutePos(new BlockPos(3, 2, 3));
+        BlockPos wall = new BlockPos(3, 3, 5);
+        helper.setBlock(wall, Blocks.STONE);
+        mock.moveTo(player.getX() + 0.5, player.getY(), player.getZ() + 0.5, 0, 0);
+
+        // Both requests independently run their own server-side geometry check.
+        ClimbRuntime.accept(mock, 1, 0, true, true, 0, 0);
+        ClimbState state = ClimbState.of(mock);
+        helper.assertTrue(state.left != null && state.right == null, "Left hand did not grip independently");
+
+        ClimbRuntime.accept(mock, 2, 1, true, true, 0, 0);
+        helper.assertTrue(state.left != null && state.right != null, "Both hands cannot grip at once");
+
+        ClimbRuntime.accept(mock, 3, 0, false, true, 0, 0);
+        helper.assertTrue(state.left == null && state.right != null,
+                "Releasing left hand also released right");
+
+        ClimbRuntime.accept(mock, 4, 0, false, true, 0, 0);
+        helper.assertTrue(state.right != null, "Releasing an already-free hand changed the held grip");
+
+        // Removing the actual block invalidates the remaining anchor.
+        helper.setBlock(wall, Blocks.AIR);
+        ClimbMotion.tick(mock, state);
+        helper.assertTrue(!state.gripping(), "Grip persisted after source block was removed");
+        ClimbState.remove(mock);
+        helper.succeed();
+    }
+
     private static void assertFace(GameTestHelper helper, Player mock, BlockPos playerPos,
                                    BlockPos surface, float yaw, float pitch) {
         helper.setBlock(surface, Blocks.STONE);
