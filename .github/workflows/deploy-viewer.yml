@@ -22,6 +22,17 @@ jobs:
     steps:
       - name: Checkout viewer
         uses: actions/checkout@v4
+      - name: Validate interactive 3D viewer JavaScript
+        run: |
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+          page=Path('viewer/index.html').read_text(encoding='utf-8')
+          match=re.search(r'<script type="module">([\s\S]*?)</script>',page)
+          assert match, 'No module script in viewer/index.html'
+          Path('/tmp/mts-viewer-check.mjs').write_text(match.group(1),encoding='utf-8')
+          PY
+          node --check /tmp/mts-viewer-check.mjs
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
       - name: Upload static viewer website
