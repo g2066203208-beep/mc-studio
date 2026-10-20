@@ -27,6 +27,10 @@ public final class ClimbMotion {
             s.stamina = PeakGripRules.staminaNext(s.stamina, false, false, player.onGround());
             return;
         }
+        if (s.mantleTicks > 0) {
+            PeakLedgeAssist.tick(player, s);
+            return;
+        }
         if (s.stamina <= 0) {
             s.release();
             s.stamina = PeakGripRules.staminaNext(s.stamina,false,false,player.onGround());
@@ -41,7 +45,10 @@ public final class ClimbMotion {
                 s.enabled = true;
                 GripAnchor.Contact c = candidate.resolve(player.level());
                 s.lastLeft = c == null ? Vec3.ZERO : c.point();
-            } else return;
+            } else {
+                s.stamina = PeakGripRules.staminaNext(s.stamina, false, false, player.onGround());
+                return;
+            }
         }
         GripAnchor.Contact current = s.left.resolve(player.level());
         if (current == null) {
@@ -60,6 +67,11 @@ public final class ClimbMotion {
         }
         if (current == null || player.getEyePosition().distanceTo(current.point()) > MAX_GRAB_REACH) {
             s.release();
+            return;
+        }
+
+        if (PeakLedgeAssist.start(player, s, current)) {
+            PeakLedgeAssist.tick(player, s);
             return;
         }
 
@@ -112,7 +124,8 @@ public final class ClimbMotion {
         player.setDeltaMovement(velocity);
         player.fallDistance = 0;
         player.hurtMarked = true;
-        s.peakPhase += (float) Math.min(0.4, Math.max(0.03, direction.length() * 0.36));
+        s.poseAction = !moving ? (byte) 0 : Math.abs(s.forward) > 0.1f ? (byte) 1 : (byte) 2;
+        if (moving) s.peakPhase += (float) Math.min(0.4, direction.length() * 0.36);
     }
 
     /** Natural surface-local movement; W is up on walls and forward on ceilings/floor. */
