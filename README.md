@@ -63,3 +63,10 @@ bash scripts/build.sh
 目标：参考 White Knuckle 的左右手独立抓握，保留 Minecraft 原版第一人称方块手臂，在墙壁、平地、天花板及 Sable 动态结构的真实方块表面进行攀附移动。当前仅完成规划和开源研究，尚未实现玩法、运行客户端或做游戏内测试。
 
 从 [玩法工程规格](docs/climbing/SPEC.md)、[开源项目及许可](docs/climbing/OPEN_SOURCE.md)、[测试矩阵](docs/climbing/TEST_PLAN.md)、[开发总提示词](docs/climbing/DEV_PROMPT.md) 开始。下一步是 M0：编写/验证真实表面探测器，然后再逐阶段实现运动功能。其他会话从 docs/HANDOFF.md 接手。
+
+
+## Sable Hands 0.2.0-alpha.1 (可编译的功能原型，尚未实机验收)
+
+[实验版功能与验收记录](docs/climbing/PROTOTYPE_STATUS.md) · [玩法规格](docs/climbing/SPEC.md) · [测试](docs/climbing/TEST_PLAN.md)
+
+已新增 Java 代码：G 切换攀爬、左右手抓握、非空气且存在 outline 形状的任意方向方块表面、Sable 子世界坐标抓点、玩家单/双手运动约束、服务端意图校验与客户端锚点快照。本功能正在 [PR #3](https://github.com/g2066203208-beep/mc-studio/pull/3) 中开发。编译成功不代表真实游戏、Sable 运动平台、专服及整合包测试完成。正式玩家存档未部署或更改。
