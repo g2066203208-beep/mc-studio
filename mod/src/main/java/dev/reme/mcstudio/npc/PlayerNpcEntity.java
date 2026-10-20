@@ -47,7 +47,7 @@ import net.minecraft.world.level.Level;
 
 public class PlayerNpcEntity extends PathfinderMob {
     public enum Mode { LIVE, FOLLOW, STAY, WANDER, GUARD }
-    public enum Profession { FARMER, BAKER, RESIDENT, GUARD, SCOUT, COURIER }
+    public enum Profession { FARMER, BAKER, RESIDENT, GUARD, SCOUT, COURIER, BUILDER }
 
     private final SimpleContainer backpack = new SimpleContainer(36) {
         @Override public boolean stillValid(Player player) {
@@ -76,6 +76,8 @@ public class PlayerNpcEntity extends PathfinderMob {
     @Nullable private BlockPos exploreTarget;
     private final Set<Long> recentChunks = new LinkedHashSet<>();
     private int parcelsDelivered = 0;
+    private boolean buildEnabled = false;
+    private int buildCursor = 0;
     private long nextSocialTick = 0;
     @Nullable private UUID ownerUuid;
 
@@ -120,6 +122,11 @@ public class PlayerNpcEntity extends PathfinderMob {
         exploreTarget = pos == null ? null : pos.immutable();
     }
     public int parcelsDelivered() { return parcelsDelivered; }
+    public boolean buildEnabled() { return buildEnabled; }
+    public void setBuildEnabled(boolean enabled) { buildEnabled = enabled; }
+    public int buildCursor() { return buildCursor; }
+    public void advanceBuildCursor() { buildCursor++; }
+    public void resetBuildCursor() { buildCursor = 0; }
     public void recordDelivery() { parcelsDelivered++; journey.succeeded(LifeJourney.Achievement.BARTER); }
     public boolean visitChunk(int x, int z) {
         long encoded = ChunkPos.asLong(x, z);
@@ -340,6 +347,8 @@ public class PlayerNpcEntity extends PathfinderMob {
         if (exploreTarget != null) tag.putLong("NpcExploreTarget", exploreTarget.asLong());
         tag.putLongArray("NpcRecentChunks", recentChunks.stream().mapToLong(Long::longValue).toArray());
         tag.putInt("NpcParcels", parcelsDelivered);
+        tag.putBoolean("NpcBuildEnabled", buildEnabled);
+        tag.putInt("NpcBuildCursor", buildCursor);
         tag.putInt("NpcDiligence", personality.diligence());
         tag.putInt("NpcSociability", personality.sociability());
         tag.putInt("NpcCaution", personality.caution());
@@ -411,6 +420,8 @@ public class PlayerNpcEntity extends PathfinderMob {
             }
         }
         parcelsDelivered = Math.max(0, tag.getInt("NpcParcels"));
+        buildEnabled = tag.getBoolean("NpcBuildEnabled");
+        buildCursor = Math.clamp(tag.getInt("NpcBuildCursor"), 0, 100);
         setPersonality(new LivingPlanner.Personality(
             Math.clamp(tag.contains("NpcDiligence") ? tag.getInt("NpcDiligence") : 50, 0, 100),
             Math.clamp(tag.contains("NpcSociability") ? tag.getInt("NpcSociability") : 50, 0, 100),

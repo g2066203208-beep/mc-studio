@@ -7,6 +7,7 @@ import dev.reme.mcstudio.npc.life.SocietyActions;
 import dev.reme.mcstudio.npc.life.SupplyLogistics;
 import dev.reme.mcstudio.npc.life.RoadNavigator;
 import dev.reme.mcstudio.npc.life.LifeJourney;
+import dev.reme.mcstudio.npc.life.SafeBuilder;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.SimpleContainer;
@@ -39,7 +40,8 @@ public final class LivingWorldActions {
                 level.getDayTime(), level.isRaining(), exposed, danger,
                 npc.hunger(), npc.energy(), npc.socialNeed(),
                 npc.profession() == PlayerNpcEntity.Profession.FARMER ||
-                npc.profession() == PlayerNpcEntity.Profession.BAKER)));
+                npc.profession() == PlayerNpcEntity.Profession.BAKER ||
+                npc.profession() == PlayerNpcEntity.Profession.BUILDER)));
         }
         if (SocietyActions.tick(npc, level, tick)) return;
         if (tick % 20 != Math.floorMod(npc.getId(), 20)) return;
@@ -119,6 +121,10 @@ public final class LivingWorldActions {
     }
 
     private static void work(PlayerNpcEntity npc, ServerLevel level, long tick) {
+        if (npc.profession() == PlayerNpcEntity.Profession.BUILDER) {
+            SafeBuilder.tick(npc, level, tick);
+            return;
+        }
         if (npc.profession() == PlayerNpcEntity.Profession.BAKER) {
             bake(npc, level, tick);
             return;

@@ -9,6 +9,7 @@ import net.minecraft.core.BlockPos;
 import dev.reme.mcstudio.npc.life.LivingPlanner;
 import dev.reme.mcstudio.npc.life.SocietyRules;
 import dev.reme.mcstudio.npc.life.LifeJourney;
+import dev.reme.mcstudio.npc.life.SafeBuilder;
 import java.util.Locale;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.BlockHitResult;
@@ -38,6 +39,11 @@ public final class NpcCommands {
             .then(Commands.literal("scout").executes(ctx -> profession(ctx.getSource(), PlayerNpcEntity.Profession.SCOUT)))
             .then(Commands.literal("courier").executes(ctx -> profession(ctx.getSource(), PlayerNpcEntity.Profession.COURIER)))
             .then(Commands.literal("guardjob").executes(ctx -> profession(ctx.getSource(), PlayerNpcEntity.Profession.GUARD)))
+            .then(Commands.literal("builder").executes(ctx -> profession(ctx.getSource(), PlayerNpcEntity.Profession.BUILDER)))
+            .then(Commands.literal("buildstart").requires(source -> source.hasPermission(2))
+                .executes(ctx -> construction(ctx.getSource(), true)))
+            .then(Commands.literal("buildstop").requires(source -> source.hasPermission(2))
+                .executes(ctx -> construction(ctx.getSource(), false)))
             .then(Commands.literal("escort").executes(ctx -> escort(ctx.getSource(), true)))
             .then(Commands.literal("unescort").executes(ctx -> escort(ctx.getSource(), false)))
             .then(Commands.literal("setstore").requires(source -> source.hasPermission(2))
@@ -170,6 +176,29 @@ public final class NpcCommands {
         return 1;
     }
 
+
+    private static int construction(CommandSourceStack source, boolean start)
+        throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        ServerPlayer player = source.getPlayerOrException();
+        PlayerNpcEntity npc = closestOwnedNpc(player);
+        if (npc == null) return 0;
+        if (!start) {
+            npc.setBuildEnabled(false);
+            source.sendSuccess(() -> Component.literal("Construction paused"), false);
+            return 1;
+        }
+        if (!SafeBuilder.validateSite(player.serverLevel(), npc.workPos())) {
+            source.sendFailure(Component.literal("Build site must be loaded and empty: 5x5 x 3, no entities inside"));
+            return 0;
+        }
+        npc.setProfession(PlayerNpcEntity.Profession.BUILDER);
+        npc.resetBuildCursor();
+        npc.setBuildEnabled(true);
+        npc.setMode(PlayerNpcEntity.Mode.LIVE);
+        source.sendSuccess(() -> Component.literal("Started consented 5x5 shelter build at " +
+            npc.workPos().toShortString() + "; uses actual cobblestone/planks, cannot clear blocks"), true);
+        return 1;
+    }
 
     private static int setStore(CommandSourceStack source)
         throws com.mojang.brigadier.exceptions.CommandSyntaxException {
