@@ -208,8 +208,11 @@ public class PlayerNpcEntity extends PathfinderMob {
             return InteractionResult.CONSUME;
         }
         if (held.isEmpty()) {
-            setMode(mode == Mode.LIVE ? Mode.STAY : Mode.LIVE);
-            player.displayClientMessage(Component.literal("NPC: " + mode.name()), true);
+            memory.witness(level().getGameTime(), player.getUUID(),
+                ResidentMemory.Kind.GREETING, blockPosition().toShortString());
+            player.displayClientMessage(Component.literal(getName().getString()
+                + ": " + lastAction + " | " + intent()
+                + " | trust " + memory.trust(player.getUUID())), false);
             return InteractionResult.CONSUME;
         }
 
@@ -234,6 +237,11 @@ public class PlayerNpcEntity extends PathfinderMob {
         }
         backpack.addItem(one);
         held.shrink(1);
+        if (one.is(Items.BREAD) || one.is(Items.CARROT) ||
+                one.is(Items.APPLE) || one.is(Items.BAKED_POTATO)) {
+            memory.witness(level().getGameTime(), player.getUUID(),
+                ResidentMemory.Kind.GIFT, blockPosition().toShortString());
+        }
         player.displayClientMessage(Component.literal("NPC backpack: item received"), true);
         return InteractionResult.CONSUME;
     }
