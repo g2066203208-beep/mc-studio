@@ -11,7 +11,7 @@ import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
 import net.neoforged.neoforge.network.PacketDistributor;
 
-/** LMB hold intents to server, validated state back to player, poses to observers. */
+/** RMB hold intents to server, validated state back to player, poses to observers. */
 @EventBusSubscriber(modid = StudioMod.MOD_ID, bus = EventBusSubscriber.Bus.MOD)
 public final class ClimbNetwork {
     private ClimbNetwork() {}
@@ -37,7 +37,7 @@ public final class ClimbNetwork {
     }
 
     /** Other clients need to see the same hand-over-hand animation as the controlling player. */
-    public record Pose(int entityId, boolean climbing, float phase, float stamina, byte action)
+    public record Pose(int entityId, boolean climbing, float phase, byte action)
             implements CustomPacketPayload {
         public static final Type<Pose> TYPE = new Type<>(
                 ResourceLocation.fromNamespaceAndPath(StudioMod.MOD_ID, "peak_pose"));
@@ -46,16 +46,15 @@ public final class ClimbNetwork {
                     buf.writeVarInt(p.entityId());
                     buf.writeBoolean(p.climbing());
                     buf.writeFloat(p.phase());
-                    buf.writeFloat(p.stamina());
                     buf.writeByte(p.action());
                 },
-                buf -> new Pose(buf.readVarInt(), buf.readBoolean(), buf.readFloat(), buf.readFloat(), buf.readByte()));
+                buf -> new Pose(buf.readVarInt(), buf.readBoolean(), buf.readFloat(), buf.readByte()));
         @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
     }
 
     @SubscribeEvent
     public static void register(RegisterPayloadHandlersEvent event) {
-        var registrar = event.registrar("2");
+        var registrar = event.registrar("3");
         registrar.playToServer(Intent.TYPE, Intent.CODEC, (packet, context) -> {
             if (!(context.player() instanceof ServerPlayer player)) return;
             ClimbRuntime.accept(player, packet.sequence(), packet.hand(), packet.down(),
@@ -84,7 +83,7 @@ public final class ClimbNetwork {
             var clientPlayer = context.player();
             if (clientPlayer != null) {
                 PeakVisuals.observe(packet.entityId(), packet.climbing(),
-                        packet.phase(), packet.stamina(), clientPlayer.level().getGameTime(), packet.action());
+                        packet.phase(), clientPlayer.level().getGameTime(), packet.action());
             }
         });
     }
