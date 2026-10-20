@@ -143,7 +143,8 @@ public final class NpcCommands {
     }
 
     private static int info(CommandSourceStack source) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
-        PlayerNpcEntity npc = closestOwnedNpc(source.getPlayerOrException());
+        ServerPlayer player = source.getPlayerOrException();
+        PlayerNpcEntity npc = closestOwnedNpc(player);
         if (npc == null) {
             source.sendFailure(Component.literal("No NPC owned by you within 16 blocks"));
             return 0;
