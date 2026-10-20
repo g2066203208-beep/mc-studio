@@ -85,3 +85,10 @@ bash scripts/build.sh
 [玩法与开源参考、验收清单](docs/climbing/PEAK_RESEARCH_AND_ACCEPTANCE.md)。
 
 已确认 `0.4.0-peak.alpha.1` 第一版源代码（git e90e02d... 后加清理与 HUD）通过 Java/JUnit/标准 Minecraft GameTest 3/3/真实 Sable 2.0.6 GameTest 3/3，证据：[Actions 39419885573](https://github.com/g2066203208-beep/mc-studio/actions/runs/39419885573)。GitHub 图形客户端启动实验还需以最新 Actions 结果为准。**没有实机试玩、真实运动/旋转 Sable 船体攀爬或第三人称截图验收，禁止宣称已完全复刻。**
+
+
+## PEAK Player Animator 0.5 实验版
+
+**正在开发：** [PR #6](https://github.com/g2066203208-beep/mc-studio/pull/6) 引入 `Player Animator 2.0.4+1.21.1` 原版玩家动画 API，五段原创关键帧（挂墙、攀升、横移、翻顶、松手）、多人动作状态同步、碰撞检查的真实翻顶运动。已经删除旧的直接修改两臂角度的 Mixin。此版安装时必须另外安装匹配 NeoForge 1.21.1 的 Player Animator Mod。
+
+[完整安装、接口实现与仍未完成的实机验收](docs/climbing/PLAYER_ANIMATOR_INTEGRATION.md)。PR 保持 Draft；不要把构建成功理解为完整复刻 PEAK。
