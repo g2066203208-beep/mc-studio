@@ -4,12 +4,18 @@ import java.util.EnumSet;
 import java.util.UUID;
 import javax.annotation.Nullable;
 
-import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
+import net.minecraft.world.SimpleMenuProvider;
+import net.minecraft.world.Containers;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.inventory.ChestMenu;
+import net.minecraft.world.inventory.MenuType;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EquipmentSlot;
@@ -30,7 +36,13 @@ import net.minecraft.world.level.Level;
 public class PlayerNpcEntity extends PathfinderMob {
     public enum Mode { FOLLOW, STAY, WANDER, GUARD }
 
-    private final SimpleContainer backpack = new SimpleContainer(36);
+    private final SimpleContainer backpack = new SimpleContainer(36) {
+        @Override public boolean stillValid(Player player) {
+            return PlayerNpcEntity.this.isAlive()
+                && PlayerNpcEntity.this.distanceToSqr(player) < 64.0
+                && PlayerNpcEntity.this.isOwnedBy(player);
+        }
+    };
     private Mode mode = Mode.FOLLOW;
     @Nullable private UUID ownerUuid;
 
@@ -96,6 +108,13 @@ public class PlayerNpcEntity extends PathfinderMob {
         }
 
         ItemStack held = player.getItemInHand(hand);
+        if (held.isEmpty() && player.isShiftKeyDown() && player instanceof ServerPlayer serverPlayer) {
+            serverPlayer.openMenu(new SimpleMenuProvider(
+                (containerId, inventory, user) ->
+                    new ChestMenu(MenuType.GENERIC_9x4, containerId, inventory, backpack, 4),
+                Component.literal(getName().getString() + " Backpack")));
+            return InteractionResult.CONSUME;
+        }
         if (held.isEmpty()) {
             setMode(mode == Mode.FOLLOW ? Mode.STAY : Mode.FOLLOW);
             player.displayClientMessage(Component.literal("NPC: " + mode.name()), true);
@@ -147,6 +166,13 @@ public class PlayerNpcEntity extends PathfinderMob {
         if (tag.contains("NpcBackpack", Tag.TAG_LIST)) {
             backpack.fromTag(tag.getList("NpcBackpack", Tag.TAG_COMPOUND), level().registryAccess());
         }
+    }
+
+    @Override
+    protected void dropCustomDeathLoot(ServerLevel level, DamageSource source, boolean recentlyHit) {
+        super.dropCustomDeathLoot(level, source, recentlyHit);
+        Containers.dropContents(level, this, backpack);
+        backpack.clearContent();
     }
 
     private class FollowPlayerGoal extends Goal {
