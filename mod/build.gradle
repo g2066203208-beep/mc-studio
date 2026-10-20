@@ -119,6 +119,9 @@ configurations {
 }
 
 dependencies {
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.11.4'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
     // Lightweight Sable interoperability API; included so plain MC worlds also work.
     jarJar(api("dev.ryanhcode.sable-companion:sable-companion-common-1.21.1:[${project.sable_companion_version},)")) {
         version { prefer(project.sable_companion_version) }
@@ -195,4 +198,9 @@ idea {
         downloadSources = true
         downloadJavadoc = true
     }
+}
+
+
+tasks.named('test', Test) {
+    useJUnitPlatform()
 }
