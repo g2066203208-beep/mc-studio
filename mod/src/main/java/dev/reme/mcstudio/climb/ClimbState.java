@@ -22,6 +22,7 @@ public final class ClimbState {
     public float forward;
     public float strafe;
     public int sequence = -1;
+    public int lastAckSequence = -1;
     public long lastInputTick = -1;
 
     private ClimbState() {}
