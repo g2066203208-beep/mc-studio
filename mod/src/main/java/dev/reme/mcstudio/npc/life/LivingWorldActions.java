@@ -33,9 +33,11 @@ public final class LivingWorldActions {
         }
         if (tick % 40 == Math.floorMod(npc.getId(), 40)) {
             boolean exposed = level.canSeeSky(npc.blockPosition());
-            boolean danger = npc.isAfraid(tick) || !level.getEntitiesOfClass(Monster.class,
+            boolean danger = npc.isAfraid(tick) ||
+                (npc.profession() != PlayerNpcEntity.Profession.GUARD &&
+                 !level.getEntitiesOfClass(Monster.class,
                     npc.getBoundingBox().inflate(10.0),
-                    m -> m.isAlive() && npc.hasLineOfSight(m)).isEmpty();
+                    m -> m.isAlive() && npc.hasLineOfSight(m)).isEmpty());
             npc.setDecision(npc.planner().choose(new LivingPlanner.Context(
                 level.getDayTime(), level.isRaining(), exposed, danger,
                 npc.hunger(), npc.energy(), npc.socialNeed(),
@@ -44,6 +46,9 @@ public final class LivingWorldActions {
                 npc.profession() == PlayerNpcEntity.Profession.BUILDER)));
         }
         if (SocietyActions.tick(npc, level, tick)) return;
+        if (npc.profession() == PlayerNpcEntity.Profession.GUARD &&
+            npc.getTarget() != null && npc.getTarget().isAlive() &&
+            !npc.isAfraid(tick)) return;
         if (tick % 20 != Math.floorMod(npc.getId(), 20)) return;
         switch (npc.intent()) {
             case ESCAPE -> escape(npc, level);
