@@ -2,6 +2,7 @@ package dev.reme.mcstudio.climb;
 
 import dev.kosmx.playerAnim.api.IPlayable;
 import dev.kosmx.playerAnim.api.firstPerson.FirstPersonMode;
+import dev.kosmx.playerAnim.api.firstPerson.FirstPersonConfiguration;
 import dev.kosmx.playerAnim.api.layered.IAnimation;
 import dev.kosmx.playerAnim.api.layered.KeyframeAnimationPlayer;
 import dev.kosmx.playerAnim.api.layered.ModifierLayer;
@@ -122,6 +123,10 @@ public final class PeakAnimationController {
             // Render actual vanilla player arms via Player Animator's supported
             // first-person model route instead of fixed-pose ItemInHandRenderer edits.
             keyframes.setFirstPersonMode(FirstPersonMode.THIRD_PERSON_MODEL);
+            // Player Animator has BOTH arm visibility flags false by default.
+            keyframes.setFirstPersonConfiguration(new FirstPersonConfiguration()
+                    .setShowLeftArm(true).setShowRightArm(true)
+                    .setShowLeftItem(true).setShowRightItem(true));
         }
         layer.replaceAnimationWithFade(
                 AbstractFadeModifier.standardFadeIn(4, Ease.INOUTSINE), animation, true);
