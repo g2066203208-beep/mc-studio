@@ -31,3 +31,18 @@ GitHub 是整个 Minecraft 工作室的开发中心。代码、需求、研究�
 ## 可复制给另一个聊天
 
 请接手这个 GitHub 仓库的 Minecraft Mod 开发。先读取 AGENTS.md、README.md、docs/STATUS.md 和 docs/HANDOFF.md，检查最新提交与相关 PR，再继续任务。默认 MC 1.21.1、NeoForge 21.1.248、Java 21。使用独立任务分支，构建后提交代码并同步交接记录；明确区分编译结果和游戏内测试结果。
+
+
+## 新增研究任务：Sable Hands（双手物理攀爬，规划阶段）
+
+2026-10-20，用户确认：Sable 指 RyanHCode 的 Minecraft 物理/动态子世界 Mod，不是同名独立游戏；玩法参考 White Knuckle 的双手交替抓握，保留 Minecraft 原版方块手臂，优先做功能。墙壁、平地、天花板、可旋转/移动的 Sable 方块都应能够按有效方块表面抓握。
+
+规划文件位于独立候选分支 docs/sable-hand-climbing-plan：
+- docs/climbing/SPEC.md：需求、抓握与身体约束、静态与 Sable 坐标架构；
+- docs/climbing/OPEN_SOURCE.md：上游源码/版本/commit/许可证清单；
+- docs/climbing/TEST_PLAN.md：六向方块、旋转结构、单/双手、联机测试；
+- docs/climbing/DEV_PROMPT.md：可供下一个会话直接执行的完整开发指令。
+
+当前只有研究与文档，**没有攀爬源代码，也没有新攀爬功能构建或实测**。不要把早期工作台骨架的云端 BUILD SUCCESSFUL 当成本功能通过。计划下一任务为 M0：原版方块及 Sable 动态碰撞表面的真实抓点识别，先通过可视化测试和自动化校验；然后按 M1 静态双手攀爬、M2 Sable 动态锚点、M3 联机、M4 整合包兼容逐阶段开发。
+
+新会话接手先检索该候选 PR 和最新 main HEAD；如文档已经合并按 main 读取，不要以旧分支覆盖新版。
