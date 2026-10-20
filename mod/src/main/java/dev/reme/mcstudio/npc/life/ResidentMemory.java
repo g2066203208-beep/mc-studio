@@ -22,6 +22,16 @@ public final class ResidentMemory {
     private final Deque<Event> events = new ArrayDeque<>();
     private final Map<UUID, Integer> trust = new HashMap<>();
 
+    public void clear() { events.clear(); trust.clear(); }
+    public void restoreEvent(long tick, UUID actor, Kind kind, String where) {
+        if (events.size() == MAX_EVENTS) events.removeFirst();
+        events.addLast(new Event(tick, actor, kind, where == null ? "" : where));
+    }
+    public void restoreTrust(UUID actor, int value) {
+        if (trust.size() < 128 || trust.containsKey(actor))
+            trust.put(actor, Math.clamp(value, -100, 100));
+    }
+
     public void witness(long tick, UUID actor, Kind type, String where) {
         if (actor == null || type == null) {
             throw new IllegalArgumentException("Memory needs an actor and event kind");
