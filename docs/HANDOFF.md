@@ -68,3 +68,8 @@ GitHub 是整个 Minecraft 工作室的开发中心。代码、需求、研究�
 - 分支 feature/player-npc-v1 HEAD 实现与版本提交 4a8b87d25c56ce7f01639265eaea6afd196a82ea。
 - push CI 39458311637 SUCCESS，PR CI 39458319744 SUCCESS；PR 成功产物 ZIP 12281915935。
 - 要继续：先获取 ZIP 内 reme_studio-0.2.0-dev.jar，启用隔离测试世界，执行 /npc demo 与 /npc info，测试农田、面包师、NPC 受攻击反应、卸载/加载区块与 NBT 存储。不能把构建 success 等同游戏实测。
+
+
+## 2026-10-21 社会系统 0.3 开发交接
+
+新分支 `feature/living-world-society-v03` 基于 `feature/player-npc-v1` HEAD aff1ad4a4d0baeb9bbd9641185c154791fbff5d8。参见 `docs/SOCIETY_V03.md`。实现 Nation / Faction / Region、LifeJourney、局部道路偏好、守卫护送、侦察员探索/拾取、绑定箱子物流、面包师对玩家实际售货、需管理员确认并使用材料的小屋建造。只读后才能接手，注意原型未做实机验证；不可宣称采矿/钓鱼已完成。
