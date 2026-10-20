@@ -7,6 +7,10 @@ import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.neoforged.neoforge.common.util.FakePlayerFactory;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
@@ -65,18 +69,64 @@ public final class ClimbGameTests {
         ClimbRuntime.accept(mock, 2, 1, true, true, 0, 0);
         helper.assertTrue(state.left != null && state.right != null, "Both hands cannot grip at once");
 
-        ClimbRuntime.accept(mock, 3, 0, false, true, 0, 0);
+        ClimbRuntime.accept(mock, 3, 0, true, true, 0, 0);
         helper.assertTrue(state.left == null && state.right != null,
                 "Releasing left hand also released right");
 
-        ClimbRuntime.accept(mock, 4, 0, false, true, 0, 0);
+        ClimbRuntime.accept(mock, 4, -1, false, true, 0, 0);
         helper.assertTrue(state.right != null, "Releasing an already-free hand changed the held grip");
 
+        // The occupied left hand must not steal or break the right hand grip.
+        mock.setItemInHand(InteractionHand.OFF_HAND, new ItemStack(Items.BOW));
+        ClimbRuntime.accept(mock, 5, 0, true, true, 0, 0);
+        helper.assertTrue(state.left == null && state.right != null,
+                "Attempting to grip with a bow in the left hand changed anchors");
         // Removing the actual block invalidates the remaining anchor.
         helper.setBlock(wall, Blocks.AIR);
         ClimbMotion.tick(mock, state);
         helper.assertTrue(!state.gripping(), "Grip persisted after source block was removed");
         ClimbState.remove(mock);
+        helper.succeed();
+    }
+
+    @GameTest(template = "climb_test", timeoutTicks = 80)
+    public static void nativeOffhandBowWhileRightHandGrips(GameTestHelper helper) {
+        BlockPos wall = new BlockPos(3, 3, 5);
+        helper.setBlock(wall, Blocks.STONE);
+        var player = FakePlayerFactory.getMinecraft(helper.getLevel());
+        ClimbState.remove(player);
+        BlockPos origin = helper.absolutePos(new BlockPos(3, 2, 3));
+        player.moveTo(origin.getX() + 0.5, origin.getY(), origin.getZ() + 0.5, 0, 0);
+        player.setItemInHand(InteractionHand.MAIN_HAND, ItemStack.EMPTY);
+        player.setItemInHand(InteractionHand.OFF_HAND, new ItemStack(Items.BOW));
+        player.getInventory().add(new ItemStack(Items.ARROW, 64));
+
+        // The vanilla GameTest mock handles accurate sight rays; NeoForge's
+        // FakePlayer has a different camera model. Validate geometry with the
+        // existing tests, then inject that validated anchor into server state.
+        Player camera = helper.makeMockPlayer(GameType.CREATIVE);
+        camera.moveTo(origin.getX() + 0.5, origin.getY(), origin.getZ() + 0.5, 0, 0);
+        GripAnchor wallContact = SurfaceProbe.trace(camera);
+        helper.assertTrue(wallContact != null, "Test wall surface was not hittable");
+
+        ClimbState state = ClimbState.of(player);
+        state.right = wallContact;
+        state.left = null;
+        state.enabled = true;
+        state.sequence = 1;
+        state.lastInputTick = player.level().getGameTime();
+
+        OffhandActions.accept(player, 2, true);
+        helper.assertTrue(player.isUsingItem() && state.usingLeftItem,
+                "Server item-use pipeline failed to start bow draw");
+        helper.assertTrue(state.right != null, "Starting bow draw released right grip");
+
+        OffhandActions.accept(player, 3, false);
+        helper.assertTrue(!state.usingLeftItem && state.right != null,
+                "Releasing bow draw dropped right hand anchor");
+
+        ClimbState.remove(player);
+        helper.setBlock(wall, Blocks.AIR);
         helper.succeed();
     }
 

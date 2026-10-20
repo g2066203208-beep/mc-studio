@@ -34,6 +34,21 @@ public final class ClimbNetwork {
         public Type<? extends CustomPacketPayload> type() { return TYPE; }
     }
 
+
+    /** A separate intent carries left mouse press/release for vanilla offhand items. */
+    public record OffhandIntent(int sequence, boolean down) implements CustomPacketPayload {
+        public static final Type<OffhandIntent> TYPE =
+                new Type<>(ResourceLocation.fromNamespaceAndPath(StudioMod.MOD_ID, "offhand_intent"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, OffhandIntent> CODEC =
+                StreamCodec.of((buf, p) -> {
+                    buf.writeVarInt(p.sequence);
+                    buf.writeBoolean(p.down);
+                }, buf -> new OffhandIntent(buf.readVarInt(), buf.readBoolean()));
+
+        @Override
+        public Type<? extends CustomPacketPayload> type() { return TYPE; }
+    }
+
     @SubscribeEvent
     public static void register(RegisterPayloadHandlersEvent event) {
         event.registrar("1").playToServer(Intent.TYPE, Intent.CODEC, (packet, context) -> {
@@ -46,6 +61,11 @@ public final class ClimbNetwork {
                     PacketDistributor.sendToPlayer(player,
                             new ClimbSnapshot(packet.sequence(), state.enabled, state.left, state.right));
                 }
+            }
+        });
+        event.registrar("1").playToServer(OffhandIntent.TYPE, OffhandIntent.CODEC, (packet, context) -> {
+            if (context.player() instanceof ServerPlayer player) {
+                OffhandActions.accept(player, packet.sequence(), packet.down());
             }
         });
         event.registrar("1").playToClient(ClimbSnapshot.TYPE, ClimbSnapshot.CODEC, (packet, context) -> {
