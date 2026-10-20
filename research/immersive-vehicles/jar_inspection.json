@@ -18,10 +18,10 @@
     "published": "2026-04-18T23:16:42.983501Z"
   },
   "model_in_pack": "assets/mtsofficialpack/objmodels/vehicles/fordmustang69.obj",
-  "texture_in_pack": "assets/mtsofficialpack/textures/item/fordmustang69_red.png",
+  "texture_in_pack": "assets/mtsofficialpack/textures/vehicles/fordmustang69_red.png",
   "texture_size": [
-    32,
-    32
+    512,
+    512
   ],
   "vertices": 4065,
   "uv_vertices": 11598,
