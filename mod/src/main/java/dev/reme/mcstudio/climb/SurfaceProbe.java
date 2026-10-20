@@ -123,6 +123,6 @@ public final class SurfaceProbe {
         if (hit.getType() != HitResult.Type.BLOCK) return false;
         BlockPos pos = hit.getBlockPos();
         return level.isLoaded(pos) && !level.getBlockState(pos).isAir()
-                && !level.getBlockState(pos).getShape(level, pos).isEmpty();
+                && !level.getBlockState(pos).getCollisionShape(level, pos).isEmpty();
     }
 }
