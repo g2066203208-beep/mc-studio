@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MC Studio · Immersive Vehicles 真实 3D 模型检视器</title>
+<style>
+:root{color-scheme:dark;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#0b111a;color:#eff4fa}
+*{box-sizing:border-box}body{margin:0}button,select,input{font:inherit}button{cursor:pointer}
+.shell{height:100vh;min-height:640px;display:grid;grid-template-columns:306px 1fr;grid-template-rows:64px 1fr}
+header{grid-column:1/3;display:flex;align-items:center;justify-content:space-between;padding:0 24px;background:#111b28;border-bottom:1px solid #27384a;gap:15px}
+.brand{font-size:15px;font-weight:800;letter-spacing:.12em}.brand small{display:block;color:#91a8bc;letter-spacing:.07em;font-size:10px;margin-top:3px}
+.head-right{display:flex;gap:12px;align-items:center;font-size:12px;color:#b8c8d8}
+.tag{background:#203d38;color:#7ee2b9;border:1px solid #42655b;padding:5px 9px;border-radius:20px}
+aside{background:#111b28;border-right:1px solid #27384a;overflow-y:auto;padding:21px 17px 26px}
+h1{font-size:20px;margin:0 0 4px;line-height:1.35}p{margin:0}.muted{color:#95a9bd;font-size:12px;line-height:1.6}
+.section{border-top:1px solid #304052;margin-top:22px;padding-top:16px}.label{font-size:11px;color:#8fa4ba;font-weight:750;letter-spacing:.11em;text-transform:uppercase;margin-bottom:10px}
+button,.fakebutton{border-radius:9px;border:1px solid #3b5067;background:#1b2a3a;color:#edf4fd;display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:9px 12px;font-size:12px;transition:.16s}
+button:hover,.fakebutton:hover{border-color:#70b3db;background:#254058}button.active{border-color:#64caff;background:#164763;color:#d6f5ff}
+.primary{background:#0f6d90;border-color:#1999c6;font-weight:700}.primary:hover{background:#1286b0}
+.btnrow{display:flex;gap:7px;flex-wrap:wrap}.full{width:100%;margin:7px 0 0}
+label.checkbox{display:flex;gap:8px;align-items:center;font-size:12px;color:#c7d5e3;margin:9px 0}
+input[type=checkbox]{accent-color:#2ab7d4}input[type=search],select{width:100%;border:1px solid #394d61;background:#0e1926;border-radius:8px;color:#ecf2fa;font-size:12px;padding:10px}
+input[type=file]{display:none}
+.info{display:grid;grid-template-columns:1fr 1fr;gap:8px}.stat{background:#192737;border-radius:9px;border:1px solid #2b4155;padding:12px}
+.stat strong{display:block;font-size:19px;line-height:1.3}.stat span{font-size:11px;color:#8da7bb}
+.items{max-height:228px;overflow:auto;margin-top:8px;border:1px solid #2f4356;border-radius:10px}
+.part{display:flex;align-items:center;gap:7px;width:100%;text-align:left;border-radius:0;border:0;border-bottom:1px solid #27394a;background:#142131;padding:8px;font-size:11px}
+.part:last-child{border:0}.part.selected{background:#185878;color:white}.part i{width:8px;height:8px;border-radius:50%;background:#51accc;flex:none}
+.part.hiddenPart{opacity:.48}.partName{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.eye{padding:4px 6px;border:0;background:transparent;color:#aec7df}
+a{color:#8bd7ff}
+.stage{position:relative;overflow:hidden;background:radial-gradient(ellipse at center 25%,#2a4057 0%,#101c2a 57%,#0b1520 100%)}
+#viewport{display:block;width:100%;height:100%;touch-action:none;cursor:grab}#viewport:active{cursor:grabbing}
+.hud{position:absolute;left:19px;top:19px;right:19px;display:flex;align-items:start;justify-content:space-between;gap:12px;pointer-events:none}
+.hud>*{pointer-events:auto}.model-title{background:#111d2add;border:1px solid #435669bb;border-radius:12px;padding:13px 17px}
+.model-title strong{font-size:18px}.model-title small{display:block;color:#9aadc2;font-size:11px;margin-top:4px}
+.actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:end}.actions button{background:#132337dc;backdrop-filter:blur(8px)}
+.bottom{position:absolute;bottom:18px;left:19px;right:19px;display:flex;align-items:end;justify-content:space-between;gap:12px;pointer-events:none}
+.hint,.status{pointer-events:auto;background:#122235e8;border:1px solid #344c60;border-radius:10px;padding:10px 13px;color:#b8c9d9;font-size:11px;line-height:1.6;max-width:390px}
+.status{max-width:350px;text-align:right}.status.error{border-color:#b75959;color:#ffd3d3}.status.good{border-color:#497e65;color:#9ce5c1}
+.loading{position:absolute;inset:0;display:grid;place-items:center;background:#0c1623d0;z-index:9}
+.loading[hidden]{display:none}.loadingCard{background:#1a2b3c;border:1px solid #45617b;border-radius:15px;padding:27px 34px;text-align:center;max-width:380px}
+.spinner{width:40px;height:40px;border-radius:50%;border:3px solid #28445b;border-top-color:#56c8ed;animation:spin 1s linear infinite;margin:0 auto 17px}
+@keyframes spin{to{transform:rotate(360deg)}}.note{font-size:11px;line-height:1.7;color:#92adc2}
+@media(max-width:760px){.shell{grid-template-columns:1fr;grid-template-rows:54px minmax(430px,56vh) auto;height:auto;min-height:100vh}header{grid-column:1;padding:0 12px}.head-right{font-size:10px}.stage{grid-row:2;min-height:430px}aside{grid-row:3;grid-column:1;overflow:visible;border-right:0;border-top:1px solid #27384a}.hud{left:9px;right:9px;top:8px}.model-title{padding:10px}.model-title strong{font-size:13px}.actions{max-width:190px}.actions button{padding:7px 8px;font-size:10px}.bottom{left:9px;right:9px;bottom:10px}.hint{font-size:10px}.status{font-size:10px;max-width:170px}}
+</style>
+<script type="importmap">
+{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/"}}
+</script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js" defer></script>
+</head>
+<body>
+<div class="shell">
+<header><div class="brand">MC STUDIO <small>3D ASSET INSPECTION LAB</small></div><div class="head-right"><span>IMMERSIVE VEHICLES · MTS</span><span class="tag" id="connection">准备中</span></div></header>
+<aside>
+<h1>真实车辆模型</h1>
+<p class="muted">Ford Mustang 1969 · 官方模型数据<br>真实三维网格，不是截图或 AI 图像。</p>
+<div class="section">
+<div class="label">模型来源</div>
+<button id="loadOnline" class="primary full">打开官方仓库原始 OBJ</button>
+<label for="jarInput" class="fakebutton full">导入真正的 MTS 官方车辆包 JAR</label>
+<input id="jarInput" type="file" accept=".jar,.zip,application/java-archive,application/zip">
+<p class="note" style="margin-top:9px">网页默认从作者 GitHub 读取原始 OBJ 和贴图；导入 JAR 可查看实际发布包版本。JAR 完全在本机浏览器解包，不上传服务器。</p>
+</div>
+<div class="section">
+<div class="label">材质与显示</div>
+<select id="paint" aria-label="车漆">
+<option value="red">红色车漆 / Red</option><option value="black">黑色车漆 / Black</option>
+<option value="silver">银色车漆 / Silver</option><option value="white">白色车漆 / White</option>
+<option value="yellow">黄色车漆 / Yellow</option><option value="orange">橙色车漆 / Orange</option>
+</select>
+<label class="checkbox"><input type="checkbox" id="showTexture" checked>显示原始贴图</label>
+<label class="checkbox"><input type="checkbox" id="showWire">显示网格线 / Wireframe</label>
+<label class="checkbox"><input type="checkbox" id="showGrid" checked>显示地面和坐标网格</label>
+</div>
+<div class="section">
+<div class="label">网格实际数据</div>
+<div class="info"><div class="stat"><strong id="vertices">—</strong><span>OBJ 顶点</span></div><div class="stat"><strong id="faces">—</strong><span>OBJ 面</span></div><div class="stat"><strong id="objects">—</strong><span>独立对象</span></div><div class="stat"><strong id="textureSize">—</strong><span>贴图分辨率</span></div></div>
+</div>
+<div class="section">
+<div class="label">零件对象 <span id="visibleCount"></span></div>
+<input id="filterParts" type="search" placeholder="搜索 door / hood / steering...">
+<div id="partList" class="items"><div class="note" style="padding:12px">加载模型后显示全部模型分组。</div></div>
+<div class="btnrow" style="margin-top:8px">
+<button id="showAll">显示全部</button><button id="hideOverlays">隐藏泥污 / 冰霜层</button>
+</div>
+</div>
+<div class="section"><div class="label">原始资源与声明</div>
+<p class="note">此查看器不是 Minecraft 客户端。仅显示实际 OBJ 与 PNG；轮胎、座椅等需要游戏另行装配的部件不会凭空补齐。<br>
+<a href="https://github.com/DonBruce64/MTSOfficialPack" target="_blank" rel="noopener">资源作者官方仓库 ↗</a><br>
+<a href="https://github.com/g2066203208-beep/mc-studio" target="_blank" rel="noopener">MC Studio 项目仓库 ↗</a></p></div>
+</aside>
+<main class="stage" id="stage">
+<canvas id="viewport" aria-label="可交互的福特 Mustang OBJ 三维模型"></canvas>
+<div class="hud"><div class="model-title"><strong>1969 FORD MUSTANG</strong><small id="sourceTitle">等待加载官方模型</small></div>
+<div class="actions"><button id="viewThree">3/4 视角</button><button id="viewSide">侧面</button><button id="viewFront">正面</button><button id="viewTop">俯视</button><button id="reset">重置</button><button id="savePNG">保存截图</button></div></div>
+<div class="bottom"><div class="hint">🖱 左键旋转 · 滚轮缩放 · 右键平移<br>👆 手机单指旋转 · 双指缩放；点选部件可在左侧查看</div><div class="status" id="status">正在初始化 Three.js 查看器…</div></div>
+<div class="loading" id="loading"><div class="loadingCard"><div class="spinner"></div><strong id="loadingTitle">读取官方模型</strong><p class="muted" id="loadingDescription" style="margin-top:8px">加载 OBJ 网格及贴图…</p></div></div>
+</main></div>
+<script type="module">
+import * as THREE from 'three';
+import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+import {OBJLoader} from 'three/addons/loaders/OBJLoader.js';
+
+const $ = id => document.getElementById(id);
+const OFFICIAL = 'https://raw.githubusercontent.com/DonBruce64/MTSOfficialPack/master/src/main/resources/assets/mtsofficialpack/';
+const OBJ_PATH = 'objmodels/vehicles/fordmustang69.obj';
+const TEX_PATH = 'textures/vehicles/fordmustang69_';
+const names = ['red','black','silver','white','yellow','orange'];
+const stage = $('stage');
+const renderer = new THREE.WebGLRenderer({canvas:$('viewport'),antialias:true,preserveDrawingBuffer:true,alpha:false});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+renderer.outputColorSpace=THREE.SRGBColorSpace;
+renderer.toneMapping=THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure=1.42;
+renderer.setClearColor(0x172333);
+const scene = new THREE.Scene();
+scene.background=new THREE.Color('#172333');
+const camera = new THREE.PerspectiveCamera(42,1,.03,250);
+const orbit = new OrbitControls(camera,renderer.domElement);
+orbit.enableDamping=true;
+orbit.dampingFactor=.075;
+orbit.maxPolarAngle=Math.PI*.93;
+orbit.minDistance=.8;
+orbit.maxDistance=90;
+const hemi = new THREE.HemisphereLight(0xd8edff,0x4d5c60,2.3); scene.add(hemi);
+const sun = new THREE.DirectionalLight(0xffffff,3.0);sun.position.set(4,9,7);scene.add(sun);
+const fill = new THREE.DirectionalLight(0x8bc8ff,1.4);fill.position.set(-5,5,-7);scene.add(fill);
+const floor = new THREE.GridHelper(38,38,0x416079,0x2a4356);floor.position.y=-.025;scene.add(floor);
+const axes = new THREE.AxesHelper(1.3);axes.position.set(-4,.01,-4);scene.add(axes);
+const raycaster = new THREE.Raycaster();
+const pointer = new THREE.Vector2();
+let modelRoot=null, objGroup=null, partEntries=[], selected=null, currentTexture=null, textureUrls={}, atlasUrl=null, bounds=null, sourceKind='online', jarZip=null, meshText='', token=0;
+function status(message,kind=''){const el=$('status');el.textContent=message;el.className='status'+(kind?' '+kind:'');$('connection').textContent=kind==='good'?'已加载':kind==='error'?'错误':'加载中';}
+function busy(show,title,description){$('loading').hidden=!show;if(title)$('loadingTitle').textContent=title;if(description)$('loadingDescription').textContent=description;}
+function resize(){const width=stage.clientWidth,height=stage.clientHeight;renderer.setSize(width,height,false);camera.aspect=width/height;camera.updateProjectionMatrix();}
+new ResizeObserver(resize).observe(stage);
+window.addEventListener('resize',resize);resize();
+function countStats(text){
+const ls=text.split(/\r?\n/);let v=0,f=0,o=0;
+for(const l of ls){if(l.startsWith('v '))v++;else if(l.startsWith('f '))f++;else if(l.startsWith('o '))o++;}
+return {v,f,o};
+}
+function readTexture(blobUrl){
+return new THREE.TextureLoader().loadAsync(blobUrl).then(texture=>{
+texture.colorSpace=THREE.SRGBColorSpace;
+texture.magFilter=THREE.NearestFilter;
+texture.minFilter=THREE.NearestMipmapLinearFilter;
+texture.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());
+return texture;});
+}
+function applyMaterial(){
+if(!objGroup)return;
+const textureShown=$('showTexture').checked;
+const wire=$('showWire').checked;
+for(const p of partEntries){
+const mat=p.mesh.material;
+mat.map=textureShown?currentTexture:null;
+mat.color.set(textureShown?0xffffff:0xc0ccd8);
+mat.wireframe=wire;
+mat.needsUpdate=true;
+}
+}
+function selectedPart(name){
+selected=name;
+for(const p of partEntries){
+const found=p.name===name;
+p.mesh.material.emissive.setHex(found?0x163b60:0x000000);
+p.mesh.material.emissiveIntensity=found?.5:0;
+}
+listParts();
+if(name)status('已选中部件 '+name,'good');
+}
+function listParts(){
+const list=$('partList');list.textContent='';
+const q=$('filterParts').value.toLowerCase();
+const parts=partEntries.filter(p=>p.name.toLowerCase().includes(q));
+$('visibleCount').textContent='('+partEntries.filter(p=>p.mesh.visible).length+'/'+partEntries.length+')';
+for(const p of parts){
+const b=document.createElement('button');b.className='part'+(p.name===selected?' selected':'')+(!p.mesh.visible?' hiddenPart':'');
+const dot=document.createElement('i'),txt=document.createElement('span'),eye=document.createElement('span');
+txt.textContent=p.name;txt.className='partName';eye.className='eye';eye.textContent=p.mesh.visible?'◉':'○';
+b.append(dot,txt,eye);
+b.addEventListener('click',()=>selectedPart(p.name));
+eye.addEventListener('click',e=>{e.stopPropagation();p.mesh.visible=!p.mesh.visible;listParts();});
+list.append(b);
+}
+if(!parts.length){const el=document.createElement('p');el.className='note';el.style.padding='12px';el.textContent='没有匹配部件';list.append(el);}
+}
+function setCameraView(x,y,z){
+if(!bounds)return;
+const scale=Math.max(bounds.size.x,bounds.size.y,bounds.size.z);
+orbit.target.set(0,bounds.size.y*.44,0);
+camera.position.set(x*scale,y*scale+bounds.size.y*.44,z*scale);
+camera.near=Math.max(.02,scale/1000);camera.far=scale*60;camera.updateProjectionMatrix();orbit.update();
+}
+function disposeModel(){
+if(modelRoot){scene.remove(modelRoot);modelRoot.traverse(o=>{if(o.isMesh){o.geometry.dispose();if(o.material)o.material.dispose();}});}
+modelRoot=null;objGroup=null;partEntries=[];selected=null;
+}
+async function showModel(text,texUrl,label,source){
+const thisToken=++token;
+busy(true,'正在打开 3D 模型','正在解析原始 OBJ 顶点、面和各个零件…');
+await new Promise(resolve=>requestAnimationFrame(resolve));
+const root=new OBJLoader().parse(text);
+if(thisToken!==token)return;
+let tex=await readTexture(texUrl);
+if(thisToken!==token){tex.dispose();return;}
+disposeModel();
+if(currentTexture)currentTexture.dispose();
+currentTexture=tex;
+meshText=text;atlasUrl=texUrl;sourceKind=source;
+objGroup=root;
+objGroup.traverse(obj=>{
+if(obj.isMesh){
+const m=new THREE.MeshStandardMaterial({color:0xffffff,map:currentTexture,roughness:.82,metalness:.08,side:THREE.DoubleSide});
+if(obj.name.toLowerCase().includes('translucent')){m.transparent=true;m.opacity=.63;m.depthWrite=false;}
+obj.material=m;partEntries.push({name:obj.name||'unnamed',mesh:obj});
+}});
+if(!partEntries.length)throw Error('OBJ 文件没有可显示的网格');
+modelRoot=new THREE.Group();modelRoot.add(objGroup);
+const b=new THREE.Box3().setFromObject(objGroup),size=b.getSize(new THREE.Vector3()),center=b.getCenter(new THREE.Vector3());
+objGroup.position.set(-center.x,-b.min.y+.06,-center.z);
+scene.add(modelRoot);
+bounds={size,center};
+const stats=countStats(text);
+$('vertices').textContent=stats.v.toLocaleString();
+$('faces').textContent=stats.f.toLocaleString();
+$('objects').textContent=stats.o.toLocaleString();
+$('textureSize').textContent=tex.image.width+' × '+tex.image.height;
+$('sourceTitle').textContent=label;
+selectedPart(null);
+setCameraView(1.06,.46,1.14);
+applyMaterial();busy(false);
+status('已加载真实 OBJ · '+stats.f.toLocaleString()+' 个面 · '+partEntries.length+' 个可见网格','good');
+}
+async function getRemote(url){
+const response=await fetch(url,{cache:'default'});
+if(!response.ok)throw Error('获取 '+url.split('/').pop()+' 失败，HTTP '+response.status);
+return response;
+}
+async function loadOnline(){
+$('loadOnline').disabled=true;busy(true,'连接官方 GitHub','正在读取公开的原始车辆 OBJ 和 PNG…');status('连接官方仓库中');
+try{
+const [modelResp,texResp]=await Promise.all([getRemote(OFFICIAL+OBJ_PATH),getRemote(OFFICIAL+TEX_PATH+$('paint').value+'.png')]);
+const text=await modelResp.text(),blob=await texResp.blob();
+if(atlasUrl&&atlasUrl.startsWith('blob:'))URL.revokeObjectURL(atlasUrl);
+textureUrls={};textureUrls[$('paint').value]=URL.createObjectURL(blob);
+jarZip=null;await showModel(text,textureUrls[$('paint').value],'作者 GitHub 原始 OBJ · 最新仓库','online');
+}catch(e){busy(false);status('加载失败：'+e.message,'error');console.error(e);}finally{$('loadOnline').disabled=false;}
+}
+async function loadJar(file){
+if(!file)return;
+if(typeof JSZip==='undefined'){status('JSZip 加载失败；请刷新页面重试','error');return;}
+busy(true,'读取真正的 Mod 资源包','本地解包 '+file.name+'（不会上传文件）');
+status('本地解析 '+file.name);
+try{
+const zip=await JSZip.loadAsync(file);
+const lookup=Object.keys(zip.files);
+const obj=lookup.find(s=>s.endsWith('/objmodels/vehicles/fordmustang69.obj'));
+const t=lookup.find(s=>s.endsWith('/textures/vehicles/fordmustang69_'+$('paint').value+'.png'));
+if(!obj||!t)throw Error('JAR 中没有 Mustang69 模型或所选颜色贴图。请选择 MTS 官方车辆包，而不是核心 Mod。');
+const [text,data]=await Promise.all([zip.files[obj].async('string'),zip.files[t].async('blob')]);
+jarZip=zip;textureUrls={};textureUrls[$('paint').value]=URL.createObjectURL(data);
+await showModel(text,textureUrls[$('paint').value],'本地 JAR: '+file.name,'jar');
+}catch(e){busy(false);status('JAR 打开失败：'+e.message,'error');console.error(e);}
+}
+async function changePaint(){
+try{
+const color=$('paint').value;
+if(!textureUrls[color]){
+if(sourceKind==='jar'&&jarZip){
+const p=Object.keys(jarZip.files).find(s=>s.endsWith('/textures/vehicles/fordmustang69_'+color+'.png'));
+if(!p)throw Error('此 JAR 没有 '+color+' 车漆');
+const blob=await jarZip.files[p].async('blob');
+textureUrls[color]=URL.createObjectURL(blob);
+}else{
+const response=await getRemote(OFFICIAL+TEX_PATH+color+'.png');
+textureUrls[color]=URL.createObjectURL(await response.blob());
+}
+}
+const tex=await readTexture(textureUrls[color]);const old=currentTexture;currentTexture=tex;applyMaterial();$('textureSize').textContent=tex.image.width+' × '+tex.image.height;if(old)old.dispose();
+status('已切换 '+color+' 车漆','good');
+}catch(e){status('更换车漆失败：'+e.message,'error');}
+}
+$('loadOnline').addEventListener('click',loadOnline);
+$('jarInput').addEventListener('change',e=>loadJar(e.target.files[0]));
+$('paint').addEventListener('change',changePaint);
+$('showTexture').addEventListener('change',applyMaterial);
+$('showWire').addEventListener('change',applyMaterial);
+$('showGrid').addEventListener('change',()=>{floor.visible=axes.visible=$('showGrid').checked;});
+$('filterParts').addEventListener('input',listParts);
+$('showAll').addEventListener('click',()=>{partEntries.forEach(p=>p.mesh.visible=true);listParts();});
+$('hideOverlays').addEventListener('click',()=>{partEntries.filter(p=>/translucent|mudacc|frostacc/i.test(p.name)).forEach(p=>p.mesh.visible=false);listParts();});
+$('viewThree').addEventListener('click',()=>setCameraView(1.06,.46,1.14));
+$('viewSide').addEventListener('click',()=>setCameraView(1,.12,.001));
+$('viewFront').addEventListener('click',()=>setCameraView(.001,.12,1));
+$('viewTop').addEventListener('click',()=>setCameraView(.001,1,.001));
+$('reset').addEventListener('click',()=>{selectedPart(null);setCameraView(1.06,.46,1.14);});
+$('savePNG').addEventListener('click',()=>{
+renderer.render(scene,camera);
+const a=document.createElement('a');a.href=renderer.domElement.toDataURL('image/png');a.download='immersive-vehicles-real-3d-mustang.png';document.body.append(a);a.click();a.remove();});
+let down=null;
+renderer.domElement.addEventListener('pointerdown',e=>{down=[e.clientX,e.clientY];});
+renderer.domElement.addEventListener('pointerup',e=>{
+if(!down||Math.hypot(e.clientX-down[0],e.clientY-down[1])>5||!objGroup)return;
+const rect=renderer.domElement.getBoundingClientRect();
+pointer.set(((e.clientX-rect.left)/rect.width)*2-1,-((e.clientY-rect.top)/rect.height)*2+1);
+raycaster.setFromCamera(pointer,camera);
+const hits=raycaster.intersectObjects(objGroup.children,true).filter(hit=>hit.object.isMesh&&hit.object.visible);
+if(hits[0])selectedPart(hits[0].object.name);
+down=null;
+});
+function animate(){requestAnimationFrame(animate);orbit.update();renderer.render(scene,camera);}
+animate();
+loadOnline();
+</script>
+</body></html>
