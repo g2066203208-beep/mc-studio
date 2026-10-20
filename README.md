@@ -2,7 +2,7 @@
 
 这是本聊天的 Minecraft 开发工作台。目标是由助手负责需求拆解、源码研究、开发、升级、性能诊断、Git 提交和测试，用户主要负责游玩与体验反馈。
 
-GitHub 将作为共享开发中心，桌面端与网页端通过同一仓库交接。新会话先读 [交接说明](docs/HANDOFF.md)。远程仓库：[g2066203208-beep/mc-studio](https://github.com/g2066203208-beep/mc-studio)。实际验证进度见 docs/STATUS.md。
+GitHub 是共享开发中心，桌面端与网页端通过同一仓库交接。新会话先读 [交接说明](docs/HANDOFF.md)。远程仓库：[g2066203208-beep/mc-studio](https://github.com/g2066203208-beep/mc-studio)。初始化 PR 已合入 main，[首次云端构建成功](https://github.com/g2066203208-beep/mc-studio/actions/runs/39402002769)，可在该运行页面的 Artifacts 下载 JAR 压缩包。
 
 ## 当前基线
 
@@ -28,7 +28,7 @@ GitHub 将作为共享开发中心，桌面端与网页端通过同一仓库交�
 - `scripts/Inventory.ps1`：重新生成已发现实例的 Mod 文件校验清单。
 - `docs/WORKFLOW.md`：开发、测试、升级、回滚和 GitHub 管理流程。
 - `docs/RESEARCH.md`：开源研究入口、研究方法和来源记录。
-- `.github/workflows/build.yml`：上传到专用仓库后可启用的 CI 构建配置；本地存在不代表远程已运行。
+- `.github/workflows/build.yml`：已在 GitHub Actions 验证成功，推送和 PR 会触发 Java 21 构建并保存 JAR。
 - `local/`：本机路径、构建日志与清单，不进入 Git。
 
 ## 构建

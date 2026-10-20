@@ -17,9 +17,10 @@ GitHub 是整个 Minecraft 工作室的开发中心。代码、需求、研究�
 
 - 最小 Mod 工程已经在 Windows + Java 21 下构建成功。
 - 尚无玩法功能；没有测试源码，不能把 `test NO-SOURCE` 写成自动化测试通过。
-- GitHub 专用私有仓库：https://github.com/g2066203208-beep/mc-studio。用户已建立，插件已确认可访问。初始化代码与 CI 验证通过初始化 PR 跟踪。
+- GitHub 专用私有仓库：https://github.com/g2066203208-beep/mc-studio。初始化 PR #1 已合并到 main，合并提交 facfadeeafe4fcfe055d33754259885012196e4d。
 - 仓库应包含全部工程文件及 Gradle wrapper JAR；不要上传 local、build、存档或第三方整合包。
-- 上传后核实 Actions 的真实运行结果，记录运行链接和提交 SHA。工作流配置存在不等于验证成功。
+- 已验证云端构建：https://github.com/g2066203208-beep/mc-studio/actions/runs/39402002769。对应 PR head 为 11c6feca3e25ca2f5be8e9a86a04a94b756ec036；build 和上传产物步骤均成功。
+- 下一任务：根据用户玩法需求实现首个功能，然后独立分支、PR、Actions，再由本机会话进行游戏验证。
 - 网页聊天只有实际提供 GitHub 写工具或可写执行环境时才能修改和提交。若只有搜索/阅读工具，明确说明能力缺口，不声称已提交。
 
 ## 交付记录要求

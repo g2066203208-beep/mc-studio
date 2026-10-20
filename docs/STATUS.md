@@ -13,7 +13,12 @@
 - `Build.ps1`：Gradle `BUILD SUCCESSFUL in 8m 8s`，退出码 0。
 - 检查 JAR 内容：包含 StudioMod.class 与 META-INF/neoforge.mods.toml。
 - Git 暂存差异空白检查通过，本机配置、日志和产物被排除。
-- 已补充云端构建入口 `scripts/build.sh` 与跨会话交接文档 `docs/HANDOFF.md`；云端不依赖本机路径。尚未在线运行 Actions。
+- 已补充云端构建入口 `scripts/build.sh` 与跨会话交接文档 `docs/HANDOFF.md`；云端不依赖本机路径。
+- 22 个工程文件通过 GitHub 插件上传，初始化 [PR #1](https://github.com/g2066203208-beep/mc-studio/pull/1) 已合并。
+- [GitHub Actions 39402002769](https://github.com/g2066203208-beep/mc-studio/actions/runs/39402002769)：Java 21、构建、上传 JAR 均 success。
+- 验证对应 PR head：`11c6feca3e25ca2f5be8e9a86a04a94b756ec036`。PR 工作流使用 GitHub 生成的测试合并提交，因此 artifact 名字中的 SHA 可与 head 不同。
+- 产物 ID：`12255270668`，创建时未过期，平台记录过期时间为 2027-01-18。Actions 产物是临时下载，不等于永久 Release。
+- 本地已经通过 Git 拉取远程分支；原本地初始化历史保留在 `bootstrap/local-history`。
 
 产物：`mod/build/libs/reme_studio-0.1.0-dev.jar`
 
@@ -29,8 +34,7 @@ Gradle 报告使用了将来不兼容 Gradle 10 的弃用功能；当前固定 W
 - 该骨架没有测试源码，Gradle `test` 为 `NO-SOURCE`；不能称为自动化测试通过。
 - 尚未启动开发客户端、专用服务器或完整整合包验证。
 - 尚未确认 HMCL 的实际生效隔离目录，未向正式 mods 目录部署。
-- 专用私有远程仓库已建立并验证访问权限；初始化上传和 CI 结果以初始化 PR 的实际记录为准。
-  当前 gh CLI 未登录，远程写入通过 GitHub 插件完成。
+- 本聊天已验证 GitHub 插件写入及云端构建；尚未在用户的另一个网页版聊天中实际发起开发任务。那个会话仍须具备该私有仓库的访问权和写工具。
 - 尚未针对具体玩法展开上游源码分析与功能实现。
 
 真实游玩文件和存档未被修改。后续先根据用户目标确定实例与功能，再开展对应开发和运行测试。
