@@ -39,6 +39,6 @@ public final class LivingPlannerSpec {
         expect(memory.trust(alice) <= 100, "trust must stay bounded");
         expect(memory.recentEvents().get(0).worldTick() == 352,
             "oldest event must be evicted deterministically");
-        System.out.println("LivingPlannerSpec: 10 assertions passed");
+        System.out.println("LivingPlannerSpec: 11 assertions passed");
     }
 }
