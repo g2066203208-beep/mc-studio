@@ -22,8 +22,8 @@ public record GripAnchor(@Nullable UUID structureId, BlockPos block, Vec3 localP
     @Nullable
     public Contact resolve(Level level) {
         if (!level.isLoaded(block)) return null;
-        VoxelShape shape = level.getBlockState(block).getCollisionShape(level, block);
-        if (shape.isEmpty()) return null;
+        VoxelShape shape = level.getBlockState(block).getShape(level, block);
+        if (level.getBlockState(block).isAir() || shape.isEmpty()) return null;
         if (!dynamic()) {
             // Do not retain an anchor after a surface is removed/replaced with a disjoint shape.
             if (!withinShapeBounds(shape)) return null;
