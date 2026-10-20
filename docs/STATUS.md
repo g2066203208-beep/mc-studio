@@ -44,5 +44,5 @@ Gradle 报告使用了将来不兼容 Gradle 10 的弃用功能；当前固定 W
 
 - 初始提交：`9215da0d53c03d0d9435b633fcceca5306e1703f`，分支：`feature/player-npc-v1`。
 - 添加 `reme_studio:player_npc`，详见 `docs/NPC_V1.md`。
-- 编译：GitHub Actions `39453134471` 已启动，待完成后据实更新。
+- 编译：首轮 Actions `39453134471` 因错误注册 API 失败；修复后 **Actions `39453494702` push 构建 SUCCESS，Actions `39453501071` PR 构建 SUCCESS**。构建验证提交 `b51773ecebda40705fc54009baa40aee80f34e0e`，产物 `12279378797`，JAR `reme_studio-0.1.0-dev.jar`。编译 != 游戏内实测。
 - 运行：客户端、独立服务器、222 Mod 整合包 **均未测试**。正式世界 **未部署**。

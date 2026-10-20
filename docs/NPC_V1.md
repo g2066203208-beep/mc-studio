@@ -16,6 +16,14 @@
 - 未在真实游戏客户端、独立服务器和 222 Mod 整合包内实测。需要单独验收；Gradle BUILD 成功不等于这些项目已通过。
 - 目前 NPC 死亡时背包物品调用原版容器掉落流程；仍请勿在未经测试时交付贵重物品。
 
+## 构建验证（2026-10-20）
+- 首轮 Github Actions 39453134471: FAIL，原因是 NeoForge 21.1.248 不支持旧文档的 `DeferredRegister.Entities` API。
+- 改为标准 `DeferredRegister.create(BuiltInRegistries.ENTITY_TYPE, modid)`。
+- Actions 39453494702: SUCCESS；Actions 39453501071: SUCCESS。
+- 对应提交：`b51773ecebda40705fc54009baa40aee80f34e0e`。
+- ZIP artifact ID：`12279378797`，JAR：`reme_studio-0.1.0-dev.jar`。
+- 独立服务器、开发客户端、整合包、世界保存读取尚未做真实运行验证。
+
 ## 验收操作
 1. 在 1.21.1 NeoForge 开发世界加载 Mod，在有指令权限时执行 /npc spawn 小雷。
 2. 空手右键确认 FOLLOW/STAY 切换；/npc wander、/npc guard、/npc follow、/npc info。
