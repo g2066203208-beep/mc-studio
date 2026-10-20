@@ -15,6 +15,8 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
+      - name: Test living-world planner core
+        run: bash scripts/test-living-planner.sh
       - name: Build
         run: bash scripts/build.sh
       - uses: actions/upload-artifact@v4
