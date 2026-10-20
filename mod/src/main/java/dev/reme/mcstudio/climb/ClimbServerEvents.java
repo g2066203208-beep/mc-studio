@@ -23,7 +23,8 @@ public final class ClimbServerEvents {
                 if (state.enabled || state.previouslySynced) {
                     PacketDistributor.sendToPlayersTrackingEntityAndSelf(serverPlayer,
                             new ClimbNetwork.Pose(serverPlayer.getId(), state.enabled,
-                                    state.peakPhase, state.poseAction));
+                                    state.peakPhase, state.poseAction,
+                                    state.contactNormal, state.contactPoint, state.grabYaw));
                 }
                 state.previouslySynced = state.enabled;
             }
