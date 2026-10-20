@@ -31,6 +31,11 @@ repositories {
         forRepository { maven { url = 'https://maven.ryanhcode.dev/releases' } }
         filter { includeGroup('dev.ryanhcode.sable-companion') }
     }
+    // Runtime-only pinned upstream Sable for explicit opt-in integration tests.
+    exclusiveContent {
+        forRepository { maven { url = 'https://api.modrinth.com/maven' } }
+        filter { includeGroup('maven.modrinth') }
+    }
 }
 
 base {
@@ -119,6 +124,12 @@ configurations {
 }
 
 dependencies {
+    // The real Sable JAR (including its embedded Rapier/Veil libraries) is used
+    // only for -PwithSable GameTest runs; never bundled into our published JAR.
+    if (project.hasProperty('withSable')) {
+        localRuntime('maven.modrinth:T9PomCSv:fg9dTRz9') { transitive = false }
+    }
+
     testImplementation 'org.junit.jupiter:junit-jupiter:5.11.4'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 
