@@ -50,8 +50,8 @@ public final class ClientClimbControls {
         boolean lostFocus = GLFW.glfwGetWindowAttrib(mc.getWindow().getWindow(), GLFW.GLFW_FOCUSED) == GLFW.GLFW_FALSE;
         if (grabbing && (mc.screen != null || lostFocus || !mc.player.isAlive()
                 || mc.player.isPassenger() || mc.player.getAbilities().flying
-                || !GLFW.glfwGetMouseButton(mc.getWindow().getWindow(), GLFW.GLFW_MOUSE_BUTTON_LEFT)
-                     == GLFW.GLFW_PRESS)) {
+                || GLFW.glfwGetMouseButton(mc.getWindow().getWindow(), GLFW.GLFW_MOUSE_BUTTON_LEFT)
+                     != GLFW.GLFW_PRESS)) {
             grabbing = false;
             send(false);
         }
