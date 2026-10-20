@@ -9,6 +9,9 @@ public final class ClimbSurfaceMath {
     public static final double FLOOR_SPEED = 0.16;
     public static final double MAX_RELATIVE_SPEED = 0.36;
     public static final double MAX_PLATFORM_STEP = 0.14;
+    public static final double WALL_CAMERA_GAP = 0.69;
+    public static final double CEILING_CAMERA_GAP = 0.49;
+    public static final double MAX_STANDOFF_CORRECTION = 0.115;
     private ClimbSurfaceMath() {}
 
     public static boolean ceiling(Vec3 normal) { return normal.y < -0.72; }
@@ -53,6 +56,28 @@ public final class ClimbSurfaceMath {
         if (sideways.lengthSqr() > 0.001) sideways = sideways.normalize();
         return clamp(along.scale(forward).add(sideways.scale(strafe)), 1);
     }
+    /** Signed distance out from the actual hit plane; negative means inside. */
+    public static double signedGap(Vec3 eye, Vec3 contact, Vec3 normal) {
+        return eye.subtract(contact).dot(normal.normalize());
+    }
+
+    /** Spring-like clearance servo. The model and camera must stay outside blocks. */
+    public static Vec3 standoff(Vec3 eye, Vec3 contact, Vec3 normal) {
+        Vec3 n = normal.normalize();
+        double target = ceiling(n) ? CEILING_CAMERA_GAP
+                : floor(n) ? 0.80 : WALL_CAMERA_GAP;
+        double gap = signedGap(eye, contact, n);
+        return n.scale(Math.max(-MAX_STANDOFF_CORRECTION,
+                Math.min(MAX_STANDOFF_CORRECTION, (target-gap)*0.32)));
+    }
+
+    /** Only select a 90 degree wall/roof/corner switch if travel faces the new plane. */
+    public static boolean canTurn(Vec3 oldNormal, Vec3 newNormal, Vec3 travel) {
+        Vec3 a=oldNormal.normalize(), b=newNormal.normalize();
+        if (a.dot(b) > .72 || a.dot(b) < -.15) return false;
+        return travel.lengthSqr() > .001 && b.dot(travel.normalize()) < -.18;
+    }
+
     /** Never add normal-facing camera velocity to the next frame's motor impulse. */
     public static Vec3 motor(Vec3 previous, Vec3 wanted, Vec3 normal) {
         Vec3 old = clamp(tangent(previous, normal), MAX_RELATIVE_SPEED);
