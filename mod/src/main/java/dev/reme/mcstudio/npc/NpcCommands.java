@@ -6,6 +6,7 @@ import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.core.BlockPos;
+import dev.reme.mcstudio.npc.life.LivingPlanner;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.phys.AABB;
@@ -72,6 +73,8 @@ public final class NpcCommands {
             npc.setCustomNameVisible(true);
             npc.setMode(PlayerNpcEntity.Mode.LIVE);
             npc.backpack().addItem(new ItemStack(Items.BREAD, 4));
+            npc.setPersonality(new LivingPlanner.Personality(
+                30 + i * 11, 80 - i * 9, 30 + i * 8));
             npc.setProfession(i < 2
                 ? PlayerNpcEntity.Profession.FARMER
                 : PlayerNpcEntity.Profession.RESIDENT);

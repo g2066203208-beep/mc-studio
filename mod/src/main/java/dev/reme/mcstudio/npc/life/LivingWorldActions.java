@@ -28,7 +28,7 @@ public final class LivingWorldActions {
         }
         if (tick % 40 == Math.floorMod(npc.getId(), 40)) {
             boolean exposed = level.canSeeSky(npc.blockPosition());
-            boolean danger = !level.getEntitiesOfClass(Monster.class,
+            boolean danger = npc.isAfraid(tick) || !level.getEntitiesOfClass(Monster.class,
                     npc.getBoundingBox().inflate(10.0),
                     m -> m.isAlive() && npc.hasLineOfSight(m)).isEmpty();
             npc.setDecision(npc.planner().choose(new LivingPlanner.Context(
@@ -51,6 +51,18 @@ public final class LivingWorldActions {
     private static void escape(PlayerNpcEntity npc, ServerLevel level) {
         List<Monster> threats = level.getEntitiesOfClass(Monster.class,
             npc.getBoundingBox().inflate(11.0), m -> m.isAlive() && npc.hasLineOfSight(m));
+        if (threats.isEmpty() && npc.isAfraid(level.getGameTime())) {
+            var attacker = level.getPlayerByUUID(npc.recentAggressor());
+            if (attacker != null && npc.distanceToSqr(attacker) < 256) {
+                double dx = npc.getX() - attacker.getX();
+                double dz = npc.getZ() - attacker.getZ();
+                double length = Math.max(Math.sqrt(dx * dx + dz * dz), 0.01);
+                npc.getNavigation().moveTo(npc.getX() + dx / length * 12.0,
+                    npc.getY(), npc.getZ() + dz / length * 12.0, 1.25);
+                npc.setAction("escaping an attacking player");
+            }
+            return;
+        }
         if (threats.isEmpty()) return;
         Monster threat = threats.stream().min(Comparator.comparingDouble(npc::distanceToSqr)).orElseThrow();
         double dx = npc.getX() - threat.getX(), dz = npc.getZ() - threat.getZ();

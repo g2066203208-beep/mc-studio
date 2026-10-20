@@ -57,7 +57,10 @@ public class PlayerNpcEntity extends PathfinderMob {
     private BlockPos workPos = BlockPos.ZERO;
     private int hunger = 90, energy = 85, socialNeed = 65;
     private final ResidentMemory memory = new ResidentMemory();
-    private LivingPlanner planner = new LivingPlanner(LivingPlanner.Personality.average());
+    private LivingPlanner.Personality personality = LivingPlanner.Personality.average();
+    private LivingPlanner planner = new LivingPlanner(personality);
+    private UUID recentAggressor = null;
+    private long afraidUntil = 0;
     private LivingPlanner.Decision decision =
         new LivingPlanner.Decision(LivingPlanner.Intent.IDLE, 0, "starting");
     private String lastAction = "just arrived";
@@ -95,6 +98,13 @@ public class PlayerNpcEntity extends PathfinderMob {
     public BlockPos homePos() { return homePos; }
     public BlockPos workPos() { return workPos; }
     public LivingPlanner planner() { return planner; }
+    public LivingPlanner.Personality personality() { return personality; }
+    public void setPersonality(LivingPlanner.Personality traits) {
+        personality = traits;
+        planner = new LivingPlanner(traits);
+    }
+    public UUID recentAggressor() { return recentAggressor; }
+    public boolean isAfraid(long tick) { return recentAggressor != null && tick < afraidUntil; }
     public ResidentMemory memory() { return memory; }
     public int hunger() { return hunger; }
     public int energy() { return energy; }
@@ -114,6 +124,17 @@ public class PlayerNpcEntity extends PathfinderMob {
     public void rememberGreeting(PlayerNpcEntity other, long tick) {
         memory.witness(tick, other.getUUID(), ResidentMemory.Kind.GREETING,
             blockPosition().toShortString());
+    }
+    @Override public boolean hurt(DamageSource source, float amount) {
+        boolean damaged = super.hurt(source, amount);
+        if (damaged && !level().isClientSide && source.getEntity() instanceof Player player) {
+            recentAggressor = player.getUUID();
+            afraidUntil = level().getGameTime() + 600;
+            memory.witness(level().getGameTime(), player.getUUID(),
+                ResidentMemory.Kind.ATTACK_WITNESSED, blockPosition().toShortString());
+            lastAction = "injured by " + player.getName().getString();
+        }
+        return damaged;
     }
     @Override public void tick() {
         super.tick();
@@ -223,6 +244,9 @@ public class PlayerNpcEntity extends PathfinderMob {
         if (ownerUuid != null) tag.putUUID("NpcOwner", ownerUuid);
         tag.putString("NpcMode", mode.name());
         tag.putString("NpcProfession", profession.name());
+        tag.putInt("NpcDiligence", personality.diligence());
+        tag.putInt("NpcSociability", personality.sociability());
+        tag.putInt("NpcCaution", personality.caution());
         tag.putLong("NpcHomePos", homePos.asLong());
         tag.putLong("NpcWorkPos", workPos.asLong());
         tag.putInt("NpcHunger", hunger);
@@ -263,6 +287,10 @@ public class PlayerNpcEntity extends PathfinderMob {
         }
         try { profession = Profession.valueOf(tag.getString("NpcProfession")); }
         catch (IllegalArgumentException ignored) { profession = Profession.RESIDENT; }
+        setPersonality(new LivingPlanner.Personality(
+            Math.clamp(tag.contains("NpcDiligence") ? tag.getInt("NpcDiligence") : 50, 0, 100),
+            Math.clamp(tag.contains("NpcSociability") ? tag.getInt("NpcSociability") : 50, 0, 100),
+            Math.clamp(tag.contains("NpcCaution") ? tag.getInt("NpcCaution") : 50, 0, 100)));
         homePos = tag.contains("NpcHomePos", Tag.TAG_LONG)
             ? BlockPos.of(tag.getLong("NpcHomePos")) : blockPosition();
         workPos = tag.contains("NpcWorkPos", Tag.TAG_LONG)
