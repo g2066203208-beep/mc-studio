@@ -46,3 +46,16 @@ GitHub 是整个 Minecraft 工作室的开发中心。代码、需求、研究�
 当前只有研究与文档，**没有攀爬源代码，也没有新攀爬功能构建或实测**。不要把早期工作台骨架的云端 BUILD SUCCESSFUL 当成本功能通过。计划下一任务为 M0：原版方块及 Sable 动态碰撞表面的真实抓点识别，先通过可视化测试和自动化校验；然后按 M1 静态双手攀爬、M2 Sable 动态锚点、M3 联机、M4 整合包兼容逐阶段开发。
 
 新会话接手先检索该候选 PR 和最新 main HEAD；如文档已经合并按 main 读取，不要以旧分支覆盖新版。
+
+
+## Sable Hands alpha 功能分支交接（2026-10-20）
+
+前面的“只有规划、没有源代码”描述对应旧研究提交；当前功能分支已有 Java 实现。
+
+- 分支 feat/sable-hands-prototype；Draft PR #3：https://github.com/g2066203208-beep/mc-studio/pull/3。
+- 代码在 mod/src/main/java/dev/reme/mcstudio/climb/，包含 GripAnchor、SurfaceProbe、ClimbState、GripRules、ClimbRuntime、ClimbMotion、ClimbNetwork、ClimbSnapshot、ClientClimbControls、ClimbServerEvents。JUnit 位于 mod/src/test/java/dev/reme/mcstudio/climb/GripRulesTest.java。
+- 用户最终需求：基于 Minecraft 的 Sable 物理 Mod，保留原版方块手臂，参考 White Knuckle，左右手独立抓任意方向的真实方块表面：垂直墙、平地、天花板、Sable 移动船体；功能优先。
+- 预设控制、已知风险、实测门槛：docs/climbing/PROTOTYPE_STATUS.md。依赖研究：docs/climbing/OPEN_SOURCE.md。
+- 早期 Java 编译成功（Actions 39406601421）仅验证 head 761a7b41...；已经加入 JUnit 测试与 XML 证据保存。请重新确认 PR #3 当前 head 的最新 Actions 状态。
+- 尚无真实客户端、专服、Sable 飞船或整合包游戏内验证；不得合入 main 宣称正式完成。下一步优先执行实机测试，修复视觉反馈、动态 tracking 重复继承速度及客户端/服务端预测偏差。
+- PR #3 以 PR #2 未合并研究文档分支为起点，合并 PR #3 后不得反向重复合并 PR #2。
