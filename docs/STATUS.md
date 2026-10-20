@@ -69,3 +69,11 @@ Gradle 报告使用了将来不兼容 Gradle 10 的弃用功能；当前固定 W
 - 已验证 [push GitHub Actions 39457871574](https://github.com/g2066203208-beep/mc-studio/actions/runs/39457871574) SUCCESS 和 [PR run 39457879491](https://github.com/g2066203208-beep/mc-studio/actions/runs/39457879491) SUCCESS。构建源提交 b27de8cff1f4b7f222255d5adea94038ea4d0634，artifact ID 12281113336。
 - 检查 JAR 类与 neoforge.mods.toml 已包含。
 - 仍未完成实机游戏内验证、主线建筑/商人等职业、离线 NPC 演算、领地保护 API；真正的日常生活效果和存档重载效果尚未得到实机证明。
+
+ 
+## 2026-10-21 最终 v0.2-dev 编译和产物
+
+- 变更版本号 mod_version=0.2.0-dev；源提交 4a8b87d25c56ce7f01639265eaea6afd196a82ea。
+- GitHub Actions push 39458311637 和 PR 39458319744 均 SUCCESS。
+- PR Actions 生成可下载 ZIP artifact ID 12281915935；包内 JAR 预计名为 reme_studio-0.2.0-dev.jar，解包时检查名字。
+- 实机客户端/专用服务器/整合包 **仍未测试**，本项是编译成功，不是玩法验收。

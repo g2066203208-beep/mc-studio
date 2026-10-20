@@ -18,3 +18,10 @@
 - Verified commit b27de8cff1f4b7f222255d5adea94038ea4d0634, artifact 12281113336.
 - The artifact was compiled while the internal mod_version still read 0.1.0-dev; version bump to 0.2.0-dev is a follow-up build-only metadata change.
 - No Minecraft client or dedicated-server game-world playtest yet.
+
+
+## 最终开发版验证
+- mod_version=0.2.0-dev，提交 4a8b87d25c56ce7f01639265eaea6afd196a82ea。
+- push CI: https://github.com/g2066203208-beep/mc-studio/actions/runs/39458311637 SUCCESS。
+- PR CI: https://github.com/g2066203208-beep/mc-studio/actions/runs/39458319744 SUCCESS。
+- Artifacts: 12281915935 from successful PR CI (see run Artifacts). 仅证明 JAR 构建与上传成功。

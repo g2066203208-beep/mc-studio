@@ -62,3 +62,9 @@ GitHub 是整个 Minecraft 工作室的开发中心。代码、需求、研究�
 - 下一步：仅在隔离存档下检查实体实际路径、农田交易重种、加载/卸载与记忆恢复。**未通过真实游戏客户端/服务端/整合包测试**，PR #10 仍应作为草稿，不可合入 main。
 - 演示：`/npc demo`（管理员）→ 自主 6 居民；`/npc info` 检查附近 NPC；`/npc sethome` 和 `/npc setwork` 为指定居民定位，空手右键问候；`/npc live`、`/npc stay` 切换生活模式。
 - 不要将旧 NPC v0.1 的跟随命令当成最终产品；读 `docs/LIVING_WORLD_PLAYTEST.md`。
+
+
+## 0.2.0-dev 最新交接（2026-10-21）
+- 分支 feature/player-npc-v1 HEAD 实现与版本提交 4a8b87d25c56ce7f01639265eaea6afd196a82ea。
+- push CI 39458311637 SUCCESS，PR CI 39458319744 SUCCESS；PR 成功产物 ZIP 12281915935。
+- 要继续：先获取 ZIP 内 reme_studio-0.2.0-dev.jar，启用隔离测试世界，执行 /npc demo 与 /npc info，测试农田、面包师、NPC 受攻击反应、卸载/加载区块与 NBT 存储。不能把构建 success 等同游戏实测。
