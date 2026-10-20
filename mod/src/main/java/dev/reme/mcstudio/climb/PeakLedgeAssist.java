@@ -11,8 +11,8 @@ import net.minecraft.world.phys.Vec3;
  * Moving Sable structures require a separate future swept-collision solver.
  */
 public final class PeakLedgeAssist {
-    public static final int DURATION = 14;
-    public static final double MAX_MANTLE_STEP = 0.225;
+    public static final int DURATION = 30;
+    public static final double MAX_MANTLE_STEP = 0.235;
     private PeakLedgeAssist() {}
 
     public static boolean start(Player player, ClimbState state, GripAnchor.Contact contact) {
@@ -35,7 +35,7 @@ public final class PeakLedgeAssist {
 
         state.mantleOrigin = player.position();
         state.mantleTicks = DURATION;
-        state.mantleTargetY = top + .08;
+        state.mantleTargetY = top + .12;
         state.mantleInward = inward;
         state.poseAction = 3;
         return true;
@@ -54,13 +54,18 @@ public final class PeakLedgeAssist {
             return;
         }
         double heightLeft = Math.max(0, state.mantleTargetY - player.getY());
-        double rise = Math.min(.19, heightLeft * .52);
-        // The previous code pushed horizontally while the feet were below the
-        // ledge, which could launch the player out or into a wall.
-        double inward = player.getY() >= state.mantleTargetY - .11 ? .095 : 0.0;
-        Vec3 wanted = new Vec3(state.mantleInward.x*inward, rise,
-                state.mantleInward.z*inward);
-        wanted = ClimbSurfaceMath.clamp(wanted, MAX_MANTLE_STEP);
+        // Acceleration is short and bounded; do not accumulate old falling
+        // velocity or any change in hand contact as a motion impulse.
+        double rise = Math.min(.205, heightLeft * .66);
+        double horizontalProgress = player.position().subtract(state.mantleOrigin)
+                .dot(state.mantleInward);
+        // A proper mantle must move the CENTER of the player onto the platform,
+        // not merely lift their feet above the edge and release in mid-air.
+        double need = Math.max(0, 1.02 - horizontalProgress);
+        double inward = player.getY() >= state.mantleTargetY - .09
+                ? Math.min(.145, need * .60) : 0;
+        Vec3 wanted = ClimbSurfaceMath.clamp(
+                state.mantleInward.scale(inward).add(0,rise,0), MAX_MANTLE_STEP);
 
         if (!player.level().noCollision(player, player.getBoundingBox().move(wanted))) {
             Vec3 verticalOnly = new Vec3(0, rise, 0);
@@ -79,6 +84,8 @@ public final class PeakLedgeAssist {
         state.peakPhase += .12f;
         state.mantleTicks--;
         if (state.mantleTicks <= 0) {
+            // Completion or bounded safe abort; never launch or teleport to an
+            // unverified destination just to make the climb animation finish.
             state.mantleRequiresRelease = true;
             state.release();
         }
