@@ -38,3 +38,13 @@ Gradle 报告使用了将来不兼容 Gradle 10 的弃用功能；当前固定 W
 - 尚未针对具体玩法展开上游源码分析与功能实现。
 
 真实游玩文件和存档未被修改。后续先根据用户目标确定实例与功能，再开展对应开发和运行测试。
+
+
+## Sable Hands alpha 开发快照（2026-10-20）
+
+- 功能分支：feat/sable-hands-prototype；PR #3：https://github.com/g2066203208-beep/mc-studio/pull/3 （Draft；尚未合并）。
+- 基于先前研究 PR #2 的 SPEC / OPEN_SOURCE / DEV_PROMPT / TEST_PLAN；另有 docs/climbing/PROTOTYPE_STATUS.md。
+- 新增 Java 双手抓握原型、普通世界及 Sable Companion 子世界轮廓命中、锚点约束、客户端按键/服务端校验/权威锚点快照；不增加 3D 骨骼或手臂资源。
+- 已核验首个功能原型 head 761a7b41fa188e48ad1f9973bce71a4f93695ba0 的 Actions 39406601421：Gradle Java 21 编译与 JAR 成功；当时 test NO-SOURCE。
+- 随后新增 JUnit 5 测试与 S2C 状态回执，并升级 alpha 版本号；最新候选请以 PR #3 当前 SHA 的最新 Actions 运行结果及 XML 报告为准。
+- 客户端、Sable 旋转/船体、多人专服、整合包兼容、性能均未核验。研发中的速度约束不等于精确 Rapier 玩家物理。不要自动安装到正式存档。
