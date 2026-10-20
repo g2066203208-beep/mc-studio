@@ -2,6 +2,7 @@ package dev.reme.mcstudio.npc;
 
 import dev.reme.mcstudio.StudioMod;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.entity.MobCategory;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.Mob;
@@ -11,8 +12,8 @@ import net.neoforged.neoforge.registries.DeferredHolder;
 import net.neoforged.neoforge.registries.DeferredRegister;
 
 public final class NpcRegistry {
-    private static final DeferredRegister.Entities ENTITIES =
-        DeferredRegister.createEntities(StudioMod.MOD_ID);
+    private static final DeferredRegister<EntityType<?>> ENTITIES =
+        DeferredRegister.create(BuiltInRegistries.ENTITY_TYPE, StudioMod.MOD_ID);
 
     public static final DeferredHolder<EntityType<?>, EntityType<PlayerNpcEntity>> PLAYER_NPC =
         ENTITIES.register("player_npc", () ->
