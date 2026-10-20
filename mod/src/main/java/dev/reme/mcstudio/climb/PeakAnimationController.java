@@ -8,6 +8,7 @@ import dev.kosmx.playerAnim.api.layered.KeyframeAnimationPlayer;
 import dev.kosmx.playerAnim.api.layered.ModifierLayer;
 import dev.kosmx.playerAnim.api.layered.modifier.AbstractFadeModifier;
 import dev.kosmx.playerAnim.api.layered.modifier.AdjustmentModifier;
+import dev.kosmx.playerAnim.api.layered.modifier.SpeedModifier;
 import dev.kosmx.playerAnim.core.util.Vec3f;
 import net.minecraft.world.phys.Vec3;
 import java.util.Optional;
@@ -59,6 +60,7 @@ public final class PeakAnimationController {
         int releaseUntil = -1;
         Vec3 contact = Vec3.ZERO;
         boolean contactReady;
+        SpeedModifier speed;
     }
 
     private PeakAnimationController() {}
@@ -104,6 +106,15 @@ public final class PeakAnimationController {
                 }
             } else playback.contactReady = false;
             int desired = state == null ? NONE : Math.min(CEILING_TRAVERSE, Math.max(HANG, state.action()));
+            if (playback.speed != null && state != null && state.normal().lengthSqr() > .5) {
+                // Link animation cadence to ACTUAL contact-plane movement, not camera.
+                double travel = ClimbSurfaceMath.tangent(client.getDeltaMovement(),
+                        state.normal().normalize()).length();
+                float wantedSpeed = (float)Math.max(.72, Math.min(2.2, travel/.16));
+                if (desired == HANG || desired == CEILING_HANG) wantedSpeed = .84f;
+                if (desired == MANTLE) wantedSpeed = 1f;
+                playback.speed.speed += (wantedSpeed - playback.speed.speed)*.22f;
+            }
 
             if (desired == NONE && playback.mode >= HANG && playback.mode <= CEILING_TRAVERSE) {
                 swap(layer, RELEASE);
@@ -131,6 +142,8 @@ public final class PeakAnimationController {
         // claim of an exact two-bone wrist IK solver.
         layer.addModifierBefore(new AdjustmentModifier(part ->
                 contactCorrection(client, playback, part)));
+        playback.speed = new SpeedModifier(1f);
+        layer.addModifierLast(playback.speed);
         return layer;
     }
 
