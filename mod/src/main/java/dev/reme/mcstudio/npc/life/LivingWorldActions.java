@@ -3,6 +3,10 @@ package dev.reme.mcstudio.npc.life;
 import dev.reme.mcstudio.npc.PlayerNpcEntity;
 import java.util.Comparator;
 import java.util.List;
+import dev.reme.mcstudio.npc.life.SocietyActions;
+import dev.reme.mcstudio.npc.life.SupplyLogistics;
+import dev.reme.mcstudio.npc.life.RoadNavigator;
+import dev.reme.mcstudio.npc.life.LifeJourney;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.SimpleContainer;
@@ -37,6 +41,7 @@ public final class LivingWorldActions {
                 npc.profession() == PlayerNpcEntity.Profession.FARMER ||
                 npc.profession() == PlayerNpcEntity.Profession.BAKER)));
         }
+        if (SocietyActions.tick(npc, level, tick)) return;
         if (tick % 20 != Math.floorMod(npc.getId(), 20)) return;
         switch (npc.intent()) {
             case ESCAPE -> escape(npc, level);
@@ -108,7 +113,8 @@ public final class LivingWorldActions {
 
     private static void returnHome(PlayerNpcEntity npc, String reason) {
         BlockPos home = npc.homePos();
-        npc.getNavigation().moveTo(home.getX() + 0.5, home.getY(), home.getZ() + 0.5, 1.0);
+        if (npc.level() instanceof ServerLevel world)
+            RoadNavigator.moveToward(npc, world, home, 1.0);
         npc.setAction(reason);
     }
 
@@ -119,10 +125,11 @@ public final class LivingWorldActions {
         }
         if (npc.profession() != PlayerNpcEntity.Profession.FARMER) return;
         if (tick % 100 != Math.floorMod(npc.getId(), 100)) return;
+        if (npc.supplyPos() != null && npc.backpack().countItem(Items.WHEAT) >= 12
+            && SupplyLogistics.deposit(npc, level)) return;
         BlockPos anchor = npc.workPos();
         if (npc.blockPosition().distSqr(anchor) > 196) {
-            npc.getNavigation().moveTo(anchor.getX() + 0.5,
-                anchor.getY(), anchor.getZ() + 0.5, 1.0);
+            RoadNavigator.moveToward(npc, level, anchor, 1.0);
             npc.setAction("walking to assigned farm");
             return;
         }
@@ -146,8 +153,7 @@ public final class LivingWorldActions {
             return;
         }
         if (npc.blockPosition().distSqr(candidate) > 5) {
-            npc.getNavigation().moveTo(candidate.getX() + 0.5,
-                candidate.getY(), candidate.getZ() + 0.5, 0.95);
+            RoadNavigator.moveToward(npc, level, candidate, 0.95);
             npc.setAction("walking to ripe crop " + candidate.toShortString());
             return;
         }
@@ -197,6 +203,7 @@ public final class LivingWorldActions {
         bag.setChanged();
         npc.changeNeeds(0, -2, 0);
         npc.setAction("harvested and replanted crop " + pos.toShortString());
+        npc.journey().succeeded(LifeJourney.Achievement.HARVEST);
     }
 
 
@@ -205,8 +212,7 @@ public final class LivingWorldActions {
         if (tick % 100 != Math.floorMod(baker.getId(), 100)) return;
         BlockPos anchor = baker.workPos();
         if (baker.blockPosition().distSqr(anchor) > 36) {
-            baker.getNavigation().moveTo(anchor.getX() + 0.5,
-                anchor.getY(), anchor.getZ() + 0.5, 1.0);
+            RoadNavigator.moveToward(baker, level, anchor, 1.0);
             baker.setAction("walking to bakery");
             return;
         }
@@ -232,6 +238,9 @@ public final class LivingWorldActions {
                 return;
             }
         }
+
+        // Only a designated vanilla supply chest may be used, never arbitrary chests.
+        if (SupplyLogistics.withdraw(baker, level, Items.WHEAT, 3)) return;
         // If no wheat, visit another loaded farmer and barter 1 real bread for 3 wheat.
         List<PlayerNpcEntity> farmers = level.getEntitiesOfClass(PlayerNpcEntity.class,
             baker.getBoundingBox().inflate(14), person ->
@@ -239,7 +248,7 @@ public final class LivingWorldActions {
                     && person.profession() == PlayerNpcEntity.Profession.FARMER);
         for (PlayerNpcEntity farmer : farmers) {
             if (baker.distanceToSqr(farmer) > 8) {
-                baker.getNavigation().moveTo(farmer, 0.95);
+                RoadNavigator.moveToward(baker, level, farmer.blockPosition(), 0.95);
                 baker.setAction("visiting farmer to buy wheat");
                 return;
             }
@@ -255,6 +264,7 @@ public final class LivingWorldActions {
             farmer.rememberGreeting(baker, tick);
             baker.setAction("bartered 1 bread for 3 wheat with " + farmer.getName().getString());
             farmer.setAction("sold 3 wheat to " + baker.getName().getString());
+            baker.journey().succeeded(LifeJourney.Achievement.BARTER);
             return;
         }
         baker.setAction("waiting for wheat and bread to trade");
@@ -291,14 +301,16 @@ public final class LivingWorldActions {
     private static void socialize(PlayerNpcEntity npc, ServerLevel level, long tick) {
         List<PlayerNpcEntity> neighbors = level.getEntitiesOfClass(PlayerNpcEntity.class,
             npc.getBoundingBox().inflate(12),
-            other -> other != npc && other.isAlive() && other.mode() == PlayerNpcEntity.Mode.LIVE);
+            other -> other != npc && other.isAlive()
+                && other.mode() == PlayerNpcEntity.Mode.LIVE
+                && !npc.hostileTo(other));
         if (neighbors.isEmpty()) {
             returnHome(npc, "looking for company");
             return;
         }
         PlayerNpcEntity other = neighbors.stream().min(Comparator.comparingDouble(npc::distanceToSqr)).orElseThrow();
         if (npc.distanceToSqr(other) > 8) {
-            npc.getNavigation().moveTo(other, 0.90);
+            RoadNavigator.moveToward(npc, level, other.blockPosition(), 0.90);
             npc.setAction("going to meet " + other.getName().getString());
             return;
         }
@@ -313,5 +325,7 @@ public final class LivingWorldActions {
         other.changeNeeds(0, 0, 14);
         npc.setAction("talked with " + other.getName().getString());
         other.setAction("talked with " + npc.getName().getString());
+        npc.journey().succeeded(LifeJourney.Achievement.SOCIALIZE);
+        other.journey().succeeded(LifeJourney.Achievement.SOCIALIZE);
     }
 }

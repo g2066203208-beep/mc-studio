@@ -220,10 +220,41 @@ public class PlayerNpcEntity extends PathfinderMob {
         });
     }
 
+    private boolean sellBread(Player customer, ItemStack payment) {
+        if (profession != Profession.BAKER || !payment.is(Items.EMERALD)) return false;
+        SimpleContainer snapshot = new SimpleContainer(36);
+        for (int i = 0; i < 36; i++) snapshot.setItem(i, backpack.getItem(i).copy());
+        boolean hasBread = false;
+        for (int i = 0; i < 36; i++) {
+            ItemStack stack = snapshot.getItem(i);
+            if (stack.is(Items.BREAD) && !stack.isEmpty()) {
+                stack.shrink(1);
+                hasBread = true;
+                break;
+            }
+        }
+        if (!hasBread || !snapshot.addItem(new ItemStack(Items.EMERALD)).isEmpty())
+            return false;
+        ItemStack loaf = new ItemStack(Items.BREAD);
+        if (!customer.getInventory().add(loaf)) return false;
+        for (int i = 0; i < 36; i++) backpack.setItem(i, snapshot.getItem(i).copy());
+        backpack.setChanged();
+        payment.shrink(1);
+        memory.witness(level().getGameTime(), customer.getUUID(),
+            ResidentMemory.Kind.GIFT, blockPosition().toShortString());
+        journey.succeeded(LifeJourney.Achievement.BARTER);
+        setAction("sold 1 real bread for 1 emerald");
+        return true;
+    }
+
     @Override
     protected InteractionResult mobInteract(Player player, InteractionHand hand) {
         if (level().isClientSide) return InteractionResult.SUCCESS;
         ItemStack held = player.getItemInHand(hand);
+        if (sellBread(player, held)) {
+            player.displayClientMessage(Component.literal("Bought real bread for one emerald"), false);
+            return InteractionResult.CONSUME;
+        }
         if (!isOwnedBy(player)) {
             if (held.isEmpty()) {
                 memory.witness(level().getGameTime(), player.getUUID(),
