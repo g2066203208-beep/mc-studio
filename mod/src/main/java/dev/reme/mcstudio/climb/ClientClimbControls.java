@@ -29,7 +29,7 @@ public final class ClientClimbControls {
 
     private ClientClimbControls() {}
 
-    @SubscribeEvent
+    // Invoked only from the MOD event bus via ClientClimbKeyRegistration.
     public static void registerKeys(RegisterKeyMappingsEvent event) {
         event.register(MODE);
     }

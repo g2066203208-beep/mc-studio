@@ -11,7 +11,7 @@ import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
 import net.neoforged.neoforge.network.PacketDistributor;
 
-@EventBusSubscriber(modid = StudioMod.MOD_ID)
+@EventBusSubscriber(modid = StudioMod.MOD_ID, bus = EventBusSubscriber.Bus.MOD)
 public final class ClimbNetwork {
     private ClimbNetwork() {}
 
