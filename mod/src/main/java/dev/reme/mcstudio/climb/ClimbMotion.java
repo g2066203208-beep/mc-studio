@@ -26,6 +26,13 @@ public final class ClimbMotion {
         GripAnchor.Contact b = s.right == null ? null : s.right.resolve(player.level());
         if (a == null) { s.left = null; s.lastLeft = Vec3.ZERO; }
         if (b == null) { s.right = null; s.lastRight = Vec3.ZERO; }
+        // A teleport / structure desync must not leave an infinite-range tether.
+        if (a != null && player.getEyePosition().distanceToSqr(a.point()) > 36) {
+            s.left = null; a = null;
+        }
+        if (b != null && player.getEyePosition().distanceToSqr(b.point()) > 36) {
+            s.right = null; b = null;
+        }
         if (a == null && b == null) return;
 
         Vec3 movedByStructure = Vec3.ZERO;
