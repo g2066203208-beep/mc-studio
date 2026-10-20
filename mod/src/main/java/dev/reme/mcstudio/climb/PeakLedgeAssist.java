@@ -65,6 +65,7 @@ public final class PeakLedgeAssist {
         state.peakPhase += 0.15f;
         state.mantleTicks--;
         if (state.mantleTicks <= 0) {
+            state.mantleRequiresRelease = true;
             state.release();
             // RMB may still be held. The client continues to send hold intent,
             // but the player will now be standing on the ledge.
