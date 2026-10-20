@@ -1,0 +1,39 @@
+name: Inspect real Immersive Vehicles JAR assets
+on:
+  push:
+    paths:
+      - '.github/workflows/inspect-immersive-vehicles.yml'
+      - 'research/immersive-vehicles/inspect_official_pack.py'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install real OBJ preview dependency
+        run: python -m pip install pillow
+      - name: Download and open actual JAR files
+        run: python research/immersive-vehicles/inspect_official_pack.py
+      - name: Save screenshots to repository
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add research/immersive-vehicles/*_actual_jar.png research/immersive-vehicles/mustang_jar_model_inspection.png research/immersive-vehicles/jar_inspection.json research/immersive-vehicles/README.md
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "research: save genuine MTS JAR texture-backed model screenshots"
+          git push
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: actual-immersive-vehicles-jar-inspection
+          path: |
+            research/immersive-vehicles/*_actual_jar.png
+            research/immersive-vehicles/mustang_jar_model_inspection.png
+            research/immersive-vehicles/jar_inspection.json
+          if-no-files-found: warn
