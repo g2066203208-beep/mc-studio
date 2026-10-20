@@ -81,3 +81,10 @@ GitHub Actions: https://github.com/g2066203208-beep/mc-studio/actions/runs/39409
 2. 在独立开发客户端（包括真实 Sable Mod）打开世界，用 G + LMB/RMB 检查墙壁、天花板、平地的手感、原版两只手显示和碰撞，记录错误并修复。
 3. 在 Sable 真实 Sub-level 中以 0、匀速、旋转、急停速度测试锚点局部坐标及其随动，检查重复获得船体速度问题。
 4. 再跑专服双人/高延迟/整合包 Create Aeronautics TerraFirmaCraft，全部满足才可把 Draft PR 变 Ready 并考虑合入 main。玩家存档仍未动。
+
+
+## 2026-10-20 用户试玩后的正式方向修订：Sable Hands V2
+
+用户反馈：已装载 Sable 2.0.6 和 REME 0.2.0-alpha.1，但 G 模式繁琐，第一人称只是手臂偏移、没有向前伸；第三人称完全没有攀爬动作。希望点击一次右键锁定右手抓墙，再点击左键锁定左手；同时能够右手抓墙悬挂、左手取出手枪并单手瞄准射击。相较纯 PEAK 或 White Knuckle，确定采用独立双手抓握核心 + 流畅辅助移动 + 点击锁定/按手物品优先。
+
+完整取代旧输入和渲染的**新目标文档**：[docs/climbing/HAND_INTERACTION_V2.md](climbing/HAND_INTERACTION_V2.md)。已追加入口到 SPEC.md 与 DEV_PROMPT.md。上一轮 0.2.0-alpha.1 的 Java/JUnit 和 Sable GameTests 通过，但**没有任何 V2 代码或枪械/第一第三人称效果的验收**，千万不可将这些指标混为一谈。下一开发阶段先修正常控制冲突、左右手状态、第一人称实际伸手和第三人称同步；再对用户指定枪械进行独立适配，旧 PR #3 保持 Draft。
