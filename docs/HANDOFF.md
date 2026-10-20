@@ -31,3 +31,11 @@ GitHub 是整个 Minecraft 工作室的开发中心。代码、需求、研究�
 ## 可复制给另一个聊天
 
 请接手这个 GitHub 仓库的 Minecraft Mod 开发。先读取 AGENTS.md、README.md、docs/STATUS.md 和 docs/HANDOFF.md，检查最新提交与相关 PR，再继续任务。默认 MC 1.21.1、NeoForge 21.1.248、Java 21。使用独立任务分支，构建后提交代码并同步交接记录；明确区分编译结果和游戏内测试结果。
+
+
+## 2026-10-20 新任务：玩家型 NPC Mod
+
+- 开发分支 `feature/player-npc-v1`，初始实现提交 `9215da0d53c03d0d9435b633fcceca5306e1703f`。
+- 已编写实体、玩家模型渲染、服务端控制指令、36 格物品存储/装备、基础 AI 和 NBT 保存代码，详情见 `docs/NPC_V1.md`。
+- 当前在 GitHub Actions 验证编译；**未运行客户端与整合包，不得写成玩家全部能力复刻完成**。
+- 待办：修复 CI 编译、验证头身比例与右键交互，添加 PlayerAction（真正物品使用/挖掘/建造）、盔甲副手、存档死亡掉落和工作 AI。

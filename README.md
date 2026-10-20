@@ -56,3 +56,8 @@ bash scripts/build.sh
 后续直接在本聊天描述玩法、报错或想修改的 Mod。助手先读取本工作台与本机基线，尽量独立完成技术工作；只有账号授权、目标不明确或确实需要玩家体验判断时才让用户介入。
 
 当前尚未部署到正式游戏，也尚未完成真实客户端与整合包运行测试。最新构建结果见 `docs/STATUS.md`。
+
+
+## 玩家型 NPC 原型（开发中）
+
+功能与约束见 [NPC v0.1 文档](docs/NPC_V1.md)。实验分支 `feature/player-npc-v1`。有作弊权限的玩家执行 `/npc spawn 小雷` 创建 NPC；`/npc follow`、`/npc stay`、`/npc wander`、`/npc guard`、`/npc info` 控制附近自己的 NPC。使用现有 Java 21/NeoForge 1.21.1 工程构建。
