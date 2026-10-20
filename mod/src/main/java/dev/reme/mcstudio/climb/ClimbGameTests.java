@@ -10,7 +10,7 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
-import net.minecraft.server.level.ServerPlayer;
+import net.neoforged.neoforge.common.util.FakePlayerFactory;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
@@ -81,21 +81,42 @@ public final class ClimbGameTests {
         ClimbRuntime.accept(mock, 5, 0, true, true, 0, 0);
         helper.assertTrue(state.left == null && state.right != null,
                 "Attempting to grip with a bow in the left hand changed anchors");
-        helper.assertTrue(mock instanceof ServerPlayer, "Offhand bow test requires a server-side mock player");
-        if (mock instanceof ServerPlayer serverPlayer) {
-            // Bow draw uses the native game mode use item pipeline, not a fake projectile.
-            OffhandActions.accept(serverPlayer, 6, true);
-            helper.assertTrue(state.right != null && serverPlayer.isUsingItem(),
-                    "Offhand bow failed to start drawing while right hand gripped");
-            OffhandActions.accept(serverPlayer, 7, false);
-            helper.assertTrue(!state.usingLeftItem && state.right != null,
-                    "Bow release incorrectly removed right hand grip");
-        }
         // Removing the actual block invalidates the remaining anchor.
         helper.setBlock(wall, Blocks.AIR);
         ClimbMotion.tick(mock, state);
         helper.assertTrue(!state.gripping(), "Grip persisted after source block was removed");
         ClimbState.remove(mock);
+        helper.succeed();
+    }
+
+    @GameTest(template = "climb_test", timeoutTicks = 80)
+    public static void nativeOffhandBowWhileRightHandGrips(GameTestHelper helper) {
+        BlockPos wall = new BlockPos(3, 3, 5);
+        helper.setBlock(wall, Blocks.STONE);
+        var player = FakePlayerFactory.getMinecraft(helper.getLevel());
+        ClimbState.remove(player);
+        BlockPos origin = helper.absolutePos(new BlockPos(3, 2, 3));
+        player.moveTo(origin.getX() + 0.5, origin.getY(), origin.getZ() + 0.5, 0, 0);
+        player.setItemInHand(InteractionHand.MAIN_HAND, ItemStack.EMPTY);
+        player.setItemInHand(InteractionHand.OFF_HAND, new ItemStack(Items.BOW));
+        player.getInventory().add(new ItemStack(Items.ARROW, 64));
+
+        ClimbRuntime.accept(player, 1, 1, true, true, 0, 0);
+        ClimbState state = ClimbState.of(player);
+        helper.assertTrue(state.right != null && state.left == null,
+                "Server player cannot grab with free right hand while holding bow left");
+
+        OffhandActions.accept(player, 2, true);
+        helper.assertTrue(player.isUsingItem() && state.usingLeftItem,
+                "Server item-use pipeline failed to start bow draw");
+        helper.assertTrue(state.right != null, "Starting bow draw released right grip");
+
+        OffhandActions.accept(player, 3, false);
+        helper.assertTrue(!state.usingLeftItem && state.right != null,
+                "Releasing bow draw dropped right hand anchor");
+
+        ClimbState.remove(player);
+        helper.setBlock(wall, Blocks.AIR);
         helper.succeed();
     }
 
