@@ -5,6 +5,10 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+# One build per task branch: later pushes replace superseded CI runs.
+concurrency:
+  group: build-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -22,3 +26,11 @@ jobs:
           name: reme-studio-${{ github.sha }}
           path: mod/build/libs/*.jar
           if-no-files-found: error
+
+      - name: Save unit test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-report-${{ github.sha }}
+          path: mod/build/test-results/test/*.xml
+          if-no-files-found: ignore
