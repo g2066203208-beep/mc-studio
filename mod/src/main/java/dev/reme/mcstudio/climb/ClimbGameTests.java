@@ -156,6 +156,28 @@ public final class ClimbGameTests {
         helper.succeed();
     }
 
+    @GameTest(template="climb_test", timeoutTicks=80)
+    public static void regripAndMantleNeverCreateVelocityImpulse(GameTestHelper helper) {
+        Vec3 oneBlock = new Vec3(0,1,0);
+        helper.assertTrue(ClimbSurfaceMath.platformDelta(Vec3.ZERO, oneBlock, false)
+                        .equals(Vec3.ZERO), "Changing static grip blocks produced false platform motion");
+        helper.assertTrue(ClimbSurfaceMath.platformDelta(Vec3.ZERO, new Vec3(3,4,0), true)
+                        .equals(Vec3.ZERO), "Huge teleport should not create a ship velocity impulse");
+        Vec3 platformStep = ClimbSurfaceMath.platformDelta(Vec3.ZERO, new Vec3(.5,0,0),true);
+        helper.assertTrue(platformStep.length() <= ClimbSurfaceMath.MAX_PLATFORM_STEP + 1e-6,
+                "Moving sublevel step exceeded safe clamp");
+        Vec3 motor = ClimbSurfaceMath.motor(new Vec3(900,300,-900),
+                new Vec3(0,.17,0), new Vec3(0,0,-1));
+        helper.assertTrue(motor.length() <= ClimbSurfaceMath.MAX_RELATIVE_SPEED + 1e-8,
+                "An extreme previous velocity launched the player");
+        helper.assertTrue(Math.abs(motor.z) < 1e-8,
+                "Contact motor must project out all previous normal velocity");
+        helper.assertTrue(ClimbSurfaceMath.speed(new Vec3(0,-1,0))
+                        > ClimbSurfaceMath.speed(new Vec3(0,0,-1))*1.6,
+                "Roof speed must be significantly greater than wall speed");
+        helper.succeed();
+    }
+
     private static void assertFace(GameTestHelper helper, Player mock, BlockPos origin,
                                    BlockPos surface, float yaw,float pitch) {
         helper.setBlock(surface,Blocks.STONE);
