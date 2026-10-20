@@ -57,6 +57,7 @@ a{color:#8bd7ff}
 <div class="section">
 <div class="label">模型来源</div>
 <button id="loadOnline" class="primary full">打开官方仓库原始 OBJ</button>
+<button id="loadOfficialJar" class="full">在线打开真正的 V29 JAR（71 MB）</button>
 <label for="jarInput" class="fakebutton full">导入真正的 MTS 官方车辆包 JAR</label>
 <input id="jarInput" type="file" accept=".jar,.zip,application/java-archive,application/zip">
 <p class="note" style="margin-top:9px">网页默认从作者 GitHub 读取原始 OBJ 和贴图；导入 JAR 可查看实际发布包版本。JAR 完全在本机浏览器解包，不上传服务器。</p>
@@ -105,6 +106,7 @@ const $ = id => document.getElementById(id);
 const OFFICIAL = 'https://raw.githubusercontent.com/DonBruce64/MTSOfficialPack/master/src/main/resources/assets/mtsofficialpack/';
 const OBJ_PATH = 'objmodels/vehicles/fordmustang69.obj';
 const TEX_PATH = 'textures/vehicles/fordmustang69_';
+const RELEASE_JAR_URL = 'https://cdn.modrinth.com/data/C7TiPPJz/versions/f4rn8RAt/MTS%20Official%20Pack-1.21.1-V29.jar';
 const names = ['red','black','silver','white','yellow','orange'];
 const stage = $('stage');
 const renderer = new THREE.WebGLRenderer({canvas:$('viewport'),antialias:true,preserveDrawingBuffer:true,alpha:false});
@@ -248,6 +250,15 @@ textureUrls={};textureUrls[$('paint').value]=URL.createObjectURL(blob);
 jarZip=null;await showModel(text,textureUrls[$('paint').value],'作者 GitHub 原始 OBJ · 最新仓库','online');
 }catch(e){busy(false);status('加载失败：'+e.message,'error');console.error(e);}finally{$('loadOnline').disabled=false;}
 }
+async function loadOfficialJar(){
+const button=$('loadOfficialJar');button.disabled=true;
+busy(true,'在线下载真正的官方 JAR','正在从 Modrinth 下载 MTS Official Pack V29（71 MB）；可能需要一些时间…');
+status('正在下载官方发布包 V29');
+try{const resp=await getRemote(RELEASE_JAR_URL);const blob=await resp.blob();
+await loadJar(new File([blob],'MTS Official Pack-1.21.1-V29.jar',{type:'application/java-archive'}));
+}catch(e){busy(false);status('在线 JAR 失败：'+e.message+'，可改用本地 JAR 导入','error');console.error(e);}
+finally{button.disabled=false;}
+}
 async function loadJar(file){
 if(!file)return;
 if(typeof JSZip==='undefined'){status('JSZip 加载失败；请刷新页面重试','error');return;}
@@ -283,6 +294,7 @@ status('已切换 '+color+' 车漆','good');
 }catch(e){status('更换车漆失败：'+e.message,'error');}
 }
 $('loadOnline').addEventListener('click',loadOnline);
+$('loadOfficialJar').addEventListener('click',loadOfficialJar);
 $('jarInput').addEventListener('change',e=>loadJar(e.target.files[0]));
 $('paint').addEventListener('change',changePaint);
 $('showTexture').addEventListener('change',applyMaterial);
