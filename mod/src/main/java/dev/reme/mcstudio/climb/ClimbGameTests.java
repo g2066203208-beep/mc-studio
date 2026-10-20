@@ -81,6 +81,7 @@ public final class ClimbGameTests {
         ClimbRuntime.accept(mock, 5, 0, true, true, 0, 0);
         helper.assertTrue(state.left == null && state.right != null,
                 "Attempting to grip with a bow in the left hand changed anchors");
+        helper.assertTrue(mock instanceof ServerPlayer, "Offhand bow test requires a server-side mock player");
         if (mock instanceof ServerPlayer serverPlayer) {
             // Bow draw uses the native game mode use item pipeline, not a fake projectile.
             OffhandActions.accept(serverPlayer, 6, true);
