@@ -63,12 +63,7 @@ public final class ClimbMotion {
         if (b != null) normal = normal.add(b.normal());
         normal = normal.lengthSqr() < 0.1 ? new Vec3(0, 1, 0) : normal.normalize();
 
-        Vec3 look = player.getLookAngle();
-        Vec3 right = new Vec3(-look.z, 0, look.x).normalize();
-        Vec3 wish = look.scale(s.forward).add(right.scale(s.strafe));
-        // Movement is along the *surface tangent*, regardless of plane orientation.
-        wish = wish.subtract(normal.scale(wish.dot(normal)));
-        if (wish.lengthSqr() > 1.0) wish = wish.normalize();
+        Vec3 wish = desiredTangent(normal, player.getYRot(), s.forward, s.strafe);
 
         Vec3 old = player.getDeltaMovement();
         // Retain a little gravity while the hand constraints carry the player's weight.
@@ -87,6 +82,32 @@ public final class ClimbMotion {
         // A held grip prevents accumulated landing fall damage, not gravity itself.
         player.fallDistance = 0;
         player.hurtMarked = true;
+    }
+
+    /**
+     * Maps controls onto a physical surface, not the forward-looking ray.
+     * On a vertical wall W means ascend (even looking straight at the wall);
+     * on the floor and ceiling W means travel toward the horizontal view heading.
+     */
+    public static Vec3 desiredTangent(Vec3 surfaceNormal, float yawDegrees,
+                                       float forwardAmount, float strafeAmount) {
+        Vec3 n = surfaceNormal.normalize();
+        double yaw = Math.toRadians(yawDegrees);
+        Vec3 facing = new Vec3(-Math.sin(yaw), 0, Math.cos(yaw));
+        Vec3 right = new Vec3(-Math.cos(yaw), 0, -Math.sin(yaw));
+        Vec3 horizontalForward = projectTangent(facing, n);
+        Vec3 verticalForward = projectTangent(new Vec3(0, 1, 0), n);
+        Vec3 along = Math.abs(n.y) < 0.70 && verticalForward.lengthSqr() > 0.01
+                ? verticalForward.normalize() : horizontalForward.normalize();
+        Vec3 across = projectTangent(right, n);
+        if (across.lengthSqr() < 0.0001) across = n.cross(along);
+        if (across.lengthSqr() > 0.0001) across = across.normalize();
+        Vec3 wish = along.scale(forwardAmount).add(across.scale(strafeAmount));
+        return wish.lengthSqr() > 1 ? wish.normalize() : wish;
+    }
+
+    private static Vec3 projectTangent(Vec3 movement, Vec3 normal) {
+        return movement.subtract(normal.scale(movement.dot(normal)));
     }
 
     private static Vec3 constrain(Vec3 velocity, Vec3 toAnchor) {
