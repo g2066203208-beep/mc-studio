@@ -21,6 +21,8 @@ public final class ClimbState {
     public Vec3 lastRight = Vec3.ZERO;
     public float forward;
     public float strafe;
+    /** Continuous offhand use (bow draw, food, etc.); does not imply a new grip. */
+    public boolean usingLeftItem;
     public int sequence = -1;
     public int lastAckSequence = -1;
     public long lastInputTick = -1;
