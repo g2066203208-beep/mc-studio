@@ -1,4 +1,6 @@
 {
   "key.reme_studio.climb": "Toggle dual-hand climbing",
-  "key.categories.reme_studio": "REME MC Studio Climbing"
+  "key.categories.reme_studio": "REME MC Studio Climbing",
+  "key.reme_studio.release": "Release both climbing grips",
+  "message.reme_studio.released": "Released both grips"
 }
