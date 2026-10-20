@@ -14,6 +14,7 @@ public final class ClimbMotion {
 
     public static void tick(Player player, ClimbState s) {
         if (s.lungeCooldown > 0) s.lungeCooldown--;
+        if (s.faceSwitchCooldown > 0) s.faceSwitchCooldown--;
         if (player.isPassenger() || player.isSpectator() || !player.isAlive()
                 || player.getAbilities().flying) {
             s.peakHeld = false; s.release(); return;
@@ -41,6 +42,9 @@ public final class ClimbMotion {
             s.enabled = true;
             s.grabYaw = ClimbSurfaceMath.facingYaw(c.normal(), player.getYRot());
             s.lastLeft = c.point();
+            s.contactPoint = c.point();
+            s.contactNormal = c.normal().normalize();
+            s.commandedVertical = 0;
             s.hasContact = true;
         }
         GripAnchor oldAnchor = s.left;
@@ -63,21 +67,28 @@ public final class ClimbMotion {
         Vec3 input = ClimbSurfaceMath.direction(normal, heading, s.forward, s.strafe);
         boolean moving = input.lengthSqr() > 0.0001;
 
-        if (moving && player.tickCount % 3 == 0) {
-            GripAnchor probe = SurfaceProbe.traceOffset(player, input.scale(0.55), normal);
+        if (moving && player.tickCount % 2 == 0) {
+            // Switching between surface families requires a ray against the
+            // NEW face. A ray pointing only toward the old wall never detects
+            // the ceiling underside or a side wall.
+            GripAnchor probe = s.faceSwitchCooldown == 0
+                    ? SurfaceProbe.traceTransition(player, contact, input) : null;
+            boolean faceTransition = probe != null;
+            if (probe == null) probe = SurfaceProbe.traceOffset(player, input.scale(.55), normal);
             if (probe == null) probe = SurfaceProbe.trace(player);
             if (PeakGripRules.mayGrab(player, probe)) {
                 GripAnchor.Contact next = probe.resolve(player.level());
                 if (next != null
                         && next.point().distanceTo(contact.point()) <= MAX_REGRIP_JUMP
                         && player.getEyePosition().distanceTo(next.point()) <= MAX_GRAB_REACH
-                        && next.normal().normalize().dot(normal) >= -0.08) {
+                        && next.normal().normalize().dot(normal) >= -0.14) {
                     s.left = probe;
                     contact = next;
                     normal = next.normal().normalize();
+                    if (faceTransition) s.faceSwitchCooldown = 7;
                     s.grabYaw = ClimbSurfaceMath.facingYaw(normal, heading);
-                    // CRITICAL: do NOT turn old->new anchor difference into motion.
-                    // Platform drift has already been measured on the old anchor.
+                    // CRITICAL: never add the new anchor-point displacement
+                    // as Sable structure velocity or accumulated acceleration.
                     input = ClimbSurfaceMath.direction(normal, s.grabYaw, s.forward, s.strafe);
                 }
             }
@@ -95,12 +106,18 @@ public final class ClimbMotion {
             return;
         }
 
-        Vec3 velocity = ClimbSurfaceMath.motor(player.getDeltaMovement(),
+        // PlayerTick.Post occurs after vanilla travel: deltaMovement.y contains
+        // freshly integrated gravity, not intentional climbing momentum.
+        // Use our LAST commanded vertical instead and restore it in Tick.Pre.
+        Vec3 previous = player.getDeltaMovement();
+        if (!ClimbSurfaceMath.floor(normal))
+            previous = new Vec3(previous.x, s.commandedVertical, previous.z);
+        Vec3 velocity = ClimbSurfaceMath.motor(previous,
                 input.scale(ClimbSurfaceMath.speed(normal)), normal);
-        // The adhesion force counters vanilla gravity on roofs; unlike the old
-        // 0.022 upward value, a roof contact should not slowly slide downward.
-        double adhesion = ClimbSurfaceMath.ceiling(normal) ? 0.112 : 0.019;
-        velocity = velocity.subtract(normal.scale(adhesion)).add(platformDelta);
+        // Explicit clearance from actual face prevents head/camera and torso
+        // clipping into blocks (the old permanent inward impulse caused black).
+        velocity = velocity.add(ClimbSurfaceMath.standoff(
+                player.getEyePosition(), contact.point(), normal)).add(platformDelta);
 
         // Shift is a single key-down edge; roofs dash *along* the roof, never
         // launch the character vertically into a wall when ceiling-grabbing.
@@ -126,6 +143,7 @@ public final class ClimbMotion {
         velocity = ClimbSurfaceMath.clamp(velocity, ClimbSurfaceMath.MAX_RELATIVE_SPEED
                 + platformDelta.length());
         player.setDeltaMovement(velocity);
+        s.commandedVertical = velocity.y;
         player.fallDistance = 0;
         player.hurtMarked = true;
         if (ClimbSurfaceMath.ceiling(normal))
@@ -134,7 +152,8 @@ public final class ClimbMotion {
         else
             s.poseAction = !moving ? (byte)0 : Math.abs(s.forward) >= Math.abs(s.strafe)
                     ? (byte)1 : (byte)2;
-        if (moving) s.peakPhase += (float)Math.min(0.35, input.length()*0.28);
+        if (moving) s.peakPhase += (float)Math.min(0.35,
+                ClimbSurfaceMath.tangent(velocity, normal).length()*1.55);
     }
 
     /** Backward-compatible pure helper used by the original GameTests. */

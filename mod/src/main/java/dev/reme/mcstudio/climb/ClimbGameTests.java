@@ -178,6 +178,79 @@ public final class ClimbGameTests {
         helper.succeed();
     }
 
+    @GameTest(template="climb_test", timeoutTicks=80)
+    public static void wallAutomaticallyFindsCeilingFace(GameTestHelper helper) {
+        BlockPos wall = new BlockPos(3,3,5);
+        BlockPos roof = new BlockPos(3,4,4);
+        helper.setBlock(wall, Blocks.STONE);
+        helper.setBlock(roof, Blocks.STONE);
+        Player player = helper.makeMockPlayer(GameType.CREATIVE);
+        BlockPos origin = helper.absolutePos(new BlockPos(3,2,3));
+        player.moveTo(origin.getX()+.5,origin.getY(),origin.getZ()+.5,0,0);
+        GripAnchor wallAnchor=SurfaceProbe.trace(player);
+        helper.assertTrue(wallAnchor != null, "Starting wall face is not reachable");
+        GripAnchor.Contact old=wallAnchor.resolve(player.level());
+        GripAnchor corner=SurfaceProbe.traceTransition(player,old,new Vec3(0,1,0));
+        helper.assertTrue(corner != null && corner.resolve(player.level()) != null,
+                "Wall-top auto probe could not discover nearby roof underside");
+        helper.assertTrue(corner.resolve(player.level()).normal().y < -.7,
+                "Wall-to-roof grab must switch to the real downward-facing contact normal");
+        ClimbState.remove(player);
+        helper.setBlock(wall,Blocks.AIR);
+        helper.setBlock(roof,Blocks.AIR);
+        helper.succeed();
+    }
+
+    @GameTest(template="climb_test", timeoutTicks=80)
+    public static void wallHangNoGravitySlidingOrCameraClipping(GameTestHelper helper) {
+        BlockPos wall=new BlockPos(3,3,5);
+        helper.setBlock(wall, Blocks.STONE);
+        Player player=helper.makeMockPlayer(GameType.CREATIVE);
+        BlockPos origin=helper.absolutePos(new BlockPos(3,2,3));
+        player.moveTo(origin.getX()+.5,origin.getY(),origin.getZ()+.5,0,0);
+        ClimbState.remove(player);
+        ClimbRuntime.accept(player,1,-1,true,false,0,0);
+        ClimbState s=ClimbState.of(player);
+        helper.assertTrue(s.gripping(),"Wall must hold with right mouse button");
+        // Vanilla physics applied gravity before Post. Held-wall controller must
+        // discard that value instead of integrating it into an endless slide.
+        player.setDeltaMovement(new Vec3(0,-.08,0));
+        ClimbMotion.tick(player,s);
+        helper.assertTrue(Math.abs(s.commandedVertical)<1e-6,
+                "Neutral hanging inherited downward gravity and slowly slides off");
+        Vec3 normal=s.contactNormal;
+        Vec3 tooNear=s.contactPoint.add(normal.scale(.24));
+        Vec3 away=ClimbSurfaceMath.standoff(tooNear,s.contactPoint,normal);
+        helper.assertTrue(away.dot(normal)>.06,
+                "Player too close to wall must be pushed OUT from solid blocks");
+        helper.assertTrue(ClimbSurfaceMath.signedGap(
+                s.contactPoint.add(normal.scale(ClimbSurfaceMath.WALL_CAMERA_GAP)),
+                s.contactPoint,normal)>.6, "Wall camera must stay outside dark clipping zone");
+        ClimbRuntime.accept(player,2,-1,false,false,0,0);
+        ClimbState.remove(player);
+        helper.setBlock(wall,Blocks.AIR);
+        helper.succeed();
+    }
+
+    @GameTest(template="climb_test", timeoutTicks=80)
+    public static void sidewaysWallAndRoofHaveStableMotionBasis(GameTestHelper helper) {
+        Vec3 eastWall=new Vec3(-1,0,0);
+        float heading=ClimbSurfaceMath.facingYaw(eastWall,0);
+        Vec3 upward=ClimbSurfaceMath.direction(eastWall,heading,1,0);
+        Vec3 sideways=ClimbSurfaceMath.direction(eastWall,heading,0,1);
+        helper.assertTrue(upward.y>.95 && Math.abs(sideways.y)<.01,
+                "Side walls must map W upward, A/D sideways independent of camera");
+        helper.assertTrue(Math.abs(sideways.dot(eastWall))<1e-7,
+                "Side-wall input must never push the player into the solid wall");
+        helper.assertTrue(ClimbSurfaceMath.canTurn(new Vec3(0,0,-1),
+                new Vec3(0,-1,0),new Vec3(0,1,0)),
+                "Upward travel meeting a roof must allow a 90-degree auto-transition");
+        helper.assertTrue(!ClimbSurfaceMath.canTurn(new Vec3(0,0,-1),
+                new Vec3(0,-1,0),new Vec3(0,-1,0)),
+                "Moving away from a roof must not forcibly switch to it");
+        helper.succeed();
+    }
+
     private static void assertFace(GameTestHelper helper, Player mock, BlockPos origin,
                                    BlockPos surface, float yaw,float pitch) {
         helper.setBlock(surface,Blocks.STONE);

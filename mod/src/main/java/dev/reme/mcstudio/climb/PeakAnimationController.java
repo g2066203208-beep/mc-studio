@@ -166,8 +166,18 @@ public final class PeakAnimationController {
         float lateral = (float)Math.max(-1, Math.min(1, delta.dot(sideways)*1.4));
         float vertical = (float)Math.max(-1, Math.min(1, delta.y * .65));
         float forward = (float)Math.max(-1, Math.min(1, delta.dot(toward)*.65));
-        Vec3f rotation = new Vec3f(-.10f*vertical, .12f*lateral, -.07f*(float)armSide*lateral);
-        Vec3f offset = new Vec3f(.72f*lateral, .58f*vertical, .60f*forward);
+        boolean roof = ClimbSurfaceMath.ceiling(pose.normal());
+        // Vanilla Steve/Alex left arm is model +X; right arm is -X.
+        // Widen ONLY the local first-person roof presentation so both hands
+        // sit near screen sides and never mask the aiming reticle.
+        boolean firstPersonRoof = roof && client == Minecraft.getInstance().player
+                && Minecraft.getInstance().options.getCameraType().isFirstPerson();
+        float modelSide = isLeft ? 1f : -1f;
+        float wide = firstPersonRoof ? 5.8f : roof ? 1.3f : 0f;
+        Vec3f rotation = new Vec3f(-.085f*vertical, .10f*lateral,
+                -.065f*(float)armSide*lateral);
+        Vec3f offset = new Vec3f(.67f*lateral + modelSide*wide,
+                .44f*vertical, .46f*forward);
         return Optional.of(new AdjustmentModifier.PartModifier(rotation, offset));
     }
 

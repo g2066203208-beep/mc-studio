@@ -32,6 +32,10 @@ public final class ClimbState {
     public Vec3 contactPoint = Vec3.ZERO;
     /** Track the REAL last world-space contact, only on an unchanged Sable anchor. */
     public boolean hasContact;
+    /** Last commanded vertical speed is restored before vanilla travel each tick. */
+    public double commandedVertical;
+    /** Prevent contact-family flip-flopping at corners. */
+    public int faceSwitchCooldown;
     public float forward, strafe;
     @Nullable public GripAnchor left;
     @Nullable public GripAnchor right;
@@ -52,6 +56,8 @@ public final class ClimbState {
         contactPoint = Vec3.ZERO;
         contactNormal = Vec3.ZERO;
         hasContact = false;
+        commandedVertical = 0;
+        faceSwitchCooldown = 0;
         lastRight = Vec3.ZERO;
         lungeRequested = false;
         mantleTicks = 0;
