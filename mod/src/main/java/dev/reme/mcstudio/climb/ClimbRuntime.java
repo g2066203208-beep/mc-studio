@@ -37,6 +37,12 @@ public final class ClimbRuntime {
                 s.enabled = true;
                 GripAnchor.Contact contact = hit.resolve(player.level());
                 s.lastLeft = contact == null ? net.minecraft.world.phys.Vec3.ZERO : contact.point();
+                if (contact != null) {
+                    s.grabYaw = ClimbSurfaceMath.facingYaw(contact.normal(), player.getYRot());
+                    s.contactNormal = contact.normal();
+                    s.contactPoint = contact.point();
+                    s.hasContact = true;
+                }
             }
         }
     }
