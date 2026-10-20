@@ -63,11 +63,10 @@ public final class PeakLedgeAssist {
         player.hurtMarked = true;
         state.poseAction = 3;
         state.peakPhase += 0.15f;
-        state.stamina = Math.max(0, state.stamina - 0.20f);
         state.mantleTicks--;
         if (state.mantleTicks <= 0) {
             state.release();
-            // LMB may still be held. The client continues to send hold intent,
+            // RMB may still be held. The client continues to send hold intent,
             // but the player will now be standing on the ledge.
         }
     }
