@@ -77,7 +77,9 @@ public final class LivingWorldActions {
             return;
         }
         if (threats.isEmpty()) return;
-        Monster threat = threats.stream().min(Comparator.comparingDouble(npc::distanceToSqr)).orElseThrow();
+        Monster threat = threats.stream() .min(Comparator.comparingDouble(other ->
+                npc.distanceToSqr(other) -
+                0.25 * npc.memory().trust(other.getUUID()))).orElseThrow();
         double dx = npc.getX() - threat.getX(), dz = npc.getZ() - threat.getZ();
         double length = Math.max(Math.sqrt(dx * dx + dz * dz), 0.01);
         npc.setTarget(null);
@@ -256,7 +258,9 @@ public final class LivingWorldActions {
         List<PlayerNpcEntity> farmers = level.getEntitiesOfClass(PlayerNpcEntity.class,
             baker.getBoundingBox().inflate(14), person ->
                 person != baker && person.isAlive()
-                    && person.profession() == PlayerNpcEntity.Profession.FARMER);
+                    && person.profession() == PlayerNpcEntity.Profession.FARMER
+                    && !baker.hostileTo(person)
+                    && person.identity().region().equals(baker.identity().region()));
         for (PlayerNpcEntity farmer : farmers) {
             if (baker.distanceToSqr(farmer) > 8) {
                 RoadNavigator.moveToward(baker, level, farmer.blockPosition(), 0.95);
@@ -314,7 +318,8 @@ public final class LivingWorldActions {
             npc.getBoundingBox().inflate(12),
             other -> other != npc && other.isAlive()
                 && other.mode() == PlayerNpcEntity.Mode.LIVE
-                && !npc.hostileTo(other));
+                && !npc.hostileTo(other) &&
+                npc.memory().trust(other.getUUID()) > -20);
         if (neighbors.isEmpty()) {
             returnHome(npc, "looking for company");
             return;

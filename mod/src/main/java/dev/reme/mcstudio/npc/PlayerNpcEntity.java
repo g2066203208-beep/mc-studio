@@ -241,7 +241,8 @@ public class PlayerNpcEntity extends PathfinderMob {
     }
 
     private boolean sellBread(Player customer, ItemStack payment) {
-        if (profession != Profession.BAKER || !payment.is(Items.EMERALD)) return false;
+        if (profession != Profession.BAKER || !payment.is(Items.EMERALD) ||
+            memory.trust(customer.getUUID()) <= -25) return false;
         SimpleContainer snapshot = new SimpleContainer(36);
         for (int i = 0; i < 36; i++) snapshot.setItem(i, backpack.getItem(i).copy());
         boolean hasBread = false;
@@ -271,6 +272,12 @@ public class PlayerNpcEntity extends PathfinderMob {
     protected InteractionResult mobInteract(Player player, InteractionHand hand) {
         if (level().isClientSide) return InteractionResult.SUCCESS;
         ItemStack held = player.getItemInHand(hand);
+        if (profession == Profession.BAKER && held.is(Items.EMERALD)
+            && memory.trust(player.getUUID()) <= -25) {
+            player.displayClientMessage(Component.literal(getName().getString()
+                + " refuses to trade because of your past aggression."), false);
+            return InteractionResult.CONSUME;
+        }
         if (sellBread(player, held)) {
             player.displayClientMessage(Component.literal("Bought real bread for one emerald"), false);
             return InteractionResult.CONSUME;
