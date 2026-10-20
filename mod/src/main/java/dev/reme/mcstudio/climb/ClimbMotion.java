@@ -31,6 +31,7 @@ public final class ClimbMotion {
             return;
         }
 
+        if (s.mantleRequiresRelease) return;
         // Continuous automatic grip acquisition: one input, no manual hand switching.
         if (!s.enabled || s.left == null) {
             GripAnchor candidate = SurfaceProbe.trace(player);
