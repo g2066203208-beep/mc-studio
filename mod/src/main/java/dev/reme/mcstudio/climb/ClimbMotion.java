@@ -27,7 +27,11 @@ public final class ClimbMotion {
             s.stamina = PeakGripRules.staminaNext(s.stamina, false, false, player.onGround());
             return;
         }
-        if (s.stamina <= 0) { s.release(); return; }
+        if (s.stamina <= 0) {
+            s.release();
+            s.stamina = PeakGripRules.staminaNext(s.stamina,false,false,player.onGround());
+            return;
+        }
 
         // Continuous automatic grip acquisition: one input, no manual hand switching.
         if (!s.enabled || s.left == null) {
