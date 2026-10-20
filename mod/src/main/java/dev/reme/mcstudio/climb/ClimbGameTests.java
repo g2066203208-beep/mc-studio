@@ -11,7 +11,7 @@ import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
-/** Three in-game smoke tests for PEAK style continuous grab and terrain geometry. */
+/** Contact-space and collision-regression tests for PEAK held-grip. */
 @GameTestHolder(StudioMod.MOD_ID)
 @PrefixGameTestTemplate(false)
 public final class ClimbGameTests {
@@ -125,6 +125,34 @@ public final class ClimbGameTests {
         helper.assertTrue(!state.mantleRequiresRelease, "Releasing RMB must re-arm grabbing");
         ClimbState.remove(player);
         helper.setBlock(wall, Blocks.AIR);
+        helper.succeed();
+    }
+
+    @GameTest(template="climb_test", timeoutTicks=80)
+    public static void ceilingHasDistinctMovementAndCameraIndependentFacing(GameTestHelper helper) {
+        BlockPos roof = new BlockPos(3,4,3);
+        helper.setBlock(roof,Blocks.STONE);
+        Player player = helper.makeMockPlayer(GameType.CREATIVE);
+        BlockPos origin = helper.absolutePos(new BlockPos(3,2,3));
+        player.moveTo(origin.getX()+.5,origin.getY(),origin.getZ()+.5,0,-90);
+        ClimbState.remove(player);
+        ClimbState state=ClimbState.of(player);
+        ClimbRuntime.accept(player,1,-1,true,false,1,0);
+        helper.assertTrue(state.gripping(), "RMB must grip roof underside");
+        ClimbMotion.tick(player,state);
+        helper.assertTrue(state.poseAction==5, "Roof crawl must select separate animation");
+        double initialTravel = player.getDeltaMovement().z;
+        helper.assertTrue(initialTravel>.19,"Roof crawl must be faster than old speed");
+        player.setYRot(155); // Look elsewhere but do not change body grip heading.
+        ClimbRuntime.accept(player,2,-1,true,false,1,0);
+        ClimbMotion.tick(player,state);
+        helper.assertTrue(player.getDeltaMovement().z>0,
+                "Turning the camera rotated ceiling motion and body orientation");
+        helper.assertTrue(state.contactNormal.y<-.7,
+                "Roof animation must be selected by actual surface normal");
+        ClimbRuntime.accept(player,3,-1,false,false,0,0);
+        ClimbState.remove(player);
+        helper.setBlock(roof,Blocks.AIR);
         helper.succeed();
     }
 
