@@ -7,6 +7,8 @@ import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.renderer.ItemInHandRenderer;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.entity.HumanoidArm;
+import com.mojang.math.Axis;
 import net.minecraft.world.item.ItemStack;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -24,10 +26,8 @@ public abstract class PeakFirstPersonHandsMixin {
     @Unique private boolean peak$renderedOffhand;
 
     @Shadow
-    private void renderArmWithItem(AbstractClientPlayer player, float partialTick, float pitch,
-                                   InteractionHand hand, float swingProgress, ItemStack stack,
-                                   float equipProgress, PoseStack poseStack,
-                                   MultiBufferSource buffer, int light) {
+    private void renderPlayerArm(PoseStack poseStack, MultiBufferSource buffer, int light,
+                                 float equipProgress, float swingProgress, HumanoidArm side) {
         throw new AssertionError();
     }
 
@@ -55,8 +55,11 @@ public abstract class PeakFirstPersonHandsMixin {
         PeakVisuals.Pose pose = PeakVisuals.pose(player);
         if (pose == null || !pose.climbing()) return;
         poseStack.pushPose();
-        renderArmWithItem(player, partialTick, player.getXRot(), InteractionHand.OFF_HAND,
-                0f, ItemStack.EMPTY, 0f, poseStack, buffer, light);
+        float stride = (float)Math.sin(pose.phase() * 7f + Math.PI);
+        poseStack.translate(-0.19, 0.10 + 0.12 * stride, -0.66 - 0.13 * stride);
+        poseStack.mulPose(Axis.XP.rotationDegrees(-65 - 16 * stride));
+        poseStack.mulPose(Axis.ZP.rotationDegrees(-13));
+        renderPlayerArm(poseStack, buffer, light, 0, 0, player.getMainArm().getOpposite());
         poseStack.popPose();
     }
 }
