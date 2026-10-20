@@ -6,6 +6,7 @@ import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.phys.Vec3;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
@@ -37,7 +38,8 @@ public final class ClimbNetwork {
     }
 
     /** Other clients need to see the same hand-over-hand animation as the controlling player. */
-    public record Pose(int entityId, boolean climbing, float phase, byte action)
+    public record Pose(int entityId, boolean climbing, float phase, byte action,
+                       Vec3 normal, Vec3 contactPoint, float bodyYaw)
             implements CustomPacketPayload {
         public static final Type<Pose> TYPE = new Type<>(
                 ResourceLocation.fromNamespaceAndPath(StudioMod.MOD_ID, "peak_pose"));
@@ -47,14 +49,23 @@ public final class ClimbNetwork {
                     buf.writeBoolean(p.climbing());
                     buf.writeFloat(p.phase());
                     buf.writeByte(p.action());
+                    buf.writeFloat((float)p.normal().x);
+                    buf.writeFloat((float)p.normal().y);
+                    buf.writeFloat((float)p.normal().z);
+                    buf.writeDouble(p.contactPoint().x);
+                    buf.writeDouble(p.contactPoint().y);
+                    buf.writeDouble(p.contactPoint().z);
+                    buf.writeFloat(p.bodyYaw());
                 },
-                buf -> new Pose(buf.readVarInt(), buf.readBoolean(), buf.readFloat(), buf.readByte()));
+                buf -> new Pose(buf.readVarInt(), buf.readBoolean(), buf.readFloat(), buf.readByte(),
+                        new Vec3(buf.readFloat(), buf.readFloat(), buf.readFloat()),
+                        new Vec3(buf.readDouble(), buf.readDouble(), buf.readDouble()), buf.readFloat()));
         @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
     }
 
     @SubscribeEvent
     public static void register(RegisterPayloadHandlersEvent event) {
-        var registrar = event.registrar("3");
+        var registrar = event.registrar("4");
         registrar.playToServer(Intent.TYPE, Intent.CODEC, (packet, context) -> {
             if (!(context.player() instanceof ServerPlayer player)) return;
             ClimbRuntime.accept(player, packet.sequence(), packet.hand(), packet.down(),
@@ -83,7 +94,8 @@ public final class ClimbNetwork {
             var clientPlayer = context.player();
             if (clientPlayer != null) {
                 PeakVisuals.observe(packet.entityId(), packet.climbing(),
-                        packet.phase(), clientPlayer.level().getGameTime(), packet.action());
+                        packet.phase(), clientPlayer.level().getGameTime(), packet.action(),
+                        packet.normal(), packet.contactPoint(), packet.bodyYaw());
             }
         });
     }
