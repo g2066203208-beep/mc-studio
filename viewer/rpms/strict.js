@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 import {behavior,canPlace,evaluate,axisOf,CORE_VERSION} from './strict-core.mjs';
+import {MinecraftJarModels} from './authentic-models.mjs';
 
 const $=id=>document.getElementById(id);
 const names={
@@ -15,6 +16,8 @@ const names={
 const COLORS={create:0x96724d,simulated:0x5b9d9c,minecraft:0x8a9caf};
 let mode='place',registry=[],world=[],selectedId=null,inspected=null;
 let jarFiles=0,activeLayer=1,lastResult=null;
+const jarModels=new MinecraftJarModels();
+const modelStatus=new Map();let visualEpoch=0;
 const scene=new THREE.Scene();scene.background=new THREE.Color('#172736');
 const camera=new THREE.PerspectiveCamera(43,1,.05,200);camera.position.set(12,13,17);
 const renderer=new THREE.WebGLRenderer({canvas:$('view'),antialias:true});
@@ -52,8 +55,20 @@ function drawPalette(){
 }
 function selectBlock(id){
  selectedId=id;$('selectedName').textContent=id?labelFor(id)+' · '+id:'尚未选择方块';
+ if(id)refreshStateOptions(id);
  $('coverageState').textContent=id?tagFor(id):'';drawPalette();
  if(id)displayInspector({id,axis:$('axis').value,facing:$('facing').value,pos:['待放置','—','—']});
+}
+async function refreshStateOptions(id){
+ const select=$('statePreset');select.replaceChildren();
+ const opt=document.createElement('option');opt.value='';opt.textContent='自动匹配朝向/状态';select.append(opt);
+ const keys=await jarModels.stateKeys(id);
+ if(id!==selectedId)return;
+ for(const key of keys.slice(0,600)){
+  const option=document.createElement('option');option.value=key;option.textContent=key||'(默认状态)';
+  select.append(option);
+ }
+ $('stateCount').textContent=keys.length?('读取 '+keys.length+' 种状态'):'需要对应 JAR';
 }
 function displayInspector(item){
  const box=$('inspection');box.replaceChildren();
@@ -69,31 +84,34 @@ function displayInspector(item){
  if(item.id==='create:creative_motor'){
   const p=document.createElement('p');p.textContent='预览设置：'+(item.rpm??16)+' RPM（非游戏实测）';box.append(p);
  }
+ const model=modelStatus.get(item.pos.join(','));
+ const row=document.createElement('p');
+ row.className='model-state';
+ row.textContent=model?'模型状态：'+model.status+' · '+model.reason
+  :(jarModels.has(item.id)?'模型正在从本地 JAR 解码…':'缺失真实模型：请导入本地 Create/Simulated JAR');
+ box.append(row);
 }
-function materialFor(id){
- if(!matCache.has(id))matCache.set(id,new THREE.MeshStandardMaterial({color:COLORS[id.split(':')[0]]??0x8499a8,roughness:.72,metalness:.08}));
- return matCache.get(id);
-}
+// The hit volume is deliberately invisible and independent of appearance.
+// Real model geometry never determines the block grid click target.
+const hitMaterial=new THREE.MeshBasicMaterial({colorWrite:false,depthWrite:false,transparent:true,opacity:0});
 function visualFor(b){
- const geo=new THREE.BoxGeometry(.95,.95,.95),mesh=new THREE.Mesh(geo,materialFor(b.id));
- const g=new THREE.Group();g.position.set(...b.pos);g.userData.block=b;mesh.userData.block=b;g.add(mesh);
- const edge=new THREE.LineSegments(new THREE.EdgesGeometry(geo),new THREE.LineBasicMaterial({color:0x182839}));g.add(edge);
- const k=behavior(b.id).kind;
- // Stylized geometry is only a placeholder; never claim it is an official Mod model.
- if(['shaft','small','large','source','bearing'].includes(k)){
-  const rod=new THREE.Mesh(new THREE.CylinderGeometry(k==='large'?.36:.2,k==='large'?.36:.2,1.03,16),
-  new THREE.MeshStandardMaterial({color:k==='source'?0xf0ce76:0xe0e6e6,metalness:.3,roughness:.48}));
-  if(axisOf(b)==='x')rod.rotation.z=Math.PI/2;
-  if(axisOf(b)==='z')rod.rotation.x=Math.PI/2;
-  rod.userData.block=b;g.add(rod);
- }
- // Raycasting only the full block cube ensures placement uses MC cardinal
- // block faces, never arbitrary diagonal normals from decorative rods.
- clickable.push(mesh);
+ const g=new THREE.Group();g.position.set(...b.pos);g.userData.block=b;
+ const hit=new THREE.Mesh(new THREE.BoxGeometry(.99,.99,.99),hitMaterial);
+ hit.userData.block=b;g.add(hit);clickable.push(hit);
+ const ghost=new THREE.Group();
+ const geo=new THREE.BoxGeometry(.96,.96,.96);
+ const fill=new THREE.Mesh(geo,new THREE.MeshBasicMaterial({color:0x7e91a1,transparent:true,opacity:.13,depthWrite:false}));
+ const wire=new THREE.LineSegments(new THREE.EdgesGeometry(geo),new THREE.LineBasicMaterial({color:0xeab777,transparent:true,opacity:.8}));
+ ghost.add(fill,wire);
+ const original=new THREE.Group();g.add(ghost,original);
+ g.userData.ghost=ghost;g.userData.original=original;
  return g;
 }
 function renderWorld(){
- clickable=[];while(placedGroup.children.length)placedGroup.remove(placedGroup.children[0]);
+ const epoch=++visualEpoch;
+ modelStatus.clear();
+ clickable=[];
+ while(placedGroup.children.length)placedGroup.remove(placedGroup.children[0]);
  for(const b of world)placedGroup.add(visualFor(b));
  if(selectionOutline){selectionOutline.parent?.remove(selectionOutline);selectionOutline=null;}
  if(inspected){
@@ -101,6 +119,35 @@ function renderWorld(){
   if(t){selectionOutline=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(1.05,1.05,1.05)),new THREE.LineBasicMaterial({color:0xffdd83,depthTest:false}));selectionOutline.renderOrder=9;t.add(selectionOutline);}
  }
  updateStatus();
+ if(jarModels.archives.length)refreshAuthenticModels(epoch);
+ else{for(const b of world)modelStatus.set(b.pos.join(','),{status:'missing',reason:'未导入 Mod/JAR 贴图'});updateAssetCounter();}
+}
+async function refreshAuthenticModels(epoch=visualEpoch){
+ const placements=[...placedGroup.children];
+ await Promise.all(placements.map(async g=>{
+  const b=g.userData.block;
+  const result=await jarModels.render(b);
+  if(epoch!==visualEpoch)return;
+  modelStatus.set(b.pos.join(','),{status:result.status,reason:result.reason,meshes:result.meshes||0,matched:result.matched??null});
+  if(result.group){
+   g.userData.original.clear();
+   g.userData.original.add(result.group);
+   g.userData.ghost.visible=false;
+  }else g.userData.ghost.visible=true;
+ }));
+ if(epoch===visualEpoch){
+  updateAssetCounter();
+  if(inspected)displayInspector(inspected);
+ }
+}
+function updateAssetCounter(){
+ const all=[...modelStatus.values()];
+ const total=world.length,ok=all.filter(x=>x.status==='authentic').length;
+ const partial=all.filter(x=>x.status==='partial').length;
+ $('modelCounter').textContent=total?('原始资源模型 '+ok+'/'+total+' · 部分 '+partial+' · 未加载 '+Math.max(0,total-ok-partial))
+  :'没有放置方块';
+ $('modelCounter').dataset.authentic=String(ok);
+ $('modelCounter').dataset.partial=String(partial);
 }
 function updateStatus(){
  const r=evaluate(world);lastResult=r;
@@ -160,7 +207,9 @@ function interaction(e,actionMode){
  }
  if(!selectedId){notify('先在左侧选择方块');return;}
  const b={id:selectedId,pos:hit.where,axis:$('axis').value,facing:$('facing').value};
- if(b.id==='create:creative_motor')b.rpm=Number($('rpm').value);place(b);
+ if(b.id==='create:creative_motor')b.rpm=Number($('rpm').value);
+ if($('statePreset').value)b.stateKey=$('statePreset').value;
+ place(b);
 }
 let down=null;
 $('viewWrap').addEventListener('pointerdown',e=>{down={x:e.clientX,y:e.clientY,button:e.button};window.__STRICT_DEBUG__={phase:'down',point:[e.clientX,e.clientY],target:e.target?.id}},true);
@@ -170,6 +219,13 @@ $('layer').addEventListener('input',e=>{activeLayer=Number(e.target.value);$('la
 for(const b of document.querySelectorAll('[data-mode]'))b.addEventListener('click',()=>setMode(b.dataset.mode));
 for(const b of document.querySelectorAll('[data-view]'))b.addEventListener('click',()=>setView(b.dataset.view));
 for(const id of ['search','namespace','coverage'])$(id).addEventListener(id==='search'?'input':'change',drawPalette);
+$('statePreset').addEventListener('change',e=>{
+ if(inspected&&inspected.id===selectedId){
+  if(e.target.value)inspected.stateKey=e.target.value;
+  else delete inspected.stateKey;
+  renderWorld();
+ }
+});
 $('resetScene').addEventListener('click',()=>{world=[];inspected=null;renderWorld();notify('已清空预览场景')});
 $('example').addEventListener('click',()=>{
  world=[
@@ -202,21 +258,23 @@ $('importJson').addEventListener('change',async e=>{
 $('jarInput').addEventListener('change',async e=>{
  if(typeof JSZip==='undefined'){$('jarStatus').textContent='JSZip 未加载，无法读取本地 JAR';return;}
  const files=[...e.target.files];let added=0,count=0,variants=0,failed=[];
+ $('jarStatus').textContent='正在解析原始模型、方块状态与贴图索引…';
  for(const f of files){
   try{
-   const zip=await JSZip.loadAsync(f),paths=Object.keys(zip.files).filter(s=>/^assets\/(create|simulated)\/blockstates\/[^/]+\.json$/.test(s));
-   for(const path of paths){
-    const match=path.match(/^assets\/(create|simulated)\/blockstates\/([^/]+)\.json$/),id=match[1]+':'+match[2];
+   const result=await jarModels.addFile(f,JSZip);
+   for(const path of result.paths.filter(s=>/^assets\\/(create|simulated|minecraft)\\/blockstates\\/[^/]+\\.json$/.test(s))){
+    const match=path.match(/^assets\\/(create|simulated|minecraft)\\/blockstates\\/([^/]+)\\.json$/),id=match[1]+':'+match[2];
     if(!registry.some(b=>b.id===id)){registry.push({id,source:'local-jar'});added++;}
-    try{const val=JSON.parse(await zip.file(path).async('text'));if(val.variants)variants+=Object.keys(val.variants).length;}
-    catch(err){failed.push(path+' '+err.message)}
+    try{variants+=(await jarModels.stateKeys(id)).length;}catch(err){failed.push(path+' '+err.message);}
    }
    count++;
-  }catch(err){failed.push(f.name+' '+err.message)}
+  }catch(err){failed.push(f.name+' '+err.message);}
  }
  jarFiles+=count;registry.sort((a,b)=>a.id.localeCompare(b.id));
- $('jarStatus').textContent='本地读取 '+count+' 个 JAR、+'+added+' 方块目录项、'+variants+' 个方块状态 variants。浏览器本地处理，不上传。'+(failed.length?' 解析失败 '+failed.length+' 项。':'')+' 动态原版功能仍由 MC 游戏执行。';
- drawPalette();e.target.value='';
+ $('jarStatus').textContent='已本地读取 '+count+' 个 JAR、'+added+' 新方块、'+variants+' 种变体。已启用原始 JSON + PNG 模型渲染（特殊动态 BER 不保证与 MC 一致）。'+(failed.length?' 错误 '+failed.length+' 项':'');
+ drawPalette();if(selectedId)refreshStateOptions(selectedId);
+ renderWorld();
+ e.target.value='';
 });
 function resize(){const e=$('viewWrap');const w=Math.max(100,e.clientWidth),h=Math.max(100,e.clientHeight);renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();}
 new ResizeObserver(resize).observe($('viewWrap'));resize();
@@ -227,7 +285,9 @@ async function init(){
   const data=await r.json();if(!Array.isArray(data.entries)||data.entries.length<200)throw Error('源码方块清单缺失');
   registry=data.entries;drawPalette();renderWorld();selectBlock('create:shaft');
   window.__STRICT_API__={version:CORE_VERSION,getCatalog:()=>registry.map(o=>o.id),getState:()=>world.map(o=>({...o,pos:[...o.pos]})),
-  getResult:()=>evaluate(world),place,removeAt,setMode,selectBlock,reset:()=>{world=[];inspected=null;renderWorld()}};
+  getResult:()=>evaluate(world),getAssetStatus:()=>[...modelStatus.entries()].map(([pos,status])=>({pos,...status})),
+  getStateOptions:id=>jarModels.stateKeys(id),getJarCount:()=>jarModels.archives.length,
+  place,removeAt,setMode,selectBlock,reset:()=>{world=[];inspected=null;renderWorld()}};
   window.__STRICT_READY__=true;notify('方块注册表已加载 · MC 整数网格施工预览');
  }catch(err){window.__STRICT_ERROR__=err.message;notify('初始化失败：'+err.message);console.error(err)}
 }
