@@ -27,6 +27,8 @@ jobs:
       - name: Compile JS and check source for NO anti-gravity shortcuts
         run: |
           node --check viewer/rpms/boss-physics.mjs
+          node --check viewer/rpms/boss-multibody.mjs
+          node --check viewer/rpms/tests/boss-multibody-browser.cjs
           node --check viewer/rpms/boss.js
           node --check viewer/rpms/tests/boss-browser-physics.cjs
           python3 - <<'PY'
@@ -48,6 +50,7 @@ jobs:
         run: |
           python3 -m http.server 8033 --directory viewer >/tmp/rpms-boss-http.log 2>&1 &
           node viewer/rpms/tests/boss-browser-physics.cjs
+          node viewer/rpms/tests/boss-multibody-browser.cjs
       - name: Upload REAL Chrome physics evidence (screenshots + run logs)
         if: always()
         uses: actions/upload-artifact@v4
