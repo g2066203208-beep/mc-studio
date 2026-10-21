@@ -10,7 +10,7 @@ permissions:
 jobs:
   visual-client:
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 14
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -52,7 +52,43 @@ jobs:
             xdotool mousemove 640 540 click 1
             sleep 8
             xwd -root -silent | convert xwd:- -resize 600x338 -quality 48 visual-world-create.jpg
-            montage visual-dialog.jpg visual-mainmenu.jpg visual-world-select.jpg visual-world-create.jpg -tile 2x2 -geometry +0+0 -quality 48 visual-sequence.jpg
+            # The actual screenshot shows Allow Commands at GUI x640 y403.
+            # Enable commands and create a fresh DISPOSABLE survival world.
+            xdotool mousemove 640 403 click 1
+            sleep 2
+            xdotool mousemove 480 565 click 1
+            # World creation can be CPU-heavy with software OpenGL.
+            sleep 78
+            xwd -root -silent | convert xwd:- -resize 600x338 -quality 48 visual-in-world.jpg
+            # Exercise the installed mod in a real integrated singleplayer world.
+            xdotool key --clearmodifiers t
+            xdotool type --clearmodifiers --delay 25 "/gamemode creative"
+            xdotool key Return
+            sleep 3
+            xdotool key --clearmodifiers t
+            xdotool type --clearmodifiers --delay 25 "/worldseam setup-test"
+            xdotool key Return
+            sleep 6
+            xdotool key --clearmodifiers t
+            xdotool type --clearmodifiers --delay 25 "/tp ~ -61 ~ 0 90"
+            xdotool key Return
+            # Wait for actual 9 native target chunks, 1 packet per second.
+            sleep 22
+            xwd -root -silent | convert xwd:- -resize 600x338 -quality 48 visual-near-seam.jpg
+            xdotool key --clearmodifiers t
+            xdotool type --clearmodifiers --delay 25 "/worldseam trace"
+            xdotool key Return
+            sleep 3
+            xdotool key --clearmodifiers t
+            xdotool type --clearmodifiers --delay 25 "/tp ~ -63.70 ~ 0 90"
+            xdotool key Return
+            sleep 8
+            xwd -root -silent | convert xwd:- -resize 600x338 -quality 48 visual-crossing.jpg
+            montage visual-in-world.jpg visual-near-seam.jpg visual-crossing.jpg visual-world-create.jpg -tile 2x2 -geometry +0+0 -quality 48 visual-sequence.jpg
+            if ! grep -q "WorldSeam standalone mod loaded" visual-client.log; then
+              echo "Mod never loaded in graphical client!"
+              exit 1
+            fi
             echo WORLDSEAM_GUI_JPEG_BEGIN
             base64 -w 0 visual-sequence.jpg
             echo
