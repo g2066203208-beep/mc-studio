@@ -75,7 +75,7 @@ public final class NativeSableStandingRig {
     }
 
     public static Rig spawn(ServerLevel level, Vector3d worldOrigin) {
-        if (!level.isLoaded(BlockPos.containing(worldOrigin))) {
+        if (!level.isLoaded(BlockPos.containing(worldOrigin.x(),worldOrigin.y(),worldOrigin.z()))) {
             throw new IllegalStateException("Boss rig requires a loaded real world chunk");
         }
         try {
