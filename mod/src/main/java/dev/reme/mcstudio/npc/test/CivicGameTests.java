@@ -16,6 +16,7 @@ import net.minecraft.world.entity.MobCategory;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.world.level.biome.Biomes;
 import net.minecraft.world.level.block.Blocks;
+import net.neoforged.neoforge.common.util.FakePlayerFactory;
 import dev.reme.mcstudio.npc.life.MovementPolicy;
 import dev.reme.mcstudio.npc.life.DailyRoaming;
 import dev.reme.mcstudio.npc.life.NaturalResidentSpawn;
@@ -219,6 +220,27 @@ public final class CivicGameTests {
                 helper.fail("NPC remained immobile despite walkable stone path", origin);
             else helper.succeed();
         });
+    }
+
+
+    @GameTest(template = "empty", timeoutTicks = 90)
+    public static void actual_npc_demo_command_creates_six_named_residents(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos origin = helper.absolutePos(new BlockPos(5, 1, 5));
+        // Simulate a player command in the real Minecraft command dispatcher.
+        var player = FakePlayerFactory.getMinecraft(level);
+        player.moveTo(origin.getX() + 0.5, origin.getY(),
+            origin.getZ() + 0.5, 0, 0);
+        int result = level.getServer().getCommands().performPrefixedCommand(
+            player.createCommandSourceStack().withPermission(4), "npc demo");
+        if (result != 6) throw new AssertionError(
+            "The actual /npc demo command generated " + result + " residents, not 6");
+        int found = level.getEntitiesOfClass(PlayerNpcEntity.class,
+            new net.minecraft.world.phys.AABB(origin).inflate(16),
+            npc -> npc.isAlive() && npc.getCustomName() != null).size();
+        if (found < 6) throw new AssertionError(
+            "NPC demo claims creation without six actual named server entities");
+        helper.succeed();
     }
 
 }
