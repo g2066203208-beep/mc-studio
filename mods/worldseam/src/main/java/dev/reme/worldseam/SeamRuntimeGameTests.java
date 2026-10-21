@@ -89,6 +89,47 @@ public final class SeamRuntimeGameTests {
             helper.fail("WorldSeam vanilla stack runtime validation failed: "+ex.getMessage());
             return;
         }
+        // Test REAL two-ServerLevel explosion propagation in an isolated
+        // GameTest world: Overworld floor -> Nether roof. No synthetic
+        // block-copy implementation, no unrelated aviation mod.
+        var sourcePos=helper.absolutePos(new net.minecraft.core.BlockPos(0,1,0));
+        int x=sourcePos.getX(),z=sourcePos.getZ();
+        int cx=Math.floorDiv(x,16),cz=Math.floorDiv(z,16);
+        var sourceRoof=new net.minecraft.core.BlockPos(x,-64,z);
+        var remoteWitness=new net.minecraft.core.BlockPos(x,127,z);
+        var remoteAir=new net.minecraft.core.BlockPos(x,128,z);
+        try {
+            // The explosion handler refuses to wake 9 unloaded target chunks
+            // on its own; a real prewarmed target needs to be present.
+            for(int dx=-1;dx<=1;dx++)for(int dz=-1;dz<=1;dz++)
+                nether.getChunk(cx+dx,cz+dz);
+            over.setBlock(sourceRoof,
+                net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(),3);
+            // Use low-resistance blocks, never bedrock, for a deterministic
+            // explosion line of sight at the already-loaded target roof.
+            for(int dx=-1;dx<=1;dx++)for(int dz=-1;dz<=1;dz++) {
+                var at=remoteWitness.offset(dx,0,dz);
+                nether.setBlock(at,
+                    net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(),3);
+                nether.setBlock(at.above(),
+                    net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(),3);
+            }
+            nether.setBlock(remoteWitness,
+                net.minecraft.world.level.block.Blocks.GLASS.defaultBlockState(),3);
+            options.setEnabled(true);
+            options.setCrossSeamExplosions(true);
+            over.explode(null,x+0.5,-63.75,z+0.5,4.0f,
+                net.minecraft.world.level.Level.ExplosionInteraction.TNT);
+            if(!nether.getBlockState(remoteWitness).isAir()) {
+                helper.fail("Cross-seam native explosion did not destroy a real Nether glass block from Overworld");
+                return;
+            }
+            com.mojang.logging.LogUtils.getLogger().info(
+                "WORLDSEAM_CROSS_BLAST_PASS: Overworld floor TNT equivalent destroyed the Nether roof witness");
+        } finally {
+            options.setCrossSeamExplosions(false);
+            options.setEnabled(false);
+        }
         helper.succeed();
     }
 }
