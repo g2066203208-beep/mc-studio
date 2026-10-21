@@ -3,6 +3,8 @@ package dev.reme.mcstudio.npc.test;
 import dev.reme.mcstudio.StudioMod;
 import dev.reme.mcstudio.npc.NpcRegistry;
 import dev.reme.mcstudio.npc.PlayerNpcEntity;
+import dev.reme.mcstudio.npc.NpcPose;
+import dev.reme.mcstudio.npc.NpcPoseSelection;
 import dev.reme.mcstudio.npc.life.CivicMind;
 import dev.reme.mcstudio.npc.life.CharacterProfile;
 import dev.reme.mcstudio.npc.life.Commission;
@@ -1151,6 +1153,45 @@ public final class CivicGameTests {
                 helper.fail("Three independent LIVE occupations never autonomously registered their settlement", origin);
             else helper.succeed();
         });
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 100)
+    public static void npc_expressive_pose_contract_is_networked_and_bounds_checked(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        PlayerNpcEntity npc = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (npc == null) throw new AssertionError("Entity registry missing");
+        if (!level.addFreshEntity(npc)) throw new AssertionError("NPC spawn failed");
+        if (npc.visualPose() != NpcPose.IDLE
+            || NpcPose.fromNetworkId(-1) != NpcPose.IDLE
+            || NpcPose.fromNetworkId(Integer.MAX_VALUE) != NpcPose.IDLE)
+            throw new AssertionError("Invalid visual pose network default");
+        npc.setVisualPose(NpcPose.SOCIALIZE);
+        if (npc.visualPose() != NpcPose.SOCIALIZE)
+            throw new AssertionError("Real entity's synched pose did not update");
+        npc.setVisualPose(NpcPose.WORK);
+        if (npc.visualPose() != NpcPose.WORK)
+            throw new AssertionError("NPC work pose failed state sync");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 100)
+    public static void npc_animation_priority_avoids_fake_gestures_during_fear_or_work(GameTestHelper helper) {
+        if (NpcPoseSelection.classify(true, true, true, true, true, false)
+                != NpcPose.AFRAID
+            || NpcPoseSelection.classify(false, true, true, true, true, false)
+                != NpcPose.GUARD
+            || NpcPoseSelection.classify(false, false, true, true, true, true)
+                != NpcPose.WORK
+            || NpcPoseSelection.classify(false, false, false, true, true, true)
+                != NpcPose.CARRY
+            || NpcPoseSelection.classify(false, false, false, false, false, true)
+                != NpcPose.REST
+            || NpcPoseSelection.classify(false, false, false, false, true, false)
+                != NpcPose.SOCIALIZE
+            || NpcPoseSelection.classify(false, false, false, false, false, false)
+                != NpcPose.IDLE)
+            throw new AssertionError("Humanlike NPC visual pose action ordering regressed");
+        helper.succeed();
     }
 
 }

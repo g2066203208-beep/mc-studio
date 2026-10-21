@@ -2,7 +2,7 @@ name: Server GameTests (experimental)
 on:
   workflow_dispatch:
   push:
-    branches: [feature/living-world-civic-v04, feature/living-world-natural-v05, feature/npc-resource-pickup-v058, feature/npc-emergent-roads-hamlets-v059]
+    branches: [feature/living-world-civic-v04, feature/living-world-natural-v05, feature/npc-resource-pickup-v058, feature/npc-emergent-roads-hamlets-v059, feature/npc-animation-art-pipeline-v060]
   pull_request:
 permissions:
   contents: read

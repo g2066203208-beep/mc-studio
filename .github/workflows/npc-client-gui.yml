@@ -2,7 +2,7 @@ name: Actual Minecraft client GUI screenshots (experimental)
 on:
   workflow_dispatch:
   push:
-    branches: [fix/npc-client-acceptance-v054, feature/npc-character-skins-v055, feature/npc-player-action-bridge-v056, feature/npc-player-parity-mining-v057, feature/npc-resource-pickup-v058, feature/npc-emergent-roads-hamlets-v059]
+    branches: [fix/npc-client-acceptance-v054, feature/npc-character-skins-v055, feature/npc-player-action-bridge-v056, feature/npc-player-parity-mining-v057, feature/npc-resource-pickup-v058, feature/npc-emergent-roads-hamlets-v059, feature/npc-animation-art-pipeline-v060]
 permissions:
   contents: read
 jobs:

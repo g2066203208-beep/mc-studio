@@ -19,6 +19,10 @@ jobs:
         run: bash scripts/test-living-planner.sh
       - name: Validate six human skin assets
         run: python3 scripts/check-npc-skins.py
+      - name: Audit real 64x64 outer-layer alpha and expose incomplete art
+        run: python3 scripts/audit-npc-skin-layers.py
+        # Non-blocking until skins are actually redrawn; human QA knows which
+        # characters fail. Release gate later runs with --strict.
       - name: Build
         run: bash scripts/build.sh
       - name: Assert skins packaged in NeoForge JAR
