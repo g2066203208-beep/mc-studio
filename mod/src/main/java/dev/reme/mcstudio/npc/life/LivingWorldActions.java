@@ -86,8 +86,9 @@ public final class LivingWorldActions {
             && npc.intent() != LivingPlanner.Intent.ESCAPE
             && npc.intent() != LivingPlanner.Intent.EAT
             && npc.intent() != LivingPlanner.Intent.SLEEP) {
-            if (MovementPolicy.due(tick, npc.getId(), 10)
-                || npc.getNavigation().isDone())
+            // Scan inventory/depot at most twice a second; the navigation
+            // itself continues on intermediate ticks without re-planning.
+            if (MovementPolicy.due(tick, npc.getId(), 10))
                 CaravanRoutes.tick(npc, level);
             return; // don't let generic roaming cancel caravan navigation
         }
