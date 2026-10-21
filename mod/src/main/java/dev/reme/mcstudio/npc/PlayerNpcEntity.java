@@ -118,6 +118,27 @@ public class PlayerNpcEntity extends PathfinderMob {
     public SimpleContainer backpack() { return backpack; }
     public CivicMind civic() { return civic; }
     public CharacterProfile character() { return character; }
+    public String conversationWith(Player player) {
+        CivicMind.Standing status = civic.standing(player.getUUID(), character.justice());
+        if (status == CivicMind.Standing.WANTED) {
+            return "I have heard of your violence. Stay away from my friends.";
+        }
+        if (commission != null && commission.state() == Commission.State.OPEN) {
+            return "Could you bring " + commission.quantity() + " " +
+                commission.goods() + "? My reward is " +
+                commission.emeraldReward() + " real emeralds.";
+        }
+        var reports = civic.reports();
+        if (!reports.isEmpty() && character.honesty() > 35) {
+            CivicMind.Report report = reports.get(reports.size() - 1);
+            return (report.direct() ? "I witnessed " : "Someone told me about ") +
+                report.kind().name().toLowerCase(java.util.Locale.ROOT) +
+                " involving " + report.actor().toString().substring(0, 8) +
+                ". I am " + (report.direct() ? "sure." : "not an eyewitness.");
+        }
+        if (hunger < 30) return "I need some food. " + lastAction;
+        return "Today I am " + lastAction + ".";
+    }
     public void setCharacter(CharacterProfile next) { character = next; }
     @Nullable public Commission commission() { return commission; }
     public void setCommission(@Nullable Commission next) { commission = next; }
@@ -311,7 +332,8 @@ public class PlayerNpcEntity extends PathfinderMob {
                 memory.witness(level().getGameTime(), player.getUUID(),
                     ResidentMemory.Kind.GREETING, blockPosition().toShortString());
                 player.displayClientMessage(Component.literal(getName().getString()
-                    + ": " + lastAction + " | trust " + memory.trust(player.getUUID())), false);
+                    + ": " + conversationWith(player)
+                    + " | trust " + memory.trust(player.getUUID())), false);
             } else if (held.is(Items.BREAD) || held.is(Items.CARROT) ||
                     held.is(Items.APPLE) || held.is(Items.BAKED_POTATO)) {
                 ItemStack gift = held.copyWithCount(1);
@@ -341,7 +363,7 @@ public class PlayerNpcEntity extends PathfinderMob {
             memory.witness(level().getGameTime(), player.getUUID(),
                 ResidentMemory.Kind.GREETING, blockPosition().toShortString());
             player.displayClientMessage(Component.literal(getName().getString()
-                + ": " + lastAction + " | " + intent()
+                + ": " + conversationWith(player) + " | " + intent()
                 + " | trust " + memory.trust(player.getUUID())), false);
             return InteractionResult.CONSUME;
         }

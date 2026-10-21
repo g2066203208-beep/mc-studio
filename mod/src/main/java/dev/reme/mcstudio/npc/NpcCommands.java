@@ -371,9 +371,15 @@ public final class NpcCommands {
                 if (report.direct()) direct++; else rumor++;
             }
             final int a = direct, b = rumor;
+            var reports = npc.civic().reports();
+            String latest = reports.isEmpty() ? "none"
+                : reports.get(reports.size() - 1).kind()
+                    + " concerning " + reports.get(reports.size() - 1).actor()
+                    + (reports.get(reports.size() - 1).direct()
+                        ? " (eyewitness)" : " (hearsay, unverified)");
             source.sendSuccess(() -> Component.literal(npc.getName().getString()
                 + " knows " + a + " witnessed events and " + b
-                + " second-hand reports; not a global newsfeed"), false);
+                + " second-hand reports; latest: " + latest), false);
         }
         return 1;
     }
