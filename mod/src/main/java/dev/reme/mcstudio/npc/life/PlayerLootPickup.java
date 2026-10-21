@@ -82,7 +82,6 @@ public final class PlayerLootPickup {
             }
             if (pickUp(npc, item)) {
                 npc.setAction("picked up real mined items into the 36-slot backpack");
-                npc.forgetMiningDrop(id);
                 return true;
             }
             // Inventory full: do not delete or change another entity's stack.
@@ -112,18 +111,22 @@ public final class PlayerLootPickup {
             || item.hasPickUpDelay()
             || item.getItem().isEmpty()) return false;
 
+        // Other item entities (including unrelated items of the same kind)
+        // must not be taken. Even if a claimed entity merges with a player's
+        // existing stack, only its actual original drop quantity is ours.
+        int remainingClaim = npc.remainingMiningDrop(item.getUUID());
+        if (remainingClaim <= 0) return false;
         SimpleContainer bag = npc.backpack();
         ItemStack source = item.getItem();
-        int before = source.getCount();
-        ItemStack remainder = bag.addItem(source.copy());
-        int moved = before - remainder.getCount();
+        int offer = Math.min(source.getCount(), remainingClaim);
+        ItemStack refused = bag.addItem(source.copyWithCount(offer));
+        int moved = offer - refused.getCount();
         if (moved <= 0) return false;
         bag.setChanged();
-        if (remainder.isEmpty()) {
-            item.discard();
-        } else {
-            item.setItem(remainder);
-        }
+        int groundRemainder = source.getCount() - moved;
+        if (groundRemainder <= 0) item.discard();
+        else item.setItem(source.copyWithCount(groundRemainder));
+        npc.recordMinedPickup(item.getUUID(), moved);
         return true;
     }
 }
