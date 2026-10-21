@@ -23,7 +23,9 @@ public final class RoadNavigator {
             return false;
         }
         long tick = level.getGameTime();
-        if (!npc.canRepath(destination, tick)) return true;
+        // Failed paths must be retried: never report movement solely because
+        // a cooldown is active. Delay replanning only while a path actually runs.
+        if (!npc.getNavigation().isDone() && !npc.canRepath(destination, tick)) return true;
         double current = npc.blockPosition().distSqr(destination);
         if (current < 5) return false;
         BlockPos best = null;

@@ -19,6 +19,11 @@ public final class NaturalResidentSpawn {
     public static final int MAX_WITHIN_72_BLOCKS = 4;
     private NaturalResidentSpawn() {}
 
+    public static boolean allowedNaturalReason(MobSpawnType reason) {
+        // Passive mobs are populated both at runtime and while chunks generate.
+        return reason == MobSpawnType.NATURAL || reason == MobSpawnType.CHUNK_GENERATION;
+    }
+
     public static boolean atCapacity(ServerLevel level, BlockPos position) {
         return level.getEntitiesOfClass(PlayerNpcEntity.class,
             new AABB(position).inflate(72.0),
@@ -30,18 +35,19 @@ public final class NaturalResidentSpawn {
             SpawnPlacementTypes.ON_GROUND,
             Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
             (type, world, reason, position, random) -> {
-                if (reason != MobSpawnType.NATURAL) return false;
+                if (!allowedNaturalReason(reason)) return false;
                 ServerLevel level = world.getLevel();
                 if (level.dimension() != Level.OVERWORLD) return false;
                 if (position.getY() <= level.getSeaLevel() - 4 ||
                     position.getY() >= level.getMaxBuildHeight() - 3) return false;
-                if (!level.hasChunkAt(position) || !level.canSeeSky(position) ||
+                if (reason == MobSpawnType.NATURAL && !level.hasChunkAt(position) ||
+                    !world.canSeeSky(position) ||
                     !world.getBlockState(position).isAir() ||
                     !world.getBlockState(position.above()).isAir()) return false;
                 var soil = world.getBlockState(position.below());
                 if (!(soil.is(Blocks.GRASS_BLOCK) || soil.is(Blocks.DIRT_PATH) ||
                     soil.is(Blocks.PODZOL) || soil.is(Blocks.COARSE_DIRT))) return false;
-                if (atCapacity(level, position)) return false;
+                if (reason == MobSpawnType.NATURAL && atCapacity(level, position)) return false;
                 return true;
             },
             RegisterSpawnPlacementsEvent.Operation.REPLACE
