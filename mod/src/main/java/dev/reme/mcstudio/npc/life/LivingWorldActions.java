@@ -59,7 +59,8 @@ public final class LivingWorldActions {
                     (npc.character().empathy() > 75 ? 15 : 0)),
                 npc.profession() == PlayerNpcEntity.Profession.FARMER ||
                 npc.profession() == PlayerNpcEntity.Profession.BAKER ||
-                npc.profession() == PlayerNpcEntity.Profession.BUILDER)));
+                npc.profession() == PlayerNpcEntity.Profession.BUILDER ||
+                npc.profession() == PlayerNpcEntity.Profession.SHOPKEEPER)));
         }
         if (npc.profession() == PlayerNpcEntity.Profession.GUARD)
             CivicSocial.guardLaw(npc, level, tick);
@@ -199,6 +200,10 @@ public final class LivingWorldActions {
     }
 
     private static void work(PlayerNpcEntity npc, ServerLevel level, long tick) {
+        if (npc.profession() == PlayerNpcEntity.Profession.SHOPKEEPER) {
+            ShopCounter.tick(npc, level, tick);
+            return;
+        }
         if (npc.profession() == PlayerNpcEntity.Profession.BUILDER) {
             SafeBuilder.tick(npc, level, tick);
             return;
