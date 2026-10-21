@@ -35,10 +35,10 @@ public final class SeamNativeGeometryClient {
     private record Cell(int x,int y,int z,BlockState state,int light) {}
     private static final int MAX_COLUMNS = 25;
     private static final int VERTICAL_SECTIONS = 10;
-    private static final int MAX_DRAW = 3500;
     private static final int MAX_BUILDS_PER_TICK = 2;
     private static final SeamGeometryQueue BUILD_QUEUE = new SeamGeometryQueue();
     private static final SeamRenderSamples DRAW_CPU_SAMPLES = new SeamRenderSamples(120);
+    private static final SeamRenderBudget DRAW_BUDGET = new SeamRenderBudget();
     private static volatile long lastFrameDrawCpuNanos;
     private static ClientLevel queuedRemote;
     private static SeamGraph.Link queuedLink;
@@ -203,17 +203,9 @@ public final class SeamNativeGeometryClient {
         // ticks without packets. Cache lifetime follows the actual remote
         // ClientLevel, not an arbitrary traffic timer.
         if (columns.isEmpty() || event.getPoseStack()==null) return;
-        // Bound the visual mesh to the client's CURRENT chunk ring; columns
-        // from an old center are NOT still visible after window movement.
-        int playerCx=Math.floorDiv(mc.player.blockPosition().getX(),16);
-        int playerCz=Math.floorDiv(mc.player.blockPosition().getZ(),16);
-        columns.entrySet().removeIf(e -> {
-            long p=e.getKey();
-            return Math.abs((int)(p>>32)-playerCx)>2 ||
-                Math.abs((int)p-playerCz)>2;
-        });
-        if (columns.isEmpty()) { blocksBuilt=0; return; }
-        blocksBuilt=columns.values().stream().mapToInt(List::size).sum();
+        // Window pruning and geometry recount already happen in the 20 TPS
+        // client tick. Doing another 25-column scan at EVERY render frame
+        // (possibly >120 FPS) is redundant.
         long drawStarted=System.nanoTime();
         PoseStack pose=event.getPoseStack();
         Vec3 camera=event.getCamera().getPosition();
@@ -228,9 +220,10 @@ public final class SeamNativeGeometryClient {
             double dx=(cx<<4)+8-camera.x,dz=(cz<<4)+8-camera.z;
             return dx*dx+dz*dz;
         }));
-        int perColumn=Math.max(64,MAX_DRAW / Math.max(1,ordered.size()));
+        int frameLimit=DRAW_BUDGET.limit();
+        int perColumn=Math.max(16,frameLimit / Math.max(1,ordered.size()));
         outer:
-        for(int pass=0;pass<=MAX_DRAW/perColumn;pass++)
+        for(int pass=0;pass<=frameLimit/perColumn;pass++)
             for (var section:ordered) {
                 List<Cell> cells=section.getValue();
                 int startIndex=pass*perColumn;
@@ -250,13 +243,14 @@ public final class SeamNativeGeometryClient {
             pose.popPose();
             lastFrameDrawn++;
             if (c.state().is(Blocks.END_STONE))lastFrameEndStone++;
-            if (lastFrameDrawn>=MAX_DRAW) break outer;
+            if (lastFrameDrawn>=frameLimit) break outer;
                 }
             }
         if (lastFrameDrawn>0) {
             buffers.endBatch();
             lastFrameDrawCpuNanos=Math.max(0,System.nanoTime()-drawStarted);
             DRAW_CPU_SAMPLES.add(lastFrameDrawCpuNanos);
+            DRAW_BUDGET.observe(lastFrameDrawn,lastFrameDrawCpuNanos);
         }
     }
 
@@ -273,6 +267,7 @@ public final class SeamNativeGeometryClient {
     public static int pendingRebuilds() { return BUILD_QUEUE.pending(); }
     /** Measures client CPU model submission only; never interpreted as GPU frame time. */
     public static double p95ModelCpuMs() { return DRAW_CPU_SAMPLES.p95Ms(); }
+    public static int currentModelBudget() { return DRAW_BUDGET.limit(); }
     public static double lastModelCpuMs() { return lastFrameDrawCpuNanos/1_000_000.0; }
     public static String scope() { return source.isEmpty() ? "-" : source+">"+target; }
 
@@ -287,6 +282,7 @@ public final class SeamNativeGeometryClient {
         queuedLink=null;
         BUILD_QUEUE.clear();
         DRAW_CPU_SAMPLES.clear();
+        DRAW_BUDGET.reset();
         lastFrameDrawCpuNanos=0;
     }
 }
