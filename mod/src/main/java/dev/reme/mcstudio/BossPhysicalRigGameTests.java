@@ -64,31 +64,43 @@ public final class BossPhysicalRigGameTests {
             var settled=rig.position();
             var velocity=rig.velocity();
             double groundTop=floor.getY()+1.0;
-            double footGroundGap=settled.y()-groundTop;
+            Vector3d realCenter=rig.centerOfMass();
+            double footSoleWorldY=rig.footSoleWorldY();
+            double torsoWorldYBefore=rig.torsoBottomWorldY();
+            double footGroundGap=footSoleWorldY-groundTop;
             double fall=initialY-settled.y();
-            LOG.info("RPMS_BOSS_P0_STAND initialY={} settledY={} fall={} groundTop={} footGroundGap={} nativeVelocity={}",
-                    initialY,settled.y(),fall,groundTop,footGroundGap,velocity);
-            if(fall<0.5)throw new AssertionError("Body did not physically fall under gravity");
-            if(Math.abs(footGroundGap)>0.80)
-                throw new AssertionError("Feet are NOT resting on world ground; gap="+footGroundGap);
-            if(Math.abs(velocity.y())>1.2)
-                throw new AssertionError("Body did not stabilize on four colliding feet; vy="+velocity.y());
+            LOG.info("RPMS_BOSS_P0_STAND initialY={} settledY={} fall={} groundTop={} realCenterOfMass={} footSoleWorldY={} footGroundGap={} torsoBottomWorldY={} nativeVelocity={}",
+                    initialY,settled.y(),fall,groundTop,realCenter,footSoleWorldY,footGroundGap,torsoWorldYBefore,velocity);
+            if(fall<0.5){helper.fail("Body did not physically fall under gravity");return;}
+            if(Math.abs(footGroundGap)>0.80){
+                helper.fail("Foot-sole transformed with Sable COM does not touch ground; gap="+footGroundGap);
+                return;
+            }
+            if(Math.abs(velocity.y())>1.2){
+                helper.fail("Body did not stabilize on four colliding feet; vy="+velocity.y());
+                return;
+            }
 
             // Remove all eight physical leg colliders from the SAME body.
             // The torso must now fall two more blocks. If not, the earlier
             // support was a fake hidden anchor or non-physical constraint.
             rig.removeFeet();
-            LOG.info("RPMS_BOSS_P0_REMOVE_SUPPORT removedColliders=8 oldTorsoY={}",settled.y());
+            LOG.info("RPMS_BOSS_P0_REMOVE_SUPPORT removedColliders=8 oldTorsoBottomY={}",torsoWorldYBefore);
             helper.runAfterDelay(49,()->{
                 var unsupported=rig.position();
                 var afterVelocity=rig.velocity();
-                double lostHeight=settled.y()-unsupported.y();
-                LOG.info("RPMS_BOSS_P0_FALL_AFTER_LEG_REMOVAL oldY={} newY={} lostHeight={} velocity={}",
-                        settled.y(),unsupported.y(),lostHeight,afterVelocity);
-                if(lostHeight<0.85)
-                    throw new AssertionError("Removing physical legs did not make the torso fall; support not proven: "+lostHeight);
-                if(!Double.isFinite(lostHeight)||lostHeight>7)
-                    throw new AssertionError("Torso flew/fell unrealistically far after leg removal");
+                double torsoWorldYAfter=rig.torsoBottomWorldY();
+                double lostHeight=torsoWorldYBefore-torsoWorldYAfter;
+                LOG.info("RPMS_BOSS_P0_FALL_AFTER_LEG_REMOVAL oldBodyBottom={} newBodyBottom={} lostHeight={} realCenterOfMass={} rigidPose={} velocity={}",
+                        torsoWorldYBefore,torsoWorldYAfter,lostHeight,rig.centerOfMass(),unsupported,afterVelocity);
+                if(lostHeight<0.85){
+                    helper.fail("Removing physical legs did not make the torso fall; support not proven: "+lostHeight);
+                    return;
+                }
+                if(!Double.isFinite(lostHeight)||lostHeight>7){
+                    helper.fail("Torso moved unrealistically after leg removal");
+                    return;
+                }
                 LOG.info("RPMS_NATIVE_PASS fourFeetActuallyCarryBodyWeight REAL_COLLISION_AND_GRAVITY");
                 helper.succeed();
             });
