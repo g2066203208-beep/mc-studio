@@ -12,6 +12,7 @@ assert.equal(rotationRatio(b('create:large_cogwheel',0,1,0,'y'),b('create:cogwhe
 assert.equal(rotationRatio(b('create:cogwheel',1,1,1,'y'),b('create:large_cogwheel',0,1,0,'y')),-.5,'small->large diagonal ratio');
 assert.equal(rotationRatio(b('create:large_cogwheel',0,1,0,'x'),b('create:large_cogwheel',1,2,0,'y')),1,'perpendicular large cog diagonal');
 assert.equal(rotationRatio(b('create:large_cogwheel',0,1,0,'x'),b('create:large_cogwheel',1,1,0,'y')),0,'wrong separation must not mesh');
+assert.equal((await import('../strict-core.mjs')).axisOf({id:'create:creative_motor',axis:'y',facing:'east'}),'x','directional motor orientation follows facing');
 assert.equal(canPlace([],shaft).ok,true);
 assert.equal(canPlace([shaft],shaft).ok,false,'no overlap');
 assert.equal(canPlace([],b('create:shaft',0,2,0)).ok,false,'no air placement');
