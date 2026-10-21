@@ -40,10 +40,27 @@ public final class LivingWorldActions {
                     m -> m.isAlive() && npc.hasLineOfSight(m)).isEmpty());
             npc.setDecision(npc.planner().choose(new LivingPlanner.Context(
                 level.getDayTime(), level.isRaining(), exposed, danger,
-                npc.hunger(), npc.energy(), npc.socialNeed(),
+                npc.hunger(), npc.energy(),
+                Math.max(0, npc.socialNeed() -
+                    (npc.character().empathy() > 75 ? 15 : 0)),
                 npc.profession() == PlayerNpcEntity.Profession.FARMER ||
                 npc.profession() == PlayerNpcEntity.Profession.BAKER ||
                 npc.profession() == PlayerNpcEntity.Profession.BUILDER)));
+        }
+        if (npc.profession() == PlayerNpcEntity.Profession.GUARD)
+            CivicSocial.guardLaw(npc, level, tick);
+        // NPCs can ask for essentials themselves. The reward is funded from
+        // their existing emeralds, never created by the task system.
+        if (tick % 600 == Math.floorMod(npc.getId(), 600) &&
+            npc.hunger() < 35 &&
+            npc.backpack().countItem(Items.BREAD) == 0 &&
+            npc.backpack().countItem(Items.CARROT) == 0 &&
+            npc.backpack().countItem(Items.POTATO) == 0 &&
+            (npc.commission() == null ||
+             npc.commission().state() == Commission.State.COMPLETED ||
+             npc.commission().state() == Commission.State.CANCELLED)) {
+            CivicContracts.post(npc, Commission.Goods.BREAD, 2,
+                npc.character().empathy() >= 75 ? 3 : 2);
         }
         if (SocietyActions.tick(npc, level, tick)) return;
         if (npc.profession() == PlayerNpcEntity.Profession.GUARD &&
@@ -335,12 +352,15 @@ public final class LivingWorldActions {
         if (tick < npc.nextSocialTick() || tick < other.nextSocialTick()) return;
         npc.rememberGreeting(other, tick);
         other.rememberGreeting(npc, tick);
+        int exchangedReports = CivicSocial.exchangeNews(npc, other, tick);
         npc.setNextSocialTick(tick + 400);
         other.setNextSocialTick(tick + 400);
         npc.changeNeeds(0, 0, 14);
         other.changeNeeds(0, 0, 14);
-        npc.setAction("talked with " + other.getName().getString());
-        other.setAction("talked with " + npc.getName().getString());
+        npc.setAction("talked with " + other.getName().getString() +
+            (exchangedReports > 0 ? " and exchanged " + exchangedReports + " witnessed reports" : ""));
+        other.setAction("talked with " + npc.getName().getString() +
+            (exchangedReports > 0 ? " about recent events" : ""));
         npc.journey().succeeded(LifeJourney.Achievement.SOCIALIZE);
         other.journey().succeeded(LifeJourney.Achievement.SOCIALIZE);
     }

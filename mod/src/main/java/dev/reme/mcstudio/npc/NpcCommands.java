@@ -1,6 +1,11 @@
 package dev.reme.mcstudio.npc;
 
 import com.mojang.brigadier.arguments.StringArgumentType;
+import com.mojang.brigadier.arguments.IntegerArgumentType;
+import dev.reme.mcstudio.npc.life.Commission;
+import dev.reme.mcstudio.npc.life.CivicContracts;
+import dev.reme.mcstudio.npc.life.CivicMind;
+import dev.reme.mcstudio.npc.life.CharacterProfile;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.network.chat.Component;
@@ -72,7 +77,21 @@ public final class NpcCommands {
             .then(Commands.literal("stay").executes(ctx -> changeMode(ctx.getSource(), PlayerNpcEntity.Mode.STAY)))
             .then(Commands.literal("wander").executes(ctx -> changeMode(ctx.getSource(), PlayerNpcEntity.Mode.WANDER)))
             .then(Commands.literal("guard").executes(ctx -> changeMode(ctx.getSource(), PlayerNpcEntity.Mode.GUARD)))
-            .then(Commands.literal("info").executes(ctx -> info(ctx.getSource()))));
+            .then(Commands.literal("info").executes(ctx -> info(ctx.getSource())))
+            .then(Commands.literal("law").executes(ctx -> civicInfo(ctx.getSource(), true)))
+            .then(Commands.literal("news").executes(ctx -> civicInfo(ctx.getSource(), false)))
+            .then(Commands.literal("job").executes(ctx -> jobInfo(ctx.getSource())))
+            .then(Commands.literal("accept").executes(ctx -> acceptJob(ctx.getSource())))
+            .then(Commands.literal("deliver").executes(ctx -> deliverJob(ctx.getSource())))
+            .then(Commands.literal("canceljob").executes(ctx -> cancelJob(ctx.getSource())))
+            .then(Commands.literal("commission")
+                .then(Commands.argument("goods", StringArgumentType.word())
+                    .then(Commands.argument("count", IntegerArgumentType.integer(1, 16))
+                        .then(Commands.argument("reward", IntegerArgumentType.integer(1, 16))
+                            .executes(ctx -> commission(ctx.getSource(),
+                                StringArgumentType.getString(ctx, "goods"),
+                                IntegerArgumentType.getInteger(ctx, "count"),
+                                IntegerArgumentType.getInteger(ctx, "reward"))))))));
     }
 
     private static int spawn(CommandSourceStack source, String name) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
@@ -111,6 +130,7 @@ public final class NpcCommands {
             npc.setCustomNameVisible(true);
             npc.setMode(PlayerNpcEntity.Mode.LIVE);
             npc.backpack().addItem(new ItemStack(Items.BREAD, 4));
+            npc.setCharacter(CharacterProfile.fromSeed(i + 1));
             npc.setPersonality(new LivingPlanner.Personality(
                 30 + i * 11, 80 - i * 9, 30 + i * 8));
             npc.setProfession(switch (i) {
@@ -322,6 +342,123 @@ public final class NpcCommands {
         return 1;
     }
 
+
+    private static PlayerNpcEntity closestNpc(ServerPlayer player) {
+        return player.level().getEntitiesOfClass(PlayerNpcEntity.class,
+            player.getBoundingBox().inflate(16), PlayerNpcEntity::isAlive).stream()
+            .min(Comparator.comparingDouble(player::distanceToSqr)).orElse(null);
+    }
+
+    private static int civicInfo(CommandSourceStack source, boolean law)
+        throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        ServerPlayer player = source.getPlayerOrException();
+        PlayerNpcEntity npc = closestNpc(player);
+        if (npc == null) {
+            source.sendFailure(Component.literal("No resident in range"));
+            return 0;
+        }
+        if (law) {
+            source.sendSuccess(() -> Component.literal(npc.getName().getString()
+                + ": personal reputation of you " + npc.civic().reputation(player.getUUID())
+                + " (" + npc.civic().standing(player.getUUID(), npc.character().justice()) + ")"
+                + " | honesty " + npc.character().honesty()
+                + " justice " + npc.character().justice()
+                + " empathy " + npc.character().empathy()
+                + " curiosity " + npc.character().curiosity()), false);
+        } else {
+            int direct = 0, rumor = 0;
+            for (CivicMind.Report report : npc.civic().reports()) {
+                if (report.direct()) direct++; else rumor++;
+            }
+            final int a = direct, b = rumor;
+            var reports = npc.civic().reports();
+            String latest = reports.isEmpty() ? "none"
+                : reports.get(reports.size() - 1).kind()
+                    + " concerning " + reports.get(reports.size() - 1).actor()
+                    + (reports.get(reports.size() - 1).direct()
+                        ? " (eyewitness)" : " (hearsay, unverified)");
+            source.sendSuccess(() -> Component.literal(npc.getName().getString()
+                + " knows " + a + " witnessed events and " + b
+                + " second-hand reports; latest: " + latest), false);
+        }
+        return 1;
+    }
+
+    private static int commission(CommandSourceStack source, String goods,
+                                  int count, int reward)
+        throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        PlayerNpcEntity npc = closestOwnedNpc(source.getPlayerOrException());
+        if (npc == null) {
+            source.sendFailure(Component.literal("No owned NPC in range"));
+            return 0;
+        }
+        try {
+            Commission.Goods type = Commission.Goods.valueOf(goods.toUpperCase(Locale.ROOT));
+            if (!CivicContracts.post(npc, type, count, reward)) {
+                source.sendFailure(Component.literal("Active job exists or NPC lacks real emerald rewards"));
+                return 0;
+            }
+            source.sendSuccess(() -> Component.literal(npc.getName().getString()
+                + " posted funded contract: deliver " + count + " " + type
+                + " for " + reward + " reserved emeralds"), false);
+            return 1;
+        } catch (IllegalArgumentException bad) {
+            source.sendFailure(Component.literal("Supported goods: WHEAT, BREAD, CARROT, POTATO"));
+            return 0;
+        }
+    }
+
+    private static int jobInfo(CommandSourceStack source)
+        throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        PlayerNpcEntity npc = closestNpc(source.getPlayerOrException());
+        if (npc == null) {
+            source.sendFailure(Component.literal("No resident in range"));
+            return 0;
+        }
+        Commission job = npc.commission();
+        source.sendSuccess(() -> Component.literal(npc.getName().getString()
+            + (job == null ? " offers no commission"
+            : " job " + job.state() + ": " + job.quantity() + " " + job.goods()
+                + " for " + job.emeraldReward() + " reserved emeralds")), false);
+        return 1;
+    }
+
+    private static int acceptJob(CommandSourceStack source)
+        throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        ServerPlayer player = source.getPlayerOrException();
+        PlayerNpcEntity npc = closestNpc(player);
+        if (npc == null || !CivicContracts.accept(npc, player)) {
+            source.sendFailure(Component.literal("No open commission here (or your reputation is too poor)"));
+            return 0;
+        }
+        source.sendSuccess(() -> Component.literal("Accepted job from " + npc.getName().getString()
+            + ". Use /npc deliver near this NPC with the correct goods in your main hand."), false);
+        return 1;
+    }
+
+    private static int deliverJob(CommandSourceStack source)
+        throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        ServerPlayer player = source.getPlayerOrException();
+        PlayerNpcEntity npc = closestNpc(player);
+        if (npc == null || !CivicContracts.deliver(npc, player)) {
+            source.sendFailure(Component.literal("Delivery failed: wrong owner/items, NPC bag full or no free inventory slot"));
+            return 0;
+        }
+        source.sendSuccess(() -> Component.literal("Delivered real goods and received reserved emerald reward"), false);
+        return 1;
+    }
+
+    private static int cancelJob(CommandSourceStack source)
+        throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        PlayerNpcEntity npc = closestOwnedNpc(source.getPlayerOrException());
+        if (npc == null || !CivicContracts.cancel(npc)) {
+            source.sendFailure(Component.literal("Unable to cancel; not yours, no active job or no backpack room for refund"));
+            return 0;
+        }
+        source.sendSuccess(() -> Component.literal("Job cancelled; escrow returned to NPC backpack"), false);
+        return 1;
+    }
+
     private static int info(CommandSourceStack source) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
         ServerPlayer player = source.getPlayerOrException();
         PlayerNpcEntity npc = closestOwnedNpc(player);
@@ -346,6 +483,9 @@ public final class NpcCommands {
             + " " + npc.journey().progress() + "%"
             + " | supply " + (npc.supplyPos() == null ? "none" : npc.supplyPos().toShortString())
             + " | delivered " + npc.parcelsDelivered()
+            + " | civics: " + npc.civic().reports().size() + " reports"
+            + " | personal reputation " + npc.civic().reputation(player.getUUID())
+            + " | commission " + (npc.commission() == null ? "none" : npc.commission().state())
             + " | backpack " + used + "/36 slots"), false);
         return 1;
     }

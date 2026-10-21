@@ -9,3 +9,5 @@ javac -encoding UTF-8 -d "$out" "$source_dir/LivingPlanner.java" "$source_dir/Re
 java -ea -cp "$out" dev.reme.mcstudio.npc.life.LivingPlannerSpec
 javac -encoding UTF-8 -d "$out" "$source_dir/SocietyRules.java" "$source_dir/LifeJourney.java" "$test_dir/SocietySpec.java"
 java -ea -cp "$out" dev.reme.mcstudio.npc.life.SocietySpec
+javac -encoding UTF-8 -d "$out" "$source_dir/CivicMind.java" "$source_dir/CharacterProfile.java" "$source_dir/Commission.java" "$test_dir/CivicSpec.java"
+java -ea -cp "$out" dev.reme.mcstudio.npc.life.CivicSpec
