@@ -138,8 +138,10 @@ function renderWorld(){
   if(t){selectionOutline=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(1.05,1.05,1.05)),new THREE.LineBasicMaterial({color:0xffdd83,depthTest:false}));selectionOutline.renderOrder=9;t.add(selectionOutline);}
  }
  updateStatus();
- if(jarModels.archives.length)refreshAuthenticModels(epoch);
- else{for(const b of world)modelStatus.set(b.pos.join(','),{status:'preview',reason:'可见原创 3D 预览，正在自动载入原版模型和贴图'});updateAssetCounter();}
+ if(jarModels.archives.length)return refreshAuthenticModels(epoch);
+ for(const b of world)modelStatus.set(b.pos.join(','),{status:'preview',reason:'可见原创 3D 预览，正在自动载入原版模型和贴图'});
+ updateAssetCounter();
+ return Promise.resolve();
 }
 async function refreshAuthenticModels(epoch=visualEpoch){
  const placements=[...placedGroup.children];
@@ -289,7 +291,9 @@ async function installAssetsFromFile(f){
  }
  jarFiles++;registry.sort((a,b)=>a.id.localeCompare(b.id));drawPalette();
  if(selectedId)refreshStateOptions(selectedId);
- renderWorld();
+ // Do not report an official archive "ready" until the actual first-frame
+ // replacement scene has decoded and attached all available model meshes.
+ await renderWorld();
  return {added,variants,embedded:result.embedded||0};
 }
 async function startOfficialLoading(){
