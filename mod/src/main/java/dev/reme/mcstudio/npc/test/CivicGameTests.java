@@ -256,6 +256,16 @@ public final class CivicGameTests {
             npc -> npc.isAlive() && npc.getCustomName() != null).size();
         if (found < 6) throw new AssertionError(
             "NPC demo claims creation without six actual named server entities");
+        var actualResidents = level.getEntitiesOfClass(PlayerNpcEntity.class,
+            new net.minecraft.world.phys.AABB(origin).inflate(16),
+            npc -> npc.isAlive() && npc.identity().faction()
+                == SocietyRules.Faction.SETTLERS);
+        boolean formed = actualResidents.stream().anyMatch(npc -> {
+            var census = EmergentSettlements.survey(level, npc);
+            return census != null && census.households() >= 3;
+        });
+        if (!formed) throw new AssertionError(
+            "Demo's distinct real settlers never actually formed a hamlet");
         helper.succeed();
     }
 
