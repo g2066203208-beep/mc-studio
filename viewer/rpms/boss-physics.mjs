@@ -73,6 +73,9 @@ export function buildBossPhysics(RAPIER){
   const selected=pieces.filter(p=>!p.removed&&p.x===x&&p.z===z&&p.name!=='torso');
   if(!selected.length)return false;
   for(const p of selected){world.removeCollider(p.collider,true);p.removed=true;}
+  // Rapier body mass properties must be recomputed after live collider edits.
+  // This changes the REAL center of mass and inertia, not just UI numbers.
+  body.recomputeMassPropertiesFromColliders();
   removedCount++;
   body.wakeUp();
   return true;
