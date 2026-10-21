@@ -1051,9 +1051,12 @@ public final class CivicGameTests {
             int bagLeft = courier.backpack().countItem(Items.WHEAT);
             if (sourceLeft + destinationReceived + bagLeft != 10)
                 helper.fail("Real chest-to-chest logistics duplicated wheat", pickup);
-            else if (destinationReceived != 8 || bagLeft != 0)
-                helper.fail("Courier never physically delivered cargo; action="
-                    + courier.lastAction() + ", location="
+            else if (destinationReceived < 8 || bagLeft != 0
+                || courier.parcelsDelivered() < 1)
+                helper.fail("Courier failed actual chest-to-chest delivery: source="
+                    + sourceLeft + ", destination=" + destinationReceived
+                    + ", bag=" + bagLeft + ", deliveries=" + courier.parcelsDelivered()
+                    + ", action=" + courier.lastAction() + ", location="
                     + courier.blockPosition().toShortString(), destination);
             else helper.succeed();
         });
