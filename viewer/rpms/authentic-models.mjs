@@ -72,19 +72,41 @@ export class MinecraftJarModels {
  constructor(){this.archives=[];this.jsonCache=new Map();this.textureCache=new Map();this.meshCache=new Map();this.urls=[];this.stats={archives:0,models:0,textures:0};}
  async addFile(file,Zip=globalThis.JSZip){
   if(!Zip)throw Error('JSZip 尚未加载');
-  const zip=await Zip.loadAsync(file);
-  const paths=Object.keys(zip.files).filter(p=>p.startsWith('assets/')&&!zip.files[p].dir);
-  const count=paths.filter(p=>/^assets\/[^/]+\/blockstates\/.+\.json$/.test(p)).length;
-  this.archives.push({name:file.name||'local zip',zip,paths:new Set(paths)});
+  // The official Aeronautics 1.3.2 distribution is a wrapper with
+  // THREE nested JARs (Simulated / Aeronautics / Offroad). Without traversing
+  // META-INF/jarjar, no genuine Aeronautics model can ever load.
+  const added=[],allPaths=new Set(),maxDepth=2,maxArchives=24;
+  const unpack=async(bytes,name,depth)=>{
+   if(added.length>=maxArchives)throw Error('超出嵌套 JAR 安全数量');
+   const zip=await Zip.loadAsync(bytes);
+   const paths=Object.keys(zip.files).filter(p=>p.startsWith('assets/')&&!zip.files[p].dir);
+   this.archives.push({name,zip,paths:new Set(paths)});
+   added.push({name,blocks:paths.filter(p=>/^assets\/[^/]+\/blockstates\/.+\.json$/.test(p)).length});
+   paths.forEach(p=>allPaths.add(p));
+   if(depth>=maxDepth)return;
+   const children=Object.keys(zip.files).filter(p=>/^META-INF\/jarjar\/[^/]+\.jar$/i.test(p));
+   if(children.length>maxArchives)throw Error('包含过多嵌套依赖 JAR');
+   for(const child of children){
+    const entry=zip.file(child);
+    if(!entry)continue;
+    if((entry._data?.uncompressedSize||0)>90*1024*1024)
+     throw Error('超大内部 JAR 不允许在浏览器解析: '+child);
+    const raw=await entry.async('uint8array');
+    if(raw.length>90*1024*1024)throw Error('内部 JAR 体积超限');
+    await unpack(raw,name+'!/'+child,depth+1);
+   }
+  };
+  await unpack(file,file.name||'local zip',0);
   this.jsonCache.clear();this.meshCache.clear();
-  // Layering a resource pack or Minecraft client after a Mod JAR must
-  // invalidate previously missing/overridden textures as well.
+  // Layering a resource pack or client after a Mod JAR must also invalidate
+  // cached MISSING textures, otherwise previously absent assets stay invisible.
   for(const url of this.urls)URL.revokeObjectURL(url);
   this.urls=[];
   for(const texture of this.textureCache.values())texture?.dispose?.();
   this.textureCache.clear();
   this.stats.archives=this.archives.length;
-  return {archive:file.name,blockstates:count,paths};
+  return {archive:file.name,embedded:Math.max(0,added.length-1),
+   blockstates:added.reduce((n,o)=>n+o.blocks,0),paths:[...allPaths]};
  }
  has(id){
   const path=assetPath(id,'blockstates');
