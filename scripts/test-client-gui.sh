@@ -39,6 +39,11 @@ xdotool mousemove --sync 640 670 click 1
 sleep 8
 import -window root client-gui-after-continue.png
 echo "Saved visible menu after first-run Continue"
+# Verified title screen pixel position in preceding real-client screenshot.
+xdotool mousemove --sync 642 304 click 1
+sleep 9
+import -window root client-gui-world-list.png
+echo "Saved actual Singleplayer world selection screen"
 echo "Window id: $found"
 echo "Minecraft launch/render indicators:"
 grep -E 'Reloading ResourceManager|mod/reme_studio|Created.*atlas' client-gui.log | tail -n 10 || true
