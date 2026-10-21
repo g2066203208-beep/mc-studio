@@ -38,6 +38,8 @@ public final class SeamNativeGeometryClient {
     private static final int MAX_DRAW = 3500;
     private static final int MAX_BUILDS_PER_TICK = 2;
     private static final SeamGeometryQueue BUILD_QUEUE = new SeamGeometryQueue();
+    private static final SeamRenderSamples DRAW_CPU_SAMPLES = new SeamRenderSamples(120);
+    private static volatile long lastFrameDrawCpuNanos;
     private static ClientLevel queuedRemote;
     private static SeamGraph.Link queuedLink;
     private static final int[][] NEIGHBORS = {
@@ -212,6 +214,7 @@ public final class SeamNativeGeometryClient {
         });
         if (columns.isEmpty()) { blocksBuilt=0; return; }
         blocksBuilt=columns.values().stream().mapToInt(List::size).sum();
+        long drawStarted=System.nanoTime();
         PoseStack pose=event.getPoseStack();
         Vec3 camera=event.getCamera().getPosition();
         MultiBufferSource.BufferSource buffers=mc.renderBuffers().bufferSource();
@@ -250,7 +253,11 @@ public final class SeamNativeGeometryClient {
             if (lastFrameDrawn>=MAX_DRAW) break outer;
                 }
             }
-        if (lastFrameDrawn>0) buffers.endBatch();
+        if (lastFrameDrawn>0) {
+            buffers.endBatch();
+            lastFrameDrawCpuNanos=Math.max(0,System.nanoTime()-drawStarted);
+            DRAW_CPU_SAMPLES.add(lastFrameDrawCpuNanos);
+        }
     }
 
     public static int countEndStone() {
@@ -264,6 +271,9 @@ public final class SeamNativeGeometryClient {
     public static int lastFrameDrawn() { return lastFrameDrawn; }
     public static int columnCount() { return columns.size(); }
     public static int pendingRebuilds() { return BUILD_QUEUE.pending(); }
+    /** Measures client CPU model submission only; never interpreted as GPU frame time. */
+    public static double p95ModelCpuMs() { return DRAW_CPU_SAMPLES.p95Ms(); }
+    public static double lastModelCpuMs() { return lastFrameDrawCpuNanos/1_000_000.0; }
     public static String scope() { return source.isEmpty() ? "-" : source+">"+target; }
 
     public static void reset() {
@@ -276,5 +286,7 @@ public final class SeamNativeGeometryClient {
         queuedRemote=null;
         queuedLink=null;
         BUILD_QUEUE.clear();
+        DRAW_CPU_SAMPLES.clear();
+        lastFrameDrawCpuNanos=0;
     }
 }
