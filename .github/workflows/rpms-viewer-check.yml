@@ -38,7 +38,7 @@ jobs:
           assert all(j["measuredTorqueMax"] is None and j["physicalConstraintUuid"] is None for j in d["joints"])
           html=(p/"concept.html").read_text()
           assert '<script type="module" src="./app.js"></script>' in html
-          assert 'kinematics' in html.lower()
+          assert '<canvas' in html
           assert 'rpms/index.html' in Path("viewer/index.html").read_text()
           print("Static source and design configuration tests passed.")
           PY
