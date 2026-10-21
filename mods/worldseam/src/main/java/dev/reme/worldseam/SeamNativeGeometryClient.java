@@ -78,54 +78,78 @@ public final class SeamNativeGeometryClient {
         LevelChunk chunk = cache.getChunk(packet.chunkX(),packet.chunkZ(),false);
         if (chunk == null) return;
 
-        long packed = ((long)packet.chunkX() << 32) | (packet.chunkZ() & 0xffffffffL);
-        List<Cell> visible = new ArrayList<>(2500);
-        int originX = packet.chunkX() << 4;
-        int originZ = packet.chunkZ() << 4;
-        boolean fromTop = link.entry() == SeamGraph.EdgeSide.TOP;
-        BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
-
-        // CRITICAL visibility fix: when viewing UP into the Nether roof,
-        // the former ascending-Y loop started at deep underground Y=16.
-        // The per-frame model budget was exhausted on distant chunk edges
-        // before ever drawing the near-side roof at Y=120..127.
-        // Traverse from the actual connecting plane OUTWARD on both sides.
-        for (int depth=0;depth<VERTICAL_SECTIONS*16;depth++) {
-            int y=fromTop ? targetBoundary-1-depth : targetBoundary+depth;
-            if (y<remote.getMinBuildHeight() || y>=remote.getMaxBuildHeight()) continue;
-            int localY = y & 15;
-            var section = chunk.getSection(chunk.getSectionIndex(y));
-            for (int z=0;z<16;z++) for(int x=0;x<16;x++) {
-                BlockState state = section.getBlockState(x,localY,z);
-                if (state.isAir() || state.getRenderShape()!=RenderShape.MODEL) continue;
-                if (isBuried(chunk,x,y,z)) continue;
-                int visibleY = sourceBoundary + y - targetBoundary;
-                pos.set(originX+x,y,originZ+z);
-                int blockLight=remote.getBrightness(LightLayer.BLOCK,pos);
-                int skyLight=remote.getBrightness(LightLayer.SKY,pos);
-                visible.add(new Cell(originX+x,visibleY,originZ+z,state,
-                    LightTexture.pack(blockLight,skyLight)));
-            }
-        }
-        columns.remove(packed);
-        columns.put(packed,List.copyOf(visible));
-        while (columns.size()>MAX_COLUMNS)
+        // Correct seam visibility requires both sides of a CHUNK boundary.
+        // On each arrival update this column plus its four direct neighbors:
+        // an old column must stop drawing hidden faces when a neighbor loads.
+        rebuildColumn(remote,link,packet.chunkX(),packet.chunkZ());
+        rebuildColumn(remote,link,packet.chunkX()-1,packet.chunkZ());
+        rebuildColumn(remote,link,packet.chunkX()+1,packet.chunkZ());
+        rebuildColumn(remote,link,packet.chunkX(),packet.chunkZ()-1);
+        rebuildColumn(remote,link,packet.chunkX(),packet.chunkZ()+1);
+        while(columns.size()>MAX_COLUMNS)
             columns.remove(columns.keySet().iterator().next());
         blocksBuilt=columns.values().stream().mapToInt(List::size).sum();
         lastArrivalTick=mc.level.getGameTime();
     }
 
-    private static boolean isBuried(LevelChunk chunk,int x,int y,int z) {
-        if (x<=0 || x>=15 || z<=0 || z>=15) return false;
-        if (y<=chunk.getMinBuildHeight() || y+1>=chunk.getMaxBuildHeight()) return false;
-        // Do not invoke remote level.getBlockState: that could touch missing
-        // neighboring chunks. Neighbor reads stay within this loaded column.
-        for (int[] d:new int[][]{{-1,0,0},{1,0,0},{0,-1,0},
-                                {0,1,0},{0,0,-1},{0,0,1}}) {
-            int ny=y+d[1];
-            var neighbor=chunk.getSection(chunk.getSectionIndex(ny))
-                .getBlockState(x+d[0],ny&15,z+d[2]);
-            if (!neighbor.canOcclude()) return false;
+    private static void rebuildColumn(ClientLevel remote,SeamGraph.Link link,
+                                      int cx,int cz) {
+        var cache=remote.getChunkSource();
+        if(!cache.hasChunk(cx,cz))return;
+        LevelChunk chunk=cache.getChunk(cx,cz,false);
+        if(chunk==null)return;
+        long packed=((long)cx << 32) | (cz & 0xffffffffL);
+        List<Cell> visible=new ArrayList<>(2200);
+        int ox=cx<<4,oz=cz<<4;
+        boolean descending=link.entry()==SeamGraph.EdgeSide.TOP;
+        BlockPos.MutableBlockPos pos=new BlockPos.MutableBlockPos();
+        for(int depth=0;depth<VERTICAL_SECTIONS*16;depth++) {
+            int y=descending?targetBoundary-1-depth:targetBoundary+depth;
+            if(y<remote.getMinBuildHeight()||y>=remote.getMaxBuildHeight())continue;
+            var section=chunk.getSection(chunk.getSectionIndex(y));
+            for(int z=0;z<16;z++)for(int x=0;x<16;x++) {
+                BlockState state=section.getBlockState(x,y&15,z);
+                if(state.isAir() || state.getRenderShape()!=RenderShape.MODEL)continue;
+                if(isBuried(cache,chunk,x,y,z))continue;
+                pos.set(ox+x,y,oz+z);
+                int block=remote.getBrightness(LightLayer.BLOCK,pos);
+                int sky=remote.getBrightness(LightLayer.SKY,pos);
+                visible.add(new Cell(ox+x,sourceBoundary+y-targetBoundary,oz+z,
+                    state,LightTexture.pack(block,sky)));
+            }
+        }
+        columns.remove(packed);
+        columns.put(packed,List.copyOf(visible));
+    }
+
+    /**
+     * Native chunk adjacency instead of the old "all 16x16 border voxels
+     * are visible" rule which produced solid rectangular End-stone walls.
+     * Missing neighbors are conservatively exposed, never synchronously
+     * generated on the render thread.
+     */
+    private static boolean isBuried(
+        net.minecraft.client.multiplayer.ClientChunkCache cache,
+        LevelChunk chunk,int x,int y,int z) {
+        for(int[] d:new int[][]{
+            {-1,0,0},{1,0,0},{0,-1,0},{0,1,0},{0,0,-1},{0,0,1}
+        }) {
+            int nx=x+d[0],ny=y+d[1],nz=z+d[2];
+            if(ny<chunk.getMinBuildHeight()||ny>=chunk.getMaxBuildHeight())
+                return false;
+            int cx=chunk.getPos().x+Math.floorDiv(nx,16);
+            int cz=chunk.getPos().z+Math.floorDiv(nz,16);
+            LevelChunk neighbor;
+            if(cx==chunk.getPos().x && cz==chunk.getPos().z)
+                neighbor=chunk;
+            else {
+                if(!cache.hasChunk(cx,cz))return false;
+                neighbor=cache.getChunk(cx,cz,false);
+                if(neighbor==null)return false;
+            }
+            BlockState state=neighbor.getSection(neighbor.getSectionIndex(ny))
+                .getBlockState(Math.floorMod(nx,16),ny&15,Math.floorMod(nz,16));
+            if(!state.canOcclude())return false;
         }
         return true;
     }
@@ -158,8 +182,15 @@ public final class SeamNativeGeometryClient {
             double dx=(cx<<4)+8-camera.x,dz=(cz<<4)+8-camera.z;
             return dx*dx+dz*dz;
         }));
+        int perColumn=Math.max(64,MAX_DRAW / Math.max(1,ordered.size()));
         outer:
-        for (var section:ordered) for (Cell c:section.getValue()) {
+        for(int pass=0;pass<=MAX_DRAW/perColumn;pass++)
+            for (var section:ordered) {
+                List<Cell> cells=section.getValue();
+                int startIndex=pass*perColumn;
+                int endIndex=Math.min(cells.size(),startIndex+perColumn);
+                for(int at=startIndex;at<endIndex;at++) {
+                    Cell c=cells.get(at);
             double dx=c.x()+.5-camera.x,dy=c.y()+.5-camera.y,
                    dz=c.z()+.5-camera.z;
             if (dx*dx+dy*dy+dz*dz>MAX_DISTANCE_SQ) continue;
@@ -174,7 +205,8 @@ public final class SeamNativeGeometryClient {
             lastFrameDrawn++;
             if (c.state().is(Blocks.END_STONE))lastFrameEndStone++;
             if (lastFrameDrawn>=MAX_DRAW) break outer;
-        }
+                }
+            }
         if (lastFrameDrawn>0) buffers.endBatch();
     }
 
