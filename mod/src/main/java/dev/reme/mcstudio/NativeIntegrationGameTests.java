@@ -300,6 +300,31 @@ public final class NativeIntegrationGameTests {
         });
     }
 
+    @GameTest(template = "rpms_empty", timeoutTicks = 100)
+    public static void sablePhysicsConfigIsReadFromNativeRuntime(GameTestHelper helper) {
+        requireMods();
+        if (!ModList.get().isLoaded("sable")) {
+            throw new AssertionError("Physics runtime Sable 2.x not installed");
+        }
+        helper.runAfterDelay(8, () -> {
+            var measured = NativeSableTelemetry.read(helper.getLevel());
+            if (!measured.get("available").getAsBoolean()) {
+                throw new AssertionError("Sable Rapier physics system is not initialized: "+measured);
+            }
+            var gravity = measured.getAsJsonArray("gravity");
+            if (gravity == null || gravity.size() != 3) throw new AssertionError("Actual dimension gravity unavailable");
+            double drag = measured.get("universalDrag").getAsDouble();
+            String pipeline = measured.get("pipelineClass").getAsString();
+            LOG.info("RPMS_NATIVE_SABLE pipeline={} gravity={} universalDrag={} paused={}",
+                    pipeline, gravity, drag, measured.get("paused").getAsBoolean());
+            if (!pipeline.toLowerCase(java.util.Locale.ROOT).contains("rapier")) {
+                throw new AssertionError("Unexpected physics engine; target is Sable Rapier: "+pipeline);
+            }
+            LOG.info("RPMS_NATIVE_PASS sablePhysicsConfigIsReadFromNativeRuntime (read-only physics pipeline and configuration; no body dynamics)");
+            helper.succeed();
+        });
+    }
+
     private static void nativeTransmit(Object sender, int strength) {
         try {
             sender.getClass().getMethod("transmit", int.class).invoke(sender, strength);
