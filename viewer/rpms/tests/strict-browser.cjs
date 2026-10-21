@@ -73,8 +73,8 @@ try{
  await page.screenshot({path:path.join(__dirname,'strict-mobile.png'),fullPage:true});
  assert.ok((await page.evaluate(()=>document.documentElement.scrollWidth-window.innerWidth))<20,'mobile horizontal overflow');
  await page.goto('http://127.0.0.1:8033/rpms/native.html',{waitUntil:'domcontentloaded'});
- await page.waitForFunction(()=>document.querySelectorAll('#groups .case').length>=30&&document.querySelectorAll('#probes .case').length===7,null,{timeout:15000});
- assert.equal(await page.locator('#probes .case').count(),7,'actual native GameTest case evidence missing');
+ await page.waitForFunction(()=>document.querySelectorAll('#groups .case').length>=30&&document.querySelectorAll('#probes .case').length===8,null,{timeout:15000});
+ assert.equal(await page.locator('#probes .case').count(),8,'actual native GameTest case evidence missing');
  assert.equal(await page.locator('#passed').textContent(),'0','Must never claim native mechanics work without game tests');
  assert.ok((await page.locator('.case').count())>=30,'Core Create/Aeronautics physics and wireless certification entries missing');
  await page.screenshot({path:path.join(__dirname,'strict-native-certification-mobile.png'),fullPage:true});
