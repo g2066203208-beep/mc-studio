@@ -1,6 +1,5 @@
 package dev.reme.mcstudio.npc.life;
 
-import com.mojang.authlib.GameProfile;
 import dev.reme.mcstudio.npc.PlayerNpcEntity;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
@@ -11,7 +10,6 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.common.util.FakePlayer;
-import net.neoforged.neoforge.common.util.FakePlayerFactory;
 
 /**
  * One operator-authorized mining target; delegates completion to the vanilla
@@ -32,18 +30,6 @@ public final class PlayerMiningActions {
             || state.is(Blocks.GRANITE) || state.is(Blocks.TUFF)
             || state.is(Blocks.COAL_ORE) || state.is(Blocks.IRON_ORE)
             || state.is(Blocks.COPPER_ORE);
-    }
-
-    private static FakePlayer actor(PlayerNpcEntity npc, ServerLevel level) {
-        String name = "REME_" + npc.getUUID().toString().substring(0, 8);
-        FakePlayer fake = FakePlayerFactory.get(level,
-            new GameProfile(npc.getUUID(), name));
-        // NeoForge 1.21.1 fake-player advancement listener lifecycle safeguard.
-        fake.getAdvancements().stopListening();
-        fake.moveTo(npc.getX(), npc.getY(), npc.getZ(),
-            npc.getYRot(), npc.getXRot());
-        fake.setOnGround(npc.onGround());
-        return fake;
     }
 
     /**
@@ -91,7 +77,7 @@ public final class PlayerMiningActions {
             return true;
         }
 
-        FakePlayer player = actor(npc, level);
+        FakePlayer player = NpcPlayerActor.forNpc(npc, level);
         ItemStack previous = player.getMainHandItem().copy();
         try {
             player.setItemInHand(InteractionHand.MAIN_HAND, tool.copy());
