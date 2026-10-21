@@ -35,6 +35,9 @@ public final class SeamNativeGeometryClient {
     private static final int MAX_COLUMNS = 25;
     private static final int VERTICAL_SECTIONS = 10;
     private static final int MAX_DRAW = 3500;
+    private static final int[][] NEIGHBORS = {
+        {-1,0,0},{1,0,0},{0,-1,0},{0,1,0},{0,0,-1},{0,0,1}
+    };
     private static final double MAX_DISTANCE_SQ = 192 * 192;
     private static final Map<Long,List<Cell>> columns = new LinkedHashMap<>();
     private static String source = "";
@@ -131,9 +134,7 @@ public final class SeamNativeGeometryClient {
     private static boolean isBuried(
         net.minecraft.client.multiplayer.ClientChunkCache cache,
         LevelChunk chunk,int x,int y,int z) {
-        for(int[] d:new int[][]{
-            {-1,0,0},{1,0,0},{0,-1,0},{0,1,0},{0,0,-1},{0,0,1}
-        }) {
+        for(int[] d:NEIGHBORS) {
             int nx=x+d[0],ny=y+d[1],nz=z+d[2];
             if(ny<chunk.getMinBuildHeight()||ny>=chunk.getMaxBuildHeight())
                 return false;
