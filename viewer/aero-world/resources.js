@@ -34,17 +34,33 @@ export class ModResourceLoader{
   async addFiles(files){
     if(typeof JSZip==='undefined')throw new Error('JSZip not loaded. Check CDN connection.');
     let found=0;
-    for(const file of files){
-      if(!/\.(jar|zip)$/i.test(file.name)||file.size>MAX_FILE_SIZE)
-        throw new Error('Only .jar/.zip under 180 MB: '+file.name);
-      const zip=await JSZip.loadAsync(file);
+    const visit=async(name,zip,size,depth)=>{
       let n=0;
       for(const p of Object.keys(zip.files)){
         const m=p.match(/^assets\/([a-z0-9_.-]+)\/blockstates\/([a-z0-9_./-]+)\.json$/);
         if(m){this.catalog.add(m[1]+':'+m[2]);n++;}
       }
       found+=n;
-      this.archives.push({name:file.name,zip,blocks:n,size:file.size});
+      this.archives.push({name,zip,blocks:n,size});
+      if(depth>=2)return;
+      // Bundled Aeronautics may nest Simulated and Offroad in NeoForge JarJar.
+      // These are data archives only. Never execute any uploaded Java class.
+      const nested=Object.keys(zip.files).filter(p=>
+        /(?:^|\/)(?:jarjar|jars)\/[^/]+\.jar$/i.test(p)).slice(0,20);
+      for(const p of nested){
+        const f=zip.file(p);
+        if(!f||f._data?.uncompressedSize>MAX_FILE_SIZE)continue;
+        try{
+          const bytes=await f.async('uint8array');
+          const embedded=await JSZip.loadAsync(bytes);
+          await visit(name+'!/'+p,embedded,bytes.byteLength,depth+1);
+        }catch(e){console.warn('Nested original mod JAR unreadable',p,e);}
+      }
+    };
+    for(const file of files){
+      if(!/\.(jar|zip)$/i.test(file.name)||file.size>MAX_FILE_SIZE)
+        throw new Error('Only .jar/.zip under 180 MB: '+file.name);
+      await visit(file.name,await JSZip.loadAsync(file),file.size,0);
     }
     this.generation++;
     this.jsonCache.clear();this.modelCache.clear();this.shapeCache.clear();
