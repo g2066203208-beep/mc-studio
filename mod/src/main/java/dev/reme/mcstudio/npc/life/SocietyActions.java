@@ -21,6 +21,11 @@ public final class SocietyActions {
         // Other professions retain the lower-cost 80-tick cadence.
         int interval = npc.profession() == PlayerNpcEntity.Profession.GUARD ? 40 : 80;
         if (!MovementPolicy.due(tick, npc.getId(), interval)) return false;
+        // Beyond scripted trade: resident households independently form a
+        // hamlet once multiple real NPC homes cluster together. Social visits
+        // happen only during actual SOCIALIZE intent, not on every tick.
+        if (npc.profession() == PlayerNpcEntity.Profession.RESIDENT
+            && EmergentSettlements.gather(npc, level, tick)) return true;
         return switch (npc.profession()) {
             case GUARD -> guard(npc, level, tick);
             case SCOUT -> scout(npc, level, tick);
