@@ -137,3 +137,14 @@ v0.5 的 teleportTo 仍引发原版 ClientboundRespawnPacket/加载界面。本�
 **真实 TNT 缺陷修复**：以前跨界爆炸无条件要求目标维度任意 3×3 = 9 个 Chunk 全驻留，导致位于块边缘的普通 TNT 也因不相关区块没加载而静默失效。现在按实际爆炸球心与原版实体受击最大 (2×radius) 计算需驻留的 X/Z Chunk 闭包（一般 1–4 个），**不主动加载或生成**目标维度 Chunk；不满足则明确打印 `WORLDSEAM_CROSS_BLAST_SKIP`。新增此规则的 JUnit，以及真实 NeoForge GameTest **主世界→下界和下界→主世界**原生方块破坏验证。原有真实 TNT `PrimedTnt` GUI 验收继续作为合并后的硬门槛，只有其 `WORLDSEAM_E2E_PASS_CROSS_TNT` 才能发布成功照片。该 patch 尚不保证跨维流体、实体、爆炸护甲/权限 Mod、Sable 飞船跨界碰撞。
 
 **继续的性能工程**：Iris/Sodium/Voxy 专用路径需要真正原生 `LevelRenderer` 和 GPU 深度/透明状态隔离，不能仅通过自适应降低方块数达成完整兼容；详见 `docs/NATIVE_RENDERER_COMPAT.md`。末地保持最底层和现有航空学悬浮行为不变。
+
+
+## v0.9.6-dev — 远端原生区块段可见性缓存（降低渲染主线程开销）
+
+**实际发现的瓶颈：** v0.9.5 使用 `renderSingleBlock` 逐方块绘制，每帧为每个候选方块新建 `AABB` 并调用一次视锥体检查。即使使用约 565 模型的自适应预算，这些反复分配与裁剪仍会增加 GC/CPU 开销，无法发挥 Minecraft 以 16×16×16 区块段为基础进行渲染剔除的结构优势。
+
+**已修改：** 将真实远端 `ClientLevel` 表面模型按 16³ 原生区块段整理为不可变 `Slice`，在收到区块数据后的有界重建阶段**预计算整个区块段的准确世界坐标 AABB**，绘制时先按段做视锥裁剪，整段被剔除就不遍历任何单格方块。每帧排序时考虑三维相机距离，段间交错绘制避免一个密集的末地石段独占预算；远离接缝超过 80 格暂停代理模型绘制，但仍继续预加载以保障接近后的正常穿越。精准支持负数高度、非 16 整数倍的 Mod 维度接缝位置。
+
+**新增真实可测指标：** F3 和独立 NeoForge GUI E2E 日志输出 `visibleSlices` 与 `frustumCulledSlices`，连同 `nativeModelCpuP95Ms` 和 `modelBudget` 一起记录，逐步区分几何可见性优化与 v0.9.5 降模型数量的影响。新增纯 Java `SeamSectionLayoutTest`，验证末地、下界、负高度与自定义边界的精确切片映射。所有已建模型仍使用原版 `renderSingleBlock` 绘制，**不是** GPU 原生网格批处理，不声明 Iris/Voxy 已兼容或已改善所有资源包模型。
+
+**性能保护原则：** 改动严格限定 WorldSeam 原分支 `mods/worldseam/`；不干涉机械动力、NPC、航空学或末地 Sable 物理浮力。后续仍需专门的第二 `LevelRenderer` 同帧 GPU 合成和 shader/LOD 适配。对比性能只以相同的 NeoForge GUI 场景实测值判断，不能预设提速百分比。
