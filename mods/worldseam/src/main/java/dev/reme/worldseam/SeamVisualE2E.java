@@ -60,15 +60,36 @@ public final class SeamVisualE2E {
             String clientDimension=mc.level.dimension().location().toString();
             if (clientDimension.equals(DEST)) {
                 LOG.info("WORLDSEAM_E2E_PASS_CLIENT: real client now in Nether without vanilla respawn");
+                phase=4;
             } else {
                 LOG.error("WORLDSEAM_E2E_FAIL_CLIENT: still in {}, expected {}, native packets={}",
                     clientDimension,DEST,SeamClientWorldPool.receivedChunks());
             }
             server.execute(() -> {
                 ServerPlayer p=server.getPlayerList().getPlayer(playerId);
-                if (p!=null && p.serverLevel().dimension()==Level.NETHER)
+                if (p!=null && p.serverLevel().dimension()==Level.NETHER) {
                     LOG.info("WORLDSEAM_E2E_PASS_SERVER: real ServerPlayer moved into Nether");
-                else LOG.error("WORLDSEAM_E2E_FAIL_SERVER: did not migrate player");
+                    // Show actual Overworld underside FROM NETHER, looking UP.
+                    p.getAbilities().flying=true;
+                    p.onUpdateAbilities();
+                    p.connection.teleport(p.getX(),125,p.getZ(),0,-90);
+                    LOG.info("WORLDSEAM_E2E_REVERSE_STAGE: hovering inside Nether below Y128, looking UP");
+                } else LOG.error("WORLDSEAM_E2E_FAIL_SERVER: did not migrate player");
+            });
+        } else if (phase==4 && now-startTick>745) {
+            phase=5;
+            server.execute(() -> attemptReverse(server,playerId));
+        } else if (phase==5 && now-startTick>850) {
+            phase=6;
+            String clientDimension=mc.level.dimension().location().toString();
+            if (clientDimension.equals("minecraft:overworld"))
+                LOG.info("WORLDSEAM_E2E_PASS_RETURN_CLIENT: live Nether -> Overworld direct handoff");
+            else LOG.error("WORLDSEAM_E2E_FAIL_RETURN_CLIENT: still in {}",clientDimension);
+            server.execute(() -> {
+                ServerPlayer p=server.getPlayerList().getPlayer(playerId);
+                if (p!=null && p.serverLevel().dimension()==Level.OVERWORLD)
+                    LOG.info("WORLDSEAM_E2E_PASS_RETURN_SERVER: live Nether -> Overworld server migration");
+                else LOG.error("WORLDSEAM_E2E_FAIL_RETURN_SERVER: wrong dimension");
             });
         }
     }
@@ -93,6 +114,25 @@ public final class SeamVisualE2E {
         player.onUpdateAbilities();
         player.connection.teleport(player.getX(),-61.0,player.getZ(),0,90);
         LOG.info("WORLDSEAM_E2E_SETUP: opened {} bedrock blocks, at x={} z={}, Overworld Y=-61",cleared,x,z);
+    }
+
+    private static void attemptReverse(MinecraftServer server,UUID id) {
+        ServerPlayer player=server.getPlayerList().getPlayer(id);
+        if(player==null)return;
+        long tick=server.overworld().getGameTime();
+        boolean ready=SeamReadiness.isReady(id,
+            "minecraft:the_nether","minecraft:overworld",tick);
+        LOG.info("WORLDSEAM_E2E_REVERSE_READY={}, server dim={}, y={}",
+            ready,player.serverLevel().dimension().location(),player.getY());
+        if(!ready || player.serverLevel().dimension()!=Level.NETHER) {
+            LOG.error("WORLDSEAM_E2E_FAIL_RETURN: reverse native world not ready");
+            return;
+        }
+        player.connection.teleport(player.getX(),127.75,player.getZ(),0,-90);
+        player.getAbilities().flying=false;
+        player.onUpdateAbilities();
+        player.setDeltaMovement(new Vec3(0,.20,0));
+        LOG.info("WORLDSEAM_E2E_REVERSE_TRIGGER: upward motion through physical Y128 Nether roof");
     }
 
     private static void attempt(MinecraftServer server,UUID id) {
