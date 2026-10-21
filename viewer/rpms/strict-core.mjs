@@ -29,6 +29,7 @@ export const MECHANICS={
  'create:creative_motor':{kind:'source',desc:'创造模式动力源；允许输入预览 RPM，真实 SU 参数以 MC 配置为准。',coverage:'speed-preview'},
  'simulated:swivel_bearing':{kind:'bearing',desc:'动力输入与旋转轴同轴；只有真实物理装配成功才会出现活动子刚体。',coverage:'input-topology-only'},
  'create:clutch':{kind:'clutch',desc:'动力离合器：红石 powered=true 时断开轴向传动（原版动作另有过渡机制）。',coverage:'topology'},
+ 'create:mechanical_drill':{kind:'consumer',desc:'机械钻头只在 FACING 反面接受轴动力；原版方块破坏和掉落未模拟。',coverage:'input-topology-only'},
  'create:mechanical_press':{kind:'consumer',desc:'机械压印机需动力和加工环境。网页不执行配方。',coverage:'input-topology-only'},
  'create:mechanical_mixer':{kind:'consumer',desc:'机械搅拌器需动力、工作盆与配方。网页不执行配方。',coverage:'input-topology-only'}
 };
