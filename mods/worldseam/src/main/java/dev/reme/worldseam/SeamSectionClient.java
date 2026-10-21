@@ -86,6 +86,7 @@ public final class SeamSectionClient {
     }
 
     private static void render(RenderLevelStageEvent event) {
+        if (SeamNativeGeometryClient.visibleBlockCount() > 0) return;
         if (event.getStage()!=RenderLevelStageEvent.Stage.AFTER_BLOCK_ENTITIES) return;
         Minecraft mc=Minecraft.getInstance();
         if (mc.level==null || !CACHE.isFor(mc.level.dimension().location().toString())

@@ -55,6 +55,9 @@ public final class SeamPreviewClient {
     }
 
     private static void render(RenderLevelStageEvent event) {
+        // The real native chunk view supersedes this old sparse proxy.
+        // Drawing both on the same block positions causes depth flicker.
+        if (SeamNativeGeometryClient.visibleBlockCount() > 0) return;
         if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_BLOCK_ENTITIES) return;
         Minecraft mc = Minecraft.getInstance();
         if (mc.level == null || event.getPoseStack() == null) {

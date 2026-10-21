@@ -8,6 +8,7 @@ import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.block.RenderShape;
+import net.minecraft.world.level.LightLayer;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.phys.AABB;
@@ -96,9 +97,10 @@ public final class SeamNativeGeometryClient {
                 if (isBuried(chunk,x,y,z)) continue;
                 int visibleY = sourceBoundary + y - targetBoundary;
                 pos.set(originX+x,y,originZ+z);
-                int light = remote.getRawBrightness(pos, 0);
+                int blockLight=remote.getBrightness(LightLayer.BLOCK,pos);
+                int skyLight=remote.getBrightness(LightLayer.SKY,pos);
                 visible.add(new Cell(originX+x,visibleY,originZ+z,state,
-                    LightTexture.pack(light,light)));
+                    LightTexture.pack(blockLight,skyLight)));
             }
         }
         columns.remove(packed);
@@ -112,7 +114,6 @@ public final class SeamNativeGeometryClient {
     private static boolean isBuried(LevelChunk chunk,int x,int y,int z) {
         if (x<=0 || x>=15 || z<=0 || z>=15) return false;
         if (y<=chunk.getMinBuildHeight() || y+1>=chunk.getMaxBuildHeight()) return false;
-        BlockState[][] ignored = null;
         // Do not invoke remote level.getBlockState: that could touch missing
         // neighboring chunks. Neighbor reads stay within this loaded column.
         for (int[] d:new int[][]{{-1,0,0},{1,0,0},{0,-1,0},
