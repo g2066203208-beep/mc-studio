@@ -24,12 +24,14 @@ jobs:
         run: |
           node --check viewer/rpms/blocks.js
           node --check viewer/rpms/strict-core.mjs
+          node --check viewer/rpms/kinetic-preview.mjs
           node --check viewer/rpms/authentic-models.mjs
           node --check viewer/rpms/procedural-models.mjs
           node --check viewer/rpms/official-autoload.mjs
           node --check viewer/rpms/strict.js
           node --check viewer/rpms/tests/strict-browser.cjs
           node viewer/rpms/tests/strict-core.test.mjs
+          node viewer/rpms/tests/kinetic-preview.test.mjs
           node viewer/rpms/tests/native-acceptance.test.mjs
           node --check viewer/rpms/tests/blocks-smoke.cjs
           python3 - <<'PY'

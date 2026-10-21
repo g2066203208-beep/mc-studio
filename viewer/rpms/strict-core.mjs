@@ -1,6 +1,6 @@
 // RPMS source-audited kinetic topology preview. NOT a reimplementation of Create/Sable.
 // Source: Create RotationPropagator.java mc1.21.1/dev@7ff2760; Simulated SwivelBearingBlock.java@3705df2
-export const CORE_VERSION='strict-v1';
+export const CORE_VERSION='kinetic-preview-v2';
 const key=p=>p.join(',');
 const eq=(a,b)=>a.every((v,i)=>v===b[i]);
 const diff=(a,b)=>b.map((v,i)=>v-a[i]);
@@ -28,6 +28,8 @@ export const MECHANICS={
  'create:large_cogwheel':{kind:'large',desc:'大齿轮：同轴、与小齿轮对角啮合时 2:1 传速。',coverage:'topology'},
  'create:creative_motor':{kind:'source',desc:'创造模式动力源；允许输入预览 RPM，真实 SU 参数以 MC 配置为准。',coverage:'speed-preview'},
  'simulated:swivel_bearing':{kind:'bearing',desc:'动力输入与旋转轴同轴；只有真实物理装配成功才会出现活动子刚体。',coverage:'input-topology-only'},
+ 'create:clutch':{kind:'clutch',desc:'动力离合器：红石 powered=true 时断开轴向传动（原版动作另有过渡机制）。',coverage:'topology'},
+ 'create:mechanical_drill':{kind:'consumer',desc:'机械钻头只在 FACING 反面接受轴动力；原版方块破坏和掉落未模拟。',coverage:'input-topology-only'},
  'create:mechanical_press':{kind:'consumer',desc:'机械压印机需动力和加工环境。网页不执行配方。',coverage:'input-topology-only'},
  'create:mechanical_mixer':{kind:'consumer',desc:'机械搅拌器需动力、工作盆与配方。网页不执行配方。',coverage:'input-topology-only'}
 };
@@ -41,7 +43,7 @@ export function axisOf(b){
  // Directional engines/bearings derive shaft orientation from the actual FACING
  // blockstate, never from an unrelated UI axis dropdown.
  const k=behavior(b.id).kind;
- if((k==='source'||k==='bearing')&&DIRECTION_AXIS[b.facing])return DIRECTION_AXIS[b.facing];
+ if((k==='source'||k==='bearing'||b.id==='create:mechanical_press'||b.id==='create:mechanical_drill'||b.id==='create:mechanical_saw')&&DIRECTION_AXIS[b.facing])return DIRECTION_AXIS[b.facing];
  if(typeof b.axis==='string'&&'xyz'.includes(b.axis))return b.axis;
  return DIRECTION_AXIS[b.facing]||'y';
 }
@@ -50,12 +52,20 @@ export function isKinetic(b){
  return (b.id.startsWith('create:')&&AXIS_TYPES.has(tail))||KINETIC_IDS.has(id);
 }
 function kind(b){return behavior(b.id).kind;}
-function hasShaft(b,along){
+function hasShaft(b,along,towards=null){
  const k=kind(b),a=axisOf(b);
  if(k==='shaft'||k==='small'||k==='large')return along===a;
- if(k==='source')return along===a;
+ if(k==='source')return along===a&&(!towards||!DIRECTION_AXIS[b.facing]||b.facing===towards); // Create CreativeMotorBlock.hasShaftTowards is directional; legacy blueprints without facing use their axis
+ if(k==='clutch')return along===a && !(b.powered===true || b.state?.powered==='true');
  if(k==='bearing')return along===a; // assembly remains unverified
- if(k==='consumer')return along===a; // conservative topology indicator only
+ if(k==='consumer'){
+  if(b.id==='create:mechanical_mixer')return false; // original mixer hasShaftTowards() returns false; powered via meshing cogwheel
+  if(b.id==='create:mechanical_drill' && DIRECTION_AXIS[b.facing]){
+   const opposite={east:'west',west:'east',north:'south',south:'north',up:'down',down:'up'};
+   return along===a&&(!towards||towards===opposite[b.facing]);
+  }
+  return along===a;
+ } // currently supported consumer shafts only; native Create still authoritative
  return false;
 }
 // Returns multiplicative directed rotation speed link, or 0 when the source rule doesn't establish a link.
@@ -65,7 +75,10 @@ export function rotationRatio(a,b){
  const ak=kind(a),bk=kind(b),aa=axisOf(a),ba=axisOf(b);
  if(d===1){
   const along=v.findIndex(x=>x!==0),axis='xyz'[along];
-  if(hasShaft(a,axis)&&hasShaft(b,axis))return 1;
+  const positive=v[along]>0;
+  const directions={x:positive?['east','west']:['west','east'],y:positive?['up','down']:['down','up'],z:positive?['south','north']:['north','south']};
+  const [outward,inward]=directions[axis];
+  if(hasShaft(a,axis,outward)&&hasShaft(b,axis,inward))return 1;
   if(ak==='small'&&bk==='small'&&aa===ba&&axis!==aa)return -1;
  }
  if(d===2){

@@ -8,3 +8,22 @@
 .model-state{border-top:1px solid #405566;color:#f5cba0!important;padding-top:8px;overflow-wrap:anywhere}
 @media(max-width:1210px){.grid-controls{grid-template-columns:repeat(3,minmax(0,1fr))}.grid-controls label:last-child{grid-column:span 2}}
 @media(max-width:570px){.grid-controls{grid-template-columns:repeat(2,minmax(0,1fr))}.grid-controls label:last-child{grid-column:span 2}}
+
+
+/* Kinetic v2 – visible animated machines with clearly labeled SU preview. */
+.anim-toggle{display:inline-flex;align-items:center;gap:6px;color:#cfe0e8;font-size:11px;white-space:nowrap;padding:5px 6px}
+.anim-toggle input{accent-color:#caa15e}
+.stress-controls{margin-top:8px;padding:8px 10px;border:1px solid #436176;border-radius:6px;background:#162838;display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.stress-controls label{display:flex;flex-direction:column;gap:3px;color:#e9c998;font-size:10px}
+.stress-controls label strong{margin-left:auto;color:#a5dfdb;font:700 12px ui-monospace,monospace}
+.stress-controls input{width:100%;accent-color:#c7aa62;cursor:pointer}
+.stress-controls small{grid-column:span 2;font-size:10px;color:#94aab5;line-height:1.5}
+.stress-readout{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;margin:9px 0}
+.stress-readout>div{padding:10px 4px;background:#1b303c;border:1px solid #456172;border-radius:6px;text-align:center}
+.stress-readout small{font-size:9px;color:#a5bfca;display:block}
+.stress-readout strong{font:700 17px ui-monospace,monospace;color:#e6c17b;overflow-wrap:anywhere}
+.stress-readout em{font-size:9px;color:#899fab;margin-left:3px;font-style:normal}
+#stressUtil[data-overloaded="true"]{color:#ff726b}
+.aux-button{padding:9px;border:1px solid #447b81;background:#264149;color:#bbede6;border-radius:5px;cursor:pointer;font-size:11px;width:100%;margin-bottom:10px}
+.aux-button:hover{background:#315b63}
+@media(max-width:570px){.anim-toggle{font-size:10px;padding:3px}.stress-controls{gap:7px}.stress-readout strong{font-size:14px}}

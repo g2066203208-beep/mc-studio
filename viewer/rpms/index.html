@@ -22,19 +22,26 @@
  <div id="paletteItems" class="palette-items" role="listbox" aria-label="MC 方块目录"></div>
 </aside>
 <main class="workspace">
- <div class="toolbar"><div class="modes"><button data-mode="place" class="active">▣ 放置</button><button data-mode="inspect">◎ 检查</button><button data-mode="erase">⌫ 拆除</button><button data-mode="wrench">⟳ 扳手</button></div><div class="toolbar-right"><button id="example">载入合法传动示例</button><button id="resetScene" class="danger">清空</button></div></div>
+ <div class="toolbar"><div class="modes"><button data-mode="place" class="active">▣ 放置</button><button data-mode="inspect">◎ 检查</button><button data-mode="erase">⌫ 拆除</button><button data-mode="wrench">⟳ 扳手</button></div><div class="toolbar-right"><label class="anim-toggle"><input type="checkbox" id="animateToggle" checked> 实时动力动画</label><button id="example">载入合法传动示例</button><button id="resetScene" class="danger">清空</button></div></div>
  <div class="view-wrap" id="viewWrap"><canvas id="view" aria-label="MC 逐方块三维建造视图"></canvas>
- <div class="hud-top"><div><span class="mini-label">ACTIVE WORLD</span><strong>机械动力模型 · 首屏自动展示 3D 示例</strong><span class="hud-sub" id="worldHint">点击地面放置；点击已有方块表面向外放置；右键拆除</span></div><div class="state-pill">原版行为：仅游戏内权威</div></div>
+ <div class="hud-top"><div><span class="mini-label">ACTIVE WORLD</span><strong>机械动力模型 · 首屏自动展示 3D 示例</strong><span class="hud-sub" id="worldHint">点击地面放置；点击已有方块表面向外放置；右键拆除</span></div><div class="state-pill">动力动画／SU 属于规则预演，非原版执行</div></div>
  <div class="hud-bottom"><div><div id="modelCounter" class="asset-count">没有放置方块</div><div id="canvasStatus">等待浏览器 WebGL 初始化…</div></div><div class="views"><button data-view="iso" class="active">3/4</button><button data-view="top">顶视</button><button data-view="side">侧视</button></div></div>
  </div>
- <div class="bottom-panel"><div class="grid-controls"><label>施工高度层 <output id="layerValue">1</output><input id="layer" type="range" min="1" max="10" step="1" value="1"></label><label>轴方向 <select id="axis"><option value="x">X 东西</option><option value="y" selected>Y 上下</option><option value="z">Z 南北</option></select></label><label>朝向 <select id="facing"><option value="up">上</option><option value="north">北</option><option value="east">东</option><option value="south">南</option><option value="west">西</option><option value="down">下</option></select></label><label>预览转速 <input id="rpm" type="number" value="16" min="-256" max="256" step="1" title="仅创造马达预览用，非服务端物理实测"></label><label>原版方块状态 <select id="statePreset"><option value="">根据朝向自动</option></select><small id="stateCount">需要对应 JAR</small></label></div>
+ <div class="bottom-panel"><div class="grid-controls"><label class="auto-direction">邻接机械自动朝向 <input type="checkbox" id="autoFacing" checked title="放置马达或航空学轴承时让输出朝向刚点击的方块"></label><label>施工高度层 <output id="layerValue">1</output><input id="layer" type="range" min="1" max="10" step="1" value="1"></label><label>轴方向 <select id="axis"><option value="x">X 东西</option><option value="y" selected>Y 上下</option><option value="z">Z 南北</option></select></label><label>朝向 <select id="facing"><option value="up">上</option><option value="north">北</option><option value="east">东</option><option value="south">南</option><option value="west">西</option><option value="down">下</option></select></label><label>预览转速 <input id="rpm" type="number" value="16" min="-256" max="256" step="1" title="仅创造马达预览用，非服务端物理实测"></label><label>原版方块状态 <select id="statePreset"><option value="">根据朝向自动</option></select><small id="stateCount">需要对应 JAR</small></label></div>
+ <div class="stress-controls">
+ <label>动力容量倍率 <strong id="capacityScaleLabel">1.00×</strong><input id="capacityScale" type="range" min="0.0001" max="1" step="0.0001" value="1"></label>
+ <label>负载倍率 <strong id="impactScaleLabel">1.0×</strong><input id="impactScale" type="range" min="0" max="32" step="0.5" value="1"></label>
+ <button type="button" id="stressScenario" class="aux-button" style="grid-column:span 2;margin:2px 0">一键演示过载／恢复（预览）</button>
+ <small>源自 Create 6.0.10 默认 stressValues；一键演示会人为降低容量，只用于预演网络停转。真正服务器 SU 由游戏配置决定。</small>
+ </div>
  <div class="status-row"><span id="selectedName">尚未选择方块</span><span id="coverageState"></span></div></div>
 </main>
 <aside class="inspector">
  <div class="eyebrow">02 / VALIDATION</div><h2>机械诊断</h2>
  <p class="warning">首屏可立即显示不同机械方块的立体几何。自动从官方源取到原版 JAR 后，将用对应 JSON/PNG 静态模型替换原创预览；动态 BlockEntity Renderer、Ponder 和实际物理运算仍由 Minecraft 负责。</p>
  <div class="metrics"><div><small>方块</small><strong id="blocksNum">0</strong></div><div><small>传动连接</small><strong id="linksNum">0</strong></div><div><small>收到动力</small><strong id="poweredNum">0</strong></div></div>
- <div class="section-title">选择方块属性</div><div id="inspection" class="inspection">从左侧选取方块后，点击画布将其放入 MC 方格。</div>
+ <div class="stress-readout"><div><small>预演容量</small><strong id="stressCapacity">0</strong><em>SU</em></div><div><small>预演负载</small><strong id="stressDemand">0</strong><em>SU</em></div><div><small>占用</small><strong id="stressUtil">—</strong></div></div>
+ <div class="section-title">选择方块属性</div><button id="toggleRedstone" class="aux-button">切换选中离合器红石输入（预演）</button><div id="inspection" class="inspection">从左侧选取方块后，点击画布将其放入 MC 方格。</div>
  <div class="section-title">原版规则核对</div><div class="diagnostic-status" id="overall">空场景</div><div id="diagnostics" class="diagnostics"><p>通过摆放机械轴和齿轮可以测试部分方向连接。</p></div>
  <div class="section-title">施工蓝图</div>
  <div class="exports"><button id="exportJson">导出建造坐标 JSON</button><label for="importJson" class="import">导入 JSON</label><input id="importJson" type="file" accept=".json" hidden></div>

@@ -325,6 +325,82 @@ public final class NativeIntegrationGameTests {
         });
     }
 
+    @GameTest(template = "rpms_empty", timeoutTicks = 160)
+    public static void nativeCreateClutchRedstoneDisconnectsShaft(GameTestHelper helper) {
+        requireMods();
+        BlockPos motor = new BlockPos(1, 1, 1);
+        BlockPos clutch = new BlockPos(2, 1, 1);
+        BlockPos downstream = new BlockPos(3, 1, 1);
+        BlockPos redstone = new BlockPos(2, 2, 1);
+        helper.setBlock(motor, block("create:creative_motor").defaultBlockState()
+                .setValue(BlockStateProperties.FACING, Direction.EAST));
+        helper.setBlock(clutch, block("create:clutch").defaultBlockState()
+                .setValue(BlockStateProperties.AXIS, Direction.Axis.X));
+        helper.setBlock(downstream, block("create:shaft").defaultBlockState()
+                .setValue(BlockStateProperties.AXIS, Direction.Axis.X));
+        helper.runAfterDelay(35, () -> {
+            var before = helper.getLevel().getBlockEntity(helper.absolutePos(downstream));
+            if (before == null || Math.abs(nativeNumber(before, "getSpeed")) < .01)
+                throw new AssertionError("Native clutch must pass Create RPM without Redstone");
+            helper.setBlock(redstone, Blocks.REDSTONE_BLOCK);
+            helper.runAfterDelay(20, () -> {
+                boolean powered = helper.getBlockState(clutch).getValue(BlockStateProperties.POWERED);
+                var after = helper.getLevel().getBlockEntity(helper.absolutePos(downstream));
+                double halted = nativeNumber(after, "getSpeed");
+                LOG.info("RPMS_NATIVE_CLUTCH powered={} downstreamStoppedRPM={}", powered, halted);
+                if (!powered || Math.abs(halted) > .01)
+                    throw new AssertionError("Real Create powered clutch did not disconnect output shaft");
+                helper.setBlock(redstone, Blocks.AIR);
+                helper.runAfterDelay(25, () -> {
+                    var restored = helper.getLevel().getBlockEntity(helper.absolutePos(downstream));
+                    double rpm = nativeNumber(restored, "getSpeed");
+                    LOG.info("RPMS_NATIVE_CLUTCH restoredRPM={}",rpm);
+                    if (Math.abs(Math.abs(rpm)-16)>.01)
+                        throw new AssertionError("Real Create clutch must restore speed after redstone is removed");
+                    LOG.info("RPMS_NATIVE_PASS nativeCreateClutchRedstoneDisconnectsShaft");
+                    helper.succeed();
+                });
+            });
+        });
+    }
+
+    @GameTest(template = "rpms_empty", timeoutTicks = 120)
+    public static void nativeCreateStressValuesMatchSourceDefaults(GameTestHelper helper) {
+        requireMods();
+        BlockPos motorPos = new BlockPos(1, 1, 1);
+        BlockPos shaftPos = new BlockPos(2, 1, 1);
+        BlockPos pressPos = new BlockPos(3, 1, 3);
+        helper.setBlock(motorPos, block("create:creative_motor").defaultBlockState()
+                .setValue(BlockStateProperties.FACING, Direction.EAST));
+        helper.setBlock(shaftPos, block("create:shaft").defaultBlockState()
+                .setValue(BlockStateProperties.AXIS, Direction.Axis.X));
+        placeEntity(helper, "create:mechanical_press", pressPos);
+        helper.runAfterDelay(40, () -> {
+            Object motor = helper.getLevel().getBlockEntity(helper.absolutePos(motorPos));
+            Object press = helper.getLevel().getBlockEntity(helper.absolutePos(pressPos));
+            if (motor==null || press==null) throw new AssertionError("Create native stress BE missing");
+            double capacityPerRPM = nativeNumber(motor, "calculateAddedStressCapacity");
+            double impactPerRPM = nativeNumber(press, "calculateStressApplied");
+            Object network;
+            try {
+                network=motor.getClass().getMethod("getOrCreateNetwork").invoke(motor);
+            } catch (ReflectiveOperationException e) {
+                throw new AssertionError("Unable to retrieve real Create KineticNetwork",e);
+            }
+            double networkCapacity=nativeNumber(network,"calculateCapacity");
+            double networkStress=nativeNumber(network,"calculateStress");
+            double sourceRPM=nativeNumber(motor,"getSpeed");
+            LOG.info("RPMS_NATIVE_SU capacityPerRPM={} pressImpactPerRPM={} sourceRPM={} networkCapacitySU={} networkStressSU={}",
+                    capacityPerRPM,impactPerRPM,sourceRPM,networkCapacity,networkStress);
+            if (Math.abs(capacityPerRPM-16384)>.01 || Math.abs(impactPerRPM-8)>.01)
+                throw new AssertionError("Create runtime stressValues.v2 config differs from pinned 6.0.10 defaults");
+            if (Math.abs(networkCapacity-Math.abs(sourceRPM)*capacityPerRPM)>1)
+                throw new AssertionError("Create KineticNetwork capacity was not speed-scaled correctly");
+            LOG.info("RPMS_NATIVE_PASS nativeCreateStressValuesMatchSourceDefaults");
+            helper.succeed();
+        });
+    }
+
     private static void nativeTransmit(Object sender, int strength) {
         try {
             sender.getClass().getMethod("transmit", int.class).invoke(sender, strength);
