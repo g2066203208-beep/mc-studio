@@ -183,12 +183,12 @@ public final class SeamVisualE2E {
                 }
                 var tnt=new net.minecraft.world.entity.item.PrimedTnt(
                     nether,witnessX+0.5,126.75,witnessZ+0.5,null);
-                tnt.setFuse(8);
+                tnt.setFuse(2);
                 if(!nether.addFreshEntity(tnt)) {
                     LOG.error("WORLDSEAM_E2E_FAIL_CROSS_TNT_SPAWN: true PrimedTnt not added to Nether");
                     return;
                 }
-                LOG.info("WORLDSEAM_E2E_CROSS_TNT_SPAWN: real vanilla PrimedTnt with fuse 8 in Nether near Y128");
+                LOG.info("WORLDSEAM_E2E_CROSS_TNT_SPAWN: real vanilla PrimedTnt with fuse 2 in Nether near Y128");
             });
         } else if (phase==4 && !crossTntVerified && now-startTick>930) {
             crossTntVerified=true;
