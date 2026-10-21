@@ -45,3 +45,5 @@ Gradle 报告使用了将来不兼容 Gradle 10 的弃用功能；当前固定 W
 - 已与上游 2026-10-17 的 NeoForge CE 源码核对相关 Java API；采用运行时反射，不强加编译依赖。
 - 单独分支提交后以 GitHub Actions 运行构建与 3 个 JUnit 单元测试，游戏实测结论需要另行填写。
 - **未执行客户端 / 专服 / 整合包实际穿越测试**；不要写成全面完成或已确认兼容。
+
+- PR #16 首次 CI [39520840987](https://github.com/g2066203208-beep/mc-studio/actions/runs/39520840987)：Gradle BUILD SUCCESSFUL，`:compileTestJava` 与 `:test` 已执行；构建 JAR Artifact ID `12309864416`。此记录证明云端构建/单元测试，不证明客户端穿越。

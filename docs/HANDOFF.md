@@ -47,3 +47,5 @@ GitHub 是整个 Minecraft 工作室的开发中心。代码、需求、研究�
 - 拓扑：末地（顶）→ 主世界（中）→ 下界（底），1:1 X/Z，四个双向门户面，无重力翻转。
 - 提交后请根据 Actions 检查编译与 JUnit；客户端、服务端、整合包实测仍需真实游戏环境，不能用云端 BUILD 代替。
 - 已知限制：老区块基岩未改写；存在其他全局传送门会被保护性拒绝；跨维度载具、Sable 物理尚未实测。
+
+- PR: [#16](https://github.com/g2066203208-beep/mc-studio/pull/16)。首次提交 `d25241c` 在 Actions [39520840987](https://github.com/g2066203208-beep/mc-studio/actions/runs/39520840987) 已完成 `compileJava`、`compileTestJava`、`test`、`build`、上传 JAR。随后增加了门户方向与目标维度校验；最终以最新提交的 CI 为准。

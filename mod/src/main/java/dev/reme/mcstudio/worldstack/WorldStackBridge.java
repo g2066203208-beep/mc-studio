@@ -6,6 +6,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.phys.Vec3;
 import net.neoforged.fml.ModList;
 
 import java.lang.reflect.Constructor;
@@ -42,9 +43,13 @@ public final class WorldStackBridge {
         UNEXPECTED_PORTAL_COUNT
     }
 
-    public record Status(boolean dependencyPresent, int endFloor, int overworldConnections, int netherCeiling) {
+    public record Status(
+        boolean dependencyPresent, int endFloor, int overworldConnections,
+        int netherCeiling, boolean directionsVerified
+    ) {
         public boolean installed() {
-            return endFloor == 1 && overworldConnections == 2 && netherCeiling == 1;
+            return directionsVerified && endFloor == 1
+                && overworldConnections == 2 && netherCeiling == 1;
         }
     }
 
@@ -57,13 +62,17 @@ public final class WorldStackBridge {
 
     public static Status status(MinecraftServer server) throws ReflectiveOperationException {
         if (!dependencyPresent()) {
-            return new Status(false, 0, 0, 0);
+            return new Status(false, 0, 0, 0, false);
         }
         return new Status(
             true,
             countVertical(server.getLevel(Level.END)),
             countVertical(server.getLevel(Level.OVERWORLD)),
-            countVertical(server.getLevel(Level.NETHER))
+            countVertical(server.getLevel(Level.NETHER)),
+            hasDirectedPortal(server.getLevel(Level.END), Level.OVERWORLD, true)
+                && hasDirectedPortal(server.getLevel(Level.OVERWORLD), Level.END, false)
+                && hasDirectedPortal(server.getLevel(Level.OVERWORLD), Level.NETHER, true)
+                && hasDirectedPortal(server.getLevel(Level.NETHER), Level.OVERWORLD, false)
         );
     }
 
@@ -73,6 +82,31 @@ public final class WorldStackBridge {
         }
         Class<?> portalType = Class.forName(VERTICAL_PORTAL);
         return (int) globalPortals(level).stream().filter(portalType::isInstance).count();
+    }
+
+    /**
+     * Counting portal surfaces alone is insufficient: an unrelated dimension
+     * stack can have the same 1/2/1 count but point to different destinations.
+     * Upstream calls positive-Y normals "floor", negative-Y "ceil".
+     */
+    private static boolean hasDirectedPortal(
+        ServerLevel from, ResourceKey<Level> destination, boolean floor
+    ) throws ReflectiveOperationException {
+        if (from == null) {
+            return false;
+        }
+        Class<?> portalType = Class.forName(VERTICAL_PORTAL);
+        for (Object portal : globalPortals(from)) {
+            if (!portalType.isInstance(portal)) {
+                continue;
+            }
+            Object dest = portal.getClass().getMethod("getDestDim").invoke(portal);
+            Vec3 normal = (Vec3) portal.getClass().getMethod("getNormal").invoke(portal);
+            if (destination.equals(dest) && (floor ? normal.y > 0 : normal.y < 0)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @SuppressWarnings("unchecked")
