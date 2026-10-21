@@ -1,4 +1,4 @@
-package dev.reme.mcstudio.seam;
+package dev.reme.worldseam;
 
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
@@ -15,7 +15,7 @@ import java.util.List;
  */
 public record SeamPreviewPayload(SeamFrameState.Frame frame) implements CustomPacketPayload {
     public static final Type<SeamPreviewPayload> TYPE = new Type<>(
-        ResourceLocation.fromNamespaceAndPath("reme_studio", "seam_preview")
+        ResourceLocation.fromNamespaceAndPath("worldseam", "seam_preview")
     );
     public static final int MAX_CHANGES = 2560;
 

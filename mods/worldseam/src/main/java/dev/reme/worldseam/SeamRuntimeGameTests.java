@@ -1,6 +1,6 @@
-package dev.reme.mcstudio.seam;
+package dev.reme.worldseam;
 
-import dev.reme.mcstudio.StudioMod;
+import dev.reme.worldseam.WorldSeamMod;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.world.level.Level;
@@ -11,7 +11,7 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
  * An actual Minecraft GameTest server integration smoke test.
  * Does not simulate a client/render backend or claim frame continuity.
  */
-@GameTestHolder(StudioMod.MOD_ID)
+@GameTestHolder(WorldSeamMod.MOD_ID)
 @PrefixGameTestTemplate(false)
 public final class SeamRuntimeGameTests {
     private SeamRuntimeGameTests() {}
