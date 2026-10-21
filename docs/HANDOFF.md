@@ -38,3 +38,7 @@ GitHub 是整个 Minecraft 工作室的开发中心。代码、需求、研究�
 - Skill 和网格检查不是已经创建原创摩托车 OBJ，也不表示 Minecraft、Sable 或公开网页版已通过真实游戏测试；下一位助手在用户要求做摩托车时按 Skill 创建并提供真正可旋转检视的新模型。
 - 已有真实 3D 源码 `viewer/index.html`，主要针对 Mustang；如果要预览自己制作的摩托车需扩展支持任意 OBJ+PNG。
 - 操作门槛：审查来源许可后使用原创资产；执行自动化测试，再审阅 CI 和 PR。
+
+## 2026-10-21 · 自研 Native Seam
+
+用户否定 Immersive Portals API 调用方案；PR #16 已关闭且**禁止合入**。新分支 `feat/native-seamless-world-v1` 从 main 开始，自主实现 `SeamGraph`、`SeamServer`、`SeamSettings`、`SeamCommands`。先构建服务器真实维度间边界换算，后续自己开发客户端远端渲染。详见 `docs/NATIVE_SEAM.md`。当前不允许把纯传送称为无缝世界；实际游玩需独立验证。
