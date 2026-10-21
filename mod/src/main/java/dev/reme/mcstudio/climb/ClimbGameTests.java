@@ -146,8 +146,10 @@ public final class ClimbGameTests {
         player.setYRot(155); // Look elsewhere but do not change body grip heading.
         ClimbRuntime.accept(player,2,-1,true,false,1,0);
         ClimbMotion.tick(player,state);
-        helper.assertTrue(player.getDeltaMovement().z>0,
-                "Turning the camera rotated ceiling motion and body orientation");
+        helper.assertTrue(player.getDeltaMovement().z<-.12,
+                "Roof W must follow new camera yaw, not keep moving in old direction");
+        helper.assertTrue(Math.abs(state.grabYaw) > 0.1,
+                "Ceiling body yaw must start turning toward current view");
         helper.assertTrue(state.contactNormal.y<-.7,
                 "Roof animation must be selected by actual surface normal");
         ClimbRuntime.accept(player,3,-1,false,false,0,0);
@@ -346,6 +348,7 @@ public final class ClimbGameTests {
         s.lastLeft=wallAnchor.localPoint(); s.lastResolvedAnchor=wallAnchor;
         s.contactNormal=new Vec3(0,0,-1); s.contactPoint=wallAnchor.localPoint();
         s.hasContact=true;
+        s.lastInputTick=player.level().getGameTime();
         double initialZ=player.getZ();
         ClimbMotion.tick(player,s);
         helper.assertTrue(s.pendingRoof != null && s.left.equals(wallAnchor),
