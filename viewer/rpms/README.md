@@ -71,3 +71,15 @@
 - CI 安装临时的系统 CJK 字体用于测试截图，修复原先 CI 里中文都变成 □ 的问题。
 
 **仍未完成的项目**：需要在 NeoForge 游戏进程内对 Create 和 Sable 动态 BlockEntityRenderer、运动/粒子、Ponder、光照、姿态、贴图资源包与原版截图逐一对比；这无法用浏览器解析 JAR 静态资源证明完成。浏览器的 `authentic` 仅指**静态模型资源解码成功**，不等于游戏内整台 Boss 的真实渲染和物理已验证。
+
+## 2026-10-21 原版服务器实测接入（真正的 NeoForge，不是 Three.js）
+
+本轮新增真正游戏内的 Java GameTest、NeoForge Server 命令和 CI，而非在网站里重新画方块物理。
+
+- **环境：** Minecraft 1.21.1、NeoForge 21.1.248、Create 6.0.10、Aeronautics 1.3.2（含 Simulated/Offroad）和**强制依赖 Sable 2.0.6**。
+- **自动化：** .github/workflows/rpms-native-gametest.yml 下载官方发布 JAR 并校验 SHA，把 Create、Aeronautics、Sable 放入临时 mod/runtime-mods 文件夹，在真正的 gameTestServer 运行 Java GameTests。原始 JAR 不提交到仓库，也不作为 CI 工件提供给用户。
+- **实测基础：** Create 创造马达朝东 + 传动轴沿 X 放置时，真实 getSpeed() 返回马达 16 RPM、相邻轴 16 RPM；此前错误朝向时轴为 0。此测试已通过。无线和动力中断的后续测试必须等待各自的 CI 真实通过才能声称成功。
+- **原版状态快照：** 管理员在游戏里输入 /rpms snapshot 6（半径可填 1–8），从真实游戏里的已加载区块读取附近 Create/Simulated/Aeronautics/Offroad 的 BlockState、BlockEntity 类型和可用的原版转速、无线信号读数等；将 JSON 写入世界存档的 rpms-snapshots 文件夹。不会更改 Minecraft 方块/装配/动力，也不会对外发布服务器。
+- **与网页对接：** 在 RPMS 网页先导入当前游戏版本的 Create/Aeronautics/Minecraft JAR，然后通过“导入 JSON”载入该游戏快照。游戏中实际测得的 RPM 在方块信息栏与纯网页预览 RPM 区分显示。快照导入绝不意味着网页已经执行原版物理运算。
+- **边界：** 测试套件专门检验明确的原版数据或作用，不据此宣称全部应力、无线覆盖、Sable 刚体、风、升力或碰撞已完成。应以 /rpms/native.html 的系统级验收状态为准。
+

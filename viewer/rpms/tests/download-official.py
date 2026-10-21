@@ -66,7 +66,8 @@ def download_minecraft_client():
     return {'version':'1.21.1','sha1':sha,'filename':str(target),'bytes':len(data)}
 record={'minecraft':'1.21.1','neoforge':True,'mods':[
     download_version('create','6.0.10','create-1.21.1.jar'),
-    download_version('create-aeronautics','1.3.2','aeronautics-1.21.1.jar')],
+    download_version('create-aeronautics','1.3.2','aeronautics-1.21.1.jar'),
+    download_version('sable','2.0.6','sable-1.21.1.jar')],
     'client':download_minecraft_client()}
 # Diagnose packed child JARs and resource namespaces, without emitting asset bytes.
 import zipfile
