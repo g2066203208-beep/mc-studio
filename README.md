@@ -81,3 +81,8 @@ bash scripts/build.sh
 ## Living World v0.4 公民社会（实验分支）
 
 在 v0.3 基础上进一步开发眼见为实的 NPC 消息传播、本地善恶声望、司法警示、诚实/同理心等性格、真实绿宝石委托赏金和不可重复兑现的物资交付。详见 [v0.4 测试与边界](docs/CIVIC_V04.md)；并新增 NeoForge 服务器 GameTest，**实际运行结果单独验收**。
+
+
+## Living World 0.5: natural residents and home radius (experimental)
+
+加入 NeoForge 自然生成规则、独立居民个人资料、家园活动范围、昼间自由漫步、超出半径回家、分散式 AI 调度与局部寻路/成熟农作物缓存。详见 [v0.5 验证说明](docs/NATURAL_V05.md)。生物群系出生率和真实性能还需专门的世界测试。

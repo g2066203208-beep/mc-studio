@@ -108,3 +108,12 @@ Push CI `39518033958` SUCCESS，PR CI `39518039426` SUCCESS。Artifact `12310085
 
 ### v0.4.0-dev 最终源提交 GameTest 复核
 - `4c1f6d35` 的 [39520744874](https://github.com/g2066203208-beep/mc-studio/actions/runs/39520744874) **SUCCESS**；日志明确 `All 4 required tests passed :)`。此前“需查最新 GameTest”的事项关闭；客户端/222-mod 整合包仍未测试。
+
+
+## 2026-10-21 v0.5 自然居民与性能预算交接
+
+- 独立分支 `feature/living-world-natural-v05`，基于 v0.4 `577d66d582193ac3ae3e7df0b51f54ab36cd7bbd`。
+- 新增 `NaturalResidentSpawn` + NeoForge datapack biome modifier，在平原/草甸等主世界地表稀有刷出自然居民，周围 72 格最多 4 人；`PlayerNpcEntity.finalizeSpawn` 初始化天然居民的居住点、个人范围、性格、职业与食物。
+- 新增 `MovementPolicy` `DailyRoaming` 及纯 Java 测试，`RoadNavigator` 重算冷却；AI 决策与专业职业执行降低触发频率，农民缓存成熟作物目标。
+- /npc radius 16..128；新增 2 个 NeoForge GameTest 实体生成初始化/NBT 居住范围恢复。老四项测试必须一起通过。
+- 详读 `docs/NATURAL_V05.md`；不能把原版自然刷新已随机观察、TPS 已测或 222-mod 整合包兼容当成已验收。

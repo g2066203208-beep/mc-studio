@@ -120,3 +120,9 @@ Gradle 报告使用了将来不兼容 Gradle 10 的弃用功能；当前固定 W
 
 ### 最终源码 GameTest 已成功
 - 最新源提交 `4c1f6d3503a79f86e1820f2fe334e33292af1d3e` 的 [NeoForge 游戏服务器 GameTest 39520744874](https://github.com/g2066203208-beep/mc-studio/actions/runs/39520744874) SUCCESS，日志 `All 4 required tests passed :)`。对应同源 Build 39520744762 SUCCESS。
+
+
+## 2026-10-21 Living World v0.5 自然生成与性能调整
+
+- 从 v0.4 成立独立 `feature/living-world-natural-v05`。编写原版 biome modifier 地表低权重自然 NPC、出生资料、局部人数上限、个体家园半径、白天活动/越界回家，以及路径寻找和农田扫描的性能预算。
+- 仅完成 Java 源码/测试编写。CI/Gametest 成果需按最新提交核验；不能将实际 TPS 百分比当成测过。
