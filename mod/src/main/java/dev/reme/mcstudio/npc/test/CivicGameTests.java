@@ -1194,4 +1194,35 @@ public final class CivicGameTests {
         helper.succeed();
     }
 
+    /**
+     * Architecture safety probe: a FakePlayer is a ServerPlayer subclass,
+     * but the currently rendered resident is NOT a player. This test must
+     * remain truthful until we replace the resident with a networked
+     * ServerPlayer, rather than mark a proxy actor as full player parity.
+     */
+    @GameTest(template = "empty", timeoutTicks = 100)
+    public static void full_player_mod_parity_requires_real_networked_player_entity(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        PlayerNpcEntity npc = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (npc == null) throw new AssertionError("NPC entity registry missing");
+        BlockPos foot = helper.absolutePos(new BlockPos(4, 9, 4));
+        npc.moveTo(foot.getX() + 0.5, foot.getY(), foot.getZ() + 0.5, 0, 0);
+        if (!level.addFreshEntity(npc)) throw new AssertionError("Resident failed to spawn");
+        var actor = NpcPlayerActor.forNpc(npc, level);
+        if (!(actor instanceof net.minecraft.server.level.ServerPlayer))
+            throw new AssertionError("NPC action bridge lost server player event identity");
+        if (net.minecraft.world.entity.player.Player.class.isInstance(npc))
+            throw new AssertionError("Architecture probe is obsolete; document real player migration");
+        if (!actor.getUUID().equals(npc.getUUID()))
+            throw new AssertionError("Bridge action player differs from NPC identity");
+        if (level.getServer().getPlayerList().getPlayer(npc.getUUID()) != null)
+            throw new AssertionError("Unsafe UUID collision: proxy and registered player coexist");
+        if (level.getEntity(npc.getUUID()) != npc)
+            throw new AssertionError("A fake player replaced the living NPC in world entity index");
+        // A successful GameTest confirms the CURRENT compatibility gap:
+        // the visual entity is a Mob, while only its momentary world-action
+        // delegate passes ServerPlayer instanceof checks. It is not 1:1.
+        helper.succeed();
+    }
+
 }
