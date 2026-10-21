@@ -3,6 +3,9 @@ on:
   push:
     branches: [feat/worldseam-standalone]
     paths:
+      - "mods/worldseam/src/**"
+      - "mods/worldseam/build.gradle"
+      - "mods/worldseam/gradle.properties"
       - ".github/workflows/worldseam-visual-e2e.yml"
   workflow_dispatch:
 permissions:
@@ -92,7 +95,7 @@ jobs:
               echo "WorldSeam failed in GUI client"
               exit 1
             fi
-            echo "WorldSeam GUI client screenshot captured; this is NOT a successful crossing test"
+            echo "WorldSeam GUI captured and integrated two-way dimension checks passed; visual frame-level seamless composition still requires separate validation"
           '
       - name: Save full reproducible GUI evidence
         uses: actions/upload-artifact@v4
