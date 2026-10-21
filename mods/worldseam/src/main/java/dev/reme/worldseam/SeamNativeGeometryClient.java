@@ -124,6 +124,8 @@ public final class SeamNativeGeometryClient {
                 depth+=descending?(y & 15):(15-(y & 15));
                 continue;
             }
+            int bucketY=Math.floorDiv(y,16);
+            List<Cell> layerCells=bySection.get(bucketY);
             for(int z=0;z<16;z++)for(int x=0;x<16;x++) {
                 BlockState state=section.getBlockState(x,y&15,z);
                 if(state.isAir() || state.getRenderShape()!=RenderShape.MODEL)continue;
@@ -131,10 +133,16 @@ public final class SeamNativeGeometryClient {
                 pos.set(ox+x,y,oz+z);
                 int block=remote.getBrightness(LightLayer.BLOCK,pos);
                 int sky=remote.getBrightness(LightLayer.SKY,pos);
-                bySection.computeIfAbsent(Math.floorDiv(y,16),k->new ArrayList<>(256))
-                    .add(new Cell(ox+x,
-                        SeamSectionLayout.mappedBlockY(y,sourceBoundary,targetBoundary),
-                        oz+z,state,LightTexture.pack(block,sky)));
+                // Resolve the section bucket only once per Y layer, not for
+                // each visible voxel. Typical columns contain tens of
+                // thousands of surface voxels.
+                if(layerCells==null) {
+                    layerCells=new ArrayList<>(256);
+                    bySection.put(bucketY,layerCells);
+                }
+                layerCells.add(new Cell(ox+x,
+                    SeamSectionLayout.mappedBlockY(y,sourceBoundary,targetBoundary),
+                    oz+z,state,LightTexture.pack(block,sky)));
             }
         }
         var slices=new ArrayList<Slice>(bySection.size());
