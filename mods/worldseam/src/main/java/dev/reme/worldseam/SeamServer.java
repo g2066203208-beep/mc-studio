@@ -49,6 +49,7 @@ public final class SeamServer {
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
             SeamPreviewSender.tick(server, player, tick, enabled);
             SeamSectionSender.tick(server, player, tick, enabled);
+            SeamChunkSender.tick(server, player, tick, enabled);
         }
         seamEnabled = enabled;
         terrainEnabled = enabled && SeamSettings.get(server).carveNewChunks();
@@ -109,6 +110,7 @@ public final class SeamServer {
                 .map(Entity::getUUID).collect(java.util.stream.Collectors.toSet());
             SeamPreviewSender.prune(online);
             SeamSectionSender.prune(online);
+            SeamChunkSender.prune(online);
             // Per-entity cooldowns only need to survive a short period;
             // no global getAllEntities scan is needed for eviction.
             lastCross.entrySet().removeIf(e -> tick - e.getValue() > 2400);

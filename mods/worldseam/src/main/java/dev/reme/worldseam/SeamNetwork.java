@@ -22,5 +22,11 @@ public final class SeamNetwork {
             (message, context) ->
                 context.enqueueWork(() -> SeamSectionClient.accept(message))
         );
+        event.registrar("3").playToClient(
+            SeamChunkPayload.TYPE,
+            SeamChunkPayload.CODEC,
+            (message, context) ->
+                context.enqueueWork(() -> SeamClientWorldPool.acceptChunk(message))
+        );
     }
 }

@@ -94,6 +94,33 @@ public final class SeamClientWorldPool {
         }
     }
 
+    /**
+     * Feed canonical vanilla-format chunk packet content into the *remote*
+     * ClientChunkCache, never into the active player's chunk cache.
+     * This is real target dimension biome and block data, not placeholder art.
+     */
+    public static void acceptChunk(SeamChunkPayload message) {
+        hint(message.source(), message.target());
+        Minecraft mc = Minecraft.getInstance();
+        if (remote == null || mc.level == null ||
+            !mc.level.dimension().location().toString().equals(message.source()) ||
+            !target.equals(message.target())) return;
+        try {
+            var cache = remote.getChunkSource();
+            cache.updateViewCenter(message.chunkX(), message.chunkZ());
+            var data = message.data();
+            cache.replaceWithPacketData(message.chunkX(), message.chunkZ(),
+                data.getReadBuffer(), data.getHeightmaps(),
+                data.getBlockEntitiesTagsConsumer(
+                    message.chunkX(), message.chunkZ()
+                )
+            );
+        } catch (RuntimeException problem) {
+            LOG.warn("WorldSeam rejected redirected remote chunk {},{} in {}",
+                message.chunkX(), message.chunkZ(), message.target(), problem);
+        }
+    }
+
     public static boolean hasPrewarmed(String destination) {
         return remote != null && target.equals(destination);
     }
