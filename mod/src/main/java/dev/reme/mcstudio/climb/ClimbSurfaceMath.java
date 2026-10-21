@@ -78,6 +78,13 @@ public final class ClimbSurfaceMath {
         return travel.lengthSqr() > .001 && b.dot(travel.normalize()) < -.18;
     }
 
+    /** Jump direction is computed by the exact same pure helper used in JUnit. */
+    public static Vec3 wallJumpVelocity(Vec3 look, Vec3 surfaceNormal) {
+        double[] v = WallJumpMath.velocity(look.x, look.y, look.z,
+                surfaceNormal.x, surfaceNormal.z);
+        return new Vec3(v[0], v[1], v[2]);
+    }
+
     /** Never add normal-facing camera velocity to the next frame's motor impulse. */
     public static Vec3 motor(Vec3 previous, Vec3 wanted, Vec3 normal) {
         Vec3 old = clamp(tangent(previous, normal), MAX_RELATIVE_SPEED);

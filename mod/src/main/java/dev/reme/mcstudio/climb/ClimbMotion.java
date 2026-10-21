@@ -15,6 +15,8 @@ public final class ClimbMotion {
     public static void tick(Player player, ClimbState s) {
         if (s.lungeCooldown > 0) s.lungeCooldown--;
         if (s.faceSwitchCooldown > 0) s.faceSwitchCooldown--;
+        if (s.wallJumpCooldown > 0) s.wallJumpCooldown--;
+        if (s.airborneRegrabTicks > 0) s.airborneRegrabTicks--;
         if (player.isPassenger() || player.isSpectator() || !player.isAlive()
                 || player.getAbilities().flying) {
             s.peakHeld = false; s.release(); return;
@@ -32,6 +34,7 @@ public final class ClimbMotion {
             return;
         }
         if (s.mantleRequiresRelease) return;
+        if (!s.enabled && s.airborneRegrabTicks > 0) return;
 
         if (!s.enabled || s.left == null) {
             GripAnchor candidate = SurfaceProbe.trace(player);
@@ -42,6 +45,7 @@ public final class ClimbMotion {
             s.enabled = true;
             s.grabYaw = ClimbSurfaceMath.facingYaw(c.normal(), player.getYRot());
             s.lastLeft = c.point();
+            s.lastResolvedAnchor = candidate;
             s.contactPoint = c.point();
             s.contactNormal = c.normal().normalize();
             s.commandedVertical = 0;
@@ -57,21 +61,40 @@ public final class ClimbMotion {
         if (!Double.isFinite(normal.lengthSqr()) || normal.lengthSqr() < 0.8) {
             s.release(); return;
         }
+        // Jump while holding the wall: use the SERVER'S player look heading,
+        // release the current anchor and fly toward another aimable hold.  Space
+        // does not silently replace the existing SHIFT short lunge.
+        if (s.jumpRequested) {
+            s.jumpRequested = false;
+            if (s.wallJumpCooldown == 0 && !ClimbSurfaceMath.ceiling(normal)
+                    && !ClimbSurfaceMath.floor(normal)) {
+                Vec3 impulse = ClimbSurfaceMath.wallJumpVelocity(player.getLookAngle(), normal);
+                s.release();                 // keep peakHeld so a new wall may be caught
+                s.airborneRegrabTicks = 7;
+                s.wallJumpCooldown = 22;
+                player.setDeltaMovement(impulse);
+                player.fallDistance = 0;
+                player.hurtMarked = true;
+                return;
+            }
+        }
         // Only an unchanged moving Sable sub-level generates structure velocity.
         // Previous code added changes between unrelated block hit points, causing
         // enormous unexplained speed bursts near ledges and corners.
-        Vec3 platformDelta = s.hasContact
-                ? ClimbSurfaceMath.platformDelta(s.lastLeft, contact.point(), oldAnchor.dynamic())
+        Vec3 platformDelta = s.hasContact && oldAnchor.dynamic()
+                && oldAnchor.equals(s.lastResolvedAnchor)
+                ? ClimbSurfaceMath.platformDelta(s.lastLeft, contact.point(), true)
                 : Vec3.ZERO;
         float heading = s.grabYaw;
         Vec3 input = ClimbSurfaceMath.direction(normal, heading, s.forward, s.strafe);
         boolean moving = input.lengthSqr() > 0.0001;
 
-        if (moving && player.tickCount % 2 == 0) {
+        if (moving) {
             // Switching between surface families requires a ray against the
             // NEW face. A ray pointing only toward the old wall never detects
             // the ceiling underside or a side wall.
             GripAnchor probe = s.faceSwitchCooldown == 0
+                    && SurfaceProbe.nearFaceEdge(oldAnchor)
                     ? SurfaceProbe.traceTransition(player, contact, input) : null;
             boolean faceTransition = probe != null;
             if (probe == null) probe = SurfaceProbe.traceOffset(player, input.scale(.55), normal);
@@ -79,13 +102,13 @@ public final class ClimbMotion {
             if (PeakGripRules.mayGrab(player, probe)) {
                 GripAnchor.Contact next = probe.resolve(player.level());
                 if (next != null
-                        && next.point().distanceTo(contact.point()) <= MAX_REGRIP_JUMP
+                        && next.point().distanceTo(contact.point()) <= 1.74
                         && player.getEyePosition().distanceTo(next.point()) <= MAX_GRAB_REACH
                         && next.normal().normalize().dot(normal) >= -0.14) {
                     s.left = probe;
                     contact = next;
                     normal = next.normal().normalize();
-                    if (faceTransition) s.faceSwitchCooldown = 7;
+                    if (faceTransition) s.faceSwitchCooldown = 4;
                     s.grabYaw = ClimbSurfaceMath.facingYaw(normal, heading);
                     // CRITICAL: never add the new anchor-point displacement
                     // as Sable structure velocity or accumulated acceleration.
@@ -97,6 +120,7 @@ public final class ClimbMotion {
         s.contactPoint = contact.point();
         s.contactNormal = normal;
         s.lastLeft = contact.point();
+        s.lastResolvedAnchor = s.left;
         s.hasContact = true;
 
         // Mantling is a separate bounded state machine, not an upward impulse
