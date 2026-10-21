@@ -9,6 +9,7 @@ import net.minecraft.world.level.saveddata.SavedData;
 public final class SeamSettings extends SavedData {
     private boolean enabled;
     private boolean carveNewChunks;
+    private boolean experimentalNoRespawn;
 
     private SeamSettings() {
         enabled = false;
@@ -25,6 +26,7 @@ public final class SeamSettings extends SavedData {
         SeamSettings result = new SeamSettings();
         result.enabled = tag.getBoolean("enabled");
         result.carveNewChunks = tag.getBoolean("carveNewChunks");
+        result.experimentalNoRespawn = tag.getBoolean("experimentalNoRespawn");
         return result;
     }
 
@@ -33,6 +35,11 @@ public final class SeamSettings extends SavedData {
     }
 
     public boolean carveNewChunks() { return carveNewChunks; }
+    public boolean experimentalNoRespawn() { return experimentalNoRespawn; }
+
+    public void setExperimentalNoRespawn(boolean v) {
+        if (experimentalNoRespawn != v) { experimentalNoRespawn = v; setDirty(); }
+    }
 
     public void setCarveNewChunks(boolean next) {
         if (carveNewChunks != next) {
@@ -52,6 +59,7 @@ public final class SeamSettings extends SavedData {
     public CompoundTag save(CompoundTag tag, HolderLookup.Provider registries) {
         tag.putBoolean("enabled", enabled);
         tag.putBoolean("carveNewChunks", carveNewChunks);
+        tag.putBoolean("experimentalNoRespawn", experimentalNoRespawn);
         return tag;
     }
 }

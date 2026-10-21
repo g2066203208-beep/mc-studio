@@ -22,6 +22,10 @@ public final class SeamCommands {
                 .then(Commands.literal("disable")
                     .requires(src -> src.hasPermission(2))
                     .executes(ctx -> toggle(ctx, false)))
+                .then(Commands.literal("smooth")
+                    .requires(src -> src.hasPermission(2))
+                    .then(Commands.literal("enable").executes(ctx -> smooth(ctx,true)))
+                    .then(Commands.literal("disable").executes(ctx -> smooth(ctx,false))))
                 .then(Commands.literal("terrain")
                     .requires(src -> src.hasPermission(2))
                     .then(Commands.literal("enable").executes(ctx -> terrain(ctx,true)))
@@ -35,6 +39,7 @@ public final class SeamCommands {
         boolean enabled = config.enabled();
         src.sendSuccess(() -> Component.literal(
             "WorldSeam: " + (enabled ? "ON" : "OFF")
+                + " | experimental no-respawn: " + (config.experimentalNoRespawn() ? "ON" : "OFF")
                 + " | carve new chunks: " + (config.carveNewChunks() ? "ON" : "OFF")
                 + " | dimension edges: " + SeamGraph.LINKS.size()
                 + " | rendering: near-border snapshot prototype (not full world renderer)"
@@ -48,6 +53,17 @@ public final class SeamCommands {
         src.sendSuccess(() -> Component.literal(
             "WorldSeam " + (enabled ? "enabled" : "disabled")
                 + " for this saved world. Backup before experimental travel."
+        ), true);
+        return 1;
+    }
+
+    private static int smooth(CommandContext<CommandSourceStack> ctx, boolean v) {
+        var src = ctx.getSource();
+        SeamSettings.get(src.getServer()).setExperimentalNoRespawn(v);
+        src.sendSuccess(() -> Component.literal(
+            "EXPERIMENTAL WorldSeam direct no-respawn " + (v ? "ON" : "OFF")
+            + ". PRELOADING 9 CHUNKS REQUIRED. If unready, seam will block crossing."
+            + " Only use on a backed-up test world. Disable if instability occurs."
         ), true);
         return 1;
     }

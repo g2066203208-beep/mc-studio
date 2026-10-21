@@ -34,7 +34,7 @@ public final class SeamRuntimeGameTests {
             return;
         }
         var options = SeamSettings.get(server);
-        if (options.enabled() || options.carveNewChunks()) {
+        if (options.enabled() || options.carveNewChunks() || options.experimentalNoRespawn()) {
             helper.fail("WorldSeam or terrain carving started without explicit opt-in");
             return;
         }

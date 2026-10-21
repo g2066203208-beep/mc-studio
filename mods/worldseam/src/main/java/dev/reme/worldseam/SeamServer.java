@@ -43,6 +43,7 @@ public final class SeamServer {
         if (server != lastServer) {
             lastServer = server;
             lastCross.clear();
+            SeamReadiness.clear();
         }
         boolean enabled = SeamSettings.get(server).enabled();
         long tick = server.overworld().getGameTime();
@@ -92,8 +93,32 @@ public final class SeamServer {
                 // portals, chunk generator, or the player's inventory.
                 target.getChunkAt(arrival);
                 if (!SeamArrival.hasClearance(target, arrival, player)) break;
-                boolean success = player.teleportTo(target, player.getX(), nextY, player.getZ(),
-                    Set.of(), player.getYRot(), player.getXRot());
+                boolean useExperimental = SeamSettings.get(server).experimentalNoRespawn();
+                boolean ready = SeamReadiness.isReady(player.getUUID(),
+                    dim, link.target(), tick);
+                if (useExperimental && !ready) {
+                    // Never fall back to a loading screen when user explicitly
+                    // requested the no-respawn experiment.
+                    double holdY = link.exit() == SeamGraph.EdgeSide.TOP
+                        ? sourceBoundary - 0.75 : sourceBoundary + 0.75;
+                    player.connection.teleport(player.getX(), holdY,
+                        player.getZ(),player.getYRot(),player.getXRot());
+                    if (tick % 40 == 0) player.displayClientMessage(
+                        net.minecraft.network.chat.Component.literal(
+                            "WorldSeam: preparing remote native chunks (9 needed)"
+                        ), true);
+                    break;
+                }
+                boolean success;
+                if (useExperimental) {
+                    SeamDirectTransfer.move(player, target,
+                        new Vec3(player.getX(),nextY,player.getZ()),
+                        player.getYRot(),player.getXRot());
+                    success = true;
+                } else {
+                    success = player.teleportTo(target, player.getX(), nextY,
+                        player.getZ(), Set.of(), player.getYRot(), player.getXRot());
+                }
                 if (success) {
                     player.setDeltaMovement(previousVelocity);
                     player.fallDistance = previousFall;
@@ -137,13 +162,13 @@ public final class SeamServer {
             < COOLDOWN_TICKS) return;
         for (SeamGraph.Link link : SeamGraph.from(source.dimension().location().toString())) {
             if (!link.crossed(entity.getY(), source.getMinBuildHeight(),
-                source.getMaxBuildHeight())) continue;
+                SeamBounds.top(source))) continue;
             ServerLevel target = server.getLevel(dimensionKey(link.target()));
             if (target == null || !entity.canChangeDimensions(source, target)) return;
             double sourceBoundary = SeamGraph.boundaryY(link.exit(),
                 source.getMinBuildHeight(), source.getMaxBuildHeight());
             double targetBoundary = SeamGraph.boundaryY(link.entry(),
-                target.getMinBuildHeight(), target.getMaxBuildHeight());
+                target.getMinBuildHeight(), SeamBounds.top(target));
             double y = link.targetY(entity.getY(), sourceBoundary, targetBoundary);
             BlockPos dest = BlockPos.containing(entity.getX(), y, entity.getZ());
             if (!target.getWorldBorder().isWithinBounds(dest)) return;
