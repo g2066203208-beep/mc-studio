@@ -174,7 +174,7 @@ public final class SeamPreviewSender {
         int sourceBound = (int) SeamGraph.boundaryY(link.exit(),
             source.getMinBuildHeight(), SeamBounds.top(source));
         int targetBound = (int) SeamGraph.boundaryY(link.entry(),
-            target.getMinBuildHeight(), target.getMaxBuildHeight());
+            target.getMinBuildHeight(), SeamBounds.top(target));
         BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
         for (int x = cx - HORIZON_RADIUS; x <= cx + HORIZON_RADIUS; x++) {
             for (int z = cz - HORIZON_RADIUS; z <= cz + HORIZON_RADIUS; z++) {
