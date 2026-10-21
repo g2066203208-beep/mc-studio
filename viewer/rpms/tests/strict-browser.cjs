@@ -42,6 +42,14 @@ try{
  await page.locator('#jarInput').setInputFiles(path.join(__dirname,'fixture-simulated.jar'));
  await page.waitForFunction(()=>document.getElementById('jarStatus').textContent.includes('本地读取'),null,{timeout:30000});
  assert.ok((await page.locator('#jarStatus').textContent()).includes('种变体'));
+ assert.ok((await page.locator('#jarStatus').textContent()).includes('1 个嵌套组件'),'packaged Aeronautics inner mod must be scanned');
+ await page.evaluate(()=>{
+  const api=window.__STRICT_API__;api.reset();
+  api.place({id:'simulated:physics_assembler',pos:[0,1,0],axis:'y',facing:'north'});
+ });
+ await page.waitForFunction(()=>window.__STRICT_API__.getAssetStatus().some(x=>x.status==='partial'));
+ assert.ok((await page.evaluate(()=>window.__STRICT_API__.getAssetStatus()))[0].meshes>=6,
+  'Nested Simulated physical assembler JAR model should appear with explicit partial state warning');
  await page.evaluate(()=>window.__STRICT_API__.selectBlock('create:shaft'));
  await page.waitForFunction(()=>document.querySelectorAll('#statePreset option').length>=4);
  const options=await page.evaluate(()=>window.__STRICT_API__.getStateOptions('create:shaft'));
