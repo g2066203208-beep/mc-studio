@@ -1,93 +1,56 @@
 <!doctype html>
-<html lang="zh-CN">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="theme-color" content="#0a101b">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 64 64%27%3E%3Crect fill=%27%23111b27%27 width=%2764%27 height=%2764%27/%3E%3Ctext x=%2732%27 y=%2745%27 text-anchor=%27middle%27 font-size=%2748%27 fill=%27%23edb36d%27%3ER%3C/text%3E%3C/svg%3E">
-  <meta name="description" content="RPMS-Q12 四足真实机械设计原型交互 3D 实验室：13 个结构段、12 个关节、关节限位与步态运动学演示。">
-  <title>RPMS / Q12 · 3D 机械运动实验室 | MC Studio</title>
-  <link rel="stylesheet" href="./style.css">
-  <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/"}}</script>
-</head>
-<body>
-<div class="app">
-  <header class="topbar">
-    <a class="logo" href="../index.html"><span class="emblem">R<span>◆</span></span><span><strong>REME <em>ENGINEERING</em></strong><small>PHYSICAL MACHINERY SYSTEMS</small></span></a>
-    <div class="top-center"><span class="dash"></span> QUADRUPED SYSTEMS LAB <span class="dash"></span></div>
-    <div class="top-end"><a href="../index.html" class="navlink">车辆实验室 <span>↗</span></a><a class="pill" href="https://github.com/g2066203208-beep/mc-studio/pull/28" target="_blank" rel="noopener">DESIGN REVIEW ↗</a></div>
-  </header>
-  <aside class="control-panel">
-    <div class="side-head"><div class="eyebrow">01 — DESIGN CONFIGURATION</div><h1>RPMS–Q12</h1><p>模块化四足机械平台</p><div class="status-tag"><span class="pulse"></span><span>KINEMATICS / 设计预览</span></div></div>
-    <section class="pane-section">
-      <div class="section-heading"><h2>机器概览</h2><span class="mono">REV 0.1</span></div>
-      <div class="metrics"><div class="metric"><b id="rigidCount">13</b><span>独立结构段</span></div><div class="metric"><b id="jointCount">12</b><span>旋转自由度</span></div><div class="metric"><b id="footCount">04</b><span>接地脚掌</span></div><div class="metric"><b>3 DOF</b><span>每条腿</span></div></div>
-      <p class="fine-print">参数源自 <a href="https://github.com/g2066203208-beep/mc-studio/blob/design/physical-machinery-systems-engineering-v01/projects/physical-machinery/quad12.design.json" target="_blank" rel="noopener">Q12 机器配置 ↗</a>。比例为示意，尚未标定 Sable 的质量与扭矩。</p>
-    </section>
-    <section class="pane-section">
-      <div class="section-heading"><h2>运动实验</h2><span class="mono">SIM / 01</span></div>
-      <div class="segmented" id="modes">
-        <button type="button" data-mode="idle" class="active">站立</button>
-        <button type="button" data-mode="walk">慢速步态</button>
-        <button type="button" data-mode="single">单腿试验</button>
-        <button type="button" data-mode="manual">手动调姿</button>
-      </div>
-      <div class="field-title"><label for="legSelect">试验腿</label><span class="mono" id="legSubLabel">LF / LEFT FRONT</span></div>
-      <select id="legSelect"><option value="LF">左前腿 / LF</option><option value="RF">右前腿 / RF</option><option value="LR">左后腿 / LR</option><option value="RR">右后腿 / RR</option></select>
-      <div class="field-title"><label for="speed">预览速度</label><span id="speedValue" class="mono">1.0×</span></div>
-      <input id="speed" type="range" min="0.2" max="2" value="1" step="0.1">
-      <div class="button-row"><button id="play" type="button" class="primary">Ⅱ　暂停运动</button><button id="neutral" type="button">↺ 归零</button></div>
-      <p class="micro-note">预览展示关节角度随时间变化；不是 Sable 物理求解，也不代表机器人已经能够自立行走。</p>
-    </section>
-    <section class="pane-section">
-      <div class="section-heading"><h2>工程视图</h2><span class="mono">DISPLAY</span></div>
-      <div class="switch-row"><span>刚体分离视图</span><label class="switch"><input type="checkbox" id="explode"><span></span></label></div>
-      <div class="switch-row"><span>关节轴 / 基准线</span><label class="switch"><input type="checkbox" id="axes" checked><span></span></label></div>
-      <div class="switch-row"><span>足底接触标识</span><label class="switch"><input type="checkbox" id="contacts" checked><span></span></label></div>
-      <div class="switch-row"><span>网格 / 线框</span><label class="switch"><input type="checkbox" id="wireframe"><span></span></label></div>
-      <div class="switch-row"><span>显示地面</span><label class="switch"><input type="checkbox" id="ground" checked><span></span></label></div>
-    </section>
-    <section class="pane-section source"><span class="eyebrow">SYSTEM ARCHITECTURE</span><p>每个刚体有独立的层级对象，3D 关节驱动相应子结构旋转。可为后续 Sable 物理关节实现提供形体、坐标和交互基线。</p><a href="https://github.com/g2066203208-beep/mc-studio/tree/design/physical-machinery-systems-engineering-v01/docs/physical-machinery" target="_blank" rel="noopener">查看完整工程设计文档 ↗</a></section>
-  </aside>
-  <main class="viewport" id="stage">
-    <canvas id="scene" aria-label="交互式四足机械三维模型，可拖动旋转，点击关节查看"></canvas>
-    <div class="viewport-head">
-      <div><div class="eyebrow">DIGITAL ASSEMBLY TWIN / 01</div><h2>QUADRUPED MECHANICAL PLATFORM</h2><p>程序化真实 3D 几何 · 独立刚体层级 · 可调 12 轴运动学</p></div>
-      <div class="view-modes"><button type="button" data-view="iso" class="active">3/4</button><button type="button" data-view="side">侧视</button><button type="button" data-view="front">前视</button><button type="button" data-view="top">俯视</button><button type="button" id="capture" aria-label="保存网页三维截图">↧ 截图</button></div>
-    </div>
-    <div class="model-watermark">RPMS<span> / </span>Q12<span> — </span>REV.01</div>
-    <div class="viewport-bottom">
-      <div class="help"><b>操作</b>　鼠标左键旋转 · 滚轮缩放 · 右键平移<br>点击机器人关节或在右侧列表选中 · 手机触屏也能操作</div>
-      <div class="live-readout"><span class="live-dot"></span><span id="runtimeStatus">正在加载三维引擎…</span><small id="fps">— FPS</small></div>
-    </div>
-    <div class="loadscreen" id="loadscreen"><div class="loading-ring"></div><strong id="loadingTitle">正在生成机械结构…</strong><p>构建主躯体、四组机械腿和 12 条关节旋转轴</p></div>
-  </main>
-  <aside class="inspector">
-    <div class="inspector-head"><span class="eyebrow">02 — LIVE INSPECTOR</span><h2>机构检视</h2><p>点选关节查看设计限位和当前角度</p></div>
-    <section class="pane-section inspector-section">
-      <div class="section-heading"><h3>选中关节</h3><span class="mono">12 AXES</span></div>
-      <div class="joint-grid" id="jointList" role="group" aria-label="十二个旋转关节"></div>
-    </section>
-    <section class="pane-section selection-panel">
-      <div class="selection-head"><div class="eyebrow" id="selectedLeg">LEFT FRONT / LF</div><h3 id="selectedJoint">LF.HFE</h3><p id="selectedDescription">髋俯仰关节 · HIP FLEXION</p></div>
-      <div class="readout-angle"><strong id="actualAngle">−18.0°</strong><span>预览角度 <small>/ 非实测</small></span></div>
-      <div class="bar-track"><div class="bar-fill" id="angleFill"></div></div>
-      <div class="limits"><span id="minAngle">−50° MIN</span><span id="maxAngle">+60° MAX</span></div>
-      <div class="field-title"><label for="jointSlider">目标角度 / 手动调姿</label><span id="targetAngle" class="mono">−18°</span></div>
-      <input id="jointSlider" type="range" min="-50" max="60" step="1" value="-18">
-      <div class="detail-grid"><div><span>连接</span><b id="partNames">BODY → UPPER</b></div><div><span>机械轴向</span><b id="axisName">+X · 旋转</b></div><div><span>物理驱动</span><b class="warning">待接入 Sable</b></div><div><span>模型结构</span><b class="okay">可检视</b></div></div>
-    </section>
-    <section class="pane-section">
-      <div class="section-heading"><h3>系统诊断</h3><span class="mono">ENGINEERING</span></div>
-      <div class="diagnostic"><span>关节约束图</span><b class="okay">13 段 / 12 轴</b></div>
-      <div class="diagnostic"><span>3D 运动学</span><b class="okay" id="kinematicState">已加载</b></div>
-      <div class="diagnostic"><span>实际 Sable 力矩</span><b class="warning">未标定</b></div>
-      <div class="diagnostic"><span>真实脚底接触</span><b class="warning">未接入</b></div>
-      <div class="diagnostic"><span>自主站立/行走</span><b class="warning">未验收</b></div>
-    </section>
-    <div class="inspector-footer"><strong>注意</strong><p>这是真正能旋转和运动的 Three.js 三维机械<strong>可视化原型</strong>，不是 Minecraft 游戏实例或经物理模拟的机器人。正式伺服控制与足底受力属于 G1–G4 后续开发。</p></div>
-  </aside>
-</div>
-<script type="module" src="./app.js"></script>
-</body>
-</html>
+<html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RPMS · Aeronautics 实际方块装配台</title>
+<meta name="description" content="由 Minecraft Create Aeronautics 真实方块 ID 构成的四足机装配预览。可从用户本地 Mod JAR 解析原版方块网格与贴图。">
+<link rel="stylesheet" href="./blocks.css">
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/"}}</script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js" defer></script>
+</head><body>
+<div class="shell">
+<header><a href="../index.html" class="brand">REME<span> / AERO ASSEMBLY</span></a><div class="breadcrumb">MC STUDIO <span>→</span> PHYSICAL MACHINERY <span>→</span> Q12</div><a class="head-link" href="./concept.html">旧版自制模型（概念） ↗</a></header>
+<aside class="left">
+  <div class="overline">PROJECT / RPMS–Q12</div><h1>真实方块<br><em>机械装配台</em></h1>
+  <p class="dim">以航空学真实注册方块为基础，展示分段刚体、轴承位置、传动和传感器布局。不再用自制装饰轴承冒充 Mod 方块。</p>
+  <div class="flag"><span class="dot"></span><b>方块装配预览</b><span>非游戏物理运行</span></div>
+  <section><h2>① 原版方块资源</h2>
+    <div class="info">网页不打包航空学受版权保护的模型与贴图。导入你自己的航空学 JAR 后，从里面读取真正的 <code>blockstates / models / textures</code>。</div>
+    <label class="upload" for="jars"><span>⬆</span> 导入航空学 / Create JAR 文件</label><input type="file" id="jars" accept=".jar,.zip" multiple hidden>
+    <div id="assetStatus" class="mini-status">未导入 · 以醒目的方块占位结构显示</div>
+    <button id="clearJars" class="thin">清除本地 Mod 资源</button>
+    <p class="fine">资源仅在浏览器本地解压、渲染，不上传服务器。优先选择同版本航空学（Simulated）JAR；如需完整贴图可再导入 Create 的 JAR。</p>
+  </section>
+  <section><h2>② 装配显示</h2>
+    <div class="btn-grid"><button data-mode="assembly" class="active">整机装配</button><button data-mode="explode">分段查看</button><button data-mode="gait">关节运动</button><button data-mode="inspect">静止检查</button></div>
+    <label class="check"><input type="checkbox" id="showLabels" checked> 显示部件与方块 ID</label>
+    <label class="check"><input type="checkbox" id="showGrid" checked> 地面网格</label>
+    <label class="check"><input type="checkbox" id="showAxes" checked> 实际关节轴线位置</label>
+    <div class="field"><span>运动速度</span><b id="speedLabel">1.0×</b></div><input type="range" id="speed" min=".2" max="2" step=".1" value="1">
+    <div class="buttons"><button id="pause">Ⅱ 暂停</button><button id="reset">↺ 归零</button></div>
+  </section>
+  <section><h2>③ 施工蓝图</h2>
+    <div class="stats"><div><strong id="pieceCount">—</strong><small>方块位置</small></div><div><strong>12</strong><small>轴承/关节</small></div><div><strong>13</strong><small>刚体段</small></div></div>
+    <button class="export" id="export">导出逐块装配清单（JSON） ↧</button>
+    <div class="info warn">这是<strong>可审核的预装配方案</strong>，还不是能直接粘贴运行的 Sable 飞船结构。轴承的组装顺序、胶合范围、供能连通性和多刚体负载仍需游戏内验证。</div>
+  </section>
+  <a class="source" href="https://github.com/Creators-of-Aeronautics/Simulated-Project" target="_blank" rel="noopener">航空学官方方块与模型源码 ↗</a>
+</aside>
+<main class="stage" id="stage"><canvas id="canvas" aria-label="从实际 Aeronautics 方块 ID 构成的交互式三维机械装配视图"></canvas>
+ <div class="upper"><div><div class="overline">BLOCK ASSEMBLY BLUEPRINT / Q12</div><h2>MINECRAFT × AERONAUTICS</h2><p>方块位置与身份真实登记 · 原版模型仅从本地 JAR 加载</p></div><div class="views"><button data-view="iso" class="active">3/4</button><button data-view="side">侧</button><button data-view="front">前</button><button data-view="top">顶</button></div></div>
+ <div class="bottom"><div>拖动旋转 · 滚轮缩放 · 点击方块查看身份<br>橙色关节 = <code>simulated:swivel_bearing</code></div><div id="runtime" class="runtime">初始化 Three.js …</div></div>
+ <div id="loading" class="loading">正在构建真实方块装配清单 …</div>
+</main>
+<aside class="right">
+  <div class="overline">BLOCK INSPECTOR</div><h2>逐块核查</h2>
+  <div id="selection" class="chosen"><span>点击模型中的任意方块</span></div>
+  <section><h3>真实航空学组件</h3><div id="catalog"></div></section>
+  <section><h3>四足关节树</h3><div id="joints" class="joints"></div></section>
+  <section><h3>测试及缺失功能</h3>
+    <div class="diag"><span>方块 ID / 分区</span><b class="ok">已定义</b></div>
+    <div class="diag"><span>原版 JAR 模型/贴图</span><b id="modelState" class="wait">未导入</b></div>
+    <div class="diag"><span>真实装配连通</span><b class="wait">待游戏检验</b></div>
+    <div class="diag"><span>Sable 物理载重</span><b class="wait">未验证</b></div>
+    <div class="diag"><span>四足独立站立</span><b class="wait">未实现</b></div>
+  </section>
+  <p class="footer-note">来源与状态真实标记：这是原版方块 ID 对应的装配概念；装入原版 JAR 才使用其真实纹理和模型。没有把网页动画伪称航空学内的真实物理步行。</p>
+</aside>
+</div><script type="module" src="./blocks.js"></script></body></html>

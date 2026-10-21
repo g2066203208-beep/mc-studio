@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#0a101b">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 64 64%27%3E%3Crect fill=%27%23111b27%27 width=%2764%27 height=%2764%27/%3E%3Ctext x=%2732%27 y=%2745%27 text-anchor=%27middle%27 font-size=%2748%27 fill=%27%23edb36d%27%3ER%3C/text%3E%3C/svg%3E">
+  <meta name="description" content="RPMS-Q12 四足真实机械设计原型交互 3D 实验室：13 个结构段、12 个关节、关节限位与步态运动学演示。">
+  <title>RPMS / Q12 · 3D 机械运动实验室 | MC Studio</title>
+  <link rel="stylesheet" href="./style.css">
+  <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/"}}</script>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <a class="logo" href="../index.html"><span class="emblem">R<span>◆</span></span><span><strong>REME <em>ENGINEERING</em></strong><small>PHYSICAL MACHINERY SYSTEMS</small></span></a>
+    <div class="top-center"><span class="dash"></span> QUADRUPED SYSTEMS LAB <span class="dash"></span></div>
+    <div class="top-end"><a href="../index.html" class="navlink">车辆实验室 <span>↗</span></a><a class="pill" href="https://github.com/g2066203208-beep/mc-studio/pull/28" target="_blank" rel="noopener">DESIGN REVIEW ↗</a></div>
+  </header>
+  <aside class="control-panel">
+    <div class="side-head"><div class="eyebrow">01 — DESIGN CONFIGURATION</div><h1>RPMS–Q12</h1><p>模块化四足机械平台</p><div class="status-tag"><span class="pulse"></span><span>KINEMATICS / 设计预览</span></div></div>
+    <section class="pane-section">
+      <div class="section-heading"><h2>机器概览</h2><span class="mono">REV 0.1</span></div>
+      <div class="metrics"><div class="metric"><b id="rigidCount">13</b><span>独立结构段</span></div><div class="metric"><b id="jointCount">12</b><span>旋转自由度</span></div><div class="metric"><b id="footCount">04</b><span>接地脚掌</span></div><div class="metric"><b>3 DOF</b><span>每条腿</span></div></div>
+      <p class="fine-print">参数源自 <a href="https://github.com/g2066203208-beep/mc-studio/blob/design/physical-machinery-systems-engineering-v01/projects/physical-machinery/quad12.design.json" target="_blank" rel="noopener">Q12 机器配置 ↗</a>。比例为示意，尚未标定 Sable 的质量与扭矩。</p>
+    </section>
+    <section class="pane-section">
+      <div class="section-heading"><h2>运动实验</h2><span class="mono">SIM / 01</span></div>
+      <div class="segmented" id="modes">
+        <button type="button" data-mode="idle" class="active">站立</button>
+        <button type="button" data-mode="walk">慢速步态</button>
+        <button type="button" data-mode="single">单腿试验</button>
+        <button type="button" data-mode="manual">手动调姿</button>
+      </div>
+      <div class="field-title"><label for="legSelect">试验腿</label><span class="mono" id="legSubLabel">LF / LEFT FRONT</span></div>
+      <select id="legSelect"><option value="LF">左前腿 / LF</option><option value="RF">右前腿 / RF</option><option value="LR">左后腿 / LR</option><option value="RR">右后腿 / RR</option></select>
+      <div class="field-title"><label for="speed">预览速度</label><span id="speedValue" class="mono">1.0×</span></div>
+      <input id="speed" type="range" min="0.2" max="2" value="1" step="0.1">
+      <div class="button-row"><button id="play" type="button" class="primary">Ⅱ　暂停运动</button><button id="neutral" type="button">↺ 归零</button></div>
+      <p class="micro-note">预览展示关节角度随时间变化；不是 Sable 物理求解，也不代表机器人已经能够自立行走。</p>
+    </section>
+    <section class="pane-section">
+      <div class="section-heading"><h2>工程视图</h2><span class="mono">DISPLAY</span></div>
+      <div class="switch-row"><span>刚体分离视图</span><label class="switch"><input type="checkbox" id="explode"><span></span></label></div>
+      <div class="switch-row"><span>关节轴 / 基准线</span><label class="switch"><input type="checkbox" id="axes" checked><span></span></label></div>
+      <div class="switch-row"><span>足底接触标识</span><label class="switch"><input type="checkbox" id="contacts" checked><span></span></label></div>
+      <div class="switch-row"><span>网格 / 线框</span><label class="switch"><input type="checkbox" id="wireframe"><span></span></label></div>
+      <div class="switch-row"><span>显示地面</span><label class="switch"><input type="checkbox" id="ground" checked><span></span></label></div>
+    </section>
+    <section class="pane-section source"><span class="eyebrow">SYSTEM ARCHITECTURE</span><p>每个刚体有独立的层级对象，3D 关节驱动相应子结构旋转。可为后续 Sable 物理关节实现提供形体、坐标和交互基线。</p><a href="https://github.com/g2066203208-beep/mc-studio/tree/design/physical-machinery-systems-engineering-v01/docs/physical-machinery" target="_blank" rel="noopener">查看完整工程设计文档 ↗</a></section>
+  </aside>
+  <main class="viewport" id="stage">
+    <canvas id="scene" aria-label="交互式四足机械三维模型，可拖动旋转，点击关节查看"></canvas>
+    <div class="viewport-head">
+      <div><div class="eyebrow">DIGITAL ASSEMBLY TWIN / 01</div><h2>QUADRUPED MECHANICAL PLATFORM</h2><p>程序化真实 3D 几何 · 独立刚体层级 · 可调 12 轴运动学</p></div>
+      <div class="view-modes"><button type="button" data-view="iso" class="active">3/4</button><button type="button" data-view="side">侧视</button><button type="button" data-view="front">前视</button><button type="button" data-view="top">俯视</button><button type="button" id="capture" aria-label="保存网页三维截图">↧ 截图</button></div>
+    </div>
+    <div class="model-watermark">RPMS<span> / </span>Q12<span> — </span>REV.01</div>
+    <div class="viewport-bottom">
+      <div class="help"><b>操作</b>　鼠标左键旋转 · 滚轮缩放 · 右键平移<br>点击机器人关节或在右侧列表选中 · 手机触屏也能操作</div>
+      <div class="live-readout"><span class="live-dot"></span><span id="runtimeStatus">正在加载三维引擎…</span><small id="fps">— FPS</small></div>
+    </div>
+    <div class="loadscreen" id="loadscreen"><div class="loading-ring"></div><strong id="loadingTitle">正在生成机械结构…</strong><p>构建主躯体、四组机械腿和 12 条关节旋转轴</p></div>
+  </main>
+  <aside class="inspector">
+    <div class="inspector-head"><span class="eyebrow">02 — LIVE INSPECTOR</span><h2>机构检视</h2><p>点选关节查看设计限位和当前角度</p></div>
+    <section class="pane-section inspector-section">
+      <div class="section-heading"><h3>选中关节</h3><span class="mono">12 AXES</span></div>
+      <div class="joint-grid" id="jointList" role="group" aria-label="十二个旋转关节"></div>
+    </section>
+    <section class="pane-section selection-panel">
+      <div class="selection-head"><div class="eyebrow" id="selectedLeg">LEFT FRONT / LF</div><h3 id="selectedJoint">LF.HFE</h3><p id="selectedDescription">髋俯仰关节 · HIP FLEXION</p></div>
+      <div class="readout-angle"><strong id="actualAngle">−18.0°</strong><span>预览角度 <small>/ 非实测</small></span></div>
+      <div class="bar-track"><div class="bar-fill" id="angleFill"></div></div>
+      <div class="limits"><span id="minAngle">−50° MIN</span><span id="maxAngle">+60° MAX</span></div>
+      <div class="field-title"><label for="jointSlider">目标角度 / 手动调姿</label><span id="targetAngle" class="mono">−18°</span></div>
+      <input id="jointSlider" type="range" min="-50" max="60" step="1" value="-18">
+      <div class="detail-grid"><div><span>连接</span><b id="partNames">BODY → UPPER</b></div><div><span>机械轴向</span><b id="axisName">+X · 旋转</b></div><div><span>物理驱动</span><b class="warning">待接入 Sable</b></div><div><span>模型结构</span><b class="okay">可检视</b></div></div>
+    </section>
+    <section class="pane-section">
+      <div class="section-heading"><h3>系统诊断</h3><span class="mono">ENGINEERING</span></div>
+      <div class="diagnostic"><span>关节约束图</span><b class="okay">13 段 / 12 轴</b></div>
+      <div class="diagnostic"><span>3D 运动学</span><b class="okay" id="kinematicState">已加载</b></div>
+      <div class="diagnostic"><span>实际 Sable 力矩</span><b class="warning">未标定</b></div>
+      <div class="diagnostic"><span>真实脚底接触</span><b class="warning">未接入</b></div>
+      <div class="diagnostic"><span>自主站立/行走</span><b class="warning">未验收</b></div>
+    </section>
+    <div class="inspector-footer"><strong>注意</strong><p>这是真正能旋转和运动的 Three.js 三维机械<strong>可视化原型</strong>，不是 Minecraft 游戏实例或经物理模拟的机器人。正式伺服控制与足底受力属于 G1–G4 后续开发。</p></div>
+  </aside>
+</div>
+<script type="module" src="./app.js"></script>
+</body>
+</html>
