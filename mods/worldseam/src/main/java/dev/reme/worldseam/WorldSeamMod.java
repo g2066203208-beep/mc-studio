@@ -19,6 +19,8 @@ public final class WorldSeamMod {
             SeamPreviewClient.install();
             SeamSectionClient.install();
             SeamClientWorldPool.install();
+            SeamNativeGeometryClient.install();
+            SeamClientDiagnostic.install();
         }
         LogUtils.getLogger().info("WorldSeam standalone mod loaded; no climbing integration");
     }

@@ -50,6 +50,7 @@ public final class SeamClientWorldPool {
     private static boolean failed;
     private static int constructedCount;
     private static long lastReadySent = Long.MIN_VALUE / 2;
+    private static int receivedChunkCount;
 
     private SeamClientWorldPool() {}
 
@@ -144,6 +145,8 @@ public final class SeamClientWorldPool {
                         message.chunkX(), sy, message.chunkZ()
                     );
             }
+            receivedChunkCount++;
+            SeamNativeGeometryClient.onChunk(message,remote);
             maybeReportReady(mc);
         } catch (RuntimeException problem) {
             LOG.warn("WorldSeam rejected redirected remote chunk {},{} in {}",
@@ -261,6 +264,18 @@ public final class SeamClientWorldPool {
         return true;
     }
 
+    public static int receivedChunks() { return receivedChunkCount; }
+    public static int nearbyChunks() {
+        Minecraft mc=Minecraft.getInstance();
+        if (remote==null || mc.player==null || mc.level==null) return 0;
+        int cx=Math.floorDiv(mc.player.blockPosition().getX(),16);
+        int cz=Math.floorDiv(mc.player.blockPosition().getZ(),16);
+        int found=0;
+        for(int dx=-1;dx<=1;dx++)for(int dz=-1;dz<=1;dz++)
+            if(remote.getChunkSource().hasChunk(cx+dx,cz+dz))found++;
+        return found;
+    }
+
     public static boolean hasPrewarmed(String destination) {
         return remote != null && target.equals(destination);
     }
@@ -290,6 +305,8 @@ public final class SeamClientWorldPool {
         source = "";
         target = "";
         failed = false;
+        receivedChunkCount=0;
         lastReadySent = Long.MIN_VALUE / 2;
+        SeamNativeGeometryClient.reset();
     }
 }
