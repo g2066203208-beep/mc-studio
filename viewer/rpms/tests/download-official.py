@@ -68,5 +68,15 @@ record={'minecraft':'1.21.1','neoforge':True,'mods':[
     download_version('create','6.0.10','create-1.21.1.jar'),
     download_version('create-aeronautics','1.3.2','aeronautics-1.21.1.jar')],
     'client':download_minecraft_client()}
+# Diagnose packed child JARs and resource namespaces, without emitting asset bytes.
+import zipfile
+for mod in record['mods']:
+    with zipfile.ZipFile(mod['filename']) as archive:
+        entries=archive.namelist()
+        nested=[p for p in entries if p.lower().endswith('.jar')]
+        assets=[p for p in entries if p.startswith('assets/') and '/blockstates/' in p and p.endswith('.json')]
+        namespaces=sorted({p.split('/')[1] for p in assets})
+        print('OFFICIAL JAR INVENTORY',mod['slug'],'entries',len(entries),'blockstates',len(assets),
+          'namespaces',namespaces,'nested_jars',nested[:50],flush=True)
 (OUT/'versions.json').write_text(json.dumps(record,indent=2),encoding='utf-8')
 print('OFFICIAL_MOD_DIR='+str(OUT),flush=True)
