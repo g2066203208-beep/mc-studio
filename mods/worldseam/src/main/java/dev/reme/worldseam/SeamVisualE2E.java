@@ -37,6 +37,8 @@ public final class SeamVisualE2E {
     private static boolean liveChangeStarted;
     private static boolean liveChangeVerified;
     private static boolean stableBaselineTaken;
+    private static boolean crossTntSpawned;
+    private static boolean crossTntVerified;
     private static volatile int witnessX, witnessZ;
     private static long stableFetches = -1;
     private static long stablePackets = -1;
@@ -167,6 +169,37 @@ public final class SeamVisualE2E {
                     LOG.info("WORLDSEAM_E2E_REVERSE_STAGE: hovering inside Nether below Y128, looking UP");
                 } else LOG.error("WORLDSEAM_E2E_FAIL_SERVER: did not migrate player");
             });
+        } else if (phase==4 && !crossTntSpawned && now-startTick>830) {
+            crossTntSpawned=true;
+            server.execute(() -> {
+                var nether=server.getLevel(Level.NETHER);
+                var overworld=server.getLevel(Level.OVERWORLD);
+                BlockPos witness=new BlockPos(witnessX+1,-64,witnessZ);
+                if(nether==null || overworld==null ||
+                    nether.getBlockState(new BlockPos(witnessX,127,witnessZ)).getBlock()!=Blocks.AIR ||
+                    overworld.getBlockState(witness).getBlock()!=Blocks.GLASS) {
+                    LOG.error("WORLDSEAM_E2E_FAIL_CROSS_TNT_SETUP: roof aperture or real Overworld witness missing");
+                    return;
+                }
+                var tnt=new net.minecraft.world.entity.item.PrimedTnt(
+                    nether,witnessX+0.5,126.75,witnessZ+0.5,null);
+                tnt.setFuse(8);
+                if(!nether.addFreshEntity(tnt)) {
+                    LOG.error("WORLDSEAM_E2E_FAIL_CROSS_TNT_SPAWN: true PrimedTnt not added to Nether");
+                    return;
+                }
+                LOG.info("WORLDSEAM_E2E_CROSS_TNT_SPAWN: real vanilla PrimedTnt with fuse 8 in Nether near Y128");
+            });
+        } else if (phase==4 && !crossTntVerified && now-startTick>930) {
+            crossTntVerified=true;
+            server.execute(() -> {
+                var over=server.getLevel(Level.OVERWORLD);
+                var witness=new BlockPos(witnessX+1,-64,witnessZ);
+                if(over!=null && over.getBlockState(witness).isAir())
+                    LOG.info("WORLDSEAM_E2E_PASS_CROSS_TNT: native Nether PrimedTnt blast destroyed real Overworld floor glass, no teleport used");
+                else
+                    LOG.error("WORLDSEAM_E2E_FAIL_CROSS_TNT: actual Nether TNT did not destroy remote Overworld glass");
+            });
         } else if (phase==4 && now-startTick>975) {
             phase=5;
             server.execute(() -> attemptReverse(server,playerId));
@@ -276,6 +309,7 @@ public final class SeamVisualE2E {
         cfg.setEnabled(true);
         cfg.setExperimentalNoRespawn(true);
         cfg.setCarveNewChunks(true);
+        cfg.setCrossSeamExplosions(true); // real TNT only in disposable CI world
         int x=player.blockPosition().getX();
         int z=player.blockPosition().getZ();
         witnessX=x;
@@ -345,6 +379,11 @@ public final class SeamVisualE2E {
             LOG.error("WORLDSEAM_E2E_FAIL_GEOMETRY: test shaft or remote-only marker not built");
             return;
         }
+        // A real Overworld-owned block at its Y=-64 floor. The Nether
+        // TNT fuse must destroy THIS block after player crosses to Nether.
+        var crossTntWitness=new BlockPos(x+1,-64,z);
+        overworld.setBlock(crossTntWitness,Blocks.GLASS.defaultBlockState(),3);
+        LOG.info("WORLDSEAM_E2E_CROSS_TNT_WITNESS: Overworld glass at {} must be destroyed by real Nether TNT",crossTntWitness);
         LOG.info("WORLDSEAM_E2E_GEOMETRY: opened local deepslate shaft={} blocks, Nether roof={} blocks, target-only magenta/glowstone markers={}, player view Overworld -61 toward mapped Nether Y127",
             excavated,netherOpened,markers);
         player.setGameMode(GameType.CREATIVE);
