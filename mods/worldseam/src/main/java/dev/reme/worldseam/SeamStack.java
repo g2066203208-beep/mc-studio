@@ -82,7 +82,7 @@ public record SeamStack(List<Entry> entries, boolean loop) {
         var links=new ArrayList<SeamGraph.Link>();
         for(int i=0;i<entries.size()-1;i++)
             connect(links,entries.get(i),entries.get(i+1));
-        if(loop && entries.size()>2)
+        if(loop && entries.size()>1)
             connect(links,entries.get(entries.size()-1),entries.get(0));
         return List.copyOf(links);
     }

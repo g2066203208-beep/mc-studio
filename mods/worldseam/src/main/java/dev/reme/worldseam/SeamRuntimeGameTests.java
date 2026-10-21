@@ -74,6 +74,21 @@ public final class SeamRuntimeGameTests {
             options.setExperimentalNoRespawn(false);
             options.setCarveNewChunks(false);
         }
+        var preset=new SeamStack(java.util.List.of(
+            new SeamStack.Entry("minecraft:the_end",null,null,true,true),
+            new SeamStack.Entry("minecraft:overworld",-64,290,true,true),
+            new SeamStack.Entry("minecraft:the_nether",null,128,true,true)
+        ),false);
+        if (!SeamStack.read(preset.save()).equals(preset)) {
+            helper.fail("WorldSeam NBT persistence fails to retain ordered stack/Y overrides");
+            return;
+        }
+        try {
+            preset.validate(server);
+        } catch(IllegalArgumentException ex) {
+            helper.fail("WorldSeam vanilla stack runtime validation failed: "+ex.getMessage());
+            return;
+        }
         helper.succeed();
     }
 }

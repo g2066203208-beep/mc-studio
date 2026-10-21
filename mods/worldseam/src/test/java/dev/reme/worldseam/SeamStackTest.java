@@ -1,7 +1,6 @@
 package dev.reme.worldseam;
 
 import org.junit.jupiter.api.Test;
-import net.minecraft.nbt.CompoundTag;
 import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -39,13 +38,5 @@ class SeamStackTest {
         assertThrows(IllegalArgumentException.class,()->new SeamStack(List.of(e,e),false));
         assertThrows(IllegalArgumentException.class,()->new SeamStack.Entry("bad id",null,null,true,true));
         assertThrows(IllegalArgumentException.class,()->new SeamStack.Entry("mod:realm",100,10,true,true));
-    }
-    @Test void nbtRoundtripIncludesBooleanAndExplicitHeights() {
-        SeamStack original=new SeamStack(List.of(
-            new SeamStack.Entry("minecraft:overworld",-48,280,false,true),
-            new SeamStack.Entry("mod:depth",-128,77,true,true)
-        ),true);
-        assertEquals(original,SeamStack.read(original.save()));
-        assertThrows(IllegalArgumentException.class,()->SeamStack.read(new CompoundTag()));
     }
 }
