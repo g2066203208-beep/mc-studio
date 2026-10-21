@@ -48,3 +48,7 @@ MC 1.21.1 / NeoForge 21.1.248 / Java 21。项目 PR #18。
 `SeamSectionCodec` (纯 Java) → `SeamSectionSender` (ServerLevel / ChunkSection) → `SeamSectionPayload` (自定义有界二进制协议) → `SeamSectionCache` (维度和视域隔离、LRU) → `SeamSectionClient` (区块段可见模型缓存与按视锥绘制)。该通路不会伪装成当前 ClientLevel 的正常 Chunk packet，也不会加载第三方门户代码。未来真正完整实现需替换最终的逐块模型渲染端并加入多 ClientLevel 及跨帧切换。
 
 独立的 `SeamBounds` 提供 Nether 上接缝 Y=128，`SeamTerrain` 只在管理员显式允许且是新生成区块时改动主世界底部 / 下界屋顶的基岩。ChunkEvent.Load 的上游文档明确提醒：回调可能发生在区块转为 FULL 之前，禁止在这里执行额外世界加载；实现只直接修改事件提供的 ChunkAccess。
+
+## 实际运行证据
+
+2026-10-21 在 GitHub Actions 中的 NeoForge `runGameTestServer` 实际启动、运行并通过 1/1 测试。详情在 [TEST_EVIDENCE.md](TEST_EVIDENCE.md)。不应将它扩大解释为客户端无缝穿越、整合包兼容或 GPU 渲染完成。

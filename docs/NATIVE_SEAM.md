@@ -64,3 +64,7 @@
 - **新 JUnit 用例**：调色板字宽边界、4096 状态往返、非法包结构、缓存过期版本/错维度/清理/LRU 上限、Y128 和新生成地形范围。
 
 **尚未完成：** 替代原版客户端单维度活动 `ClientLevel` 的多维世界切换；平面深度遮挡/完整流体/远端实体的原生 Chunk Renderer；彻底取消原版 Respawn 换维造成的重建画面；新旧区块拼接、Sable 刚体和实际客户端验收。编译通过不能代表已无缝游玩。
+
+## 实际自动化运行测试
+
+[Build](https://github.com/g2066203208-beep/mc-studio/actions/runs/39528162343) 成功；[NeoForge GameTest Server](https://github.com/g2066203208-beep/mc-studio/actions/runs/39528162363) 启动后通过 1/1 测试并正常退出。只验服务器初始化/原版三个维度/接缝拓扑及默认安全开关，不代表图形客户端的画面无缝。参见 `docs/TEST_EVIDENCE.md`。

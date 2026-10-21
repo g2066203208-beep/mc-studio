@@ -52,3 +52,5 @@ Gradle 报告使用了将来不兼容 Gradle 10 的弃用功能；当前固定 W
 ## 2026-10-21 · Native Seam v0.5.0-dev
 
 新增自研区块段 Palette 位打包及客户端维度隔离缓存、按已加载区块预算同步，实体 Tick 事件驱动、Y128 地狱基岩接缝和可单独开启的新生成区块基岩开孔。编译和自动测试结论以本分支最终 CI 为准；**无实际客户端/服务端跑图测试，不宣称已实现视觉无黑屏穿越**。
+
+- 2026-10-21：新增真实 NeoForge GameTest 服务器测试，并且在 [Actions 39528162363](https://github.com/g2066203208-beep/mc-studio/actions/runs/39528162363) 获得 1/1 required game tests passed；Build [39528162343](https://github.com/g2066203208-beep/mc-studio/actions/runs/39528162343) 成功。详细内容见 [TEST_EVIDENCE.md](TEST_EVIDENCE.md)。仍未验证图形客户端和无黑屏跨维。
