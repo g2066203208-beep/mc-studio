@@ -144,36 +144,11 @@ public final class SeamChunkSender {
             (session.lastSent.size()<OFFSETS.length?5:INTERVAL);
         if(tick%cadence!=0)return;
 
-        // THREE strict, bounded priority classes:
-        // 0. NEVER-SENT chunks (first guarantee a complete 5x5 target);
-        // 1. changed chunks with 20-tick coalescing;
-        // 2. expired 1200-tick periodic refreshes.
-        // The previous single-pass algorithm let one constantly-changing
-        // near-center chunk starve the unsent 25th outer-ring chunk.
-        int slot=-1,cx=0,cz=0;
-        long key=0L;
-        search:
-        for(int priority=0;priority<3;priority++) {
-            for(int i=0;i<OFFSETS.length;i++) {
-                int candidateX=centerX+OFFSETS[i][0],
-                    candidateZ=centerZ+OFFSETS[i][1];
-                long candidate=((long)candidateX<<32)|(candidateZ&0xffffffffL);
-                Long previous=session.lastSent.get(candidate);
-                boolean unseen=previous==null;
-                boolean changed=!unseen && session.dirty.contains(candidate)
-                    && tick-previous>=DIRTY_COOLDOWN;
-                boolean expired=!unseen && !changed &&
-                    tick-previous>=REFRESH_TICKS;
-                if(priority==0&&!unseen || priority==1&&!changed ||
-                   priority==2&&!expired)continue;
-                slot=i;
-                cx=candidateX;
-                cz=candidateZ;
-                key=candidate;
-                break search;
-            }
-        }
-        if(slot<0)return; // warm and stable: ZERO getChunk(), ZERO packets
+        int slot=SeamChunkPriority.chooseSlot(centerX,centerZ,OFFSETS,
+            session.lastSent,session.dirty,tick,REFRESH_TICKS,DIRTY_COOLDOWN);
+        if(slot<0)return; // ALL targets still resident/fresh
+        int cx=centerX+OFFSETS[slot][0],cz=centerZ+OFFSETS[slot][1];
+        long key=((long)cx<<32)|(cz&0xffffffffL);
 
         // A controlled, bounded one-chunk fetch occurs only for unsent/stale
         // data. Temporary residency keeps the remaining chunks loaded.
