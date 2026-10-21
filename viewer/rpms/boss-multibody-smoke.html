@@ -1,0 +1,5 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>Rapier 13 Body Servo Acceptance</title><script type="importmap">{"imports":{"@dimforge/rapier3d-compat":"https://cdn.jsdelivr.net/npm/@dimforge/rapier3d-compat@0.17.3/rapier.es.js"}}</script></head><body><h1>Real revolute joint test harness (no graphics)</h1><script type="module">
+import RAPIER from '@dimforge/rapier3d-compat';
+import {createMultibodyBoss} from './boss-multibody.mjs';
+try{await RAPIER.init();const rig=createMultibodyBoss(RAPIER);window.__MULTIBODY_RIG__=rig;window.__MULTIBODY_READY__=true;document.body.dataset.ready="true";}catch(e){console.error(e);window.__MULTIBODY_ERROR__=String(e.stack||e);document.body.dataset.error=window.__MULTIBODY_ERROR__;}
+</script></body></html>

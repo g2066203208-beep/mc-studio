@@ -1,0 +1,21 @@
+.workshop{grid-template-columns:minmax(255px,285px) minmax(540px,1fr) minmax(225px,255px)}
+.sidebar h1{font-size:37px;letter-spacing:.5px}
+.sidebar .lead{line-height:1.8}.sidebar .lead strong{color:#eaca9d}
+.canvas-wrap{min-height:600px;max-height:calc(100vh - 290px)}
+.mode-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.mode-grid .action{padding:12px 8px;margin:0;justify-content:center;text-align:center;font-weight:700;min-height:44px;font-size:11px}
+.mode-grid .action.active{border-color:#d8ab66;color:#ffe3b0;background:#4b4030;box-shadow:inset 0 0 0 1px #947347}
+.motor-controls{padding:13px 12px 9px;margin:13px 0;border:1px solid #4a6370;border-radius:6px;background:linear-gradient(135deg,#1e3b48,#172b35)}
+.motor-controls label{display:flex;justify-content:space-between;gap:7px;color:#a5c3ce;font-size:11px;margin:8px 0 4px}
+.motor-controls strong{color:#e9bc82;font:700 12px ui-monospace,monospace}
+.motor-controls input{width:100%;accent-color:#dcb16e;cursor:pointer}
+.mechanics-catalog{margin-top:10px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.mechanics-catalog>div{padding:12px;border:1px solid #426374;background:#162f3a;border-radius:5px}
+.mechanics-catalog strong,.mechanics-catalog span{display:block}
+.mechanics-catalog strong{font-size:11px;color:#e4b67d}
+.mechanics-catalog span{font-size:10px;color:#a3bcc7;margin-top:4px}
+.model-provenance{font-size:10px;line-height:1.6;padding:10px 13px;border-left:3px solid #4f8b85;background:#1c343f;color:#c7dbdf;margin:10px 0 0}
+.metric strong{color:#ebc286}.telemetry .metric.large strong{color:#8dd3bd}
+#liveBadge.error{color:#ffc0ad}
+@media(max-width:1240px){.workshop{grid-template-columns:minmax(230px,260px) minmax(420px,1fr)}.telemetry{grid-template-columns:repeat(4,minmax(0,1fr))}.canvas-wrap{min-height:530px;max-height:none}}
+@media(max-width:740px){.workshop{display:flex;flex-direction:column}.sidebar{order:2}.stage{order:1}.telemetry{order:3;grid-template-columns:1fr 1fr}.canvas-wrap{height:480px;min-height:480px;max-height:480px}.mechanics-catalog{grid-template-columns:1fr;gap:4px}.mode-grid{grid-template-columns:1fr 1fr}.sidebar h1{font-size:28px}}

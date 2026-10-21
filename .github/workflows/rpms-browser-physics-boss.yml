@@ -4,12 +4,14 @@ on:
     paths:
       - 'viewer/rpms/boss*'
       - 'viewer/rpms/tests/boss-browser-physics.cjs'
+      - 'viewer/rpms/tests/boss-multibody-browser.cjs'
       - 'viewer/rpms/index.html'
       - '.github/workflows/rpms-browser-physics-boss.yml'
   pull_request:
     paths:
       - 'viewer/rpms/boss*'
       - 'viewer/rpms/tests/boss-browser-physics.cjs'
+      - 'viewer/rpms/tests/boss-multibody-browser.cjs'
       - 'viewer/rpms/index.html'
       - '.github/workflows/rpms-browser-physics-boss.yml'
   workflow_dispatch:
@@ -27,6 +29,8 @@ jobs:
       - name: Compile JS and check source for NO anti-gravity shortcuts
         run: |
           node --check viewer/rpms/boss-physics.mjs
+          node --check viewer/rpms/boss-multibody.mjs
+          node --check viewer/rpms/tests/boss-multibody-browser.cjs
           node --check viewer/rpms/boss.js
           node --check viewer/rpms/tests/boss-browser-physics.cjs
           python3 - <<'PY'
@@ -48,6 +52,7 @@ jobs:
         run: |
           python3 -m http.server 8033 --directory viewer >/tmp/rpms-boss-http.log 2>&1 &
           node viewer/rpms/tests/boss-browser-physics.cjs
+          node viewer/rpms/tests/boss-multibody-browser.cjs
       - name: Upload REAL Chrome physics evidence (screenshots + run logs)
         if: always()
         uses: actions/upload-artifact@v4
@@ -55,6 +60,7 @@ jobs:
           name: rpms-boss-actual-rapier-standing-and-collapse
           path: |
             viewer/rpms/tests/boss-real-*.png
+            viewer/rpms/tests/boss-articulated-*.png
             /tmp/rpms-boss-http.log
           if-no-files-found: ignore
           retention-days: 14
