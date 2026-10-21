@@ -24,7 +24,11 @@ public final class SeamRenderBudget {
             // never assume GPU time equals CPU submission time.
             int target = clamp((int)Math.round(
                 (double)rendered * TARGET_CPU_NANOS / cpuNanos));
-            models = clamp((int)Math.round(models * 0.60 + target * 0.40));
+            int next=clamp((int)Math.round(models * 0.60 + target * 0.40));
+            // Integer rounding otherwise sticks at MIN+1 indefinitely
+            // under a pathological slow GPU/CPU frame.
+            models = target==MIN_MODELS && next<=MIN_MODELS+1
+                ? MIN_MODELS : next;
         } else if (rendered >= models * 0.90 && cpuNanos < TARGET_CPU_NANOS * 0.70) {
             // Gradual recovery after the expensive environment is gone.
             models = clamp(models + Math.max(8,models / 18));
