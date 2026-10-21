@@ -241,4 +241,24 @@ public final class CivicGameTests {
         helper.succeed();
     }
 
+
+    @GameTest(template = "empty", timeoutTicks = 100)
+    public static void diagnostic_command_is_visible_without_cheats(GameTestHelper helper) {
+        var dispatcher = helper.getLevel().getServer().getCommands().getDispatcher();
+        if (dispatcher.getRoot().getChild("npc") == null ||
+            dispatcher.getRoot().getChild("remecheck") == null ||
+            dispatcher.getRoot().getChild("npc").getChild("spawn") == null ||
+            dispatcher.getRoot().getChild("npc").getChild("demo") == null)
+            throw new AssertionError("NPC core commands are not present on real dispatcher");
+        var source = helper.getLevel().getServer().createCommandSourceStack().withPermission(0);
+        try {
+            var parsed = dispatcher.parse("remecheck", source);
+            int result = dispatcher.execute(parsed);
+            if (result != 1) throw new AssertionError("Non-op diagnostic command failed");
+        } catch (com.mojang.brigadier.exceptions.CommandSyntaxException failure) {
+            throw new AssertionError("Diagnostic command rejected at permission 0", failure);
+        }
+        helper.succeed();
+    }
+
 }
