@@ -23,12 +23,18 @@
 ## 阶段出闸清单（每项有实据才勾）
 
 - [x] 第一版完整采矿→物品自动拾取，独立真实 NeoForge GameTest 25/25 验证
-- [ ] 进一步按 UUID+数量防合并越权后的最新版 GameTest
-- [ ] 最新 NeoForge GUI 真正检查石头→空气并且 `NpcBackpack` 中有 cobblestone（不可只看 /npc mine 命令成功）
-- [ ] 0.5.8-dev 的实际 Build/Windows HMCL 测试与经校验的压缩包
+- [x] 进一步按 UUID+数量防合并越权后的最新版 GameTest：26/26，Actions 39601264725
+- [x] 最新 NeoForge GUI 真正检查石头→空气并且 `NpcBackpack` 中有 cobblestone：Actions 39601256708 SUCCESS，artifact 12345944972；游戏内硬断言 `REME_NPC_LOOT_IN_BACKPACK` 通过
+- [x] 0.5.8-dev 的实际 Build/Windows HMCL 测试与经校验的压缩包：Actions 39601264727 / 39601264719 SUCCESS，JAR SHA256 `a729f099476a76601426c5cdf8c338a8f27303290a483c20394eedcc72a2115d`
 - [ ] 用户实际 HMCL＋222 模组完整实例兼容、200 人性能、长期存档与成对交互
 - [ ] 完整玩家背包/热栏/盔甲/副手/工作台合成/职业矿工自己寻矿（本 PR **没有** 完成）
 
 ## 手工测试简易操作
 
 仅在独立测试世界执行 `/npc spawn MinerGUI`，手持铁镐潜行右键自己的 NPC 交付主手装备；在家园 16 格内准备石头，`/npc mine ~2 ~ ~`；原石消失后 NPC 应靠近物品，圆石进入 36 格背包。潜行空手右键自有 NPC 查看背包，或 `/data get entity @e[type=reme_studio:player_npc,name=MinerGUI,limit=1] NpcBackpack` 观察。物品不会凭空新增；其他玩家的落地钻石不应被本任务拾取。
+
+## 正式 P2.1 真实客户端最终验收（2026-10-21）
+
+- [实际 NeoForge GUI 工作流 39601256708](https://github.com/g2066203208-beep/mc-studio/actions/runs/39601256708) **SUCCESS**，源码提交 `ce40daea972f11f7836ae15dc63a1c99021418a5`，与 26 项 GameTest 和打包的源代码一致。**日志原文**：`PASS: integrated Minecraft confirmed mined stone -> air and cobblestone inside NPC persistent backpack`；`UI script exit: 0`。
+- [截图和日志 artifact 12345944972](https://github.com/g2066203208-beep/mc-studio/actions/runs/39601256708/artifacts/12345944972) 含 21 张真实 Minecraft 客户端原始 PNG、`client-gui.log`、集成游戏世界日志。关键截图：`client-gui-mine-prepared.png`、`client-gui-mining-block-confirmed.png`、`client-gui-loot-backpack.png`、`client-gui-loot-verified.png`。真实游戏反馈 `MinerGUI has the following entity data: [{count: 1, id: "minecraft:cobblestone"}]`、`REME_NPC_LOOT_IN_BACKPACK`；截图不是生成图。
+- **仍未完成的独立验证**：用户实际 HMCL 222 模组、多人兼容保护插件、20–200 NPC 长期 MSPT/内存和全自动职业矿工寻找矿脉。P2.1 完成 ≠ P2 全部完成。
