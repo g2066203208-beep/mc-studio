@@ -11,6 +11,9 @@ import dev.reme.mcstudio.npc.life.CivicSocial;
 import dev.reme.mcstudio.npc.life.SocietyRules;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.entity.MobSpawnType;
+import dev.reme.mcstudio.npc.life.MovementPolicy;
+import dev.reme.mcstudio.npc.life.DailyRoaming;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -105,6 +108,44 @@ public final class CivicGameTests {
             throw new AssertionError("cancel did not refund escrow exactly");
         if (CivicContracts.cancel(npc))
             throw new AssertionError("refunded same escrow twice");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 100)
+    public static void natural_resident_gets_real_home_and_bounded_range(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        PlayerNpcEntity resident = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (resident == null) throw new AssertionError("entity type not registered");
+        BlockPos position = helper.absolutePos(new BlockPos(2, 1, 2));
+        resident.moveTo(position.getX() + 0.5, position.getY(), position.getZ() + 0.5, 0, 0);
+        resident.finalizeSpawn(level, level.getCurrentDifficultyAt(position),
+            MobSpawnType.NATURAL, null);
+        if (!resident.naturalResident() || resident.mode() != PlayerNpcEntity.Mode.LIVE ||
+            resident.roamingRadius() < 32 || resident.roamingRadius() > 64 ||
+            !resident.homePos().equals(position) ||
+            resident.backpack().countItem(Items.BREAD) != 2)
+            throw new AssertionError("natural resident missing initial life, shelter or inventory");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 100)
+    public static void mobility_radius_survives_entity_nbt(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        PlayerNpcEntity before = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (before == null) throw new AssertionError("missing entity");
+        BlockPos anchor = helper.absolutePos(new BlockPos(2, 1, 2));
+        before.setHomePos(anchor);
+        before.setRoamingRadius(42);
+        CompoundTag data = new CompoundTag();
+        before.addAdditionalSaveData(data);
+
+        PlayerNpcEntity after = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (after == null) throw new AssertionError("missing entity after save");
+        after.readAdditionalSaveData(data);
+        if (!after.homePos().equals(anchor) || after.roamingRadius() != 42 ||
+            !DailyRoaming.inRange(after, anchor.offset(30, 0, 20)) ||
+            DailyRoaming.inRange(after, anchor.offset(60, 0, 0)))
+            throw new AssertionError("saved roaming territory not restored correctly");
         helper.succeed();
     }
 
