@@ -57,6 +57,13 @@ public final class SeamServer {
         }
         seamEnabled = enabled;
         terrainEnabled = enabled && SeamSettings.get(server).carveNewChunks();
+        // Release any ticket held by disconnected players within five seconds,
+        // even if world-seam was subsequently disabled.
+        if(tick % 100==0) {
+            var online=server.getPlayerList().getPlayers().stream()
+                .map(Entity::getUUID).collect(java.util.stream.Collectors.toSet());
+            SeamChunkSender.prune(online);
+        }
         if (!enabled) return;
         // Only one teleport per player per tick. All operations on server thread.
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
@@ -132,13 +139,12 @@ public final class SeamServer {
                 if (!target.getWorldBorder().isWithinBounds(arrival)) {
                     break;
                 }
-                // Force destination chunk before teleport. Does not edit blocks,
-                // portals, chunk generator, or the player's inventory.
-                target.getChunkAt(arrival);
-                if (!SeamArrival.hasClearance(target, arrival, player)) break;
                 boolean useExperimental = SeamSettings.get(server).experimentalNoRespawn();
                 boolean ready = SeamReadiness.isReady(player.getUUID(),
                     dim, link.target(), tick);
+                // Do not synchronously load the destination on EACH tick
+                // before the client has even acknowledged its dual cache.
+                // This was a second repeated-loading hotspot.
                 if (useExperimental && !ready) {
                     // Never fall back to a loading screen when user explicitly
                     // requested the no-respawn experiment.
@@ -152,6 +158,10 @@ public final class SeamServer {
                         ), true);
                     break;
                 }
+                // Now and only now, with the destination ready, load the
+                // authoritative landing chunk and validate its collision.
+                target.getChunkAt(arrival);
+                if (!SeamArrival.hasClearance(target, arrival, player)) break;
                 boolean success;
                 if (useExperimental) {
                     SeamDirectTransfer.move(player, target,

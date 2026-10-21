@@ -22,7 +22,7 @@ import java.util.UUID;
  * - 13 x 13 x 12 near-boundary samples (2028 maximum)
  * - a full frame on first view / scope change
  * - block + light deltas at 4 Hz, idle heartbeat every 2 seconds
- * - one synchronous *new* destination chunk load per preview pass
+ * - NEVER triggers destination chunk generation (owned by chunk residency manager)
  * - all player caches disposed when world/server changes
  */
 public final class SeamPreviewSender {
@@ -121,21 +121,15 @@ public final class SeamPreviewSender {
             SeamStackRuntime.bottom(source), SeamStackRuntime.top(source));
         int targetBound = (int) SeamGraph.boundaryY(link.entry(),
             SeamStackRuntime.bottom(target), SeamStackRuntime.top(target));
-        int forcedLoads = 0;
-        Set<Long> visitedChunks = new HashSet<>();
         BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
 
         for (int x = cx - RADIUS; x <= cx + RADIUS; x++) {
             for (int z = cz - RADIUS; z <= cz + RADIUS; z++) {
                 int chunkX = Math.floorDiv(x, 16);
                 int chunkZ = Math.floorDiv(z, 16);
-                long chunkKey = ((long) chunkX << 32) ^ (chunkZ & 0xFFFFFFFFL);
-                if (visitedChunks.add(chunkKey) && !target.hasChunk(chunkX, chunkZ)
-                    && forcedLoads++ < 1) {
-                    // Bounded warm-up. Avoid synchronous chunk generation for
-                    // every sampled column on the same tick.
-                    target.getChunkAt(new BlockPos(x, targetBound - 1, z));
-                }
+                // Never load/generate the target from a secondary visual
+                // sampler. The player's scoped dual-world region ticket is
+                // the SOLE owner of target residency and warm-up.
                 if (!target.hasChunk(chunkX, chunkZ)) continue;
                 for (int depth = 0; depth < DEPTH; depth++) {
                     int remoteY = link.entry() == SeamGraph.EdgeSide.TOP
