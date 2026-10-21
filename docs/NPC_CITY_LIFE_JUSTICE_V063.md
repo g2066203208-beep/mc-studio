@@ -51,3 +51,11 @@
 ## 专业可复制执行 Prompt
 
 > 你是 Minecraft 1.21.1 NeoForge 21.1.248、Java 21 资深 gameplay AI/系统架构/技术美术/性能/QA 综合团队。仓库 `g2066203208-beep/mc-studio`。立即先读 `AGENTS.md`、`docs/NPC_TRUE_PLAYER_CORE_V061.md`、`docs/NPC_V060_VISUAL_AI_CIVILIZATION_MASTER_PLAN.md`、`docs/NPC_CITY_LIFE_JUSTICE_V063.md`，查分支 `feature/npc-physical-shopkeepers-v063` 当前提交、draft PR、最新 Actions。在独立 feature 分支按逐片可验证生活因果开发：现实货物/箱子支持的营业店员、早午晚餐、证据驱动守卫出动、近身非致命执法、地面走路到真实监狱、实际法院与货物归还、材料约束民宅/公共建筑成长、城市需求驱动就业和人口、旅行商队、道路热度和施工。每项必须真实调用原版/NeoForge 允许的玩家行为和保存 NBT，测试拒绝/满库存/失效实体/未加载区块/真实玩家身份保护/逃逸情况，绝不通过虚构数据、一键传送、凭空 setBlock 改地图绕过。先保持仅`GameTest`可证明的功能上线，部署真实 Xvfb Minecraft 客户端逐场景截图和操作日志；再以 20/50/100/200 NPC 固定基准汇报 P50/P95 MSPT、路径开销和内存，缺数据标未知。正式世界永远默认禁无授权地形破坏/犯罪判决。本仓库仍计划迁移到真正 ServerPlayer NPC：先独立单人可用网络 Avatar 与第三方 Mod 验证再逐步解耦旧 Mob。版本/PR/CI/JAR 必须与同一 SHA 严格对应，不合并 main，不声称所有功能完成。
+
+
+## 回归检测：饭点不能让无食物的矿工卡死
+
+- 2026-10-21 [真实 Minecraft 图形客户端旧构建 39628923031](https://github.com/g2066203208-beep/mc-studio/actions/runs/39628923031) **FAILED**。原始 `latest.log` 显示矿工 `MinerGUI | LIVE | hunger 76 ... intent EAT (hungry) | action hungry: needs food in inventory`、实际 `/npc mine` 已授权且铁镐在手，但石头未被破坏。这是新增早餐/午餐调度抢占了工作，却没有确认真实食物而造成的死锁，不是简单 GUI 误点。
+- 修正提交 `d96b7bc9`：只有 NPC 36格背包中真的有食物时，`LivingWorldActions` 才优先执行 EAT 并扣减真实食物；如果没食物，已经授权的真实 Minecraft 挖矿/拾取、运输任务仍能继续，同时低饥饿会请求补给委托；不会凭空补食物。
+- `b8c9409d` 新增真实 NeoForge `no_food_at_mealtime_does_not_stall_real_authorized_mining` GameTest：刻意在低饥饿、背包没有食物、NPC intent=EAT 的状态下模拟实际矿工主手铁镐挖石头，断言矿物进度确实推进而未凭空产生面包；不仅是测试 `LivingPlanner` 打分。
+- 最新 [NeoForge GameTest](https://github.com/g2066203208-beep/mc-studio/actions/runs/39630559933) / [真实客户端运行](https://github.com/g2066203208-beep/mc-studio/actions/runs/39630549909) 由该源码触发，**必须等真实结束日志再宣布通过**；早先同分支 43/43 对应上一提交，不能移花接木变成此提交的 44/44。
