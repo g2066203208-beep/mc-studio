@@ -49,6 +49,9 @@ public final class SeamStackScreen extends Screen {
     }
 
     @Override protected void init() {
+        com.mojang.logging.LogUtils.getLogger().info(
+            "WORLDSEAM_CREATE_STACK_UI_OPEN: {} available dimensions, {} configured layers",
+            candidates.size(),entries.size());
         int c=width/2, y=Math.max(18,height/2-108);
         addRenderableWidget(Button.builder(Component.literal("Prev"),
             b -> moveSelection(-1)).bounds(c-145,y,65,20).build());

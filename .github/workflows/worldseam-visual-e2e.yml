@@ -55,6 +55,17 @@ jobs:
             xdotool mousemove 640 540 click 1
             sleep 8
             xwd -root -silent | convert xwd:- -resize 600x338 -quality 48 visual-world-create.jpg
+            # Open WorldSeam's native Create World editor at upper-right.
+            # This UI verification runs before any world is created.
+            xdotool mousemove 1100 32 click 1
+            sleep 3
+            xwd -root -silent | convert xwd:- -resize 800x450 -quality 65 visual-stack-editor.jpg
+            if ! grep -q "WORLDSEAM_CREATE_STACK_UI_OPEN" visual-client.log; then
+              echo "WorldSeam Create World stack editor did not open"
+              exit 1
+            fi
+            xdotool key Escape
+            sleep 3
             # The actual screenshot shows Allow Commands at GUI x640 y403.
             # Enable commands and create a fresh DISPOSABLE survival world.
             xdotool mousemove 640 403 click 1
