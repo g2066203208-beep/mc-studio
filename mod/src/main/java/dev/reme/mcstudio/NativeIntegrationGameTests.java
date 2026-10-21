@@ -1,7 +1,9 @@
 package dev.reme.mcstudio;
 
 import java.lang.reflect.Method;
-import java.util.Arrays;
+import net.minecraft.core.Direction;
+import net.minecraft.world.level.block.state.properties.BlockStateProperties;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.gametest.framework.GameTest;
@@ -78,18 +80,34 @@ public final class NativeIntegrationGameTests {
         requireMods();
         BlockPos motor = new BlockPos(1, 1, 1);
         BlockPos shaft = new BlockPos(2, 1, 1);
-        BlockEntity motorEntity = placeEntity(helper, "create:creative_motor", motor);
-        BlockEntity shaftEntity = placeEntity(helper, "create:shaft", shaft);
+        // The motor's real Create shaft connector only emits along FACING.
+        // A default NORTH motor beside a default Y shaft is NOT a valid
+        // mechanical network: that setup yielded -16 RPM at the motor and
+        // 0 RPM at the shaft during our first real run. Use aligned blocks.
+        BlockState motorState = block("create:creative_motor").defaultBlockState()
+                .setValue(BlockStateProperties.FACING, Direction.EAST);
+        BlockState shaftState = block("create:shaft").defaultBlockState()
+                .setValue(BlockStateProperties.AXIS, Direction.Axis.X);
+        helper.setBlock(motor, motorState);
+        helper.setBlock(shaft, shaftState);
+        helper.assertBlockPresent(block("create:creative_motor"), motor);
+        helper.assertBlockPresent(block("create:shaft"), shaft);
         helper.runAfterDelay(30, () -> {
-            // Genuine BlockEntity classes are loaded, instantiated and still
-            // active after server ticks. Speed is READ, not faked by JS.
             BlockEntity liveMotor = helper.getLevel().getBlockEntity(helper.absolutePos(motor));
             BlockEntity liveShaft = helper.getLevel().getBlockEntity(helper.absolutePos(shaft));
-            if (liveMotor == null || liveShaft == null) throw new AssertionError("Native kinetic BE disappeared after ticking");
-            LOG.info("RPMS_NATIVE_KINETIC motor={} shaft={} speedProbe={} shaftSpeedProbe={}",
-                    liveMotor.getClass().getName(), liveShaft.getClass().getName(),
-                    readNumber(liveMotor, "getSpeed"), readNumber(liveShaft, "getSpeed"));
-            LOG.info("RPMS_NATIVE_PASS createKineticBlockEntitiesExistAndTick (not proof of full stress network)");
+            if (liveMotor == null || liveShaft == null) throw new AssertionError("Kinetic BE missing after server ticks");
+            double motorSpeed = nativeNumber(liveMotor, "getSpeed");
+            double shaftSpeed = nativeNumber(liveShaft, "getSpeed");
+            LOG.info("RPMS_NATIVE_KINETIC motorSpeed={} shaftSpeed={} motorFacing={} shaftAxis={}",
+                    motorSpeed, shaftSpeed, motorState.getValue(BlockStateProperties.FACING),
+                    shaftState.getValue(BlockStateProperties.AXIS));
+            if (Math.abs(motorSpeed) < 0.1 || Math.abs(shaftSpeed) < 0.1) {
+                throw new AssertionError("Create kinetic power did not propagate into adjacent correctly aligned shaft");
+            }
+            if (Math.abs(Math.abs(shaftSpeed) - Math.abs(motorSpeed)) > 0.01) {
+                throw new AssertionError("Incorrect native 1:1 shaft transmission: motor=" + motorSpeed + " shaft=" + shaftSpeed);
+            }
+            LOG.info("RPMS_NATIVE_PASS createKineticBlockEntitiesExistAndTick (aligned motor actually drives shaft)");
             helper.succeed();
         });
     }
@@ -118,13 +136,14 @@ public final class NativeIntegrationGameTests {
         helper.succeed();
     }
 
-    private static String readNumber(Object receiver, String methodName) {
+    private static double nativeNumber(Object receiver, String methodName) {
         try {
             Method method = receiver.getClass().getMethod(methodName);
             Object value = method.invoke(receiver);
-            return String.valueOf(value);
+            if (value instanceof Number n) return n.doubleValue();
+            throw new AssertionError("Expected numerical Create runtime value for " + methodName);
         } catch (ReflectiveOperationException | SecurityException e) {
-            return "UNSUPPORTED:" + e.getClass().getSimpleName();
+            throw new AssertionError("Unable to read native Create runtime speed: " + e, e);
         }
     }
 }
