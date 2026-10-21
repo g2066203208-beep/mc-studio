@@ -150,7 +150,7 @@ function place(b,opts={}){
 }
 function removeAt(pos){const i=world.findIndex(b=>b.pos.every((x,k)=>x===pos[k]));if(i<0)return false;world.splice(i,1);inspected=null;renderWorld();return true;}
 function interaction(e,actionMode){
- const hit=projectPointer(e);if(!hit)return;
+ const hit=projectPointer(e);window.__STRICT_DEBUG__={phase:'interaction',mode:actionMode,hit,selectedId,point:[e.clientX,e.clientY]};if(!hit)return;
  if(actionMode==='erase'){if(hit.target)removeAt(hit.target.pos);return;}
  if(actionMode==='inspect'){if(hit.target){inspected=hit.target;displayInspector(inspected);renderWorld();}return;}
  if(actionMode==='wrench'){
@@ -163,8 +163,8 @@ function interaction(e,actionMode){
  if(b.id==='create:creative_motor')b.rpm=Number($('rpm').value);place(b);
 }
 let down=null;
-$('view').addEventListener('pointerdown',e=>{down={x:e.clientX,y:e.clientY,button:e.button}});
-$('view').addEventListener('pointerup',e=>{if(!down)return;const distance=Math.hypot(e.clientX-down.x,e.clientY-down.y),button=down.button;down=null;if(distance>6)return;interaction(e,button===2?'erase':mode)});
+$('view').addEventListener('pointerdown',e=>{down={x:e.clientX,y:e.clientY,button:e.button};window.__STRICT_DEBUG__={phase:'down',point:[e.clientX,e.clientY]}});
+$('view').addEventListener('pointerup',e=>{if(!down)return;const distance=Math.hypot(e.clientX-down.x,e.clientY-down.y),button=down.button;down=null;if(distance>6){window.__STRICT_DEBUG__={phase:'drag',distance};return;}interaction(e,button===2?'erase':mode)});
 $('view').addEventListener('contextmenu',e=>e.preventDefault());
 $('layer').addEventListener('input',e=>{activeLayer=Number(e.target.value);$('layerValue').textContent=activeLayer});
 for(const b of document.querySelectorAll('[data-mode]'))b.addEventListener('click',()=>setMode(b.dataset.mode));
