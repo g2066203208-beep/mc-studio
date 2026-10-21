@@ -1,5 +1,6 @@
 param(
-  [string]$GameDirectory = ""
+  [string]$GameDirectory = "",
+  [switch]$ConfirmInstall
 )
 $ErrorActionPreference = "Stop"
 Add-Type -AssemblyName System.IO.Compression.FileSystem
@@ -84,7 +85,7 @@ if (-not (Test-Path $mods -PathType Container)) {
   throw "No mods folder exists: $mods. Wrong HMCL instance? Nothing changed."
 }
 Write-Host "Selected mods folder: $mods"
-$answer = Read-Host "Type INSTALL to download both visual mods into this folder"
+$answer = if ($ConfirmInstall) { "INSTALL" } else { Read-Host "Type INSTALL to download both visual mods into this folder" }
 if ($answer -cne "INSTALL") { throw "Cancelled. No changes made." }
 
 $tmp = Join-Path $env:TEMP ("reme_cosmetics_" + [guid]::NewGuid().ToString("N"))
