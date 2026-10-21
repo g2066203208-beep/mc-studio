@@ -20,6 +20,7 @@ import dev.reme.mcstudio.npc.life.FootTrafficData;
 import dev.reme.mcstudio.npc.life.EmergentFootpaths;
 import dev.reme.mcstudio.npc.life.EmergentSettlements;
 import dev.reme.mcstudio.npc.life.BanditActions;
+import dev.reme.mcstudio.npc.life.PublicSafety;
 import dev.reme.mcstudio.npc.life.CaravanRoutes;
 import net.minecraft.world.level.block.entity.ChestBlockEntity;
 import dev.reme.mcstudio.npc.life.SettlementLedger;
@@ -1263,6 +1264,124 @@ public final class CivicGameTests {
         // successful real PlayerList registration, remote player rendering,
         // player events, persistence, teardown. Currently NOT implemented.
         player.getInventory().clearContent();
+        helper.succeed();
+    }
+
+    /**
+     * No fake crime flag: the actual raider takes two existing wheat from a
+     * courier, first-hand witness reaches a nearby real guard, which can
+     * detain ONLY a nearby NPC raider at a legitimate iron-bar holding spot.
+     */
+    @GameTest(template = "empty", timeoutTicks = 100)
+    public static void eyewitness_robbery_dispatches_guard_and_physically_arrests_real_npc_raider(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos ground = helper.absolutePos(new BlockPos(4, 8, 4));
+        for (int dx = -1; dx <= 5; dx++) for (int dz = -1; dz <= 3; dz++) {
+            BlockPos floor = ground.offset(dx, 0, dz);
+            level.setBlock(floor, Blocks.STONE.defaultBlockState(), 3);
+            level.setBlock(floor.above(), Blocks.AIR.defaultBlockState(), 3);
+            level.setBlock(floor.above(2), Blocks.AIR.defaultBlockState(), 3);
+        }
+        BlockPos victimPos = ground.above();
+        BlockPos suspectPos = victimPos.east();
+        BlockPos officerPos = victimPos.south();
+        BlockPos jail = victimPos.east(4);
+        level.setBlock(jail.east(), Blocks.IRON_BARS.defaultBlockState(), 3);
+        if (!PublicSafety.holdingSpot(level, jail))
+            throw new AssertionError("Actual solid-floor/iron-bar jail fixture failed");
+        PlayerNpcEntity victim = NpcRegistry.PLAYER_NPC.get().create(level);
+        PlayerNpcEntity suspect = NpcRegistry.PLAYER_NPC.get().create(level);
+        PlayerNpcEntity officer = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (victim == null || suspect == null || officer == null)
+            throw new AssertionError("No real NPC citizens");
+        victim.moveTo(victimPos.getX() + 0.5, victimPos.getY(), victimPos.getZ() + 0.5, 0, 0);
+        suspect.moveTo(suspectPos.getX() + 0.5, suspectPos.getY(), suspectPos.getZ() + 0.5, 0, 0);
+        officer.moveTo(officerPos.getX() + 0.5, officerPos.getY(), officerPos.getZ() + 0.5, 0, 0);
+        victim.setIdentity(SocietyRules.civilian("crime_village"));
+        officer.setIdentity(SocietyRules.civilian("crime_village"));
+        suspect.setIdentity(new SocietyRules.Identity(SocietyRules.Nation.OUTLANDS,
+            SocietyRules.Faction.RAIDERS, "crime_village"));
+        victim.setProfession(PlayerNpcEntity.Profession.COURIER);
+        officer.setProfession(PlayerNpcEntity.Profession.GUARD);
+        suspect.setProfession(PlayerNpcEntity.Profession.RESIDENT);
+        victim.setMode(PlayerNpcEntity.Mode.STAY);
+        officer.setMode(PlayerNpcEntity.Mode.LIVE);
+        suspect.setMode(PlayerNpcEntity.Mode.LIVE);
+        suspect.setHomePos(victimPos);
+        officer.setHomePos(victimPos);
+        officer.setPoliceJail(jail);
+        victim.backpack().addItem(new ItemStack(Items.WHEAT, 5));
+        if (!level.addFreshEntity(victim) || !level.addFreshEntity(suspect)
+            || !level.addFreshEntity(officer))
+            throw new AssertionError("Cannot spawn citizen, thief and guard");
+        long now = level.getGameTime();
+        if (!BanditActions.tick(suspect, level, now)
+            || victim.backpack().countItem(Items.WHEAT) != 3
+            || suspect.backpack().countItem(Items.WHEAT) != 2
+            || !suspect.getUUID().equals(officer.policeSuspect()))
+            throw new AssertionError("Actual stolen inventory did not trigger local police dispatch");
+        long due = now + Math.floorMod(
+            MovementPolicy.phase(officer.getId(), 10) - now, 10);
+        if (!PublicSafety.tickGuard(officer, level, due)
+            || !suspect.isDetained(due) || !jail.equals(suspect.detentionJail())
+            || officer.policeSuspect() != null)
+            throw new AssertionError("Guard could not complete genuine nonlethal close-range arrest");
+        // Custody can NEVER create/destroy the stolen wheat; it is still
+        // physically present in the real suspect backpack for later recovery.
+        if (suspect.backpack().countItem(Items.WHEAT) != 2)
+            throw new AssertionError("Arrest generated or confiscated virtual loot");
+        CompoundTag saved = new CompoundTag();
+        suspect.addAdditionalSaveData(saved);
+        PlayerNpcEntity restored = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (restored == null) throw new AssertionError("Cannot reload detainee");
+        restored.readAdditionalSaveData(saved);
+        if (!restored.isDetained(due) || !jail.equals(restored.detentionJail())
+            || restored.backpack().countItem(Items.WHEAT) != 2)
+            throw new AssertionError("Sentence, jail or contraband lost during NBT reload");
+        if (PublicSafety.tickPrisoner(suspect, level, due + PublicSafety.CUSTODY_TICKS + 1)
+            || suspect.isDetained(due + PublicSafety.CUSTODY_TICKS + 1))
+            throw new AssertionError("Finite custody failed to release NPC after expiry");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 100)
+    public static void rumors_alone_and_unbuilt_jails_cannot_arrest_anyone(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos pos = helper.absolutePos(new BlockPos(4, 9, 4));
+        PlayerNpcEntity victim = NpcRegistry.PLAYER_NPC.get().create(level);
+        PlayerNpcEntity suspect = NpcRegistry.PLAYER_NPC.get().create(level);
+        PlayerNpcEntity officer = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (victim == null || suspect == null || officer == null)
+            throw new AssertionError("NPC registry missing");
+        victim.moveTo(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5, 0, 0);
+        suspect.moveTo(pos.getX() + 1.5, pos.getY(), pos.getZ() + 0.5, 0, 0);
+        officer.moveTo(pos.getX() + 0.5, pos.getY(), pos.getZ() + 1.5, 0, 0);
+        victim.setIdentity(SocietyRules.civilian("justice_guardrail"));
+        officer.setIdentity(SocietyRules.civilian("justice_guardrail"));
+        suspect.setIdentity(new SocietyRules.Identity(SocietyRules.Nation.OUTLANDS,
+            SocietyRules.Faction.RAIDERS, "justice_guardrail"));
+        officer.setProfession(PlayerNpcEntity.Profession.GUARD);
+        officer.setMode(PlayerNpcEntity.Mode.LIVE);
+        officer.setHomePos(pos);
+        suspect.setHomePos(pos);
+        if (!level.addFreshEntity(victim) || !level.addFreshEntity(suspect)
+            || !level.addFreshEntity(officer)) throw new AssertionError("cannot add citizens");
+        UUID fictitious = UUID.randomUUID();
+        if (PublicSafety.reportTheft(victim, suspect, level, fictitious,
+                level.getGameTime()) != 0 || officer.policeSuspect() != null)
+            throw new AssertionError("Police arrested an unreported/fictional crime");
+        // Even if the local guard receives a real thief allegation, without
+        // a real authorized bars-adjacent holding position no arrest happens.
+        officer.assignPoliceCase(suspect.getUUID(), level.getGameTime() + 400);
+        officer.setPoliceJail(pos.east(3)); // ordinary air without iron bars
+        long now = level.getGameTime();
+        long due = now + Math.floorMod(
+            MovementPolicy.phase(officer.getId(), 10) - now, 10);
+        if (!PublicSafety.tickGuard(officer, level, due)
+            || suspect.isDetained(due))
+            throw new AssertionError("Guard detained suspect without an actual validated jail");
+        if (level.getServer().getPlayerList().getPlayer(suspect.getUUID()) != null)
+            throw new AssertionError("Criminal NPC incorrectly treated as logged-in human");
         helper.succeed();
     }
 
