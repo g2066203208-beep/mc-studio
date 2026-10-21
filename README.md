@@ -86,3 +86,10 @@ bash scripts/build.sh
 ## Living World 0.5: natural residents and home radius (experimental)
 
 加入 NeoForge 自然生成规则、独立居民个人资料、家园活动范围、昼间自由漫步、超出半径回家、分散式 AI 调度与局部寻路/成熟农作物缓存。详见 [v0.5 验证说明](docs/NATURAL_V05.md)。生物群系出生率和真实性能还需专门的世界测试。
+
+
+## 可安装、实际单人世界验收版本 v0.5.4-dev（草稿）
+
+- [HMCL 独立测试安装包与说明](docs/NPC_HMCL_ACCEPTANCE.md)：关闭游戏，解压全部文件，双击 `Install-REME-NPC.cmd`，选择 HMCL 当前游戏目录，输入 `INSTALL`；自动备份同 Mod ID 旧 JAR，校验新 JAR。
+- [客户端实际运行测试记录](docs/REAL_CLIENT_V054.md)：GitHub 虚拟显示器启动真实 Minecraft 1.21.1 NeoForge，进入新建单人世界执行 /remecheck /npc spawn /npc info /npc demo /time set night，真实截图与日志可查。
+- 本版本只是通过最小可用流程，不等于完整活世界生活模拟或你的 222-Mod 整合包兼容完成；用户 HMCL 原报错仍须按实际实例确认。
