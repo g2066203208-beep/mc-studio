@@ -23,6 +23,10 @@ jobs:
       - name: Syntax and asset license boundary
         run: |
           node --check viewer/rpms/blocks.js
+          node --check viewer/rpms/strict-core.mjs
+          node --check viewer/rpms/strict.js
+          node --check viewer/rpms/tests/strict-browser.cjs
+          node viewer/rpms/tests/strict-core.test.mjs
           node --check viewer/rpms/tests/blocks-smoke.cjs
           python3 - <<'PY'
           import json,pathlib
@@ -41,9 +45,12 @@ jobs:
         run: |
           python3 -m http.server 8033 --directory viewer >/tmp/rpms-http.log 2>&1 &
           node viewer/rpms/tests/blocks-smoke.cjs
+          node viewer/rpms/tests/strict-browser.cjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: rpms-aero-blocks-desktop-mobile
-          path: viewer/rpms/tests/aero-blocks-*.png
+          path: |
+            viewer/rpms/tests/aero-blocks-*.png
+            viewer/rpms/tests/strict-*.png
           if-no-files-found: ignore
