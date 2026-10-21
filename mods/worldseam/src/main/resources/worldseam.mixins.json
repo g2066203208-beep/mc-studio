@@ -10,7 +10,8 @@
   "client": [
     "SeamMinecraftAccess",
     "SeamPacketListenerAccess",
-    "SeamClientPlayerAccess"
+    "SeamClientPlayerAccess",
+    "SeamCreateWorldMixin"
   ],
   "injectors": {
     "defaultRequire": 1
