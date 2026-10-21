@@ -114,6 +114,20 @@ sleep 1
 xdotool type --clearmodifiers --delay 45 '/time set day'
 xdotool key Return
 sleep 3
+# After documenting the village screenshots, clear other NPCs in this
+# disposable world so nearest-owned command cannot select the wrong NPC.
+xdotool key --clearmodifiers t
+sleep 1
+xdotool type --clearmodifiers --delay 35 '/kill @e[type=reme_studio:player_npc]'
+xdotool key Return
+sleep 3
+# Guarantee the fresh miner and target stand on the same walkable platform,
+# regardless of random world seed, mountain/cliff or initial spawn elevation.
+xdotool key --clearmodifiers t
+sleep 1
+xdotool type --clearmodifiers --delay 35 '/fill ~-2 ~-1 ~-2 ~4 ~-1 ~4 minecraft:stone'
+xdotool key Return
+sleep 3
 xdotool key --clearmodifiers t
 sleep 1
 xdotool type --clearmodifiers --delay 50 '/npc spawn MinerGUI'
@@ -121,7 +135,7 @@ xdotool key Return
 sleep 3
 xdotool key --clearmodifiers t
 sleep 1
-xdotool type --clearmodifiers --delay 25 '/item replace entity @e[type=reme_studio:player_npc,sort=nearest,limit=1] weapon.mainhand with minecraft:iron_pickaxe'
+xdotool type --clearmodifiers --delay 25 '/item replace entity @e[type=reme_studio:player_npc,name=MinerGUI,limit=1] weapon.mainhand with minecraft:iron_pickaxe'
 xdotool key Return
 sleep 3
 xdotool key --clearmodifiers t
@@ -137,7 +151,7 @@ sleep 1
 # Face east toward the selected target two blocks away, camera down 30 degrees.
 xdotool key --clearmodifiers t
 sleep 1
-xdotool type --clearmodifiers --delay 50 '/tp ~ ~ ~ -90 30'
+xdotool type --clearmodifiers --delay 50 '/tp @s ~ ~ ~ -90 30'
 xdotool key Return
 sleep 2
 import -window root client-gui-mine-prepared.png
