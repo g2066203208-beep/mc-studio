@@ -127,3 +127,13 @@ v0.5 的 teleportTo 仍引发原版 ClientboundRespawnPacket/加载界面。本�
 **性能证据：** 远端逐方块模型提交逻辑新增 120 帧滚动窗口 P95 **客户端 CPU 提交耗时**（`nativeModelCpuP95Ms`），由实际 NeoForge GUI E2E 写入证据日志。该指标不是 FPS、GPU 帧时间，也不能替代正式基准；它帮助后续用原生 Chunk mesh/跨维渲染替代 `renderSingleBlock` 热点。
 
 关于 Iris、Sodium、Voxy、Immersive Portals、Sable 及真正双世界渲染方案，见 [docs/NATIVE_RENDERER_COMPAT.md](docs/NATIVE_RENDERER_COMPAT.md)。这次只优化现有双维度缓存与坐标/拓扑；**尚未完成**实际双原生 LevelRenderer 同帧合成、Voxy/Iris/光影通用适配及航空学/Sable 物理刚体跨界。功能证据与兼容矩阵必须按版本单独验证。
+
+## v0.9.5-dev — 帧预算闭环 + TNT 区块范围修复（性能优先）
+
+**实测回归输入**：前一轮真实 NeoForge GUI 失败文件 `mods/worldseam/docs/evidence/latest-neoforge/latest-failed.md` 显示在 3,500 个 `renderSingleBlock` 模型/帧时 `nativeModelCpuP95Ms=58.058`，并记录了 `WORLDSEAM_E2E_FAIL_CROSS_TNT`。这两个缺陷是本轮的明确回归目标，而非推测。
+
+**临时远端模型渲染器性能保护**：新增 `SeamRenderBudget` 闭环控制，在 *Minecraft 客户端实际采到的 CPU 模型提交时间* 基础上调整单帧渲染模型上限，目标约 8ms CPU 提交；硬性范围 160–3500，昂贵帧立即降预算，便宜帧缓慢回升，不因场景自身模型不足而错误增加负载。保留真实深度、逐模型片段、正确远端坐标；这是针对当前 `renderSingleBlock` 旧代理管线的**帧率保护**，会临时减少渲染细节，不能当成真正的多维度原生网格方案。移除原来每渲染帧重复清理 25 个模型列/统计总面数的 CPU 逻辑（交给 20TPS tick），并跳过远端完全空气的 16³ 方块 Section；降低末地虚空/下界洞穴的块状态扫描量。F3 与 E2E 输出当前模型预算和 120 帧 CPU P95，后续要实际比较，不可预先宣称 FPS 提升百分比。
+
+**真实 TNT 缺陷修复**：以前跨界爆炸无条件要求目标维度任意 3×3 = 9 个 Chunk 全驻留，导致位于块边缘的普通 TNT 也因不相关区块没加载而静默失效。现在按实际爆炸球心与原版实体受击最大 (2×radius) 计算需驻留的 X/Z Chunk 闭包（一般 1–4 个），**不主动加载或生成**目标维度 Chunk；不满足则明确打印 `WORLDSEAM_CROSS_BLAST_SKIP`。新增此规则的 JUnit，以及真实 NeoForge GameTest **主世界→下界和下界→主世界**原生方块破坏验证。原有真实 TNT `PrimedTnt` GUI 验收继续作为合并后的硬门槛，只有其 `WORLDSEAM_E2E_PASS_CROSS_TNT` 才能发布成功照片。该 patch 尚不保证跨维流体、实体、爆炸护甲/权限 Mod、Sable 飞船跨界碰撞。
+
+**继续的性能工程**：Iris/Sodium/Voxy 专用路径需要真正原生 `LevelRenderer` 和 GPU 深度/透明状态隔离，不能仅通过自适应降低方块数达成完整兼容；详见 `docs/NATIVE_RENDERER_COMPAT.md`。末地保持最底层和现有航空学悬浮行为不变。

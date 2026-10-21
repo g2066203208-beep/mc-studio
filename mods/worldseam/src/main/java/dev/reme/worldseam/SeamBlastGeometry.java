@@ -14,6 +14,24 @@ public final class SeamBlastGeometry {
 
     public record Plan(double mappedY, float radius, double distanceToPlane) {}
 
+    /**
+     * Minecraft's native explosion ray tracer cannot originate outside the
+     * destination's actual build height (e.g. Overworld below Y=-64).
+     * Move the origin just inside the real range and reduce power by exactly
+     * the shift so that maximum inward reach cannot grow.
+     *
+     * This is a bounded native-explosion approximation of a spherical cap,
+     * NOT a perfect cross-level obstacle-aware ray tracer.
+     */
+    public static Plan forNativeBuildRange(Plan plan,int minY,int maxY) {
+        if(plan==null || maxY<=minY) return null;
+        double y=Math.max(minY+0.125,Math.min(maxY-0.125,plan.mappedY()));
+        double shift=Math.abs(y-plan.mappedY());
+        float newRadius=(float)(plan.radius()-shift);
+        if(newRadius<=0 || !Float.isFinite(newRadius))return null;
+        return new Plan(y,newRadius,plan.distanceToPlane());
+    }
+
     public static Plan map(double sourceY, double sourcePlane,
                            double targetPlane, float explosionRadius) {
         if (!Double.isFinite(sourceY) || !Double.isFinite(sourcePlane)
