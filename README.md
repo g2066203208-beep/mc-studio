@@ -56,3 +56,10 @@ bash scripts/build.sh
 后续直接在本聊天描述玩法、报错或想修改的 Mod。助手先读取本工作台与本机基线，尽量独立完成技术工作；只有账号授权、目标不明确或确实需要玩家体验判断时才让用户介入。
 
 当前尚未部署到正式游戏，也尚未完成真实客户端与整合包运行测试。最新构建结果见 `docs/STATUS.md`。
+
+## Immersive Vehicles 车辆模型学习 Skill
+
+- **入口**：[`skills/immersive-vehicles-modeling/SKILL.md`](skills/immersive-vehicles-modeling/SKILL.md) — 以官方五套真实 OBJ/车辆 JSON 研究为依据，规范 Blockbench 低多边形、UV 材质、部件动画、摩托车造型、网页真 3D 和游戏验收。
+- **结构检查**：`python3 skills/immersive-vehicles-modeling/scripts/inspect_obj.py MODEL.obj --texture ATLAS.png --definition VEHICLE.json --json`。
+- **单测**：`python3 -m unittest discover -s skills/immersive-vehicles-modeling/tests -v`。
+- **真实 3D 参照**：[`viewer/index.html`](viewer/index.html)；来源研究还可见 `research/immersive-vehicles/`。没有游戏实际体验前不宣称可驾驶。

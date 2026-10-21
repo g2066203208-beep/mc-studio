@@ -1,0 +1,27 @@
+name: Vehicle model Skill lint
+on:
+  push:
+    paths:
+      - 'skills/immersive-vehicles-modeling/**'
+      - '.github/workflows/vehicle-model-skill-check.yml'
+  pull_request:
+    paths:
+      - 'skills/immersive-vehicles-modeling/**'
+      - '.github/workflows/vehicle-model-skill-check.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify-skill:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Compile stdlib inspector
+        run: python3 -m py_compile skills/immersive-vehicles-modeling/scripts/inspect_obj.py
+      - name: Run geometry and JSONC tests
+        run: python3 -m unittest discover -s skills/immersive-vehicles-modeling/tests -v
+      - name: CLI smoke
+        run: python3 skills/immersive-vehicles-modeling/scripts/inspect_obj.py --help
