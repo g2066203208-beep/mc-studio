@@ -55,6 +55,19 @@ public final class EmergentSettlements {
             homes.size(), identity.nation() + "/" + identity.faction(), tier);
     }
 
+    /** Autonomous founding chronicle update, independent of chat commands or
+     * profession: farmers, bakers, couriers and guards are households too.
+     * Phased at 240 ticks per resident, local loaded-only census.
+     */
+    public static void observe(PlayerNpcEntity resident, ServerLevel level, long tick) {
+        if (resident.mode() != PlayerNpcEntity.Mode.LIVE
+            || !MovementPolicy.due(tick, resident.getId(), 240)) return;
+        Settlement group = survey(level, resident);
+        if (group == null) return;
+        SettlementLedger.get(level).record(group.founder(), group.hub(),
+            group.households(), tick, group.culture());
+    }
+
     public static boolean gather(PlayerNpcEntity resident, ServerLevel level, long tick) {
         if (resident.mode() != PlayerNpcEntity.Mode.LIVE
             || resident.intent() != LivingPlanner.Intent.SOCIALIZE
