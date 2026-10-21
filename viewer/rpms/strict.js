@@ -293,6 +293,7 @@ async function installAssetsFromFile(f){
  return {added,variants,embedded:result.embedded||0};
 }
 async function startOfficialLoading(){
+ if(new URLSearchParams(location.search).get('autoload')==='off')return;
  if(officialAutoloadStarted)return;
  officialAutoloadStarted=true;
  if(typeof JSZip==='undefined'){
