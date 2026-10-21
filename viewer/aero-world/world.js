@@ -419,7 +419,8 @@ function init(){
   modBlocks:()=>assets.catalog.size,archives:()=>assets.archives.length,
   addBlock:(x,y,z,id)=>edit(x,y,z,id),removeBlock:(x,y,z)=>edit(x,y,z,null),
   exportWorld:data,importWorld:restore,refreshModels:refreshWorld,enter:resume,
-  inspect:()=>({hovered,placeAt})
+  inspect:()=>({hovered,placeAt}),
+  probeOriginalModel:async(id,state)=>{const obj=await assets.buildShape(id,state||defaults[id]||{});let n=0;if(obj)obj.traverse(m=>{if(m.isMesh)n++;});return {renderable:!!obj,meshes:n};}
  };
  notice('AeroWorld已准备好，点击进入并搭建原版航空学方块。',8);
  requestAnimationFrame(render);
