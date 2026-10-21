@@ -1,0 +1,17 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "dev.reme.worldseam.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "SeamEntityAccess"
+  ],
+  "client": [
+    "SeamMinecraftAccess",
+    "SeamPacketListenerAccess",
+    "SeamClientPlayerAccess"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
