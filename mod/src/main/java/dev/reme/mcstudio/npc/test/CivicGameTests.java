@@ -154,8 +154,8 @@ public final class CivicGameTests {
     public static void local_spawn_cap_prevents_overpopulation(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
         BlockPos base = helper.absolutePos(new BlockPos(2, 1, 2));
-        if (NaturalResidentSpawn.atCapacity(level, base))
-            throw new AssertionError("test area already populated");
+        // GameTests share one live level; another test's NPCs may be nearby.
+        // Do not assume the global fixture starts empty.
         for (int i = 0; i < NaturalResidentSpawn.MAX_WITHIN_72_BLOCKS; i++) {
             PlayerNpcEntity resident = NpcRegistry.PLAYER_NPC.get().create(level);
             if (resident == null) throw new AssertionError("entity type missing");
