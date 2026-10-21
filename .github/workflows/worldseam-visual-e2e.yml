@@ -227,3 +227,39 @@ jobs:
             git commit -m 'test(worldseam): publish genuine NeoForge GUI snapshots [skip ci]'
             git push origin HEAD:feat/worldseam-standalone
           fi
+      - name: Publish unmistakably failed real client evidence
+        if: failure() && github.ref == 'refs/heads/feat/worldseam-standalone'
+        shell: bash
+        run: |
+          set -euo pipefail
+          dest=mods/worldseam/docs/evidence/latest-neoforge
+          mkdir -p "$dest"
+          {
+            printf '# WorldSeam FAILED graphical client run (NOT a successful screenshot)\n\n'
+            printf 'Actions: https://github.com/%s/actions/runs/%s\n\n' "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID"
+            printf 'Source commit: %s\n\n' "$GITHUB_SHA"
+            printf 'Time: %s UTC\n\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            printf 'Successful screenshots and summary.md were deliberately NOT overwritten.\n\n'
+            printf 'Available WorldSeam client E2E events and last diagnostic errors:\n\n'
+            if test -f mods/worldseam/visual-client.log; then
+              grep -E 'WORLDSEAM_E2E_|WORLDSEAM_REAL_TNT_FAIL|WORLDSEAM_GUI_FAIL|Exception during client tick|Mixin apply failed|InvalidMixinException' mods/worldseam/visual-client.log | tail -n 100 || true
+              printf '\nLast 25 client log lines:\n\n'
+              tail -n 25 mods/worldseam/visual-client.log
+            else
+              printf 'No client log generated; failure happened before NeoForge launch.\n'
+            fi
+          } > "$dest/latest-failed.md"
+          for name in visual-in-world.jpg visual-near-seam.jpg visual-cross-tnt.jpg visual-end-before-cross.jpg; do
+            if test -s "mods/worldseam/$name"; then
+              cp "mods/worldseam/$name" "$dest/failed-$name"
+            else
+              rm -f "$dest/failed-$name"
+            fi
+          done
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add "$dest/latest-failed.md" "$dest"/failed-*.jpg 2>/dev/null || git add "$dest/latest-failed.md"
+          if ! git diff --cached --quiet; then
+            git commit -m 'test(worldseam): record FAILED NeoForge visual run separately [skip ci]'
+            git push origin HEAD:feat/worldseam-standalone
+          fi
