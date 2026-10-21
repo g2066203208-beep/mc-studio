@@ -144,24 +144,34 @@ public final class SeamChunkSender {
             (session.lastSent.size()<OFFSETS.length?5:INTERVAL);
         if(tick%cadence!=0)return;
 
-        // Search the entire bounded 5x5 set for the FIRST missing/stale
-        // chunk, prioritizing the player's near 3x3. On movement the
-        // prior implementation wasted 20 scheduled slots on already-cached
-        // chunks before reaching the new ring edge.
+        // THREE strict, bounded priority classes:
+        // 0. NEVER-SENT chunks (first guarantee a complete 5x5 target);
+        // 1. changed chunks with 20-tick coalescing;
+        // 2. expired 1200-tick periodic refreshes.
+        // The previous single-pass algorithm let one constantly-changing
+        // near-center chunk starve the unsent 25th outer-ring chunk.
         int slot=-1,cx=0,cz=0;
         long key=0L;
-        for(int i=0;i<OFFSETS.length;i++) {
-            int testX=centerX+OFFSETS[i][0],testZ=centerZ+OFFSETS[i][1];
-            long candidate=((long)testX<<32)|(testZ&0xffffffffL);
-            long sentAt=session.lastSent.getOrDefault(candidate,Long.MIN_VALUE/2);
-            boolean changed=session.dirty.contains(candidate)
-                && tick-sentAt>=DIRTY_COOLDOWN;
-            if(tick-sentAt<REFRESH_TICKS && !changed)continue;
-            slot=i;
-            cx=testX;
-            cz=testZ;
-            key=candidate;
-            break;
+        search:
+        for(int priority=0;priority<3;priority++) {
+            for(int i=0;i<OFFSETS.length;i++) {
+                int candidateX=centerX+OFFSETS[i][0],
+                    candidateZ=centerZ+OFFSETS[i][1];
+                long candidate=((long)candidateX<<32)|(candidateZ&0xffffffffL);
+                Long previous=session.lastSent.get(candidate);
+                boolean unseen=previous==null;
+                boolean changed=!unseen && session.dirty.contains(candidate)
+                    && tick-previous>=DIRTY_COOLDOWN;
+                boolean expired=!unseen && !changed &&
+                    tick-previous>=REFRESH_TICKS;
+                if(priority==0&&!unseen || priority==1&&!changed ||
+                   priority==2&&!expired)continue;
+                slot=i;
+                cx=candidateX;
+                cz=candidateZ;
+                key=candidate;
+                break search;
+            }
         }
         if(slot<0)return; // warm and stable: ZERO getChunk(), ZERO packets
 
