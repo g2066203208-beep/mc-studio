@@ -22,6 +22,8 @@ import dev.reme.mcstudio.npc.life.EmergentSettlements;
 import dev.reme.mcstudio.npc.life.BanditActions;
 import dev.reme.mcstudio.npc.life.PublicSafety;
 import dev.reme.mcstudio.npc.life.ShopCounter;
+import dev.reme.mcstudio.npc.life.LivingWorldActions;
+import dev.reme.mcstudio.npc.life.LivingPlanner;
 import dev.reme.mcstudio.npc.life.CaravanRoutes;
 import net.minecraft.world.level.block.entity.ChestBlockEntity;
 import dev.reme.mcstudio.npc.life.SettlementLedger;
@@ -1438,6 +1440,50 @@ public final class CivicGameTests {
             || buyer.getInventory().countItem(Items.BREAD) != 0)
             throw new AssertionError("Shop lost or duplicated items despite a full real payment drawer");
         helper.succeed();
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 100)
+    public static void no_food_at_mealtime_does_not_stall_real_authorized_mining(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos ore = helper.absolutePos(new BlockPos(4, 9, 4));
+        BlockPos stand = ore.east(2);
+        for (int x = -2; x <= 4; x++) for (int z = -2; z <= 2; z++) {
+            BlockPos ground = ore.offset(x, -1, z);
+            level.setBlock(ground, Blocks.STONE.defaultBlockState(), 3);
+            level.setBlock(ground.above(), Blocks.AIR.defaultBlockState(), 3);
+            level.setBlock(ground.above(2), Blocks.AIR.defaultBlockState(), 3);
+        }
+        level.setBlock(ore, Blocks.STONE.defaultBlockState(), 3);
+        PlayerNpcEntity miner = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (miner == null) throw new AssertionError("No hungry miner NPC");
+        miner.moveTo(stand.getX() + 0.5, stand.getY(), stand.getZ() + 0.5, 0, 0);
+        miner.setHomePos(stand);
+        miner.setMode(PlayerNpcEntity.Mode.LIVE);
+        miner.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.IRON_PICKAXE));
+        miner.setMiningTarget(ore);
+        miner.changeNeeds(-20, 0, 0);
+        if (!level.addFreshEntity(miner)) throw new AssertionError("No live miner");
+        // Avoid planner's 80-tick phase, which would overwrite the forced
+        // meal intent; the goal here is testing action-loop priority.
+        int delay = 2;
+        if (MovementPolicy.due(level.getGameTime() + delay, miner.getId(), 80))
+            delay++;
+        helper.runAfterDelay(delay, () -> {
+            if (level.getBlockState(ore).isAir()) {
+                helper.fail("Stone unexpectedly vanished before starvation priority check", ore);
+                return;
+            }
+            miner.resetMiningProgress();
+            miner.setDecision(new LivingPlanner.Decision(
+                LivingPlanner.Intent.EAT, 95, "breakfast while hungry and out of food"));
+            LivingWorldActions.tick(miner, level);
+            if (miner.miningProgress() <= 0.0F
+                && !level.getBlockState(ore).isAir())
+                helper.fail("Foodless EAT intent deadlocked legal real-player mining", ore);
+            else if (miner.backpack().countItem(Items.BREAD) != 0)
+                helper.fail("Meal planner invented food in NPC inventory", ore);
+            else helper.succeed();
+        });
     }
 
 }
