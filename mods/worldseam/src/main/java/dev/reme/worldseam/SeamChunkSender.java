@@ -54,7 +54,6 @@ public final class SeamChunkSender {
 
     private static final class Session {
         String scope="";
-        int cursor;
         ServerLevel ticketLevel;
         ChunkPos ticketCenter;
         long ticketChanges;
@@ -78,7 +77,6 @@ public final class SeamChunkSender {
             destination.getChunkSource().addRegionTicket(
                 VIEW_TICKET,center,TICKET_DISTANCE,center);
             ticketChanges++;
-            cursor=0;
             // A new nearby view must stream its own 25 chunks first.
             // Retain only chunks still in the current window.
             lastSent.keySet().removeIf(key -> {
@@ -91,7 +89,6 @@ public final class SeamChunkSender {
         void reset() {
             release();
             scope="";
-            cursor=0;
             lastSent.clear();
         }
     }
@@ -136,13 +133,24 @@ public final class SeamChunkSender {
 
         if(tick%INTERVAL!=0)return;
 
-        int slot=session.cursor++%OFFSETS.length;
-        int cx=centerX+OFFSETS[slot][0],cz=centerZ+OFFSETS[slot][1];
-        long key=((long)cx<<32)|(cz&0xffffffffL);
-        long previous=session.lastSent.getOrDefault(key,Long.MIN_VALUE/2);
-        // Check LAST SENT timestamp BEFORE ANY getChunk(). Otherwise an
-        // unattended secondary dimension is force-reloaded on each visit.
-        if(tick-previous<REFRESH_TICKS)return;
+        // Search the entire bounded 5x5 set for the FIRST missing/stale
+        // chunk, prioritizing the player's near 3x3. On movement the
+        // prior implementation wasted 20 scheduled slots on already-cached
+        // chunks before reaching the new ring edge.
+        int slot=-1,cx=0,cz=0;
+        long key=0L;
+        for(int i=0;i<OFFSETS.length;i++) {
+            int testX=centerX+OFFSETS[i][0],testZ=centerZ+OFFSETS[i][1];
+            long candidate=((long)testX<<32)|(testZ&0xffffffffL);
+            long sentAt=session.lastSent.getOrDefault(candidate,Long.MIN_VALUE/2);
+            if(tick-sentAt<REFRESH_TICKS)continue;
+            slot=i;
+            cx=testX;
+            cz=testZ;
+            key=candidate;
+            break;
+        }
+        if(slot<0)return; // warm and stable: ZERO getChunk(), ZERO packets
 
         // A controlled, bounded one-chunk fetch occurs only for unsent/stale
         // data. Temporary residency keeps the remaining chunks loaded.
