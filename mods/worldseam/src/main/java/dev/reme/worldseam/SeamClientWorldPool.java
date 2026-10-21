@@ -269,6 +269,17 @@ public final class SeamClientWorldPool {
         return true;
     }
 
+    /** Read the remote live ClientLevel, never the active player's world. */
+    public static boolean remoteBlockIs(String dimension,
+                                        net.minecraft.core.BlockPos position,
+                                        net.minecraft.world.level.block.state.BlockState expected) {
+        if(remote==null || !dimension.equals(target) ||
+            !remote.getChunkSource().hasChunk(
+                Math.floorDiv(position.getX(),16),
+                Math.floorDiv(position.getZ(),16)))return false;
+        return remote.getBlockState(position).equals(expected);
+    }
+
     public static String remoteStatus() {
         if (failed) return "PREWARM FAILED (check latest.log)";
         if (remote==null) return "NO TARGET ClientLevel";

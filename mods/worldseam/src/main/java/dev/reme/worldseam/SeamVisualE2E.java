@@ -34,6 +34,10 @@ public final class SeamVisualE2E {
     private static boolean previewLogged;
     private static boolean endPreviewLogged;
     private static boolean dualStableChecked;
+    private static boolean liveChangeStarted;
+    private static boolean liveChangeVerified;
+    private static boolean stableBaselineTaken;
+    private static volatile int witnessX, witnessZ;
     private static long stableFetches = -1;
     private static long stablePackets = -1;
 
@@ -77,7 +81,38 @@ public final class SeamVisualE2E {
                     || stats.transmitted()<25)
                     LOG.error("WORLDSEAM_E2E_FAIL_DUAL_PREWARM: second world is not resident in all 5x5 chunks");
             });
-        } else if (phase==1 && !dualStableChecked && now-startTick>520) {
+        } else if (phase==1 && !liveChangeStarted && now-startTick>330) {
+            liveChangeStarted=true;
+            server.execute(() -> {
+                var nether=server.getLevel(Level.NETHER);
+                if(nether==null)return;
+                BlockPos marker=new BlockPos(witnessX+2,126,witnessZ+2);
+                nether.setBlock(marker,Blocks.DIAMOND_BLOCK.defaultBlockState(),3);
+                LOG.info("WORLDSEAM_E2E_MUTATE_REMOTE_NETHER: changed block at {} while player remains in Overworld",marker);
+            });
+        } else if (phase==1 && !liveChangeVerified && now-startTick>415) {
+            liveChangeVerified=true;
+            BlockPos marker=new BlockPos(witnessX+2,126,witnessZ+2);
+            boolean mirrored=SeamClientWorldPool.remoteBlockIs(
+                "minecraft:the_nether",marker,Blocks.DIAMOND_BLOCK.defaultBlockState());
+            LOG.info("WORLDSEAM_E2E_SECOND_WORLD_LIVE_BLOCK: mirrored={} at {}, client dimension={}",
+                mirrored,marker,mc.level.dimension().location());
+            if(!mirrored)
+                LOG.error("WORLDSEAM_E2E_FAIL_LIVE_BLOCK: native secondary client chunk did not update when target block changed");
+        } else if (phase==1 && !stableBaselineTaken && now-startTick>465) {
+            stableBaselineTaken=true;
+            server.execute(() -> {
+                ServerPlayer p=server.getPlayerList().getPlayer(playerId);
+                if(p==null)return;
+                var stats=SeamChunkSender.stats(p);
+                stableFetches=stats.fetches();
+                stablePackets=stats.packets();
+                LOG.info("WORLDSEAM_E2E_LIVE_PACKET: liveResends={}, totalPackets={}, loaded5x5={}",
+                    stats.liveUpdates(),stats.packets(),stats.resident());
+                if(stats.liveUpdates()<1)
+                    LOG.error("WORLDSEAM_E2E_FAIL_LIVE_PACKET: no bounded native update sent from secondary world");
+            });
+        } else if (phase==1 && !dualStableChecked && now-startTick>550) {
             dualStableChecked=true;
             server.execute(() -> {
                 ServerPlayer p=server.getPlayerList().getPlayer(playerId);
@@ -210,6 +245,8 @@ public final class SeamVisualE2E {
         cfg.setCarveNewChunks(true);
         int x=player.blockPosition().getX();
         int z=player.blockPosition().getZ();
+        witnessX=x;
+        witnessZ=z;
         var overworld=server.getLevel(Level.OVERWORLD);
         var nether=server.getLevel(Level.NETHER);
         var end=server.getLevel(Level.END);
