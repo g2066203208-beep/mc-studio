@@ -16,6 +16,7 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
 import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
+import net.neoforged.neoforge.client.event.ClientTickEvent;
 import net.neoforged.neoforge.common.NeoForge;
 
 import java.util.ArrayList;
@@ -35,6 +36,10 @@ public final class SeamNativeGeometryClient {
     private static final int MAX_COLUMNS = 25;
     private static final int VERTICAL_SECTIONS = 10;
     private static final int MAX_DRAW = 3500;
+    private static final int MAX_BUILDS_PER_TICK = 2;
+    private static final SeamGeometryQueue BUILD_QUEUE = new SeamGeometryQueue();
+    private static ClientLevel queuedRemote;
+    private static SeamGraph.Link queuedLink;
     private static final int[][] NEIGHBORS = {
         {-1,0,0},{1,0,0},{0,-1,0},{0,1,0},{0,0,-1},{0,0,1}
     };
@@ -47,12 +52,12 @@ public final class SeamNativeGeometryClient {
     private static int blocksBuilt;
     private static int lastFrameDrawn;
     private static int lastFrameEndStone;
-    private static long lastArrivalTick;
 
     private SeamNativeGeometryClient() {}
 
     public static void install() {
         NeoForge.EVENT_BUS.addListener(SeamNativeGeometryClient::render);
+        NeoForge.EVENT_BUS.addListener(SeamNativeGeometryClient::tick);
         NeoForge.EVENT_BUS.addListener(
             (ClientPlayerNetworkEvent.LoggingOut e) -> reset()
         );
@@ -81,18 +86,13 @@ public final class SeamNativeGeometryClient {
         LevelChunk chunk = cache.getChunk(packet.chunkX(),packet.chunkZ(),false);
         if (chunk == null) return;
 
-        // Correct seam visibility requires both sides of a CHUNK boundary.
-        // On each arrival update this column plus its four direct neighbors:
-        // an old column must stop drawing hidden faces when a neighbor loads.
-        rebuildColumn(remote,link,packet.chunkX(),packet.chunkZ());
-        rebuildColumn(remote,link,packet.chunkX()-1,packet.chunkZ());
-        rebuildColumn(remote,link,packet.chunkX()+1,packet.chunkZ());
-        rebuildColumn(remote,link,packet.chunkX(),packet.chunkZ()-1);
-        rebuildColumn(remote,link,packet.chunkX(),packet.chunkZ()+1);
-        while(columns.size()>MAX_COLUMNS)
-            columns.remove(columns.keySet().iterator().next());
-        blocksBuilt=columns.values().stream().mapToInt(List::size).sum();
-        lastArrivalTick=mc.level.getGameTime();
+        // The old handler rebuilt five full 16x16x160 columns immediately
+        // on EACH chunk packet, causing multi-million block scans in bursts.
+        // Instead coalesce overlapping columns and rebuild at most two per
+        // client tick, prioritizing the player's current chunk.
+        queuedRemote=remote;
+        queuedLink=link;
+        BUILD_QUEUE.invalidate(packet.chunkX(),packet.chunkZ());
     }
 
     private static void rebuildColumn(ClientLevel remote,SeamGraph.Link link,
@@ -155,20 +155,51 @@ public final class SeamNativeGeometryClient {
         return true;
     }
 
+
+    private static void tick(ClientTickEvent.Post event) {
+        Minecraft mc=Minecraft.getInstance();
+        if(source.isEmpty()) return;
+        if(mc.level==null || mc.player==null ||
+            !mc.level.dimension().location().toString().equals(source) ||
+            !SeamClientWorldPool.hasPrewarmed(target) ||
+            queuedRemote==null || queuedLink==null) {
+            reset();
+            return;
+        }
+        int cx=Math.floorDiv(mc.player.blockPosition().getX(),16);
+        int cz=Math.floorDiv(mc.player.blockPosition().getZ(),16);
+        boolean changed=columns.entrySet().removeIf(e -> {
+            long p=e.getKey();
+            return Math.abs((long)SeamGeometryQueue.x(p)-cx)>2 ||
+                   Math.abs((long)SeamGeometryQueue.z(p)-cz)>2;
+        });
+        var queued=BUILD_QUEUE.drain(MAX_BUILDS_PER_TICK,cx,cz,2);
+        for(long packed:queued) {
+            rebuildColumn(queuedRemote,queuedLink,
+                SeamGeometryQueue.x(packed),SeamGeometryQueue.z(packed));
+        }
+        if(changed || !queued.isEmpty()) {
+            while(columns.size()>MAX_COLUMNS)
+                columns.remove(columns.keySet().iterator().next());
+            blocksBuilt=columns.values().stream().mapToInt(List::size).sum();
+        }
+    }
+
     private static void render(RenderLevelStageEvent event) {
         if (event.getStage()!=RenderLevelStageEvent.Stage.AFTER_BLOCK_ENTITIES)
             return;
         lastFrameDrawn=0;
         lastFrameEndStone=0;
         Minecraft mc=Minecraft.getInstance();
-        if (mc.level==null || !mc.level.dimension().location().toString().equals(source)) {
+        if (mc.level==null || mc.player==null ||
+            !mc.level.dimension().location().toString().equals(source) ||
+            !SeamClientWorldPool.hasPrewarmed(target)) {
             if (!source.isEmpty()) reset();
             return;
         }
-        if (mc.level.getGameTime()-lastArrivalTick>2400) {
-            reset();
-            return;
-        }
+        // A quiet, still-resident remote world must NOT expire after 2400
+        // ticks without packets. Cache lifetime follows the actual remote
+        // ClientLevel, not an arbitrary traffic timer.
         if (columns.isEmpty() || event.getPoseStack()==null) return;
         // Bound the visual mesh to the client's CURRENT chunk ring; columns
         // from an old center are NOT still visible after window movement.
@@ -179,7 +210,8 @@ public final class SeamNativeGeometryClient {
             return Math.abs((int)(p>>32)-playerCx)>2 ||
                 Math.abs((int)p-playerCz)>2;
         });
-        if (columns.isEmpty())return;
+        if (columns.isEmpty()) { blocksBuilt=0; return; }
+        blocksBuilt=columns.values().stream().mapToInt(List::size).sum();
         PoseStack pose=event.getPoseStack();
         Vec3 camera=event.getCamera().getPosition();
         MultiBufferSource.BufferSource buffers=mc.renderBuffers().bufferSource();
@@ -231,6 +263,7 @@ public final class SeamNativeGeometryClient {
     public static int visibleBlockCount() { return blocksBuilt; }
     public static int lastFrameDrawn() { return lastFrameDrawn; }
     public static int columnCount() { return columns.size(); }
+    public static int pendingRebuilds() { return BUILD_QUEUE.pending(); }
     public static String scope() { return source.isEmpty() ? "-" : source+">"+target; }
 
     public static void reset() {
@@ -240,6 +273,8 @@ public final class SeamNativeGeometryClient {
         lastFrameEndStone=0;
         source="";
         target="";
-        lastArrivalTick=0;
+        queuedRemote=null;
+        queuedLink=null;
+        BUILD_QUEUE.clear();
     }
 }
