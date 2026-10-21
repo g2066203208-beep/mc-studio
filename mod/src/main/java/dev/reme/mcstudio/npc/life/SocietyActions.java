@@ -17,6 +17,12 @@ public final class SocietyActions {
 
     public static boolean tick(PlayerNpcEntity npc, ServerLevel level, long tick) {
         if (npc.mode() != PlayerNpcEntity.Mode.LIVE) return false;
+        if (npc.identity().faction() == SocietyRules.Faction.RAIDERS
+            && MovementPolicy.due(tick, npc.getId(), 40))
+            return BanditActions.tick(npc, level, tick);
+        if (npc.isAfraid(tick) && npc.profession() != PlayerNpcEntity.Profession.GUARD)
+            return false; // the threat-response planner now takes precedence
+
         // Guards need timely checks so short patrol windows and threats are not skipped.
         // Other professions retain the lower-cost 80-tick cadence.
         int interval = npc.profession() == PlayerNpcEntity.Profession.GUARD ? 40 : 80;
