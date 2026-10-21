@@ -120,7 +120,7 @@ dependencies {
     // Official release JARs are downloaded to this ignored directory only by
     // the optional native GameTest CI workflow. Not redistributed in our jar.
     if (project.hasProperty('rpmsNativeRuntime')) {
-        localRuntime files('runtime-mods/create-1.21.1.jar', 'runtime-mods/aeronautics-1.21.1.jar')
+        localRuntime files('runtime-mods/create-1.21.1.jar', 'runtime-mods/aeronautics-1.21.1.jar', 'runtime-mods/sable-1.21.1.jar')
     }
     // Example optional mod dependency with JEI
     // The JEI API is declared for compile time use, while the full JEI artifact is used at runtime
