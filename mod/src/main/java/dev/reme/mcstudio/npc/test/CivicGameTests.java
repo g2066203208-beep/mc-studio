@@ -677,4 +677,45 @@ public final class CivicGameTests {
         helper.succeed();
     }
 
+    @GameTest(template = "empty", timeoutTicks = 230)
+    public static void real_mined_stone_becomes_one_stored_cobblestone_no_double_pickup(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos ore = helper.absolutePos(new BlockPos(4, 9, 4));
+        BlockPos stand = ore.east(2);
+        for (int x = -3; x <= 4; x++) for (int z = -3; z <= 3; z++) {
+            BlockPos ground = ore.offset(x, -1, z);
+            level.setBlock(ground, Blocks.STONE.defaultBlockState(), 3);
+            level.setBlock(ground.above(), Blocks.AIR.defaultBlockState(), 3);
+            level.setBlock(ground.above(2), Blocks.AIR.defaultBlockState(), 3);
+        }
+        level.setBlock(ore, Blocks.STONE.defaultBlockState(), 3);
+        PlayerNpcEntity npc = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (npc == null) throw new AssertionError("Cannot create mining resident");
+        npc.moveTo(stand.getX() + 0.5, stand.getY(),
+            stand.getZ() + 0.5, 0, 0);
+        npc.setHomePos(stand);
+        npc.setWorkPos(stand);
+        npc.setMode(PlayerNpcEntity.Mode.LIVE);
+        npc.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.IRON_PICKAXE));
+        npc.setMiningTarget(ore);
+        if (!level.addFreshEntity(npc)) throw new AssertionError("Cannot spawn mining resident");
+        // Do not shortcut the block/item pipeline by directly calling pickup
+        // on artificial drops. Wait for true survival mining + entity pickup.
+        helper.runAfterDelay(180, () -> {
+            long bag = npc.backpack().countItem(Items.COBBLESTONE);
+            long world = level.getEntitiesOfClass(ItemEntity.class,
+                new AABB(ore).inflate(4), drop -> drop.getItem().is(Items.COBBLESTONE))
+                .stream().mapToLong(drop -> drop.getItem().getCount()).sum();
+            if (!level.getBlockState(ore).isAir())
+                helper.fail("NPC did not mine the physical stone", ore);
+            else if (npc.getMainHandItem().getDamageValue() != 1)
+                helper.fail("Real iron pickaxe not worn exactly once", ore);
+            else if (bag != 1 || world != 0)
+                helper.fail("Mined drop not picked up exactly once: bag=" + bag
+                    + " world=" + world + " claims=" + npc.pendingMiningDrops().size()
+                    + " action=" + npc.lastAction(), ore);
+            else helper.succeed();
+        });
+    }
+
 }
