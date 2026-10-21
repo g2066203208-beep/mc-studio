@@ -27,6 +27,7 @@ try{
  assert.equal(await page.locator('#blocksNum').textContent(),'0');
  await page.locator('[data-mode="place"]').click();
  const box=await page.locator('#view').boundingBox();
+ console.log('Canvas click target:',await page.evaluate(({x,y})=>{const e=document.elementFromPoint(x,y);return {tag:e?.tagName,id:e?.id,cls:e?.className}}, {x:box.x+box.width/2,y:box.y+box.height/2}));
  await page.mouse.click(box.x+box.width/2,box.y+box.height/2);
  console.log('Placement diagnostics:',await page.evaluate(()=>({count:window.__STRICT_API__.getState().length,status:document.getElementById('canvasStatus').textContent,mode:document.querySelector('[data-mode].active')?.dataset.mode,hit:window.__STRICT_DEBUG__})));
  assert.equal(await page.locator('#blocksNum').textContent(),'1','click-to-place MC block must work');
