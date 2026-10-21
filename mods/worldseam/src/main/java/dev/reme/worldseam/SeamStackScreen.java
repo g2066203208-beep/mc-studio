@@ -49,19 +49,19 @@ public final class SeamStackScreen extends Screen {
     }
 
     @Override protected void init() {
-        int c=width/2, y=Math.max(40,height/2-99);
+        int c=width/2, y=Math.max(18,height/2-108);
         addRenderableWidget(Button.builder(Component.literal("Prev"),
             b -> moveSelection(-1)).bounds(c-145,y,65,20).build());
         addRenderableWidget(Button.builder(Component.literal("Next"),
             b -> moveSelection(1)).bounds(c+80,y,65,20).build());
         up=addRenderableWidget(Button.builder(Component.literal("Move UP"),
-            b -> reorder(-1)).bounds(c-145,y+29,90,20).build());
+            b -> reorder(-1)).bounds(c-145,y+24,90,20).build());
         down=addRenderableWidget(Button.builder(Component.literal("Move DOWN"),
-            b -> reorder(1)).bounds(c+55,y+29,90,20).build());
+            b -> reorder(1)).bounds(c+55,y+24,90,20).build());
 
-        bottom=new EditBox(font,c-139,y+79,125,20,
+        bottom=new EditBox(font,c-139,y+68,125,20,
             Component.literal("Bottom seam Y"));
-        top=new EditBox(font,c+14,y+79,125,20,
+        top=new EditBox(font,c+14,y+68,125,20,
             Component.literal("Top seam Y"));
         bottom.setMaxLength(9);
         top.setMaxLength(9);
@@ -70,25 +70,25 @@ public final class SeamStackScreen extends Screen {
         loadFields();
 
         addRenderableWidget(Button.builder(Component.literal("Toggle UP"),
-            b -> changeDirection(true)).bounds(c-145,y+107,90,20).build());
+            b -> changeDirection(true)).bounds(c-145,y+91,90,20).build());
         addRenderableWidget(Button.builder(Component.literal("Toggle DOWN"),
-            b -> changeDirection(false)).bounds(c+55,y+107,90,20).build());
+            b -> changeDirection(false)).bounds(c+55,y+91,90,20).build());
 
         addRenderableWidget(Button.builder(Component.literal("< Dim"),
-            b -> browse(-1)).bounds(c-145,y+142,67,20).build());
+            b -> browse(-1)).bounds(c-145,y+117,67,20).build());
         addRenderableWidget(Button.builder(Component.literal("Dim >"),
-            b -> browse(1)).bounds(c+78,y+142,67,20).build());
+            b -> browse(1)).bounds(c+78,y+117,67,20).build());
         addRenderableWidget(Button.builder(Component.literal("Add"),
-            b -> addDimension()).bounds(c-70,y+166,64,20).build());
+            b -> addDimension()).bounds(c-70,y+141,64,20).build());
         addRenderableWidget(Button.builder(Component.literal("Remove"),
-            b -> removeDimension()).bounds(c+6,y+166,72,20).build());
+            b -> removeDimension()).bounds(c+6,y+141,72,20).build());
         addRenderableWidget(Button.builder(Component.literal("Loop: "+(loop?"ON":"OFF")),
             b -> {
                 loop=!loop;
                 b.setMessage(Component.literal("Loop: "+(loop?"ON":"OFF")));
-            }).bounds(c-145,y+195,90,20).build());
+            }).bounds(c-145,y+166,90,20).build());
         addRenderableWidget(Button.builder(Component.literal("Save stack"),
-            b -> finish()).bounds(c+48,y+195,97,20).build());
+            b -> finish()).bounds(c+48,y+166,97,20).build());
         updateControls();
     }
 
@@ -206,15 +206,15 @@ public final class SeamStackScreen extends Screen {
                 c,y-15,0xFFFFFF);
             g.drawCenteredString(font,
                 "Connect UP: "+e.connectsUp()+"  |  DOWN: "+e.connectsDown(),
-                c,y+55,0xAADDFF);
+                c,y+51,0xAADDFF);
         }
-        g.drawString(font,"Bottom Y (blank=default)",c-142,y+69,0xCCCCCC);
-        g.drawString(font,"Top Y (blank=default)",c+13,y+69,0xCCCCCC);
+        g.drawString(font,"Bottom Y (blank=default)",c-142,y+58,0xCCCCCC);
+        g.drawString(font,"Top Y (blank=default)",c+13,y+58,0xCCCCCC);
         g.drawCenteredString(font,"Available dimension: "+candidates.get(candidate),
-            c,y+131,0xAEE9A0);
+            c,y+106,0xAEE9A0);
         g.drawCenteredString(font,
             "Mods/datapacks: dimensions must exist in this world's registry",
-            c,Math.min(height-12,y+222),0x999999);
-        if(!error.isEmpty())g.drawCenteredString(font,error,c,Math.min(height-1,y+235),0xFF7777);
+            c,Math.min(height-12,y+194),0x999999);
+        if(!error.isEmpty())g.drawCenteredString(font,error,c,Math.min(height-1,y+207),0xFF7777);
     }
 }

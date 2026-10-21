@@ -21,6 +21,7 @@ public final class SeamPendingWorldPreset {
         try {
             settings.setStack(requested,e.getServer());
             settings.setEnabled(true);
+            settings.setCarveNewChunks(true);
             com.mojang.logging.LogUtils.getLogger().info(
                 "WorldSeam applied Create World stack: {}",requested.entries());
         } catch(IllegalArgumentException ex) {

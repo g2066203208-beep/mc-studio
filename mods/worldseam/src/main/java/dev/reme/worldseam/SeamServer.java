@@ -240,7 +240,8 @@ public final class SeamServer {
     }
 
     public static boolean shouldCarveNewChunk(MinecraftServer server) {
-        return server == lastServer && terrainEnabled;
+        return server!=null && SeamSettings.get(server).enabled()
+            && SeamSettings.get(server).carveNewChunks();
     }
 
     public static ResourceKey<Level> dimensionKey(String id) {
