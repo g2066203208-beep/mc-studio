@@ -286,6 +286,18 @@ public final class SeamClientWorldPool {
         return "TARGET READY CONTEXT "+target;
     }
     public static int receivedChunks() { return receivedChunkCount; }
+    public static int remoteWindowChunks() {
+        Minecraft mc=Minecraft.getInstance();
+        if(remote==null || mc.player==null || mc.level==null)return 0;
+        int cx=Math.floorDiv(mc.player.blockPosition().getX(),16);
+        int cz=Math.floorDiv(mc.player.blockPosition().getZ(),16);
+        int loaded=0;
+        for(int dx=-2;dx<=2;dx++)
+            for(int dz=-2;dz<=2;dz++)
+                if(remote.getChunkSource().hasChunk(cx+dx,cz+dz))loaded++;
+        return loaded;
+    }
+
     public static int nearbyChunks() {
         Minecraft mc=Minecraft.getInstance();
         if (remote==null || mc.player==null || mc.level==null) return 0;

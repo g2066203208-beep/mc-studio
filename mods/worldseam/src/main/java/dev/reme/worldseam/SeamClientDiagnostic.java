@@ -44,8 +44,8 @@ public final class SeamClientDiagnostic {
             currentSeam,closest.target(),otherSeam,
             closest.exit()==SeamGraph.EdgeSide.BOTTOM?"下方":"上方");
         String cache="已接收区块: "+SeamClientWorldPool.receivedChunks()+
-            " | 核心缓存: "+SeamClientWorldPool.nearbyChunks()+
-            "/9 | 远端模型: "+SeamNativeGeometryClient.visibleBlockCount()+
+            " | 远端缓存: "+SeamClientWorldPool.remoteWindowChunks()+
+            "/25 | 远端模型: "+SeamNativeGeometryClient.visibleBlockCount()+
             " | 本帧: "+SeamNativeGeometryClient.lastFrameDrawn();
         String rawStatus=SeamClientWorldPool.remoteStatus();
         String detail=rawStatus.contains("FAILED")?"目标维度初始化失败，请看日志":

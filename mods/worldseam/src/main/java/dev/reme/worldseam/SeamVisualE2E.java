@@ -95,10 +95,13 @@ public final class SeamVisualE2E {
             BlockPos marker=new BlockPos(witnessX+2,126,witnessZ+2);
             boolean mirrored=SeamClientWorldPool.remoteBlockIs(
                 "minecraft:the_nether",marker,Blocks.DIAMOND_BLOCK.defaultBlockState());
-            LOG.info("WORLDSEAM_E2E_SECOND_WORLD_LIVE_BLOCK: mirrored={} at {}, client dimension={}",
-                mirrored,marker,mc.level.dimension().location());
+            int client25=SeamClientWorldPool.remoteWindowChunks();
+            LOG.info("WORLDSEAM_E2E_SECOND_WORLD_LIVE_BLOCK: mirrored={} at {}, client dimension={}, remote client resident={}/25",
+                mirrored,marker,mc.level.dimension().location(),client25);
             if(!mirrored)
                 LOG.error("WORLDSEAM_E2E_FAIL_LIVE_BLOCK: native secondary client chunk did not update when target block changed");
+            if(client25<25)
+                LOG.error("WORLDSEAM_E2E_FAIL_CLIENT_WINDOW: remote client 5x5 cache missing chunks: {}/25",client25);
         } else if (phase==1 && !stableBaselineTaken && now-startTick>465) {
             stableBaselineTaken=true;
             server.execute(() -> {
