@@ -63,11 +63,14 @@ import net.minecraft.world.level.Level;
 public class PlayerNpcEntity extends PathfinderMob {
     private static final EntityDataAccessor<Integer> NPC_SKIN =
         SynchedEntityData.defineId(PlayerNpcEntity.class, EntityDataSerializers.INT);
+    private static final EntityDataAccessor<Integer> NPC_VISUAL_POSE =
+        SynchedEntityData.defineId(PlayerNpcEntity.class, EntityDataSerializers.INT);
 
     @Override
     protected void defineSynchedData(SynchedEntityData.Builder builder) {
         super.defineSynchedData(builder);
         builder.define(NPC_SKIN, 0);
+        builder.define(NPC_VISUAL_POSE, NpcPose.IDLE.ordinal());
     }
 
     public enum Mode { LIVE, FOLLOW, STAY, WANDER, GUARD }
@@ -105,6 +108,16 @@ public class PlayerNpcEntity extends PathfinderMob {
     private int formationSlot = 0;
     private int roamingRadius = 48;
     public int skinId() { return this.entityData.get(NPC_SKIN); }
+    public NpcPose visualPose() {
+        return NpcPose.fromNetworkId(this.entityData.get(NPC_VISUAL_POSE));
+    }
+    /** Server-authored, eventful state only. Each client interpolates its
+     * own vanilla-scale bones; we never spam six limb angles over network.
+     */
+    public void setVisualPose(NpcPose value) {
+        if (!level().isClientSide && visualPose() != value)
+            entityData.set(NPC_VISUAL_POSE, value.ordinal());
+    }
     public void setSkinId(int value) {
         this.entityData.set(NPC_SKIN, Math.clamp(value, 0, 5));
     }
@@ -401,6 +414,10 @@ public class PlayerNpcEntity extends PathfinderMob {
         super.tick();
         if (!level().isClientSide && level() instanceof ServerLevel server) {
             LivingWorldActions.tick(this, server);
+            // 5 Hz server classification, only network-synced upon change.
+            // Actual per-frame animation stays purely client-render-side.
+            if ((server.getGameTime() + getId()) % 4L == 0L)
+                setVisualPose(NpcPoseSelection.select(this, server.getGameTime()));
         }
     }
 
