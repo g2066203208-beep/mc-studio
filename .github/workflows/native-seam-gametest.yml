@@ -1,0 +1,29 @@
+name: Native Seam GameTest
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  gametest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Run real Minecraft GameTest server
+        working-directory: mod
+        run: bash ./gradlew runGameTestServer --no-daemon --console=plain
+      - name: Upload server logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-seam-gametest-logs
+          path: |
+            mod/runs/**/logs/*.log
+            mod/run*/logs/*.log
+          if-no-files-found: ignore
