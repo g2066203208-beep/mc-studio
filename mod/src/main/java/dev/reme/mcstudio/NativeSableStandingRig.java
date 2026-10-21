@@ -2,6 +2,9 @@ package dev.reme.mcstudio;
 
 import com.mojang.logging.LogUtils;
 import java.lang.reflect.InvocationTargetException;
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
 import java.lang.reflect.Method;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
@@ -81,11 +84,21 @@ public final class NativeSableStandingRig {
         try {
             Class<?> containerClass=Class.forName(CONTAINER);
             Class<?> poseClass=Class.forName(POSE);
-            Object container=containerClass.getMethod("getContainer",ServerLevel.class).invoke(null,level);
+            Class<?> holderClass=Class.forName("dev.ryanhcode.sable.mixinterface.plot.SubLevelContainerHolder");
+            // Important: SubLevelContainer.getContainer() is overloaded for
+            // ClientLevel. Reflecting getMethod() on that class causes
+            // NeoForge RuntimeDistCleaner to load ClientLevel and FAIL on a
+            // dedicated server. Use its server-safe injected holder interface.
+            Object container=holderClass.getMethod("sable$getPlotContainer").invoke(level);
             if (container==null)throw new IllegalStateException("Sable SubLevelContainer is unavailable");
             Object pose=poseClass.getConstructor().newInstance();
             ((Vector3d)poseClass.getMethod("position").invoke(pose)).set(worldOrigin);
-            Object sublevel=containerClass.getMethod("allocateNewSubLevel",poseClass).invoke(container,pose);
+            // findVirtual resolves only the precise method signature, without
+            // enumerating other client-only Sable overloads.
+            Class<?> sublevelClass=Class.forName("dev.ryanhcode.sable.sublevel.SubLevel");
+            MethodHandle allocate=MethodHandles.publicLookup().findVirtual(containerClass,
+                    "allocateNewSubLevel",MethodType.methodType(sublevelClass,poseClass));
+            Object sublevel=allocate.invoke(container,pose);
             if(sublevel==null)throw new IllegalStateException("Sable failed to allocate a real sublevel");
             Object plot=sublevel.getClass().getMethod("getPlot").invoke(sublevel);
             ChunkPos center=(ChunkPos)plot.getClass().getMethod("getCenterChunk").invoke(plot);
@@ -117,6 +130,9 @@ public final class NativeSableStandingRig {
             throw new IllegalStateException("Sable rigid-body creation failed: "+e.getCause(),e.getCause());
         } catch (ReflectiveOperationException e) {
             throw new IllegalStateException("Required Sable API missing; use official Sable 2.0.6",e);
+        } catch (Throwable e) {
+            if(e instanceof Error err)throw err;
+            throw new IllegalStateException("Sable dedicated-server sublevel allocation failed",e);
         }
     }
 
