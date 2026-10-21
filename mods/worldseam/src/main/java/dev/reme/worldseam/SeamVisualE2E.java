@@ -310,6 +310,16 @@ public final class SeamVisualE2E {
         cfg.setExperimentalNoRespawn(true);
         cfg.setCarveNewChunks(true);
         cfg.setCrossSeamExplosions(true); // real TNT only in disposable CI world
+        // Existing E2E also tests the HISTORICAL End-above-Overworld saved
+        // ordering. Pin that as a deliberately old saved stack, so changing
+        // new-world defaults does not invalidate previously verified routes.
+        // Independent GameTest verifies the NEW default Nether-bottom → End.
+        cfg.setStack(new SeamStack(java.util.List.of(
+            new SeamStack.Entry("minecraft:the_end",null,null,true,true),
+            new SeamStack.Entry("minecraft:overworld",null,null,true,true),
+            new SeamStack.Entry("minecraft:the_nether",null,128,true,true)
+        ),false),server);
+        LOG.info("WORLDSEAM_E2E_LEGACY_STACK_PINNED: old world ordering End > Overworld > Nether, separate from new-world default");
         int x=player.blockPosition().getX();
         int z=player.blockPosition().getZ();
         witnessX=x;
