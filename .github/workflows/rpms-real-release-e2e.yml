@@ -25,6 +25,7 @@ jobs:
           node --check viewer/rpms/authentic-models.mjs
           node --check viewer/rpms/strict.js
           node --check viewer/rpms/tests/official-release-browser.cjs
+          node --check viewer/rpms/tests/official-autoload-live.cjs
           python3 -m py_compile viewer/rpms/tests/download-official.py
       - name: Download SHA-verified official Minecraft Create Aeronautics JARs (temporary only)
         run: |
@@ -42,6 +43,7 @@ jobs:
         run: |
           python3 -m http.server 8033 --directory viewer >/tmp/rpms-real-http.log 2>&1 &
           node viewer/rpms/tests/official-release-browser.cjs
+          node viewer/rpms/tests/official-autoload-live.cjs
       - name: Upload screenshots and JSON status report, never Mod JAR files
         if: always()
         uses: actions/upload-artifact@v4
@@ -50,5 +52,7 @@ jobs:
           path: |
             viewer/rpms/tests/official-create-aeronautics-*.png
             viewer/rpms/tests/official-model-coverage.json
+            viewer/rpms/tests/real-cdn-autoload-desktop.png
+            viewer/rpms/tests/real-cdn-autoload-result.json
           if-no-files-found: ignore
           retention-days: 7
