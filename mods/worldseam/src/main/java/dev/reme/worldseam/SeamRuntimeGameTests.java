@@ -58,6 +58,42 @@ public final class SeamRuntimeGameTests {
             helper.fail("Nether roof seam is not at Y=128");
             return;
         }
+        // New world topology is Overworld > Nether > End, and reciprocal
+        // links are generated from the saved stack, not assumed from old CI.
+        SeamStack defaults=SeamStack.defaults();
+        var order=defaults.entries().stream().map(SeamStack.Entry::id).toList();
+        if(!order.equals(java.util.List.of(
+            "minecraft:overworld","minecraft:the_nether","minecraft:the_end"))) {
+            helper.fail("New-world default stack must be Overworld > Nether > End: "+order);
+            return;
+        }
+        var toEnd=defaults.from("minecraft:the_nether").stream()
+            .filter(l->l.exit()==SeamGraph.EdgeSide.BOTTOM)
+            .findFirst().orElseThrow();
+        var toNether=defaults.from("minecraft:the_end").stream()
+            .filter(l->l.exit()==SeamGraph.EdgeSide.TOP)
+            .findFirst().orElseThrow();
+        if(!toEnd.target().equals("minecraft:the_end") ||
+           !toNether.target().equals("minecraft:the_nether") ||
+           toEnd.targetY(-0.5,nether.getMinBuildHeight(),
+               end.getMaxBuildHeight())!=255.5 ||
+           toNether.targetY(256.5,end.getMaxBuildHeight(),
+               nether.getMinBuildHeight())!=0.5) {
+            helper.fail("Nether bottom ↔ End top mapping must preserve 1:1 Y");
+            return;
+        }
+        // Old save snapshots must retain their explicitly stored historical
+        // order: a software upgrade cannot silently move someone's End.
+        var oldSave=new SeamStack(java.util.List.of(
+            new SeamStack.Entry("minecraft:the_end",null,null,true,true),
+            new SeamStack.Entry("minecraft:overworld",null,null,true,true),
+            new SeamStack.Entry("minecraft:the_nether",null,128,true,true)),false);
+        if(!SeamStackStorage.read(SeamStackStorage.save(oldSave)).equals(oldSave)) {
+            helper.fail("Existing old-topology save must retain its order");
+            return;
+        }
+        com.mojang.logging.LogUtils.getLogger().info(
+            "WORLDSEAM_STACK_V094_PASS: new defaults Overworld > Nether > End; saved historical order roundtrips");
         var options = SeamSettings.get(server);
         if (options.enabled() || options.carveNewChunks() || options.experimentalNoRespawn()) {
             helper.fail("WorldSeam or terrain carving started without explicit opt-in");
