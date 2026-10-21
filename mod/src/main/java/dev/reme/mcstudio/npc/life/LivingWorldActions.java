@@ -73,9 +73,23 @@ public final class LivingWorldActions {
         switch (npc.intent()) {
             case ESCAPE -> escape(npc, level);
             case EAT -> eat(npc);
-            case SLEEP -> rest(npc);
+            case SLEEP -> {
+                // Guards work rotating watches. Rest must not cancel a real
+                // active patrol path every 40 ticks; tired guards still rest.
+                if (npc.profession() == PlayerNpcEntity.Profession.GUARD &&
+                    npc.energy() >= 35) {
+                    if (npc.getNavigation().isDone())
+                        npc.setAction("guard on watch; awaiting next patrol round");
+                } else rest(npc);
+            }
             case WORK -> work(npc, level, tick);
-            case SOCIALIZE -> socialize(npc, level, tick);
+            case SOCIALIZE -> {
+                if (npc.profession() == PlayerNpcEntity.Profession.GUARD &&
+                    npc.energy() >= 35) {
+                    if (npc.getNavigation().isDone())
+                        npc.setAction("guard on duty; scanning for threats");
+                } else socialize(npc, level, tick);
+            }
             case SEEK_SHELTER -> returnHome(npc, "returning home to escape rain");
             case IDLE -> { /* standing or looking around is a valid idle action */ }
         }
