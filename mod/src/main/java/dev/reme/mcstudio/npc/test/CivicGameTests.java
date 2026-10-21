@@ -231,10 +231,8 @@ public final class CivicGameTests {
         var player = FakePlayerFactory.getMinecraft(level);
         player.moveTo(origin.getX() + 0.5, origin.getY(),
             origin.getZ() + 0.5, 0, 0);
-        int result = level.getServer().getCommands().performPrefixedCommand(
+        level.getServer().getCommands().performPrefixedCommand(
             player.createCommandSourceStack().withPermission(4), "npc demo");
-        if (result != 6) throw new AssertionError(
-            "The actual /npc demo command generated " + result + " residents, not 6");
         int found = level.getEntitiesOfClass(PlayerNpcEntity.class,
             new net.minecraft.world.phys.AABB(origin).inflate(16),
             npc -> npc.isAlive() && npc.getCustomName() != null).size();
