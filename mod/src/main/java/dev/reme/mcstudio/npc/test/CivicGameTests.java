@@ -17,6 +17,8 @@ import dev.reme.mcstudio.npc.life.FootTrafficData;
 import dev.reme.mcstudio.npc.life.EmergentFootpaths;
 import dev.reme.mcstudio.npc.life.EmergentSettlements;
 import dev.reme.mcstudio.npc.life.BanditActions;
+import dev.reme.mcstudio.npc.life.CaravanRoutes;
+import net.minecraft.world.level.block.entity.ChestBlockEntity;
 import dev.reme.mcstudio.npc.life.SettlementLedger;
 import net.minecraft.world.level.GameRules;
 import net.neoforged.neoforge.common.NeoForge;
@@ -1004,6 +1006,94 @@ public final class CivicGameTests {
             NeoForge.EVENT_BUS.unregister(veto);
             data.setPhysicalPathsEnabled(previous);
         }
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 200)
+    public static void autonomous_caravan_moves_real_wheat_between_two_authorized_chests(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos pickup = helper.absolutePos(new BlockPos(2, 9, 5));
+        BlockPos destination = helper.absolutePos(new BlockPos(8, 9, 5));
+        for (int x = -1; x <= 10; x++) for (int z = -3; z <= 3; z++) {
+            BlockPos ground = pickup.offset(x, -1, z);
+            level.setBlock(ground, Blocks.STONE.defaultBlockState(), 3);
+            level.setBlock(ground.above(), Blocks.AIR.defaultBlockState(), 3);
+            level.setBlock(ground.above(2), Blocks.AIR.defaultBlockState(), 3);
+        }
+        level.setBlock(pickup, Blocks.CHEST.defaultBlockState(), 3);
+        level.setBlock(destination, Blocks.CHEST.defaultBlockState(), 3);
+        if (!(level.getBlockEntity(pickup) instanceof ChestBlockEntity source)
+            || !(level.getBlockEntity(destination) instanceof ChestBlockEntity target))
+            throw new AssertionError("Real vanilla chests did not register");
+        source.setItem(0, new ItemStack(Items.WHEAT, 10));
+        PlayerNpcEntity courier = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (courier == null) throw new AssertionError("NPC missing");
+        courier.moveTo(pickup.getX() + 1.5, pickup.getY(),
+            pickup.getZ() + 0.5, 0, 0);
+        courier.setHomePos(pickup);
+        courier.setWorkPos(pickup);
+        courier.setRoamingRadius(32);
+        courier.setProfession(PlayerNpcEntity.Profession.COURIER);
+        courier.setMode(PlayerNpcEntity.Mode.LIVE);
+        courier.setCaravanPickup(pickup);
+        courier.setCaravanDropoff(destination);
+        if (!level.addFreshEntity(courier)) throw new AssertionError("Courier spawn failed");
+        if (!CaravanRoutes.tick(courier, level)
+            || courier.backpack().countItem(Items.WHEAT) != 8
+            || source.countItem(Items.WHEAT) != 2)
+            throw new AssertionError("Loading from physical source chest created/lost wheat");
+        // Next pulse gives vanilla navigation a real job; no courier teleport.
+        if (!CaravanRoutes.tick(courier, level))
+            throw new AssertionError("Real inter-depot travel not started");
+        helper.runAfterDelay(160, () -> {
+            int sourceLeft = source.countItem(Items.WHEAT);
+            int destinationReceived = target.countItem(Items.WHEAT);
+            int bagLeft = courier.backpack().countItem(Items.WHEAT);
+            if (sourceLeft + destinationReceived + bagLeft != 10)
+                helper.fail("Real chest-to-chest logistics duplicated wheat", pickup);
+            else if (destinationReceived != 8 || bagLeft != 0)
+                helper.fail("Courier never physically delivered cargo; action="
+                    + courier.lastAction() + ", location="
+                    + courier.blockPosition().toShortString(), destination);
+            else helper.succeed();
+        });
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 100)
+    public static void full_caravan_destination_never_deletes_existing_cargo(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos sourcePos = helper.absolutePos(new BlockPos(2, 9, 5));
+        BlockPos targetPos = helper.absolutePos(new BlockPos(5, 9, 5));
+        level.setBlock(targetPos, Blocks.CHEST.defaultBlockState(), 3);
+        if (!(level.getBlockEntity(targetPos) instanceof ChestBlockEntity destination))
+            throw new AssertionError("Chest not created");
+        for (int i = 0; i < destination.getContainerSize(); i++)
+            destination.setItem(i, new ItemStack(Items.DIRT, 64));
+        PlayerNpcEntity courier = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (courier == null) throw new AssertionError("No courier");
+        courier.moveTo(targetPos.getX() + 1.5, targetPos.getY(),
+            targetPos.getZ() + 0.5, 0, 0);
+        courier.setMode(PlayerNpcEntity.Mode.LIVE);
+        courier.setProfession(PlayerNpcEntity.Profession.COURIER);
+        courier.setHomePos(sourcePos);
+        courier.setCaravanPickup(sourcePos);
+        courier.setCaravanDropoff(targetPos);
+        courier.backpack().addItem(new ItemStack(Items.WHEAT, 4));
+        if (!level.addFreshEntity(courier)) throw new AssertionError("Courier spawn failed");
+        if (!CaravanRoutes.tick(courier, level)
+            || courier.backpack().countItem(Items.WHEAT) != 4
+            || destination.countItem(Items.WHEAT) != 0
+            || destination.countItem(Items.DIRT) != destination.getContainerSize() * 64)
+            throw new AssertionError("Full real destination chest stole/destroyed wheat");
+        CompoundTag tag = new CompoundTag();
+        courier.addAdditionalSaveData(tag);
+        PlayerNpcEntity reloaded = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (reloaded == null) throw new AssertionError("Courier cannot reload");
+        reloaded.readAdditionalSaveData(tag);
+        if (!targetPos.equals(reloaded.caravanDropoff())
+            || !sourcePos.equals(reloaded.caravanPickup())
+            || reloaded.backpack().countItem(Items.WHEAT) != 4)
+            throw new AssertionError("Route/cargo lost or duplicated after save/reload");
         helper.succeed();
     }
 
