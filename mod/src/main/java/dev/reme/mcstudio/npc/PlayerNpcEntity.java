@@ -125,6 +125,7 @@ public class PlayerNpcEntity extends PathfinderMob {
     private CharacterProfile character = new CharacterProfile(60, 65, 60, 60);
     @Nullable private Commission commission;
     private long lastAttackReport = -10000L;
+    private long nextRaidTick = 0L;
     private boolean buildEnabled = false;
     private int buildCursor = 0;
     private long nextSocialTick = 0;
@@ -330,6 +331,17 @@ public class PlayerNpcEntity extends PathfinderMob {
     }
     public UUID recentAggressor() { return recentAggressor; }
     public boolean isAfraid(long tick) { return recentAggressor != null && tick < afraidUntil; }
+    public long nextRaidTick() { return nextRaidTick; }
+    public void postponeRaid(long tick) { nextRaidTick = Math.max(nextRaidTick, tick); }
+    /** Non-player assault also has consequences: victim fear and personal
+     * memory. Only called after an ACTUAL transfer of existing cargo.
+     */
+    public void witnessedBanditTheft(PlayerNpcEntity raider, long tick) {
+        recentAggressor = raider.getUUID();
+        afraidUntil = Math.max(afraidUntil, tick + 240L);
+        memory.witness(tick, raider.getUUID(),
+            ResidentMemory.Kind.THEFT_WITNESSED, blockPosition().toShortString());
+    }
     public ResidentMemory memory() { return memory; }
     public int hunger() { return hunger; }
     public int energy() { return energy; }
@@ -555,6 +567,7 @@ public class PlayerNpcEntity extends PathfinderMob {
         tag.putInt("NpcFormationSlot", formationSlot);
         tag.putInt("NpcRoamingRadius", roamingRadius);
         tag.putInt("NpcSkinId", skinId());
+        tag.putLong("NpcNextRaidTick", nextRaidTick);
         if (miningTarget != null) tag.putLong("NpcMiningTarget", miningTarget.asLong());
         if (!ownedMiningDrops.isEmpty()) {
             ListTag claims = new ListTag();
@@ -647,6 +660,7 @@ public class PlayerNpcEntity extends PathfinderMob {
         formationSlot = Math.clamp(tag.getInt("NpcFormationSlot"), 0, 15);
         miningTarget = tag.contains("NpcMiningTarget", Tag.TAG_LONG)
             ? BlockPos.of(tag.getLong("NpcMiningTarget")) : null;
+        nextRaidTick = Math.max(0L, tag.getLong("NpcNextRaidTick"));
         miningProgress = 0.0F;
         ownedMiningDrops.clear();
         miningLootExpiry = Math.max(0L, tag.getLong("NpcMiningDropExpiry"));
