@@ -55,7 +55,7 @@ public final class SeamSectionSender {
         String sourceName = source.dimension().location().toString();
         SeamGraph.Link selected = null;
         if (enabled) {
-            for (SeamGraph.Link link : SeamGraph.from(sourceName)) {
+            for (SeamGraph.Link link : SeamStackRuntime.from(server,sourceName)) {
                 if (link.near(player.getY(), source.getMinBuildHeight(),
                     SeamBounds.top(source), ACTIVATION_DISTANCE)) {
                     selected = link;
@@ -95,9 +95,9 @@ public final class SeamSectionSender {
         }
 
         int sourceBoundary = (int) SeamGraph.boundaryY(selected.exit(),
-            source.getMinBuildHeight(), SeamBounds.top(source));
+            SeamStackRuntime.bottom(source), SeamStackRuntime.top(source));
         int targetBoundary = (int) SeamGraph.boundaryY(selected.entry(),
-            target.getMinBuildHeight(), SeamBounds.top(target));
+            SeamStackRuntime.bottom(target), SeamStackRuntime.top(target));
 
         // Deterministically rotate the 18 (3x3x2) near-boundary sections.
         int slot = s.cursor++ % SECTIONS_PER_SCOPE;

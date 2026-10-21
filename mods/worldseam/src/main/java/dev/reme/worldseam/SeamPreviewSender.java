@@ -65,7 +65,7 @@ public final class SeamPreviewSender {
         ServerLevel source = player.serverLevel();
         String dimension = source.dimension().location().toString();
         SeamGraph.Link selected = null;
-        for (SeamGraph.Link link : SeamGraph.from(dimension)) {
+        for (SeamGraph.Link link : SeamStackRuntime.from(server,dimension)) {
             if (link.near(player.getY(), source.getMinBuildHeight(),
                 SeamBounds.top(source), VIEW_DISTANCE_TO_SEAM)) {
                 selected = link;
@@ -118,9 +118,9 @@ public final class SeamPreviewSender {
     ) {
         Map<SeamFrameState.Position, SeamFrameState.Visual> result = new HashMap<>();
         int sourceBound = (int) SeamGraph.boundaryY(link.exit(),
-            source.getMinBuildHeight(), SeamBounds.top(source));
+            SeamStackRuntime.bottom(source), SeamStackRuntime.top(source));
         int targetBound = (int) SeamGraph.boundaryY(link.entry(),
-            target.getMinBuildHeight(), SeamBounds.top(target));
+            SeamStackRuntime.bottom(target), SeamStackRuntime.top(target));
         int forcedLoads = 0;
         Set<Long> visitedChunks = new HashSet<>();
         BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
@@ -172,9 +172,9 @@ public final class SeamPreviewSender {
     ) {
         Map<SeamFrameState.Position, SeamFrameState.Visual> surface = new HashMap<>();
         int sourceBound = (int) SeamGraph.boundaryY(link.exit(),
-            source.getMinBuildHeight(), SeamBounds.top(source));
+            SeamStackRuntime.bottom(source), SeamStackRuntime.top(source));
         int targetBound = (int) SeamGraph.boundaryY(link.entry(),
-            target.getMinBuildHeight(), SeamBounds.top(target));
+            SeamStackRuntime.bottom(target), SeamStackRuntime.top(target));
         BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
         for (int x = cx - HORIZON_RADIUS; x <= cx + HORIZON_RADIUS; x++) {
             for (int z = cz - HORIZON_RADIUS; z <= cz + HORIZON_RADIUS; z++) {

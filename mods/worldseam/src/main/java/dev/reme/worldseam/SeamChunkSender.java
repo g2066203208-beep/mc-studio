@@ -45,9 +45,9 @@ public final class SeamChunkSender {
         ServerLevel source = player.serverLevel();
         String sourceId = source.dimension().location().toString();
         SeamGraph.Link link = null;
-        for (SeamGraph.Link current : SeamGraph.from(sourceId)) {
-            if (current.near(player.getY(), source.getMinBuildHeight(),
-                SeamBounds.top(source), RADIUS_FROM_EDGE)) {
+        for (SeamGraph.Link current : SeamStackRuntime.from(server,sourceId)) {
+            if (current.near(player.getY(), SeamStackRuntime.bottom(source),
+                SeamStackRuntime.top(source), RADIUS_FROM_EDGE)) {
                 link = current;
                 break;
             }

@@ -59,19 +59,17 @@ public final class SeamNativeGeometryClient {
             !mc.level.dimension().location().toString().equals(packet.source()) ||
             !remote.dimension().location().toString().equals(packet.target())) return;
 
-        SeamGraph.Link link = SeamGraph.from(packet.source()).stream()
+        SeamGraph.Link link = SeamStackClient.from(packet.source()).stream()
             .filter(l -> l.target().equals(packet.target())).findFirst().orElse(null);
         if (link == null) return;
         String scope = packet.source() + ">" + packet.target();
         if (!source.concat(">").concat(target).equals(scope)) reset();
         source = packet.source();
         target = packet.target();
-        sourceBoundary = (int) SeamGraph.boundaryY(link.exit(),
-            mc.level.getMinBuildHeight(),
-            SeamBounds.top(source,mc.level.getMaxBuildHeight()));
-        targetBoundary = (int) SeamGraph.boundaryY(link.entry(),
-            remote.getMinBuildHeight(),
-            SeamBounds.top(target,remote.getMaxBuildHeight()));
+        sourceBoundary = SeamStackClient.boundary(source,link.exit(),
+            mc.level.getMinBuildHeight(),mc.level.getMaxBuildHeight());
+        targetBoundary = SeamStackClient.boundary(target,link.entry(),
+            remote.getMinBuildHeight(),remote.getMaxBuildHeight());
 
         var cache = remote.getChunkSource();
         if (!cache.hasChunk(packet.chunkX(),packet.chunkZ())) return;

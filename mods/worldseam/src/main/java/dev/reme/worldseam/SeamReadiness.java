@@ -26,6 +26,12 @@ public final class SeamReadiness {
         sessions.put(playerId, new State(source,target,tick));
     }
 
+    private static void acceptAuthorized(UUID playerId, String source, String target,
+                              int reportedChunks, long tick) {
+        if(reportedChunks >= REQUIRED_CHUNKS)
+            sessions.put(playerId,new State(source,target,tick));
+    }
+
     public static boolean isReady(UUID id, String source, String target, long tick) {
         State s=sessions.get(id);
         return s!=null && s.source().equals(source) && s.target().equals(target)
@@ -48,15 +54,15 @@ public final class SeamReadiness {
         // The single arrival chunk is loaded authoritatively during actual
         // SeamServer crossing, and arrival collision/border checks still run.
         if (message.loadedChunks() < REQUIRED_CHUNKS) return;
-        boolean nearLinkedBorder = SeamGraph.from(message.source()).stream()
+        boolean nearLinkedBorder = SeamStackRuntime.from(player.server,message.source()).stream()
             .anyMatch(link -> link.target().equals(message.target())
-                && link.near(player.getY(),player.serverLevel().getMinBuildHeight(),
-                    SeamBounds.top(player.serverLevel()),64));
+                && link.near(player.getY(),SeamStackRuntime.bottom(player.serverLevel()),
+                    SeamStackRuntime.top(player.serverLevel()),64));
         if (!nearLinkedBorder) return;
         long tick=player.server.overworld().getGameTime();
         boolean newAcknowledgement=!isReady(player.getUUID(),
             message.source(),message.target(),tick);
-        accept(player.getUUID(),message.source(),message.target(),
+        acceptAuthorized(player.getUUID(),message.source(),message.target(),
             message.loadedChunks(),tick);
         if (newAcknowledgement)
             com.mojang.logging.LogUtils.getLogger().info(

@@ -69,9 +69,9 @@ public final class SeamServer {
             }
             ServerLevel source = player.serverLevel();
             String dim = source.dimension().location().toString();
-            for (SeamGraph.Link link : SeamGraph.from(dim)) {
-                int min = source.getMinBuildHeight();
-                int max = SeamBounds.top(source);
+            for (SeamGraph.Link link : SeamStackRuntime.from(server,dim)) {
+                int min = SeamStackRuntime.bottom(source);
+                int max = SeamStackRuntime.top(source);
                 if (SeamSettings.get(server).experimentalNoRespawn()
                     && tick % 40 == 0
                     && link.near(player.getY(), min, max, 64)) {
@@ -89,7 +89,7 @@ public final class SeamServer {
                     continue;
                 }
                 double targetBoundaryY = SeamGraph.boundaryY(link.entry(),
-                    target.getMinBuildHeight(), SeamBounds.top(target));
+                    SeamStackRuntime.bottom(target), SeamStackRuntime.top(target));
                 // A freshly arrived player must enter the new world before
                 // gravity or position correction can send them back out.
                 if (RETURN_GUARD.blocked(player.getUUID(), dim, link.exit(),
@@ -124,7 +124,7 @@ public final class SeamServer {
                 // DOES NOT apply to this 1:1 spatial fold.
                 double sourceBoundary = SeamGraph.boundaryY(link.exit(), min, max);
                 double targetBoundary = SeamGraph.boundaryY(link.entry(),
-                    target.getMinBuildHeight(), SeamBounds.top(target));
+                    SeamStackRuntime.bottom(target), SeamStackRuntime.top(target));
                 double nextY = crossing.arrivalY();
                 Vec3 previousVelocity = player.getDeltaMovement();
                 float previousFall = player.fallDistance;
@@ -204,16 +204,16 @@ public final class SeamServer {
         long tick = server.overworld().getGameTime();
         if (tick - lastCross.getOrDefault(entity.getUUID(), Long.MIN_VALUE / 2)
             < COOLDOWN_TICKS) return;
-        for (SeamGraph.Link link : SeamGraph.from(source.dimension().location().toString())) {
-            int sourceMinY = source.getMinBuildHeight();
-            int sourceTopY = SeamBounds.top(source);
+        for (SeamGraph.Link link : SeamStackRuntime.from(server,source.dimension().location().toString())) {
+            int sourceMinY = SeamStackRuntime.bottom(source);
+            int sourceTopY = SeamStackRuntime.top(source);
             // Target-aware plan is evaluated below once target level exists.
             ServerLevel target = server.getLevel(dimensionKey(link.target()));
             if (target == null || !entity.canChangeDimensions(source, target)) return;
             double sourceBoundary = SeamGraph.boundaryY(link.exit(),
-                source.getMinBuildHeight(), SeamBounds.top(source));
+                SeamStackRuntime.bottom(source), SeamStackRuntime.top(source));
             double targetBoundary = SeamGraph.boundaryY(link.entry(),
-                target.getMinBuildHeight(), SeamBounds.top(target));
+                SeamStackRuntime.bottom(target), SeamStackRuntime.top(target));
             SeamCrossing.Decision crossing = SeamCrossing.evaluate(
                 link, entity.getY(), entity.yo, entity.getDeltaMovement().y(),
                 sourceMinY, sourceTopY, targetBoundary);

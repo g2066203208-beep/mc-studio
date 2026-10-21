@@ -65,7 +65,7 @@ public final class SeamClientWorldPool {
         Minecraft mc = Minecraft.getInstance();
         if (mc.level == null || mc.player == null || mc.getConnection() == null ||
             !mc.level.dimension().location().toString().equals(from) ||
-            !VALID.contains(to) || to.equals(from)) return;
+            net.minecraft.resources.ResourceLocation.tryParse(to)==null || to.equals(from)) return;
         if (source.equals(from) && target.equals(to) &&
             (remote != null || failed)) return;
         clear();
@@ -75,7 +75,7 @@ public final class SeamClientWorldPool {
             ResourceKey<Level> dimension =
                 ResourceKey.create(Registries.DIMENSION, ResourceLocation.parse(to));
             ResourceKey<DimensionType> typeKey =
-                ResourceKey.create(Registries.DIMENSION_TYPE, ResourceLocation.parse(to));
+                ResourceKey.create(Registries.DIMENSION_TYPE, ResourceLocation.parse(SeamStackClient.dimensionType(to)));
             Holder<DimensionType> type = mc.getConnection().registryAccess()
                 .registryOrThrow(Registries.DIMENSION_TYPE).getHolderOrThrow(typeKey);
 

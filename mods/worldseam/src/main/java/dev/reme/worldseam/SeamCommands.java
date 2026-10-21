@@ -63,8 +63,8 @@ public final class SeamCommands {
             "WorldSeam: " + (enabled ? "ON" : "OFF")
                 + " | experimental no-respawn: " + (config.experimentalNoRespawn() ? "ON" : "OFF")
                 + " | carve new chunks: " + (config.carveNewChunks() ? "ON" : "OFF")
-                + " | dimension edges: " + SeamGraph.LINKS.size()
-                + " | rendering: near-border snapshot prototype (not full world renderer)"
+                + " | dimension edges: " + config.stack().links().size()
+                + " | stack layers: " + config.stack().entries().size() + " | rendering: near-border snapshot prototype (not full world renderer)"
         ), false);
         return 1;
     }
@@ -112,7 +112,7 @@ public final class SeamCommands {
         var level=player.serverLevel();
         var cfg=SeamSettings.get(src.getServer());
         String name=level.dimension().location().toString();
-        int min=level.getMinBuildHeight(),top=SeamBounds.top(level);
+        int min=SeamStackRuntime.bottom(level),top=SeamStackRuntime.top(level);
         src.sendSuccess(() -> Component.literal(
             "[WorldSeam] enabled="+cfg.enabled()+
             ", smooth="+cfg.experimentalNoRespawn()+
@@ -121,7 +121,7 @@ public final class SeamCommands {
             ", y="+String.format(java.util.Locale.ROOT,"%.2f",player.getY())+
             ", build=[%d,%d)".formatted(min,level.getMaxBuildHeight())
         ),false);
-        for(var link:SeamGraph.from(name)) {
+        for(var link:SeamStackRuntime.from(src.getServer(),name)) {
             double boundary=SeamGraph.boundaryY(link.exit(),min,top);
             double distance=Math.abs(player.getY()-boundary);
             var dest=src.getServer().getLevel(SeamServer.dimensionKey(link.target()));
@@ -154,10 +154,10 @@ public final class SeamCommands {
         if (!(src.getLevel() instanceof ServerLevel level)) {
             return 0;
         }
-        var connections = SeamGraph.from(level.dimension().location().toString());
+        var connections = SeamStackRuntime.from(src.getServer(),level.dimension().location().toString());
         for (SeamGraph.Link link : connections) {
             double sourceY = SeamGraph.boundaryY(link.exit(),
-                level.getMinBuildHeight(), SeamBounds.top(level));
+                SeamStackRuntime.bottom(level), SeamStackRuntime.top(level));
             src.sendSuccess(() -> Component.literal("Seam: " + link.exit()
                 + " Y=" + sourceY + " -> " + link.target()
                 + " " + link.entry()), false);

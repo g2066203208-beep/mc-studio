@@ -15,9 +15,9 @@ public final class SeamClientDiagnostic {
         String dimension=mc.level.dimension().location().toString();
         SeamGraph.Link closest=null;
         double distance=Double.POSITIVE_INFINITY;
-        for (var link:SeamGraph.from(dimension)) {
-            double bound=SeamGraph.boundaryY(link.exit(),mc.level.getMinBuildHeight(),
-                SeamBounds.top(dimension,mc.level.getMaxBuildHeight()));
+        for (var link:SeamStackClient.from(dimension)) {
+            double bound=SeamStackClient.boundary(dimension,link.exit(),mc.level.getMinBuildHeight(),
+                mc.level.getMaxBuildHeight());
             double dist=Math.abs(mc.player.getY()-bound);
             if (dist<distance) { closest=link;distance=dist; }
         }
@@ -26,13 +26,13 @@ public final class SeamClientDiagnostic {
         // Explicit source/target labels: earlier HUD printed ONLY the
         // target ("minecraft:the_nether"), which appeared to claim the
         // player was already IN the Nether while still in Overworld.
-        double currentSeam=SeamGraph.boundaryY(closest.exit(),
-            mc.level.getMinBuildHeight(),
-            SeamBounds.top(dimension,mc.level.getMaxBuildHeight()));
+        double currentSeam=SeamStackClient.boundary(dimension,closest.exit(),
+            mc.level.getMinBuildHeight(),mc.level.getMaxBuildHeight());
         int otherMin="minecraft:overworld".equals(closest.target())?-64:0;
         int otherVanillaTop="minecraft:overworld".equals(closest.target())?320:256;
-        int otherTop=SeamBounds.top(closest.target(),otherVanillaTop);
-        double otherSeam=SeamGraph.boundaryY(closest.entry(),otherMin,otherTop);
+        int otherTop=SeamStackClient.boundary(closest.target(),SeamGraph.EdgeSide.TOP,
+            otherMin,otherVanillaTop);
+        double otherSeam=SeamStackClient.boundary(closest.target(),closest.entry(),otherMin,otherVanillaTop);
         String here=String.format(java.util.Locale.ROOT,
             "WorldSeam CURRENT: %s Y=%.2f",dimension,mc.player.getY());
         String link=String.format(java.util.Locale.ROOT,
