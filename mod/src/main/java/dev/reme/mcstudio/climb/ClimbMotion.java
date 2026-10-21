@@ -286,8 +286,12 @@ public final class ClimbMotion {
             Vec3 flat = new Vec3(look.x,0,look.z);
             if (flat.lengthSqr() > .01
                     && flat.normalize().dot(state.roofEntryOutward) < -.3)
-                return (float)Math.toDegrees(
+                // atan2(-0,-1) produces -180 while +180 is identical
+                // physically; pick a stable positive tie-break to avoid an
+                // immediate -19 -> 0 -> +19 reversal when the camera turns.
+                double angle = Math.toDegrees(
                         Math.atan2(-state.roofEntryOutward.x, state.roofEntryOutward.z));
+                return (float)(Math.abs(Math.abs(angle)-180) < 0.0001 ? 180 : angle);
         }
         return player.getYRot();
     }
