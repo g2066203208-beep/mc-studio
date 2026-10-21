@@ -71,7 +71,7 @@ try{
  await page.locator('#jarInput').setInputFiles(path.join(__dirname,'fixture-simulated.jar'));
  await page.waitForFunction(()=>document.getElementById('jarStatus').textContent.includes('成功读取'),null,{timeout:30000});
  assert.ok((await page.locator('#jarStatus').textContent()).includes('种原版方块状态'));
- assert.ok((await page.locator('#jarStatus').textContent()).includes('1 个嵌套组件'),'packaged Aeronautics inner mod must be scanned');
+ assert.ok((await page.locator('#jarStatus').textContent()).includes('1 个内嵌包'),'packaged Aeronautics inner mod must be scanned');
  await page.evaluate(()=>{
   const api=window.__STRICT_API__;api.reset();
   api.place({id:'simulated:physics_assembler',pos:[0,1,0],axis:'y',facing:'north'});
