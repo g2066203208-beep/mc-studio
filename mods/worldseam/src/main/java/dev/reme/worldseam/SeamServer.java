@@ -51,8 +51,23 @@ public final class SeamServer {
         long tick = server.overworld().getGameTime();
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
             SeamStackSync.tick(server, player);
-            SeamPreviewSender.tick(server, player, tick, enabled);
-            SeamSectionSender.tick(server, player, tick, enabled);
+            String dim=player.serverLevel().dimension().location().toString();
+            boolean ready=false;
+            if(enabled) {
+                for(SeamGraph.Link link:SeamStackRuntime.from(server,dim)) {
+                    if(link.near(player.getY(),SeamStackRuntime.bottom(player.serverLevel()),
+                            SeamStackRuntime.top(player.serverLevel()),48) &&
+                       SeamReadiness.isReady(player.getUUID(),dim,link.target(),tick)) {
+                        ready=true;
+                        break;
+                    }
+                }
+            }
+            // Native 3x3 ready: DO NOT keep encoding duplicate legacy section
+            // and sparse block previews at 4Hz. These consumed server CPU
+            // and network even after the second live ClientLevel was built.
+            SeamPreviewSender.tick(server, player, tick, enabled && !ready);
+            SeamSectionSender.tick(server, player, tick, enabled && !ready);
             SeamChunkSender.tick(server, player, tick, enabled);
         }
         seamEnabled = enabled;
@@ -79,17 +94,17 @@ public final class SeamServer {
             for (SeamGraph.Link link : SeamStackRuntime.from(server,dim)) {
                 int min = SeamStackRuntime.bottom(source);
                 int max = SeamStackRuntime.top(source);
-                if (SeamSettings.get(server).experimentalNoRespawn()
-                    && tick % 40 == 0
-                    && link.near(player.getY(), min, max, 64)) {
-                    boolean warmed = SeamReadiness.isReady(player.getUUID(),
-                        dim, link.target(), tick);
+                // No permanent "loading chunks" banner. Once the native
+                // second world is ready the gameplay view should stay clear.
+                if(SeamSettings.get(server).experimentalNoRespawn()
+                    && tick%100==0 && link.near(player.getY(),min,max,64)
+                    && !SeamReadiness.isReady(player.getUUID(),
+                        dim,link.target(),tick)) {
+                    int chunks=SeamChunkSender.currentTargetLoaded(player);
                     player.displayClientMessage(
                         net.minecraft.network.chat.Component.literal(
-                            warmed ? "WorldSeam: remote native world READY"
-                                   : "WorldSeam: preloading target chunks... (stay near seam)"
-                        ), true
-                    );
+                            "界缝 · 目标维度预载 "+chunks+"/25 个区块"
+                        ),true);
                 }
                 ServerLevel target = server.getLevel(dimensionKey(link.target()));
                 if (target == null) {
