@@ -4,7 +4,8 @@
   "package": "dev.reme.worldseam.mixin",
   "compatibilityLevel": "JAVA_21",
   "mixins": [
-    "SeamEntityAccess"
+    "SeamEntityAccess",
+    "SeamChunkGenerationMixin"
   ],
   "client": [
     "SeamMinecraftAccess",

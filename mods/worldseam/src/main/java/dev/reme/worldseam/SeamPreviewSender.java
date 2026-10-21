@@ -118,7 +118,7 @@ public final class SeamPreviewSender {
     ) {
         Map<SeamFrameState.Position, SeamFrameState.Visual> result = new HashMap<>();
         int sourceBound = (int) SeamGraph.boundaryY(link.exit(),
-            source.getMinBuildHeight(), source.getMaxBuildHeight());
+            source.getMinBuildHeight(), SeamBounds.top(source));
         int targetBound = (int) SeamGraph.boundaryY(link.entry(),
             target.getMinBuildHeight(), SeamBounds.top(target));
         int forcedLoads = 0;
@@ -172,7 +172,7 @@ public final class SeamPreviewSender {
     ) {
         Map<SeamFrameState.Position, SeamFrameState.Visual> surface = new HashMap<>();
         int sourceBound = (int) SeamGraph.boundaryY(link.exit(),
-            source.getMinBuildHeight(), source.getMaxBuildHeight());
+            source.getMinBuildHeight(), SeamBounds.top(source));
         int targetBound = (int) SeamGraph.boundaryY(link.entry(),
             target.getMinBuildHeight(), target.getMaxBuildHeight());
         BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();

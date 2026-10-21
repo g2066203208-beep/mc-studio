@@ -33,8 +33,8 @@ public final class SeamServer {
     private static final int COOLDOWN_TICKS = 12;
     private static final Map<UUID, Long> lastCross = new HashMap<>();
     private static MinecraftServer lastServer;
-    private static boolean seamEnabled;
-    private static boolean terrainEnabled;
+    private static volatile boolean seamEnabled;
+    private static volatile boolean terrainEnabled;
 
     private SeamServer() {}
 
@@ -178,7 +178,7 @@ public final class SeamServer {
             ServerLevel target = server.getLevel(dimensionKey(link.target()));
             if (target == null || !entity.canChangeDimensions(source, target)) return;
             double sourceBoundary = SeamGraph.boundaryY(link.exit(),
-                source.getMinBuildHeight(), source.getMaxBuildHeight());
+                source.getMinBuildHeight(), SeamBounds.top(source));
             double targetBoundary = SeamGraph.boundaryY(link.entry(),
                 target.getMinBuildHeight(), SeamBounds.top(target));
             double y = link.targetY(entity.getY(), sourceBoundary, targetBoundary);

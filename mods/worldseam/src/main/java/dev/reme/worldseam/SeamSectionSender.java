@@ -95,7 +95,7 @@ public final class SeamSectionSender {
         }
 
         int sourceBoundary = (int) SeamGraph.boundaryY(selected.exit(),
-            source.getMinBuildHeight(), source.getMaxBuildHeight());
+            source.getMinBuildHeight(), SeamBounds.top(source));
         int targetBoundary = (int) SeamGraph.boundaryY(selected.entry(),
             target.getMinBuildHeight(), SeamBounds.top(target));
 

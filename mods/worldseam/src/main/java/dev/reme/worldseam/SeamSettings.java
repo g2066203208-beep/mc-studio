@@ -49,6 +49,13 @@ public final class SeamSettings extends SavedData {
     }
 
     public void setEnabled(boolean next) {
+        // Enabling this seamless-world mod must not silently use the
+        // vanilla respawn/loading-screen path. Smooth mode can still
+        // be disabled explicitly for debugging.
+        if (next && !experimentalNoRespawn) {
+            experimentalNoRespawn = true;
+            setDirty();
+        }
         if (enabled != next) {
             enabled = next;
             setDirty();

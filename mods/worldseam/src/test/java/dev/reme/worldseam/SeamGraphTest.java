@@ -30,6 +30,23 @@ class SeamGraphTest {
         }
     }
 
+    @Test void endpointBoundariesMapTheNetherToOverworldWithoutUnusedRoofVoid() {
+        var netherRoof = SeamGraph.from("minecraft:the_nether").get(0);
+        var overworldFloor = SeamGraph.from("minecraft:overworld").stream()
+            .filter(l -> l.exit() == SeamGraph.EdgeSide.BOTTOM)
+            .findFirst().orElseThrow();
+        int netherY = SeamBounds.top("minecraft:the_nether", 256);
+        assertEquals(128, netherY);
+        assertTrue(netherRoof.crossed(128.5, 0, netherY));
+        assertEquals(-63.5,
+            netherRoof.targetY(128.5, netherY, -64), 0.0001);
+        assertEquals(128.5,
+            overworldFloor.targetY(-63.5, -64, netherY), 0.0001);
+        assertTrue(overworldFloor.near(-50,-64,320,32));
+        // The real Nether build max 256 is NOT this connection plane.
+        assertFalse(netherRoof.near(256,0,128,32));
+    }
+
     @Test void crossingRequiresActualBoundaryOvershoot() {
         var up = SeamGraph.LINKS.get(1);
         assertFalse(up.crossed(319.99, -64, 320));

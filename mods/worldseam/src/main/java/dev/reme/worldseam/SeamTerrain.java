@@ -7,19 +7,27 @@ import net.minecraft.world.level.chunk.ChunkAccess;
 import net.neoforged.neoforge.event.level.ChunkEvent;
 
 /**
- * Modifies ONLY newly-generated chunk data, NEVER old loaded chunks.
- * Optional separate admin toggle defaults OFF even if Seam travel is enabled.
+ * Bedrock is a world-generation issue, not a client teleport issue.
  *
- * Runs in ChunkEvent.Load before FULL promotion, therefore touches only the
- * event's ChunkAccess and no neighbor chunks, level chunk access or block events.
+ * Dimension Stack clears bedrock at chunk-generation stages. WorldSeam
+ * independently does the same for its exact connection bands, if and
+ * only if the test-save owner opted into terrain modification.
+ *
+ * The generation hook runs after vanilla feature placement. The existing
+ * new-chunk event remains a compatibility fallback. Existing chunks are
+ * never automatically modified on load.
  */
 public final class SeamTerrain {
     private SeamTerrain() {}
 
     public static void onChunkLoad(ChunkEvent.Load event) {
-        if (!event.isNewChunk() || !(event.getLevel() instanceof ServerLevel level)
-            || !SeamServer.shouldCarveNewChunk(level.getServer())) return;
-        ChunkAccess chunk = event.getChunk();
+        if (!event.isNewChunk() || !(event.getLevel() instanceof ServerLevel level))
+            return;
+        replaceGeneratedBedrock(level, event.getChunk());
+    }
+
+    public static void replaceGeneratedBedrock(ServerLevel level, ChunkAccess chunk) {
+        if (!SeamServer.shouldCarveNewChunk(level.getServer())) return;
         var range = SeamBounds.newChunkCarveRange(
             level.dimension().location().toString(), level.getMinBuildHeight()
         );
