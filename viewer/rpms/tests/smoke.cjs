@@ -14,7 +14,7 @@ const path = require('node:path');
   page.on('pageerror',e=>jsErrors.push(e.stack||e.message));
   page.on('console',m=>{if(m.type()==='error')console.log('browser console:',m.text())});
   try {
-    const resp=await page.goto('http://127.0.0.1:8033/rpms/',{waitUntil:'domcontentloaded'});
+    const resp=await page.goto('http://127.0.0.1:8033/rpms/concept.html',{waitUntil:'domcontentloaded'});
     assert.equal(resp.status(),200);
     await page.waitForFunction(()=>window.__RPMS_READY__===true || !!window.__RPMS_ERROR__,{timeout:45000});
     const error=await page.evaluate(()=>window.__RPMS_ERROR__||null);
@@ -58,7 +58,7 @@ const path = require('node:path');
     assert.ok(fs.statSync(png).size>14000,'Screenshot too small - canvas may be blank');
     console.log('Screenshot saved:',png,fs.statSync(png).size,'bytes');
     const mobile=await browser.newPage({viewport:{width:390,height:780},isMobile:true,deviceScaleFactor:1});
-    await mobile.goto('http://127.0.0.1:8033/rpms/',{waitUntil:'domcontentloaded'});
+    await mobile.goto('http://127.0.0.1:8033/rpms/concept.html',{waitUntil:'domcontentloaded'});
     await mobile.waitForFunction(()=>window.__RPMS_READY__===true||!!window.__RPMS_ERROR__,{timeout:45000});
     assert.equal(await mobile.evaluate(()=>window.__RPMS_ERROR__||null),null);
     const over=await mobile.evaluate(()=>document.documentElement.scrollWidth-window.innerWidth);
