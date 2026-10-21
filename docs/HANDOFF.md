@@ -38,3 +38,7 @@ GitHub 是整个 Minecraft 工作室的开发中心。代码、需求、研究�
 - Skill 和网格检查不是已经创建原创摩托车 OBJ，也不表示 Minecraft、Sable 或公开网页版已通过真实游戏测试；下一位助手在用户要求做摩托车时按 Skill 创建并提供真正可旋转检视的新模型。
 - 已有真实 3D 源码 `viewer/index.html`，主要针对 Mustang；如果要预览自己制作的摩托车需扩展支持任意 OBJ+PNG。
 - 操作门槛：审查来源许可后使用原创资产；执行自动化测试，再审阅 CI 和 PR。
+
+## WorldSeam 独立 Mod（2026-10-21）
+
+从 `main` 开始的 `feat/worldseam-standalone` 仅新增 `mods/worldseam/` 及其独立 CI、仓库说明。WorldSeam Mod ID 改为 `worldseam`，入口 `dev.reme.worldseam.WorldSeamMod`，指令 `/worldseam`。旧引擎功能分支 PR #18 应标记被取代、不可合并；PEAK 攀爬分支保持原状。对新 Mod 的验证必须在独立 `mods/worldseam` 下完成，不能用工作室通用 `mod/` 编译替代。
