@@ -1,0 +1,63 @@
+name: WorldSeam Real Client Visual Evidence
+on:
+  push:
+    branches: [feat/worldseam-standalone]
+    paths:
+      - ".github/workflows/worldseam-visual-e2e.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  visual-client:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Install actual GUI software renderer and screenshot utilities
+        run: sudo apt-get update -qq && sudo apt-get install -y xvfb libgl1-mesa-dri libglx-mesa0 xdotool imagemagick x11-apps
+      - name: Open actual Minecraft graphical client and capture display
+        shell: bash
+        working-directory: mods/worldseam
+        run: |
+          set -euo pipefail
+          xvfb-run -a -s '-screen 0 1280x720x24' bash -c '
+            set -euo pipefail
+            export LIBGL_ALWAYS_SOFTWARE=1
+            bash ./gradlew runClient --no-daemon --console=plain > visual-client.log 2>&1 &
+            pid=$!
+            trap "kill $pid 2>/dev/null || true" EXIT
+            for step in $(seq 1 170); do
+              if grep -q "Reloading ResourceManager" visual-client.log; then break; fi
+              if ! kill -0 $pid 2>/dev/null; then
+                tail -n 70 visual-client.log
+                exit 1
+              fi
+              sleep 1
+            done
+            sleep 22
+            echo "Minecraft GUI windows:"
+            xdotool search --name Minecraft getwindowname 2>/dev/null || true
+            xwd -root -silent | convert xwd:- -resize 800x450 -quality 50 visual-mainmenu.jpg
+            echo WORLDSEAM_GUI_JPEG_BEGIN
+            base64 -w 0 visual-mainmenu.jpg
+            echo
+            echo WORLDSEAM_GUI_JPEG_END
+            if grep -E "Mixin apply failed|InvalidMixinException|Exception during client tick|NoSuchMethodError" visual-client.log; then
+              echo "WorldSeam failed in GUI client"
+              exit 1
+            fi
+            echo "WorldSeam GUI client screenshot captured; this is NOT a successful crossing test"
+          '
+      - name: Save full reproducible GUI evidence
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: worldseam-real-gui-evidence
+          path: |
+            mods/worldseam/visual-client.log
+            mods/worldseam/visual-mainmenu.jpg
+          if-no-files-found: ignore
