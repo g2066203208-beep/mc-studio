@@ -16,3 +16,9 @@
 - Use feature/fix branches and small meaningful commits. Do not push to an unrelated existing repository. The dedicated private remote is https://github.com/g2066203208-beep/mc-studio.
 - Performance work requires reproducible before/after measurements under comparable workloads.
 - No auto-update or scheduled monitoring has been configured. Do not claim unattended background work.
+
+## Vehicle modeling Skill
+
+- When the user requests a model inspired by Immersive Vehicles, Blockbench/MTS vehicle construction, a motorcycle, UV atlas, functional vehicle parts, or a real 3D web preview, load `skills/immersive-vehicles-modeling/SKILL.md` first, then the relevant references.
+- Inspect *real OBJ, PNG, and vehicle JSON* and distinguish source-repo assets from actual released JARs. Never pass off generated illustrations or flat screenshots as rotatable 3D models.
+- Run the bundled OBJ inspector and unit tests before claiming the model or new skill validated. Keep unverified game-runtime facts clearly marked.
