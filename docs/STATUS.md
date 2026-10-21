@@ -126,3 +126,9 @@ Gradle 报告使用了将来不兼容 Gradle 10 的弃用功能；当前固定 W
 
 - 从 v0.4 成立独立 `feature/living-world-natural-v05`。编写原版 biome modifier 地表低权重自然 NPC、出生资料、局部人数上限、个体家园半径、白天活动/越界回家，以及路径寻找和农田扫描的性能预算。
 - 仅完成 Java 源码/测试编写。CI/Gametest 成果需按最新提交核验；不能将实际 TPS 百分比当成测过。
+
+
+## 0.5 第一轮实际 NeoForge 测试（2026-10-21）
+- [GameTest run 39524861608](https://github.com/g2066203208-beep/mc-studio/actions/runs/39524861608)：游戏服务器真实运行 6 required tests，全部 PASS。
+- [GameTest run 39525005713](https://github.com/g2066203208-beep/mc-studio/actions/runs/39525005713)：新增人口上限后，真实运行 7 required tests，全部 PASS。
+- 最终客户端真实世界/野外稀有刷新/222-Mod/TPS 还未验证。查看最新 HEAD 的 Actions 才能宣布最终 JAR 已通过。

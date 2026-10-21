@@ -117,3 +117,9 @@ Push CI `39518033958` SUCCESS，PR CI `39518039426` SUCCESS。Artifact `12310085
 - 新增 `MovementPolicy` `DailyRoaming` 及纯 Java 测试，`RoadNavigator` 重算冷却；AI 决策与专业职业执行降低触发频率，农民缓存成熟作物目标。
 - /npc radius 16..128；新增 2 个 NeoForge GameTest 实体生成初始化/NBT 居住范围恢复。老四项测试必须一起通过。
 - 详读 `docs/NATURAL_V05.md`；不能把原版自然刷新已随机观察、TPS 已测或 222-mod 整合包兼容当成已验收。
+
+
+## 0.5 后续代码提交说明
+- 对 `CivicGameTests.local_spawn_cap_prevents_overpopulation` 删除“整个测试世界开始必须空无居民”的不可靠并行前提，因其他 GameTest 可能同时创建实体。自然 NPC 限制仍在。
+- `/npc info` 无需所有者身份即可只读查看最近 16 格 NPC；`/npc adminradius 16..128` 可由管理员调整自然居民活动范围，普通 `/npc radius` 只对自己的 NPC 生效。
+- 2026-10-21 GitHub GameTest 39525005713 对自然生成+范围+人口限制等 7 项 **成功**。最终的 HEAD 构建与 GameTest 应以更新后版本为准。
