@@ -6,7 +6,7 @@ const browser=await chromium.launch({channel:'chrome',headless:true,args:['--no-
 try{
 const page=await browser.newPage({viewport:{width:1500,height:900}});
 const errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='warning'||m.type()==='error')console.log('browser console:',m.text())});
-const r=await page.goto('http://127.0.0.1:8033/rpms/',{waitUntil:'domcontentloaded'});
+const r=await page.goto('http://127.0.0.1:8033/rpms/assembly.html',{waitUntil:'domcontentloaded'});
 assert.equal(r.status(),200);
 await page.waitForFunction(()=>window.__AERO_READY__===true||window.__AERO_ERROR__,null,{timeout:50000});
 assert.equal(await page.evaluate(()=>window.__AERO_ERROR__||null),null);
