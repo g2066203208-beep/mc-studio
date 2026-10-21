@@ -57,3 +57,8 @@
 - 本机工具从 ZIP 提取 `reme_studio-0.4.0-dev.jar`：大小 111428 bytes，SHA-256 `9fffdd8a99db74671f64bcc518d306ab64244a5dc4e475e9c16b33716200529e`，包含全部 Civic 与 GameTest 类及 `META-INF/neoforge.mods.toml`。
 - [真实 NeoForge 游戏服务器 GameTest 39520461688](https://github.com/g2066203208-beep/mc-studio/actions/runs/39520461688) **4/4 PASS**：实体生成、存档恢复、传闻去重/限地区、真实绿宝石保管和取消退款。**该 GameTest 测试运行基于提交 25f07143，之后对自动发布委托和对话的增量代码仍需核对新提交的 GameTest。**
 - 不要把 GameTest 测试的四个场景等同于完成了人工实机客户端、长期 NPC 生活、国家法律或 222-mod 整合包验收。
+
+
+### 最终 0.4.0-dev 对应版本的 GameTest 验收
+- [GitHub GameTest 39520744874](https://github.com/g2066203208-beep/mc-studio/actions/runs/39520744874) 基于**最终 Java 源提交 4c1f6d3503a79f86e1820f2fe334e33292af1d3e**：Actions SUCCESS，游戏服务器日志精确显示 `4 tests are now running` 与 `All 4 required tests passed :)`；4 项均通过。此前文档的“最终 GameTest 待核验”限制已经消除。
+- 上述不等于客户端手工长时间游戏/原整合包实测。

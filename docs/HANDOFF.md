@@ -104,3 +104,7 @@ Push CI `39518033958` SUCCESS，PR CI `39518039426` SUCCESS。Artifact `12310085
 - 最终 Mod JAR 111428 bytes，SHA-256 9fffdd8a99db74671f64bcc518d306ab64244a5dc4e475e9c16b33716200529e。Actions 39520744762 push 和 39520751645 PR BUILD SUCCESS。
 - 真 NeoForge 游戏测试服务器：39520461688 的 4/4 required GameTests 均通过；最新 4c1 的相同测试运行结果需查 39520744874，不能在其完成之前声称最终版本四项均通过。
 - 特性：NPC 自主求粮并以自己绿宝石悬赏、当地事件证据/见证人/弱可信传闻、商店拒售、守卫法律警示、性格、可实际完成且资金守恒的委托和对话播报（不会真正说语音）。仍需手工实机世界体验、客户端与整合包测试。
+
+
+### v0.4.0-dev 最终源提交 GameTest 复核
+- `4c1f6d35` 的 [39520744874](https://github.com/g2066203208-beep/mc-studio/actions/runs/39520744874) **SUCCESS**；日志明确 `All 4 required tests passed :)`。此前“需查最新 GameTest”的事项关闭；客户端/222-mod 整合包仍未测试。
