@@ -5,6 +5,13 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.core.Holder;
+import net.minecraft.core.SectionPos;
+import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.level.LightLayer;
+import net.minecraft.world.level.chunk.DataLayer;
+import net.minecraft.network.protocol.game.ClientboundLightUpdatePacketData;
+import java.util.BitSet;
+import java.util.List;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
@@ -115,10 +122,50 @@ public final class SeamClientWorldPool {
                     message.chunkX(), message.chunkZ()
                 )
             );
+            applyLight(message.chunkX(), message.chunkZ(), message.lighting());
         } catch (RuntimeException problem) {
             LOG.warn("WorldSeam rejected redirected remote chunk {},{} in {}",
                 message.chunkX(), message.chunkZ(), message.target(), problem);
         }
+    }
+
+    private static void applyLight(int cx, int cz,
+                                   ClientboundLightUpdatePacketData lighting) {
+        var engine = remote.getChunkSource().getLightEngine();
+        queueLayers(cx,cz, LightLayer.SKY,
+            lighting.getSkyYMask(), lighting.getEmptySkyYMask(),
+            lighting.getSkyUpdates());
+        queueLayers(cx,cz, LightLayer.BLOCK,
+            lighting.getBlockYMask(), lighting.getEmptyBlockYMask(),
+            lighting.getBlockUpdates());
+        engine.setLightEnabled(new ChunkPos(cx,cz), true);
+        engine.runLightUpdates();
+    }
+
+    private static void queueLayers(int cx, int cz, LightLayer layer,
+                                    BitSet provided, BitSet empty,
+                                    List<byte[]> updates) {
+        var engine = remote.getChunkSource().getLightEngine();
+        int next = 0;
+        for (int i=0; i < engine.getLightSectionCount(); i++) {
+            boolean has = provided.get(i);
+            if (!has && !empty.get(i)) continue;
+            DataLayer data;
+            if (has) {
+                if (next >= updates.size())
+                    throw new IllegalArgumentException("Incomplete remote light data");
+                byte[] bytes = updates.get(next++);
+                if (bytes.length != 2048)
+                    throw new IllegalArgumentException("Invalid 2048-byte light nibble array");
+                data = new DataLayer(bytes.clone());
+            } else {
+                data = new DataLayer();
+            }
+            engine.queueSectionData(layer,
+                SectionPos.of(cx, engine.getMinLightSection()+i, cz), data);
+        }
+        if (next != updates.size())
+            throw new IllegalArgumentException("Unused remote light updates");
     }
 
     public static boolean hasPrewarmed(String destination) {

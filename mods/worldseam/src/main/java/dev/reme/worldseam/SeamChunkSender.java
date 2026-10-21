@@ -3,7 +3,7 @@ package dev.reme.worldseam;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.network.protocol.game.ClientboundLevelChunkPacketData;
+import net.minecraft.network.protocol.game.ClientboundLevelChunkWithLightPacket;
 import net.neoforged.neoforge.network.PacketDistributor;
 
 import java.util.HashMap;
@@ -69,17 +69,22 @@ public final class SeamChunkSender {
         int slot = session.cursor++ % 9;
         int x = Math.floorDiv(player.blockPosition().getX(),16) + (slot % 3) - 1;
         int z = Math.floorDiv(player.blockPosition().getZ(),16) + (slot / 3) - 1;
-        if (!target.hasChunk(x,z)) return;
+        // One destination chunk may be prepared per second, never an
+        // unbounded synchronous remote load pass.
+        if (!target.hasChunk(x,z)) target.getChunk(x,z);
         long key = ((long)x << 32) | (z & 0xffffffffL);
         if (tick - session.lastSent.getOrDefault(key, Long.MIN_VALUE / 2)
             < REFRESH_TICKS) return;
 
         // These bytes are the same canonical chunk payload MC uses for
         // real chunk ingestion, rather than inventing a fake block palette.
-        ClientboundLevelChunkPacketData realChunk =
-            new ClientboundLevelChunkPacketData(target.getChunk(x,z));
+        ClientboundLevelChunkWithLightPacket nativePacket =
+            new ClientboundLevelChunkWithLightPacket(
+                target.getChunk(x,z), target.getLightEngine(), null, null
+            );
         PacketDistributor.sendToPlayer(player,
-            new SeamChunkPayload(sourceId, link.target(), x,z, realChunk));
+            new SeamChunkPayload(sourceId, link.target(), x,z,
+                nativePacket.getChunkData(), nativePacket.getLightData()));
         session.lastSent.put(key, tick);
     }
 
