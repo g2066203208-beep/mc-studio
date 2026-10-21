@@ -81,10 +81,16 @@ public final class SeamServer {
                         ), true
                     );
                 }
-                if (!link.crossed(player.getY(), min, max)) {
+                ServerLevel target = server.getLevel(dimensionKey(link.target()));
+                if (target == null) {
                     continue;
                 }
-                ServerLevel target = server.getLevel(dimensionKey(link.target()));
+                double targetBoundaryY = SeamGraph.boundaryY(link.entry(),
+                    target.getMinBuildHeight(), SeamBounds.top(target));
+                SeamCrossing.Decision crossing = SeamCrossing.evaluate(
+                    link, player.getY(), player.yo,
+                    player.getDeltaMovement().y(), min, max, targetBoundaryY);
+                if (!crossing.crossing()) continue;
                 if (target == null) {
                     LOG.warn("Skipping seam: missing target dimension {}", link.target());
                     break;
@@ -94,7 +100,7 @@ public final class SeamServer {
                 double sourceBoundary = SeamGraph.boundaryY(link.exit(), min, max);
                 double targetBoundary = SeamGraph.boundaryY(link.entry(),
                     target.getMinBuildHeight(), SeamBounds.top(target));
-                double nextY = link.targetY(player.getY(), sourceBoundary, targetBoundary);
+                double nextY = crossing.arrivalY();
                 Vec3 previousVelocity = player.getDeltaMovement();
                 float previousFall = player.fallDistance;
                 BlockPos arrival = BlockPos.containing(player.getX(), nextY, player.getZ());
@@ -173,15 +179,20 @@ public final class SeamServer {
         if (tick - lastCross.getOrDefault(entity.getUUID(), Long.MIN_VALUE / 2)
             < COOLDOWN_TICKS) return;
         for (SeamGraph.Link link : SeamGraph.from(source.dimension().location().toString())) {
-            if (!link.crossed(entity.getY(), source.getMinBuildHeight(),
-                SeamBounds.top(source))) continue;
+            double sourceMinY = source.getMinBuildHeight();
+            int sourceTopY = SeamBounds.top(source);
+            // Target-aware plan is evaluated below once target level exists.
             ServerLevel target = server.getLevel(dimensionKey(link.target()));
             if (target == null || !entity.canChangeDimensions(source, target)) return;
             double sourceBoundary = SeamGraph.boundaryY(link.exit(),
                 source.getMinBuildHeight(), SeamBounds.top(source));
             double targetBoundary = SeamGraph.boundaryY(link.entry(),
                 target.getMinBuildHeight(), SeamBounds.top(target));
-            double y = link.targetY(entity.getY(), sourceBoundary, targetBoundary);
+            SeamCrossing.Decision crossing = SeamCrossing.evaluate(
+                link, entity.getY(), entity.yo, entity.getDeltaMovement().y(),
+                sourceMinY, sourceTopY, targetBoundary);
+            if (!crossing.crossing()) continue;
+            double y = crossing.arrivalY();
             BlockPos dest = BlockPos.containing(entity.getX(), y, entity.getZ());
             if (!target.getWorldBorder().isWithinBounds(dest)) return;
             target.getChunkAt(dest);
