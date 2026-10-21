@@ -62,10 +62,17 @@ public final class SeamExplosionBridge {
             if(!source.hasChunk(centerX>>4,centerZ>>4) ||
                 !source.getBlockState(opening).isAir())continue;
 
-            // A new explosion may examine up to one neighboring chunk on
-            // each side in X/Z. Never synchronously generate remote chunks
-            // just because somebody exploded TNT in an unloaded dimension.
-            if(!loadedWindow(target,centerX>>4,centerZ>>4))continue;
+            // Vanilla explosion checks entities as far as 2x power.
+            // Checking a fixed 3x3 forces unrelated remote chunks to exist
+            // and was dropping ordinary primed TNT when straddling chunk
+            // boundaries. Fail closed on the ACTUAL affected footprint;
+            // do not load/generate any remote chunks just to make TNT work.
+            var footprint=SeamBlastFootprint.around(center.x,center.z,radius);
+            if(!SeamBlastFootprint.fullyResident(footprint,target::hasChunk)) {
+                LOG.info("WORLDSEAM_CROSS_BLAST_SKIP: remote footprint not already loaded {} -> {}, chunks={} center={},{} radius={}",
+                    sourceId,link.target(),footprint.count(),center.x,center.z,radius);
+                continue;
+            }
             int safeY=(int)Math.max(target.getMinBuildHeight(),
                 Math.min(target.getMaxBuildHeight()-1,Math.floor(plan.mappedY())));
             if(!target.getWorldBorder().isWithinBounds(
@@ -97,9 +104,4 @@ public final class SeamExplosionBridge {
         }
     }
 
-    private static boolean loadedWindow(ServerLevel world,int cx,int cz) {
-        for(int x=-1;x<=1;x++)for(int z=-1;z<=1;z++)
-            if(!world.hasChunk(cx+x,cz+z))return false;
-        return true;
-    }
 }
