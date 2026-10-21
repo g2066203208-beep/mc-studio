@@ -25,7 +25,11 @@ public final class SocietyActions {
             case RESIDENT -> switch (npc.journey().goal()) {
                 case EXPLORE_LANDS -> scout(npc, level, tick);
                 case DEFEND_SETTLEMENT -> guard(npc, level, tick);
-                default -> false;
+                default -> npc.character().interestedInExploration()
+                    && npc.energy() > 55
+                    && Math.floorMod(level.getDayTime(), 24000L) > 7500L
+                    && Math.floorMod(level.getDayTime(), 24000L) < 11000L
+                    && scout(npc, level, tick);
             };
             default -> false;
         };
