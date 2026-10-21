@@ -77,6 +77,13 @@ public final class LivingWorldActions {
             CivicContracts.post(npc, Commission.Goods.BREAD, 2,
                 npc.character().empathy() >= 75 ? 3 : 2);
         }
+        // A meal is a real high-priority survival task. Work and patrol
+        // cannot consume the entire tick budget while starving residents
+        // or during their scheduled breakfast/lunch/supper windows.
+        if (npc.intent() == LivingPlanner.Intent.EAT) {
+            if (MovementPolicy.due(tick, npc.getId(), 40)) eat(npc);
+            return;
+        }
         // A bounded, operator-authorized mining task is performed through the
         // same survival tool / block break pipeline as a player. Danger can
         // interrupt it; routine AI never creates an unapproved mining target.
