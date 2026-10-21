@@ -83,11 +83,15 @@ public final class SeamNativeGeometryClient {
         int originX = packet.chunkX() << 4;
         int originZ = packet.chunkZ() << 4;
         boolean fromTop = link.entry() == SeamGraph.EdgeSide.TOP;
-        int yStart = fromTop ? targetBoundary - VERTICAL_SECTIONS * 16 : targetBoundary;
-        int yEnd = fromTop ? targetBoundary : targetBoundary + VERTICAL_SECTIONS * 16;
         BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
 
-        for (int y=yStart;y<yEnd;y++) {
+        // CRITICAL visibility fix: when viewing UP into the Nether roof,
+        // the former ascending-Y loop started at deep underground Y=16.
+        // The per-frame model budget was exhausted on distant chunk edges
+        // before ever drawing the near-side roof at Y=120..127.
+        // Traverse from the actual connecting plane OUTWARD on both sides.
+        for (int depth=0;depth<VERTICAL_SECTIONS*16;depth++) {
+            int y=fromTop ? targetBoundary-1-depth : targetBoundary+depth;
             if (y<remote.getMinBuildHeight() || y>=remote.getMaxBuildHeight()) continue;
             int localY = y & 15;
             var section = chunk.getSection(chunk.getSectionIndex(y));
@@ -143,8 +147,18 @@ public final class SeamNativeGeometryClient {
         PoseStack pose=event.getPoseStack();
         Vec3 camera=event.getCamera().getPosition();
         MultiBufferSource.BufferSource buffers=mc.renderBuffers().bufferSource();
+        // Draw the player's closest columns first. A 3x3 native chunk
+        // cache can contain >20k candidate surface models; arbitrary packet
+        // arrival order must never starve the actual seam under the camera.
+        var ordered=new ArrayList<>(columns.entrySet());
+        ordered.sort(java.util.Comparator.comparingDouble(entry -> {
+            long packed=entry.getKey();
+            int cx=(int)(packed >> 32), cz=(int)(long)packed;
+            double dx=(cx<<4)+8-camera.x,dz=(cz<<4)+8-camera.z;
+            return dx*dx+dz*dz;
+        }));
         outer:
-        for (List<Cell> cells:columns.values()) for (Cell c:cells) {
+        for (var section:ordered) for (Cell c:section.getValue()) {
             double dx=c.x()+.5-camera.x,dy=c.y()+.5-camera.y,
                    dz=c.z()+.5-camera.z;
             if (dx*dx+dy*dy+dz*dz>MAX_DISTANCE_SQ) continue;
