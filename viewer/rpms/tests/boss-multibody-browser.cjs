@@ -39,5 +39,52 @@ const {chromium}=require('playwright-core');
   assert.equal(detached.joints,10,'physical destruction must remove two actual constraints');
   assert.equal(detached.feet,5);
   console.log('PASS BOSS MULTIBODY real 13 bodies, 12 revolute joints, finite-torque actuator gait, actual angles and physical leg detachment');
+  const site=await browser.newPage({viewport:{width:1520,height:1020},deviceScaleFactor:1});
+  const pageErrors=[];
+  site.on('pageerror',e=>pageErrors.push(e.stack||e.message));
+  await site.goto('http://127.0.0.1:8033/rpms/boss.html?autoload=off',
+    {waitUntil:'domcontentloaded',timeout:60000});
+  await site.waitForFunction(()=>window.__BOSS_API__?.ready||window.__BOSS_API__?.error,null,{timeout:90000});
+  const siteError=await site.evaluate(()=>window.__BOSS_API__.error);
+  assert.equal(siteError,null,'Hosted robot must initialize true WebAssembly articulations: '+siteError);
+  const status=await site.evaluate(()=>({
+    snapshot:window.__BOSS_API__.snapshot(),
+    meshes:window.__BOSS_API__.visibleMeshes(),
+    bodies:window.__BOSS_API__.physicsBodies(),
+    assets:window.__BOSS_API__.getAssetStatus()
+  }));
+  console.log('ARTICULATED_WEB_VISUAL',JSON.stringify(status));
+  assert.equal(status.snapshot.rigidBodies,13);
+  assert.equal(status.snapshot.joints,12);
+  assert.equal(status.bodies,13,'every physical body must have its own separately synchronized visual group');
+  assert.ok(status.meshes>65,'Not a true gear and bearing machine; insufficient visible mechanical components: '+status.meshes);
+  assert.ok(status.assets.components>=35,'Must show Create gears, motors, shafts, Simulated bearings');
+  await site.screenshot({path:require('node:path').join(__dirname,'boss-articulated-desktop.png'),fullPage:true});
+  await site.locator('#march').click();
+  assert.equal(await site.evaluate(()=>window.__BOSS_API__.snapshot().mode),'march');
+  const move=await site.evaluate(()=>window.__BOSS_API__.advance(180));
+  assert.ok(move.legAngles.some(x=>Math.abs(x.hip)>.03),'physical visual must reflect true motor-driven hinge bending');
+  assert.equal(await site.locator('#jointNum').textContent(),'13 / 12');
+  await site.screenshot({path:require('node:path').join(__dirname,'boss-articulated-marching.png'),fullPage:true});
+  await site.locator('#removeOne').click();
+  assert.equal(await site.evaluate(()=>window.__BOSS_API__.snapshot().joints),10);
+  assert.equal(await site.evaluate(()=>window.__BOSS_API__.snapshot().feet),5);
+  await site.locator('#relax').click();
+  assert.equal(await site.evaluate(()=>window.__BOSS_API__.snapshot().mode),'relax');
+  await site.locator('#restart').click();
+  assert.equal(await site.evaluate(()=>window.__BOSS_API__.snapshot().joints),12);
+  await site.locator('#motorTorque').fill('0');
+  assert.equal(await site.evaluate(()=>window.__BOSS_API__.snapshot().torqueLimit),0);
+  assert.equal(pageErrors.length,0,'Hosted robot threw an error: '+pageErrors.join('\n'));
+  console.log('PASS ARTICULATED HOSTED BOSS: 13 rendered dynamic rigid-bodies, Create machinery, twelve physical powered joints and breakable limbs');
+  const mobile=await browser.newPage({viewport:{width:393,height:852},deviceScaleFactor:1,isMobile:true});
+  const mobileErrors=[];mobile.on('pageerror',e=>mobileErrors.push(e.message));
+  await mobile.goto('http://127.0.0.1:8033/rpms/boss.html?autoload=off',{waitUntil:'domcontentloaded'});
+  await mobile.waitForFunction(()=>window.__BOSS_API__?.ready||window.__BOSS_API__?.error,null,{timeout:90000});
+  assert.equal(await mobile.evaluate(()=>window.__BOSS_API__.error),null);
+  await mobile.screenshot({path:require('node:path').join(__dirname,'boss-articulated-mobile.png'),fullPage:true});
+  assert.equal(mobileErrors.length,0);
+  await mobile.close();
+
  }finally{await browser.close()}
 })().catch(e=>{console.error('MULTIBODY_REAL_PHYSICS_FAILED',e.stack||e);process.exit(1)});
