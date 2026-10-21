@@ -102,7 +102,25 @@ jobs:
               sleep 1
             done
             xwd -root -silent | convert xwd:- -resize 800x450 -quality 58 visual-crossing.jpg
-            montage visual-in-world.jpg visual-near-seam.jpg visual-crossing.jpg visual-world-create.jpg -tile 2x2 -geometry +0+0 -quality 52 visual-sequence.jpg
+            # At Overworld TOP before crossing, capture actual End underside.
+            found=0
+            for step in $(seq 1 100); do
+              if grep -q "WORLDSEAM_E2E_END_PREVIEW_WINDOW" visual-client.log; then found=1; break; fi
+              if grep -q "WORLDSEAM_E2E_FAIL" visual-client.log; then break; fi
+              sleep 1
+            done
+            if [ "$found" != 1 ]; then
+              echo "End preview stage never reached"; tail -n 45 visual-client.log; exit 1
+            fi
+            xwd -root -silent | convert xwd:- -resize 800x450 -quality 58 visual-end-before-cross.jpg
+            found=0
+            for step in $(seq 1 100); do
+              if grep -q "WORLDSEAM_E2E_PASS_END_CLIENT" visual-client.log; then found=1; break; fi
+              if grep -q "WORLDSEAM_E2E_FAIL_END" visual-client.log; then break; fi
+              sleep 1
+            done
+            xwd -root -silent | convert xwd:- -resize 800x450 -quality 58 visual-end-after-cross.jpg
+            montage visual-in-world.jpg visual-near-seam.jpg visual-crossing.jpg visual-end-before-cross.jpg visual-end-after-cross.jpg visual-stack-editor.jpg -tile 3x2 -geometry +0+0 -quality 52 visual-sequence.jpg
             echo WORLDSEAM_GUI_JPEG_BEGIN
             base64 -w 0 visual-sequence.jpg
             echo
@@ -119,7 +137,9 @@ jobs:
             if ! grep -q "WORLDSEAM_E2E_PASS_CLIENT" visual-client.log ||
                ! grep -q "WORLDSEAM_E2E_PASS_SERVER" visual-client.log ||
                ! grep -q "WORLDSEAM_E2E_PASS_RETURN_CLIENT" visual-client.log ||
-               ! grep -q "WORLDSEAM_E2E_PASS_RETURN_SERVER" visual-client.log; then
+               ! grep -q "WORLDSEAM_E2E_PASS_RETURN_SERVER" visual-client.log ||
+               ! grep -q "WORLDSEAM_E2E_PASS_END_CLIENT" visual-client.log ||
+               ! grep -q "WORLDSEAM_E2E_PASS_END_SERVER" visual-client.log; then
               echo "WorldSeam never proved BOTH actual server and client dimension change"; exit 1
             fi
             echo "WorldSeam integrated E2E verified server and client dimension handoff"

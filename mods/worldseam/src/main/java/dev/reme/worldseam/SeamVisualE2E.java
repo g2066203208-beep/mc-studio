@@ -32,6 +32,7 @@ public final class SeamVisualE2E {
     private static long startTick;
     private static UUID playerId;
     private static boolean previewLogged;
+    private static boolean endPreviewLogged;
 
     private SeamVisualE2E() {}
 
@@ -99,11 +100,60 @@ public final class SeamVisualE2E {
             else LOG.error("WORLDSEAM_E2E_FAIL_RETURN_CLIENT: still in {}",clientDimension);
             server.execute(() -> {
                 ServerPlayer p=server.getPlayerList().getPlayer(playerId);
-                if (p!=null && p.serverLevel().dimension()==Level.OVERWORLD)
+                if (p!=null && p.serverLevel().dimension()==Level.OVERWORLD) {
                     LOG.info("WORLDSEAM_E2E_PASS_RETURN_SERVER: live Nether -> Overworld server migration");
-                else LOG.error("WORLDSEAM_E2E_FAIL_RETURN_SERVER: wrong dimension");
+                    endStage(server,playerId);
+                } else LOG.error("WORLDSEAM_E2E_FAIL_RETURN_SERVER: wrong dimension");
+            });
+            phase=7;
+        } else if (phase==7 && !endPreviewLogged && now-startTick>1280) {
+            endPreviewLogged=true;
+            LOG.info("WORLDSEAM_E2E_END_PREVIEW_WINDOW: current dim={}, y={}, target=the_end, native3x3={}, geometry={}, drawn={}",
+                mc.level.dimension().location(),mc.player.getY(),
+                SeamClientWorldPool.nearbyChunks(),SeamNativeGeometryClient.visibleBlockCount(),
+                SeamNativeGeometryClient.lastFrameDrawn());
+        } else if (phase==7 && now-startTick>1440) {
+            phase=8;
+            server.execute(() -> attemptEnd(server,playerId));
+        } else if (phase==8 && now-startTick>1535) {
+            phase=9;
+            if(mc.level.dimension()==Level.END)
+                LOG.info("WORLDSEAM_E2E_PASS_END_CLIENT: Overworld TOP -> End BOTTOM without vanilla respawn");
+            else LOG.error("WORLDSEAM_E2E_FAIL_END_CLIENT: dimension {}",mc.level.dimension().location());
+            server.execute(() -> {
+                ServerPlayer p=server.getPlayerList().getPlayer(playerId);
+                if(p!=null && p.serverLevel().dimension()==Level.END)
+                    LOG.info("WORLDSEAM_E2E_PASS_END_SERVER: Overworld TOP -> End BOTTOM");
+                else LOG.error("WORLDSEAM_E2E_FAIL_END_SERVER: player not in End");
             });
         }
+    }
+
+    private static void endStage(MinecraftServer server,UUID id) {
+        ServerPlayer p=server.getPlayerList().getPlayer(id);
+        if(p==null || p.serverLevel().dimension()!=Level.OVERWORLD)return;
+        p.getAbilities().flying=true;
+        p.onUpdateAbilities();
+        p.connection.teleport(p.getX(),317.0,p.getZ(),0,-90);
+        LOG.info("WORLDSEAM_E2E_END_STAGE: player Y317, looking UP at Overworld TOP Y320 with real End markers above");
+    }
+
+    private static void attemptEnd(MinecraftServer server,UUID id) {
+        ServerPlayer p=server.getPlayerList().getPlayer(id);
+        if(p==null)return;
+        boolean ready=SeamReadiness.isReady(id,"minecraft:overworld",
+            "minecraft:the_end",server.overworld().getGameTime());
+        LOG.info("WORLDSEAM_E2E_END_READY={}, player dim={}, y={}",
+            ready,p.serverLevel().dimension().location(),p.getY());
+        if(!ready || p.serverLevel().dimension()!=Level.OVERWORLD) {
+            LOG.error("WORLDSEAM_E2E_FAIL_END: End nine native chunks not ready");
+            return;
+        }
+        p.connection.teleport(p.getX(),319.75,p.getZ(),0,-90);
+        p.getAbilities().flying=false;
+        p.onUpdateAbilities();
+        p.setDeltaMovement(new Vec3(0,.22,0));
+        LOG.info("WORLDSEAM_E2E_END_TRIGGER: crossing Overworld TOP 320 -> End BOTTOM 0");
     }
 
     private static void prepare(MinecraftServer server,UUID id) {
@@ -175,6 +225,21 @@ public final class SeamVisualE2E {
             if(nether.setBlock(at,Blocks.GLOWSTONE.defaultBlockState(),3))
                 markers++;
         }
+        // CI-only visibility witness in End just ABOVE the Y=0 connection.
+        // Appears to be floating beyond Overworld TOP at Y=320 when composed.
+        int endMarkers=0;
+        for(int dz=-5;dz<=5;dz++)for(int dx=-5;dx<=5;dx++){
+            if(Math.abs(dx)<2 && Math.abs(dz)<2)continue;
+            at.set(x+dx,3,z+dz);
+            if(end.setBlock(at,Blocks.PURPUR_BLOCK.defaultBlockState(),3))
+                endMarkers++;
+            if(Math.abs(dx)==5 || Math.abs(dz)==5) {
+                at.set(x+dx,2,z+dz);
+                if(end.setBlock(at,Blocks.SEA_LANTERN.defaultBlockState(),3))
+                    endMarkers++;
+            }
+        }
+        LOG.info("WORLDSEAM_E2E_END_MARKERS: {} End-only purpur/sea-lantern witness blocks at Y2..3",endMarkers);
         if (!overworld.getBlockState(new BlockPos(x,-61,z)).isAir() ||
             !overworld.getBlockState(new BlockPos(x,-64,z)).isAir() ||
             !nether.getBlockState(new BlockPos(x,127,z)).isAir() ||
