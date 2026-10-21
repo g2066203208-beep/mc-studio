@@ -138,7 +138,7 @@ public final class SeamNativeGeometryClient {
             if (!source.isEmpty()) reset();
             return;
         }
-        if (mc.level.getGameTime()-lastArrivalTick>240) {
+        if (mc.level.getGameTime()-lastArrivalTick>2400) {
             reset();
             return;
         }

@@ -12,6 +12,10 @@ public final class SeamClientDiagnostic {
     private static void draw(RenderGuiEvent.Post e) {
         Minecraft mc = Minecraft.getInstance();
         if (mc.level==null || mc.player==null || mc.options.hideGui) return;
+        // Do not cover the player's sky/terrain with a development overlay.
+        // Show in F3 debug mode, or in explicitly enabled CI E2E screenshots.
+        if (!Boolean.getBoolean("worldseam.e2e")
+            && !mc.getDebugOverlay().showDebugScreen()) return;
         String dimension=mc.level.dimension().location().toString();
         SeamGraph.Link closest=null;
         double distance=Double.POSITIVE_INFINITY;
@@ -34,18 +38,21 @@ public final class SeamClientDiagnostic {
             otherMin,otherVanillaTop);
         double otherSeam=SeamStackClient.boundary(closest.target(),closest.entry(),otherMin,otherVanillaTop);
         String here=String.format(java.util.Locale.ROOT,
-            "WorldSeam CURRENT: %s Y=%.2f",dimension,mc.player.getY());
+            "界缝 | 当前维度: %s | Y=%.2f",dimension,mc.player.getY());
         String link=String.format(java.util.Locale.ROOT,
-            "EDGE: source Y=%.0f  ->  TARGET: %s Y=%.0f (%s)",
+            "连接面 Y=%.0f  →  目标: %s Y=%.0f (%s)",
             currentSeam,closest.target(),otherSeam,
-            closest.exit()==SeamGraph.EdgeSide.BOTTOM?"below":"above");
-        String cache="native packets: "+SeamClientWorldPool.receivedChunks()+
-            " | cached 3x3: "+SeamClientWorldPool.nearbyChunks()+
-            "/9 | geometry: "+SeamNativeGeometryClient.visibleBlockCount()+
-            " | drawn: "+SeamNativeGeometryClient.lastFrameDrawn();
-        String detail=SeamClientWorldPool.remoteStatus();
-        if (SeamClientWorldPool.receivedChunks()==0 && !detail.contains("FAILED"))
-            detail+=" | no packets: ensure /worldseam enable";
+            closest.exit()==SeamGraph.EdgeSide.BOTTOM?"下方":"上方");
+        String cache="已接收区块: "+SeamClientWorldPool.receivedChunks()+
+            " | 核心缓存: "+SeamClientWorldPool.nearbyChunks()+
+            "/9 | 远端模型: "+SeamNativeGeometryClient.visibleBlockCount()+
+            " | 本帧: "+SeamNativeGeometryClient.lastFrameDrawn();
+        String rawStatus=SeamClientWorldPool.remoteStatus();
+        String detail=rawStatus.contains("FAILED")?"目标维度初始化失败，请看日志":
+            rawStatus.contains("NO TARGET")?"等待目标维度区块":
+            "正在同步目标维度地形（优先 3×3，然后扩展 5×5）";
+        if (SeamClientWorldPool.receivedChunks()==0 && !rawStatus.contains("FAILED"))
+            detail+=" | 请检查 /worldseam enable";
         int wide=Math.max(Math.max(mc.font.width(here),mc.font.width(link)),
             Math.max(mc.font.width(cache),mc.font.width(detail)));
         g.fill(5,5,Math.max(390,wide+16),62,0x9A101820);
