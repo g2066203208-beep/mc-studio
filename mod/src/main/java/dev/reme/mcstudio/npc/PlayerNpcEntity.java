@@ -7,6 +7,7 @@ import dev.reme.mcstudio.npc.life.LivingWorldActions;
 import dev.reme.mcstudio.npc.life.ResidentMemory;
 import dev.reme.mcstudio.npc.life.SocietyRules;
 import dev.reme.mcstudio.npc.life.LifeJourney;
+import dev.reme.mcstudio.npc.life.MovementPolicy;
 import dev.reme.mcstudio.npc.life.CivicMind;
 import dev.reme.mcstudio.npc.life.CivicSocial;
 import dev.reme.mcstudio.npc.life.CivicPersistence;
@@ -34,6 +35,10 @@ import net.minecraft.world.inventory.MenuType;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.MobSpawnType;
+import net.minecraft.world.entity.SpawnGroupData;
+import net.minecraft.world.DifficultyInstance;
+import net.minecraft.world.level.ServerLevelAccessor;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.PathfinderMob;
@@ -83,6 +88,12 @@ public class PlayerNpcEntity extends PathfinderMob {
     private final Set<Long> recentChunks = new LinkedHashSet<>();
     private int parcelsDelivered = 0;
     private int formationSlot = 0;
+    private int roamingRadius = 48;
+    private boolean naturalResident = false;
+    private int dailyShiftTicks = 0;
+    @Nullable private BlockPos cachedCropTarget;
+    private BlockPos lastNavDestination = BlockPos.ZERO;
+    private long nextNavRepathTick = 0;
     private final CivicMind civic = new CivicMind();
     private CharacterProfile character = new CharacterProfile(60, 65, 60, 60);
     @Nullable private Commission commission;
@@ -98,6 +109,35 @@ public class PlayerNpcEntity extends PathfinderMob {
         this.getNavigation().setCanFloat(true);
         this.homePos = blockPosition();
         this.workPos = blockPosition();
+    }
+
+    @Override
+    public SpawnGroupData finalizeSpawn(ServerLevelAccessor world,
+            DifficultyInstance difficulty, MobSpawnType reason, SpawnGroupData group) {
+        SpawnGroupData outcome = super.finalizeSpawn(world, difficulty, reason, group);
+        if (reason == MobSpawnType.NATURAL) {
+            naturalResident = true;
+            BlockPos anchor = blockPosition();
+            setHomePos(anchor);
+            setWorkPos(anchor);
+            setIdentity(SocietyRules.civilian(
+                MovementPolicy.region(anchor.getX(), anchor.getZ())));
+            setRoamingRadius(32 + getRandom().nextInt(33));
+            setMode(Mode.LIVE);
+            int traits = getRandom().nextInt(1_000_000);
+            setPersonality(new LivingPlanner.Personality(
+                30 + Math.floorMod(traits, 61), 30 + Math.floorMod(traits / 17, 61),
+                30 + Math.floorMod(traits / 31, 61)));
+            setCharacter(dev.reme.mcstudio.npc.life.CharacterProfile.fromSeed(traits));
+            dailyShiftTicks = MovementPolicy.dailyShift(traits);
+            var job = getRandom().nextInt(8);
+            setProfession(job == 0 ? Profession.GUARD :
+                job == 1 ? Profession.SCOUT : Profession.RESIDENT);
+            this.setCustomName(Component.literal("旅居者-" +
+                Integer.toHexString(traits).toUpperCase(java.util.Locale.ROOT)));
+            this.backpack.addItem(new ItemStack(Items.BREAD, 2));
+        }
+        return outcome;
     }
 
     public void setOwner(Player player) { this.ownerUuid = player.getUUID(); }
@@ -153,6 +193,21 @@ public class PlayerNpcEntity extends PathfinderMob {
         supplyPos = pos == null ? null : pos.immutable();
     }
     @Nullable public UUID escortLeader() { return escortLeader; }
+    public int roamingRadius() { return roamingRadius; }
+    public void setRoamingRadius(int next) { roamingRadius = MovementPolicy.radius(next); }
+    public boolean naturalResident() { return naturalResident; }
+    public int dailyShiftTicks() { return dailyShiftTicks; }
+    @Nullable public BlockPos cachedCropTarget() { return cachedCropTarget; }
+    public void setCachedCropTarget(@Nullable BlockPos target) { cachedCropTarget = target; }
+    public boolean canRepath(BlockPos target, long tick) {
+        if (tick >= nextNavRepathTick || !target.equals(lastNavDestination) &&
+            tick + 8 >= nextNavRepathTick) {
+            lastNavDestination = target.immutable();
+            nextNavRepathTick = tick + 30;
+            return true;
+        }
+        return false;
+    }
     public int formationSlot() { return formationSlot; }
     public void setFormationSlot(int slot) { formationSlot = Math.clamp(slot, 0, 15); }
     public void setEscortLeader(@Nullable UUID uuid) { escortLeader = uuid; }
@@ -416,6 +471,9 @@ public class PlayerNpcEntity extends PathfinderMob {
         tag.putLongArray("NpcRecentChunks", recentChunks.stream().mapToLong(Long::longValue).toArray());
         tag.putInt("NpcParcels", parcelsDelivered);
         tag.putInt("NpcFormationSlot", formationSlot);
+        tag.putInt("NpcRoamingRadius", roamingRadius);
+        tag.putBoolean("NpcNaturallySpawned", naturalResident);
+        tag.putInt("NpcDailyShift", dailyShiftTicks);
         tag.putBoolean("NpcBuildEnabled", buildEnabled);
         tag.putInt("NpcBuildCursor", buildCursor);
         tag.putInt("NpcDiligence", personality.diligence());
@@ -491,6 +549,13 @@ public class PlayerNpcEntity extends PathfinderMob {
         }
         parcelsDelivered = Math.max(0, tag.getInt("NpcParcels"));
         formationSlot = Math.clamp(tag.getInt("NpcFormationSlot"), 0, 15);
+        setRoamingRadius(tag.contains("NpcRoamingRadius", Tag.TAG_INT)
+            ? tag.getInt("NpcRoamingRadius") : 48);
+        naturalResident = tag.getBoolean("NpcNaturallySpawned");
+        dailyShiftTicks = Math.clamp(tag.getInt("NpcDailyShift"), -400, 400);
+        cachedCropTarget = null;
+        lastNavDestination = BlockPos.ZERO;
+        nextNavRepathTick = 0;
         buildEnabled = tag.getBoolean("NpcBuildEnabled");
         buildCursor = Math.clamp(tag.getInt("NpcBuildCursor"), 0, 100);
         setPersonality(new LivingPlanner.Personality(

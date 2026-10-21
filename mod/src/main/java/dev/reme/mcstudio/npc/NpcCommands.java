@@ -37,6 +37,14 @@ public final class NpcCommands {
                     .executes(ctx -> spawn(ctx.getSource(), StringArgumentType.getString(ctx, "name")))))
             .then(Commands.literal("demo").requires(source -> source.hasPermission(2))
                 .executes(ctx -> demo(ctx.getSource())))
+            .then(Commands.literal("radius")
+                .then(Commands.argument("blocks", IntegerArgumentType.integer(16, 128))
+                    .executes(ctx -> changeRadius(ctx.getSource(),
+                        IntegerArgumentType.getInteger(ctx, "blocks"), false))))
+            .then(Commands.literal("adminradius").requires(source -> source.hasPermission(2))
+                .then(Commands.argument("blocks", IntegerArgumentType.integer(16, 128))
+                    .executes(ctx -> changeRadius(ctx.getSource(),
+                        IntegerArgumentType.getInteger(ctx, "blocks"), true))))
             .then(Commands.literal("live").executes(ctx -> changeMode(ctx.getSource(), PlayerNpcEntity.Mode.LIVE)))
             .then(Commands.literal("farmer").executes(ctx -> profession(ctx.getSource(), PlayerNpcEntity.Profession.FARMER)))
             .then(Commands.literal("baker").executes(ctx -> profession(ctx.getSource(), PlayerNpcEntity.Profession.BAKER)))
@@ -324,6 +332,17 @@ public final class NpcCommands {
         }
     }
 
+    private static int changeRadius(CommandSourceStack source, int radius, boolean admin)
+        throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        ServerPlayer player = source.getPlayerOrException();
+        PlayerNpcEntity npc = admin ? closestNpc(player) : closestOwnedNpc(player);
+        if (npc == null) return 0;
+        npc.setRoamingRadius(radius);
+        source.sendSuccess(() -> Component.literal(npc.getName().getString()
+            + " home range -> " + npc.roamingRadius() + " blocks"), false);
+        return 1;
+    }
+
     private static PlayerNpcEntity closestOwnedNpc(ServerPlayer player) {
         AABB range = player.getBoundingBox().inflate(16);
         return player.level().getEntitiesOfClass(PlayerNpcEntity.class, range, npc -> npc.isOwnedBy(player))
@@ -334,7 +353,7 @@ public final class NpcCommands {
         ServerPlayer player = source.getPlayerOrException();
         PlayerNpcEntity npc = closestOwnedNpc(player);
         if (npc == null) {
-            source.sendFailure(Component.literal("No NPC owned by you within 16 blocks"));
+            source.sendFailure(Component.literal("No resident within 16 blocks"));
             return 0;
         }
         npc.setMode(mode);
@@ -461,7 +480,9 @@ public final class NpcCommands {
 
     private static int info(CommandSourceStack source) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
         ServerPlayer player = source.getPlayerOrException();
-        PlayerNpcEntity npc = closestOwnedNpc(player);
+        // Anyone may inspect the closest live resident; ownership is needed
+        // only to issue commands that actually mutate that resident.
+        PlayerNpcEntity npc = closestNpc(player);
         if (npc == null) {
             source.sendFailure(Component.literal("No NPC owned by you within 16 blocks"));
             return 0;
@@ -483,6 +504,8 @@ public final class NpcCommands {
             + " " + npc.journey().progress() + "%"
             + " | supply " + (npc.supplyPos() == null ? "none" : npc.supplyPos().toShortString())
             + " | delivered " + npc.parcelsDelivered()
+            + " | roam " + npc.roamingRadius()
+            + " | natural " + npc.naturalResident()
             + " | civics: " + npc.civic().reports().size() + " reports"
             + " | personal reputation " + npc.civic().reputation(player.getUUID())
             + " | commission " + (npc.commission() == null ? "none" : npc.commission().state())

@@ -108,3 +108,27 @@ Push CI `39518033958` SUCCESS，PR CI `39518039426` SUCCESS。Artifact `12310085
 
 ### v0.4.0-dev 最终源提交 GameTest 复核
 - `4c1f6d35` 的 [39520744874](https://github.com/g2066203208-beep/mc-studio/actions/runs/39520744874) **SUCCESS**；日志明确 `All 4 required tests passed :)`。此前“需查最新 GameTest”的事项关闭；客户端/222-mod 整合包仍未测试。
+
+
+## 2026-10-21 v0.5 自然居民与性能预算交接
+
+- 独立分支 `feature/living-world-natural-v05`，基于 v0.4 `577d66d582193ac3ae3e7df0b51f54ab36cd7bbd`。
+- 新增 `NaturalResidentSpawn` + NeoForge datapack biome modifier，在平原/草甸等主世界地表稀有刷出自然居民，周围 72 格最多 4 人；`PlayerNpcEntity.finalizeSpawn` 初始化天然居民的居住点、个人范围、性格、职业与食物。
+- 新增 `MovementPolicy` `DailyRoaming` 及纯 Java 测试，`RoadNavigator` 重算冷却；AI 决策与专业职业执行降低触发频率，农民缓存成熟作物目标。
+- /npc radius 16..128；新增 2 个 NeoForge GameTest 实体生成初始化/NBT 居住范围恢复。老四项测试必须一起通过。
+- 详读 `docs/NATURAL_V05.md`；不能把原版自然刷新已随机观察、TPS 已测或 222-mod 整合包兼容当成已验收。
+
+
+## 0.5 后续代码提交说明
+- 对 `CivicGameTests.local_spawn_cap_prevents_overpopulation` 删除“整个测试世界开始必须空无居民”的不可靠并行前提，因其他 GameTest 可能同时创建实体。自然 NPC 限制仍在。
+- `/npc info` 无需所有者身份即可只读查看最近 16 格 NPC；`/npc adminradius 16..128` 可由管理员调整自然居民活动范围，普通 `/npc radius` 只对自己的 NPC 生效。
+- 2026-10-21 GitHub GameTest 39525005713 对自然生成+范围+人口限制等 7 项 **成功**。最终的 HEAD 构建与 GameTest 应以更新后版本为准。
+
+
+## 2026-10-21 v0.5 最终交付（编译 + 游戏服务器自动化测试）
+
+- 代码源 `6393acd5dcd74966b36e5d7072c5033574ada040`。PR #19 draft，base=`feature/living-world-civic-v04`；该功能还未合入 main。
+- GitHub PR Build `39525522849` SUCCESS，NeoForge 真实 GameTest `39525522800` SUCCESS，日志 `All 7 required tests passed :)`。
+- JAR `reme_studio-0.5.0-dev.jar` 121888 bytes，SHA-256 `c1ee90cf5529430fbd7a322f2c968b0b3fbc43bb90e0a02bde25d60d767356ca`，artifact 12313600974，已经打开 ZIP 核查类和 biome modifier。
+- 代码中 NPC 在选定主世界地表稀有生成，附近 72 格 cap4，自动 512×512 地区标签、居家范围与白天漫步；缺少真正家庭居住分配与长期性能测试。
+- 下一阶段优先实机测试新自然世界实际刷新概率/路径与数天日常动作，再做 20/100/200 NPC 稳定负载 profiling、持久人口台账和完整整合包兼容；不要说已经完成这些。

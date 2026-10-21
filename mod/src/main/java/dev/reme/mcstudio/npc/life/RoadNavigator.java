@@ -12,10 +12,18 @@ public final class RoadNavigator {
 
     public static boolean moveToward(PlayerNpcEntity npc, ServerLevel level,
                                      BlockPos destination, double speed) {
+        if (npc.mode() == PlayerNpcEntity.Mode.LIVE &&
+            npc.escortLeader() == null &&
+            !DailyRoaming.inRange(npc, destination)) {
+            npc.setAction("destination outside home mobility radius");
+            return false;
+        }
         if (!level.hasChunkAt(destination)) {
             npc.setAction("destination chunk unloaded; not force loading");
             return false;
         }
+        long tick = level.getGameTime();
+        if (!npc.canRepath(destination, tick)) return true;
         double current = npc.blockPosition().distSqr(destination);
         if (current < 5) return false;
         BlockPos best = null;

@@ -1,0 +1,76 @@
+# REME NPC v0.5 — 自然生成、居家生活半径、日常作息与性能预算
+
+**基线** Minecraft Java 1.21.1 / NeoForge 21.1.248 / Java 21。
+
+## 已实现代码
+
+### 自然生成
+
+使用 [NeoForge 1.21.1 官方 biome_modifier](https://docs.neoforged.net/docs/1.21.1/worldgen/biomemodifier/) 和 `RegisterSpawnPlacementsEvent`，**不是命令循环刷人或强制生成建筑**：
+
+- 数据包文件 `data/reme_studio/neoforge/biome_modifier/natural_residents.json` 添加一条稀有生物生成规则：plains、sunflower_plains、savanna、taiga、meadow，weight=1，组大小 1–2。
+- 原版地面刷怪流程决定时机与位置。只允许主世界 NATURAL 原因；需草地/泥土路/灰化土/砂土下方、天空可见、脚部和头部空气，高度合适。
+- **单次候选区域**的加载范围内，在候选点 **72 格**范围内已有 4 名同类居民，就不再允许该位置自然刷人。这是局部上限，不是全世界人口总量或区块种子存档。
+- 生成时由 `finalizeSpawn` 赋予天然居民标记、名字、初始携带食物、个性、守卫/侦察员/普通居民职业、512×512 方块地理地区编号、家与工作位置、32–64 格个人活动半径和错开作息偏移（最大 400 tick）；现有实体 NBT 保存后不会重置这类资料。
+- NPC 仍是持久居民，原有实体不会像普通怪物一样自动消失。预计随着探索新地区，世界存档内保留许多居民；尚未有世界总人口限额与离屏村落系统。
+
+### 活动范围和作息
+
+- 默认家附近活动半径 48 格，自然居民 32–64 格，手动 `/npc radius 16..128` 调整附近自己 NPC 的生活半径。跟随玩家的小队可以临时突破家园范围。
+- `DailyRoaming`：每 160 tick 才尝试一次白天的生活漫步（满足休息、日间、已加载地块、有安全地面等条件）；越过家园活动半径 + 8 格后，每 40 tick 尝试返回家。
+- 无人在旁的社交时间不再原地机械“回家—社交”循环，而是会在社区里散步寻人。普通居民/侦察员不会无限漂向更远区块；寻路目标受居住边界限制。
+- 每个人保持个性、职业、饥饿、天气、威胁引起的自主决策。自然生成居民只有少量初始食物；**还没有自动拥有一所建筑或工作地、村庄名字、家族及官方住所 POI**。
+
+### 性能控制
+
+- 每实体需求衰减：每 200 tick 一次（保留）。
+- 每实体工作/饥饿/天气决策：每 **80 tick** 一次（旧每 40 tick），相位分散。重要威胁继续及时响应，但不再每 tick 全量决策。
+- 专业职业 AI：每 **80 tick** 一次（旧 40）。
+- 返回家/工作/社交动作：每 **40 tick** 一次（旧 20）。
+- 农场完整搜索：最多每 **200 tick** 一次（旧 100），已发现成熟作物的目标位置缓存在 NPC，只有失效或完成后才重新扫田。
+- 道路路径规划：同一实体同一目标 **30 tick** 冷却，避免每次重算 15×15 附近道路扫描与寻路。
+- 漫步每 **160 tick** 分散触发；仅使用已加载区块的地表、从不为 AI 强制加载远方新区块。
+- **理论调用频率约减半不等于 TPS 性能提升 50%**。仍须用固定机器、版本、区块、NPC 数量、天气环境做每 tick CPU 测量（20/50/100/200 人）；目前没有实际 TPS 基线。
+
+## 测试与验证
+
+- 纯 Java `scripts/living-tests/MovementPolicySpec.java`：坐标边界、漫步半径、极远坐标溢出、每 80 tick 触发相位和个性作息偏移。
+- 真 NeoForge GameTest 新增自然生成初始化（NATURAL finalizeSpawn）与“活动半径＋家园位置跨 NBT 保存”2 项，加上旧 4 项后应为 **6 项**。是否通过必须检查 Actions 后填。
+- 已存在 GitHub Workflow `Server GameTests (experimental)` 会运行 `runGameTestServer`，它在真正 MC 服务端环境内执行 GameTest 类。
+- 未在 HMCL 客户端、真实主世界新地形随机生成、222-Mod 整合包、多小时 TPS 负载上实测。编译与 GTest **不会自动证明自然刷怪率已符合体验预期**。
+
+## 怎么在测试世界验收
+
+1. 在独立备份测试实例安装版本 0.5 JAR，选择新世界主世界的平原/向日葵平原/稀树草原/针叶林/草甸，不要用已有正式存档。站在安全草地等待原版稀有被动生成，可能很久。测试环境可通过 `/summon reme_studio:player_npc` 验证实体注册，但 **/summon 不是自然生成，不会获得 naturalResident 默认资料**。
+2. 找到一个自然居民，观察姓名、职业、家附近的生活。指派自有 NPC 可用 `/npc radius 64`，`/npc info` 查询 roam radius/natural 标记；自然居民没有玩家所有者；`/npc info` 是公开只读查询，因此可以查看自然居民的属性。拥有者可用 `/npc radius 64`，更改无主自然居民需要管理员用 `/npc adminradius 64`。
+3. 在 NPC 周围建路，在白天和夜间观察它活动、回家和局部道路偏好。为自然居民赋予食物、与其谈话，观察是否能自主生活。
+4. 用测试存档验证保存/退出/重进后个人半径、性格、存活、背包没有重置。
+5. 用 spark profiler 或游戏服务器 tps profile，在固定相同区块与人数下对比 0.4 与 0.5 的 tick 时间；未执行前只能说“降低扫描频率”，不能说“TPS 提升了多少”。
+
+## 未来还有待解决的世界真实人口系统
+
+- 自然居民尚无真正按聚落 POI/住宅、工作台、区域就业/资源需求出现的控制，当前是低权重自然刷人，并不保证靠着已有村庄出现。
+- 局部 72 格限制并不等于跨区块/维度的全局人数上限。大地图探索后会存在大量持久 NPC，规模控制还需要 SavedData 聚落人口台账、领地位置、流浪转居民、离屏模拟。
+- 动态出生/死亡、远处模拟、经济职业补全、建筑保护 API、复杂日程/真实床睡、载具/跨维度都还没完成。
+
+
+
+## 云端已验证结果（2026-10-21）
+
+- v0.5 首次构建 [39524554268](https://github.com/g2066203208-beep/mc-studio/actions/runs/39524554268) SUCCESS；增加天然生成属性测试 [GameTest 39524861608](https://github.com/g2066203208-beep/mc-studio/actions/runs/39524861608) 确认真实 GameTest 服务器 **6/6 通过**。
+- 加入 72 格人口限制测试后 [GameTest 39525005713](https://github.com/g2066203208-beep/mc-studio/actions/runs/39525005713) **7/7 通过**；包括实体生成、生活出生资料、范围/住址 NBT 恢复、人口上限、旧社会系统回归。
+- 工作流程后续修改了并行 GameTest 中的初始环境假定以及无主居民只读查询，最新完整 CI 仍需按 HEAD 核验。
+- 这仅证明服务端单测通过，不能证明在真实游玩时能以合适速率遇见自然居民，也不能证明 222 Mod/性能。
+
+
+### 后续修订：出生地决定地区
+自然居民在 NATURAL 初始化时，会自动登记为 `sector_<floorDiv(x,512)>_<floorDiv(z,512)>` 地区，而不是全部沿用固定 `river`。如 X=-1，Z=-1，则归属 `sector_-1_-1`。地区保存实体 NBT，不跨越已有自然居民重新赋值，也不声称这个格子是国家控制领土。增加 `MovementPolicySpec` 负坐标/边界测试与 GameTest 中的出生地区断言。最新源码提交：`6393acd5dcd74966b36e5d7072c5033574ada040`，对应 CI 需核验。
+
+
+## 最终可编译实验版本（已核验）
+- **最新实质 Java 源提交** `6393acd5dcd74966b36e5d7072c5033574ada040`；之后仅调整文档。
+- [GitHub Actions PR Build 39525522849](https://github.com/g2066203208-beep/mc-studio/actions/runs/39525522849) **SUCCESS**。
+- [GitHub Actions PR NeoForge GameTest 39525522800](https://github.com/g2066203208-beep/mc-studio/actions/runs/39525522800) **SUCCESS**；游戏服务器日志明确 `All 7 required tests passed :)`。
+- artifact `12313600974`，ZIP 内 `reme_studio-0.5.0-dev.jar`，**121888 bytes**，SHA-256 `c1ee90cf5529430fbd7a322f2c968b0b3fbc43bb90e0a02bde25d60d767356ca`。
+- 已由独立运行容器实际解包并检查 JAR：`NaturalResidentSpawn.class`, `DailyRoaming.class`, `MovementPolicy.class`、`META-INF/neoforge.mods.toml` 与 `data/reme_studio/neoforge/biome_modifier/natural_residents.json` 全部存在。
+- **尚未测：在真实主世界长期随机刷出居民的频率、客户端动画/寻路、222-Mod 整合包、多个世界长时间存档体积、20/100/200 NPC 的 TPS 性能。** 构建与 GameTest 成功不能推导具体性能增幅。
