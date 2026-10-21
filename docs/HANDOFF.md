@@ -44,3 +44,13 @@ GitHub 是整个 Minecraft 工作室的开发中心。代码、需求、研究�
 从 `main` 开始的 `feat/worldseam-standalone` 仅新增 `mods/worldseam/` 及其独立 CI、仓库说明。WorldSeam Mod ID 改为 `worldseam`，入口 `dev.reme.worldseam.WorldSeamMod`，指令 `/worldseam`。旧引擎功能分支 PR #18 应标记被取代、不可合并；PEAK 攀爬分支保持原状。对新 Mod 的验证必须在独立 `mods/worldseam` 下完成，不能用工作室通用 `mod/` 编译替代。
 
 - WorldSeam v0.6.0-dev 新增**默认关闭**的 `/worldseam smooth enable` 原生无 Respawn 协同换维实验（9 个真实远端 Chunk+light 预热、握手、ClientLevel/LevelRenderer 直接切换）。仅可备份测试世界验证，CI 不可替代 GUI 实机；主要源码 `mods/worldseam/`，见 `mods/worldseam/docs/NO_LOADING_ARCHITECTURE.md`。保持 PEAK 攀爬完全独立。
+
+## 2026-10-21 · WorldSeam v0.7.0-dev 维度真正物理边界纠偏
+
+**缺陷原因**：原代码把 Nether 原版建筑高度 Y256 当成跨界坐标，但可通行的屋顶边缘实际是 Y128。之前 `SeamPreviewSender.sampleHorizon`、`SeamPreviewSender.sample` 等仍有错误目标/源边界，致跨维渲染偏移 128 格；另外 `Link.crossed` 要求玩家超出上下界 0.25 格，不是靠近平面触发。原版 teleportTo 默认还是加载换维。之前的“无缝已做好”说法不成立。
+
+**对照的源项目**：`UpperMoon0/ImmersivePortals`：`VerticalConnectingPortal.java` 在自定义 Y 平面建立巨大水平连接面、`DimStackInfo.java` 允许边界 Y 覆盖、`MixinChunkStatusTasks_BedrockReplacement.java` 在 ChunkStatusTasks.generateSpawn 阶段处理基岩。仅学习实现思想，不复制代码、不添加门户 Mod 依赖。
+
+**本分支修复**：统一逻辑边界 Nether Y128；独立新 ChunkStatusTasks Mixin 在世界生成阶段除去接缝基岩（管理员开关后，仅新区块）；`SeamCrossing` 在边界平面内侧 0.5 格、朝向面运动时提前交接，不需要先越出建筑高度；远端 LevelRenderer 收到 Chunk 后通知 section mesh 重建；`/worldseam enable` 默认走 no-respawn（若没有预热完成则阻挡边界，不以加载换维假冒成功）；`/worldseam setup-test` 为明确授权的破坏性测试世界命令：为当前X/Z 16×16区块柱在主世界地板/地狱屋顶删去既有基岩。以上只在 `feat/worldseam-standalone`，与 PEAK 攀爬绝不合并。
+
+**禁止宣称最终无缝**：没有 GUI 实际跨界/双向像素级验收和实体/碰撞/粒子/光照整合；自动构建、GameTest、headless-client 仅部分门槛。后续工作必须实现远端全维 `LevelRenderer` 在统一帧中按平面遮挡渲染、服务器/客户端多实体和光照数据正确按维度同步、镜头跨面交接，无加载录像完成才可称交付。
