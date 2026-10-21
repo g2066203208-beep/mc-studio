@@ -27,7 +27,15 @@ sourceSets.main.resources {
 }
 
 repositories {
-    // Add here additional repositories if required by some of the dependencies below.
+    exclusiveContent {
+        forRepository { maven { url = 'https://maven.ryanhcode.dev/releases' } }
+        filter { includeGroup('dev.ryanhcode.sable-companion') }
+    }
+    // Runtime-only pinned upstream Sable for explicit opt-in integration tests.
+    exclusiveContent {
+        forRepository { maven { url = 'https://api.modrinth.com/maven' } }
+        filter { includeGroup('maven.modrinth') }
+    }
 }
 
 base {
@@ -116,6 +124,20 @@ configurations {
 }
 
 dependencies {
+    // The real Sable JAR (including its embedded Rapier/Veil libraries) is used
+    // only for -PwithSable GameTest runs; never bundled into our published JAR.
+    if (project.hasProperty('withSable')) {
+        localRuntime('maven.modrinth:T9PomCSv:fg9dTRz9') { transitive = false }
+    }
+
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.11.4'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
+    // Lightweight Sable interoperability API; included so plain MC worlds also work.
+    jarJar(api("dev.ryanhcode.sable-companion:sable-companion-common-1.21.1:[${project.sable_companion_version},)")) {
+        version { prefer(project.sable_companion_version) }
+    }
+
     // Example optional mod dependency with JEI
     // The JEI API is declared for compile time use, while the full JEI artifact is used at runtime
     // compileOnly "mezz.jei:jei-${mc_version}-common-api:${jei_version}"
@@ -187,4 +209,9 @@ idea {
         downloadSources = true
         downloadJavadoc = true
     }
+}
+
+
+tasks.named('test', Test) {
+    useJUnitPlatform()
 }
