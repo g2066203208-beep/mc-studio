@@ -262,8 +262,8 @@ $('jarInput').addEventListener('change',async e=>{
  for(const f of files){
   try{
    const result=await jarModels.addFile(f,JSZip);
-   for(const path of result.paths.filter(s=>/^assets\/(create|simulated|minecraft)\/blockstates\/[^/]+\.json$/.test(s))){
-    const match=path.match(/^assets\/(create|simulated|minecraft)\/blockstates\/([^/]+)\.json$/),id=match[1]+':'+match[2];
+   for(const path of result.paths.filter(s=>/^assets\/[a-z0-9_.-]+\/blockstates\/[^/]+\.json$/.test(s))){
+    const match=path.match(/^assets\/([a-z0-9_.-]+)\/blockstates\/([^/]+)\.json$/),id=match[1]+':'+match[2];
     if(!registry.some(b=>b.id===id)){registry.push({id,source:'local-jar'});added++;}
     try{variants+=(await jarModels.stateKeys(id)).length;}catch(err){failed.push(path+' '+err.message);}
    }
