@@ -1,4 +1,4 @@
-package dev.reme.mcstudio.seam;
+package dev.reme.worldseam;
 
 import org.junit.jupiter.api.Test;
 import java.util.List;

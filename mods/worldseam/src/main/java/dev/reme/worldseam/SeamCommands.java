@@ -14,8 +14,7 @@ public final class SeamCommands {
 
     public static void register(RegisterCommandsEvent event) {
         CommandDispatcher<CommandSourceStack> commands = event.getDispatcher();
-        commands.register(Commands.literal("reme")
-            .then(Commands.literal("seam")
+        commands.register(Commands.literal("worldseam")
                 .then(Commands.literal("status").executes(SeamCommands::status))
                 .then(Commands.literal("enable")
                     .requires(src -> src.hasPermission(2))
@@ -27,7 +26,7 @@ public final class SeamCommands {
                     .requires(src -> src.hasPermission(2))
                     .then(Commands.literal("enable").executes(ctx -> terrain(ctx,true)))
                     .then(Commands.literal("disable").executes(ctx -> terrain(ctx,false))))
-                .then(Commands.literal("probe").executes(SeamCommands::probe))));
+                .then(Commands.literal("probe").executes(SeamCommands::probe)));
     }
 
     private static int status(CommandContext<CommandSourceStack> ctx) {
@@ -35,7 +34,7 @@ public final class SeamCommands {
         SeamSettings config = SeamSettings.get(src.getServer());
         boolean enabled = config.enabled();
         src.sendSuccess(() -> Component.literal(
-            "REME Native Seam: " + (enabled ? "ON" : "OFF")
+            "WorldSeam: " + (enabled ? "ON" : "OFF")
                 + " | carve new chunks: " + (config.carveNewChunks() ? "ON" : "OFF")
                 + " | dimension edges: " + SeamGraph.LINKS.size()
                 + " | rendering: near-border snapshot prototype (not full world renderer)"
@@ -47,7 +46,7 @@ public final class SeamCommands {
         var src = ctx.getSource();
         SeamSettings.get(src.getServer()).setEnabled(enabled);
         src.sendSuccess(() -> Component.literal(
-            "REME Native Seam " + (enabled ? "enabled" : "disabled")
+            "WorldSeam " + (enabled ? "enabled" : "disabled")
                 + " for this saved world. Backup before experimental travel."
         ), true);
         return 1;
