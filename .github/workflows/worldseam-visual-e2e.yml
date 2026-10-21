@@ -7,6 +7,12 @@ on:
       - "mods/worldseam/build.gradle"
       - "mods/worldseam/gradle.properties"
       - ".github/workflows/worldseam-visual-e2e.yml"
+  pull_request:
+    paths:
+      - "mods/worldseam/src/**"
+      - "mods/worldseam/build.gradle"
+      - "mods/worldseam/gradle.properties"
+      - ".github/workflows/worldseam-visual-e2e.yml"
   workflow_dispatch:
 permissions:
   # Push *verified real NeoForge screenshots* only after the GUI E2E passes.
