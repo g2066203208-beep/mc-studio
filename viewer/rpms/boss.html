@@ -1,64 +1,74 @@
 <!doctype html>
-<html lang="zh-CN">
-<head>
+<html lang="zh-CN"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>REME RPMS | Boss 真实物理实验场</title>
-<meta name="description" content="无需安装游戏，浏览器内真实 Rapier WebAssembly 重力碰撞、多足承重与拆腿坍塌交互。">
-<link rel="stylesheet" href="./boss.css">
+<title>RPMS — Create × Simulated 六足真实物理机械 Boss</title>
+<meta name="description" content="MC 风格大型六足机械 Boss：机械动力齿轮、旋转轴承、12 个真实物理关节、转矩驱动、多体动力学。网页直接运行。">
+<link rel="stylesheet" href="./boss.css"><link rel="stylesheet" href="./boss-v2.css">
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/","@dimforge/rapier3d-compat":"https://cdn.jsdelivr.net/npm/@dimforge/rapier3d-compat@0.17.3/rapier.es.js"}}</script>
-</head>
-<body>
-<header class="topbar"><a class="brand" href="./index.html"><span class="glyph">◆</span> REME <small>MC ENGINEERING</small></a><span class="page-title">BOSS LAB <b>/ 真实物理实验场</b></span><nav><a href="./index.html">机械工作台</a><a href="./native.html">原版验证记录</a></nav></header>
+<script defer src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+</head><body>
+<header class="topbar"><a class="brand" href="./index.html"><span class="glyph">◆</span> REME <small>MC ENGINEERING</small></a>
+<span class="page-title">BOSS LAB <b>/ 六足多体动力学</b></span>
+<nav><a href="./index.html">Create 方块工作台</a><a href="./native.html">NeoForge 对照</a></nav></header>
 <div class="workshop">
  <aside class="sidebar">
-  <div class="eyebrow">PHASE 00 / PHYSICAL SUPPORT</div>
-  <h1>四足承重<br>实验机</h1>
-  <p class="lead">17 个真正参与碰撞的方块，4 只脚承担机身重量。砸断机械腿，观察机身在重力下坍塌。</p>
+  <div class="eyebrow">MK II / MULTIBODY WALKER</div><h1>六足机械<br>掘进者</h1>
+  <p class="lead">放大尺寸的方块机械兽：**中央动力核心 + 6 套齿轮传动 + 12 个真实铰链**。不是四条固定腿的桌子，而是身体、上腿、下腿分开计算受力。</p>
   <div class="specification">
-   <div><span>刚体类型</span><b>动态 · 6 自由度</b></div>
-   <div><span>碰撞结构</span><b>9 机身 + 8 腿部</b></div>
-   <div><span>物理引擎</span><b>Rapier WebAssembly</b></div>
-   <div><span>重力</span><b>−11 m/s²</b></div>
-   <div><span>状态</span><b id="engineState">加载真实物理引擎…</b></div>
+   <div><span>装配体</span><b>13 个独立刚体</b></div>
+   <div><span>真实髋／膝轴承</span><b>12 个旋转关节</b></div>
+   <div><span>机构</span><b>6 足 · 每足 2 自由度</b></div>
+   <div><span>输入动力</span><b>转速 + 有限转矩</b></div>
+   <div><span>物理引擎</span><b id="engineState">启动 Rapier WASM…</b></div>
   </div>
-  <div class="subhead">物理实验操作</div>
-  <button id="removeOne" class="action danger">拆掉一条腿 <span>−2 方块</span></button>
-  <button id="removeAll" class="action danger">拆掉全部四条腿 <span>真实坍塌</span></button>
-  <button id="push" class="action">侧向撞击机身 <span>真实冲量</span></button>
-  <button id="restart" class="action primary">重新生成并落地 <span>↻</span></button>
+  <div class="subhead">机械步态控制台</div>
+  <div class="mode-grid">
+   <button id="stand" class="action primary">◆ 站立锁角</button>
+   <button id="march" class="action">↕ 原地交替抬腿</button>
+   <button id="walk" class="action">⇥ 前进步态实验</button>
+   <button id="relax" class="action danger">✕ 断电／关节失力</button>
+  </div>
+  <div class="motor-controls">
+   <label for="motorRPM">Create 风格动力马达 <strong id="rpmLabel">18 RPM</strong></label>
+   <input id="motorRPM" type="range" min="0" max="90" step="1" value="18">
+   <label for="motorTorque">关节驱动转矩上限 <strong id="torqueLabel">1450 N·m</strong></label>
+   <input id="motorTorque" type="range" min="0" max="3500" step="50" value="1450">
+  </div>
+  <div class="subhead">物理破坏与试验</div>
+  <button id="removeOne" class="action danger">拆断一条腿 <span>两个真实物理铰链断开</span></button>
+  <button id="removeAll" class="action danger">拆断所有腿 <span>机身失去支撑</span></button>
+  <button id="push" class="action">撞击机身 <span>外力／惯性／碰撞</span></button>
+  <button id="restart" class="action primary">重新装配机械 Boss <span>↻</span></button>
   <div class="control-row"><button id="pause">暂停物理</button><button id="step">逐帧推进</button></div>
-  <p class="hint">也可以直接点击 3D 场景中的金属脚垫，拆除对应支撑腿。鼠标拖拽旋转视角、滚轮缩放。</p>
+  <p class="hint">点击场景内任意腿部方块，可破坏对应整条腿的连接。拖拽旋转视角、滚轮缩放。</p>
  </aside>
  <main class="stage">
-  <div class="stage-head">
-   <div><span class="eyebrow">LIVE PHYSICS WORLD</span><h2>真正的地面接触，而非定格动画</h2></div>
-   <span id="liveBadge" class="live">● 初始化中</span>
+  <div class="stage-head"><div><span class="eyebrow">LIVE ARTICULATED PHYSICS</span><h2>动力传动外观 × 真实铰链受力</h2></div><span id="liveBadge" class="live">● 初始化</span></div>
+  <div class="canvas-wrap" id="canvasWrap"><canvas id="bossCanvas" aria-label="大型六足机械 Boss 多体动力学物理仿真"></canvas>
+   <div class="view-label"><strong>CREATE × SIMULATED // ARTICULATED WALKER</strong><span>齿轮、传动轴、旋转轴承与 12 个真实 Rapier 物理关节</span></div>
+   <div class="view-bottom"><span id="worldState">加载物理世界…</span><span>单独刚体 · 有限转矩 · 真正碰撞</span></div>
   </div>
-  <div class="canvas-wrap" id="canvasWrap">
-   <canvas id="bossCanvas" aria-label="真实三维刚体机械 Boss 世界"></canvas>
-   <div class="view-label"><strong>P0 · FOOT-SUPPORTED RIG</strong><span>Three.js 可视化 + Rapier WASM 求解</span></div>
-   <div class="view-bottom"><span id="worldState">物理引擎初始化中…</span><span>真实重力 · 真实碰撞 · 刚体惯性</span></div>
+  <div class="notice" id="statusMessage" role="status">正在构造中央机身、齿轮组与物理化双节腿；运动由真实关节求解。</div>
+  <div class="mechanics-catalog">
+   <div><strong>机械动力 · Create</strong><span>马达／齿轮／动力轴／机壳</span></div>
+   <div><strong>航空学 · Simulated</strong><span>髋轴承／膝轴承／分体装配</span></div>
+   <div><strong>物理 · Rapier</strong><span>12 个关节／转矩／重力／摩擦</span></div>
   </div>
-  <div class="notice" id="statusMessage" role="status">WebAssembly 初始化后自动开始物理模拟。所有位移都由求解器计算。</div>
-  <div class="explain">
-   <article><b>01 / 重量</b><p>所有铜机身、承重立柱与铁脚都有体积、密度和质量，重力作用于整个刚体。</p></article>
-   <article><b>02 / 支撑</b><p>只有脚部碰撞箱接触地面。碰撞约束产生法向反力、抵消重力，并阻止穿地。</p></article>
-   <article><b>03 / 拆腿</b><p>删除腿部的真实物理碰撞体后，支撑高度消失；机身会落向地板，碰撞重新求解。</p></article>
-  </div>
+  <p id="modelSource" class="model-provenance">立即显示原创 Create/Simulated 风格机械零件；同时尝试从官方发行 JAR 读取真实静态模型贴图。动态关节运动由 Rapier 引擎驱动。</p>
  </main>
  <aside class="telemetry">
-  <div class="eyebrow">LIVE / RIG TELEMETRY</div>
-  <h2>实时物理数据</h2>
-  <div class="metric large"><span>机身底面高度</span><strong id="bodyHeight">—</strong><small>距离静态地面的高度（格）</small></div>
-  <div class="metric"><span>剩余支撑腿</span><strong id="feetCount">—</strong><small>共 4 条</small></div>
-  <div class="metric"><span>实际刚体质量</span><strong id="bodyMass">—</strong><small>Rapier 自动按密度计算</small></div>
-  <div class="metric"><span>最低碰撞体距地面</span><strong id="footGap">—</strong><small>当前有效方块与地面的真实碰撞间隙</small></div>
-  <div class="metric"><span>垂直速度</span><strong id="velocity">—</strong><small>m/s · 由物理引擎计算</small></div>
-  <div class="metric"><span>物理求解帧数</span><strong id="steps">—</strong><small>固定步长 1/60 秒</small></div>
-  <div class="subhead">真实性边界</div>
-  <p class="truth">本页面确实运行 <strong>Rapier WebAssembly 刚体、重力和碰撞求解</strong>，可以无安装直接操作；但它不是 Minecraft NeoForge Java 服务端，也没有声称运行 Sable 的所有模组接口。当前腿与机身为一体刚体，关节、动力传动和自主步行仍需逐阶段做。</p>
-  <a class="source" href="https://github.com/g2066203208-beep/mc-studio/blob/main/docs/boss/P0_BROWSER_PHYSICS.md">查看网页物理实现与原版对照 ↗</a>
+  <div class="eyebrow">13 BODY / 12 HINGE / REAL-TIME</div><h2>机械状态与受力</h2>
+  <div class="metric large"><span>机身底面（真实物理）</span><strong id="bodyHeight">—</strong><small>距离地面，格</small></div>
+  <div class="metric"><span>独立刚体 / 关节</span><strong id="jointNum">—</strong><small>Rapier 有质量动态刚体 / Revolute 铰链</small></div>
+  <div class="metric"><span>有效机械腿</span><strong id="feetCount">—</strong><small>独立上腿 + 下腿结构</small></div>
+  <div class="metric"><span>物理总质量</span><strong id="bodyMass">—</strong><small>真实碰撞体计算的质量</small></div>
+  <div class="metric"><span>当前触地脚</span><strong id="contactCount">—</strong><small>脚垫位置接触参考，非传感器压力实测</small></div>
+  <div class="metric"><span>髋关节实测角度</span><strong id="jointAngle">—</strong><small>两个独立刚体真实相对角度</small></div>
+  <div class="metric"><span>机身水平位移</span><strong id="distance">—</strong><small>非手工平移；实际物理位置变化</small></div>
+  <div class="metric"><span>垂直速度 / 求解帧数</span><strong id="velocity">—</strong><small id="steps">—</small></div>
+  <div class="subhead">功能范围说明</div>
+  <p class="truth">本实验确实使用 Rapier WebAssembly 独立刚体、12 个旋转约束、真实角度反馈和有限转矩。**外观**使用 Create 和 Simulated 风格的机械零件，并尝试直接加载官方 JAR 静态模型。网页还没有完整执行 NeoForge Create 的原版应力和 Aeronautics 的全部动力链、气动和服务器装配。步态控制尚属于需要验证的物理机器人原型，不预先保证能稳定自主行走。</p>
+  <a class="source" href="https://github.com/g2066203208-beep/mc-studio/blob/main/docs/boss/P0_BROWSER_PHYSICS.md">查看物理实验及开发证据 ↗</a>
  </aside>
 </div>
-<script type="module" src="./boss.js"></script>
-</body></html>
+<script type="module" src="./boss-robot.js"></script></body></html>
