@@ -1,0 +1,59 @@
+name: Validate RPMS Q12 3D Website
+on:
+  push:
+    paths:
+      - 'viewer/rpms/**'
+      - 'viewer/index.html'
+      - '.github/workflows/rpms-viewer-check.yml'
+  pull_request:
+    paths:
+      - 'viewer/rpms/**'
+      - 'viewer/index.html'
+      - '.github/workflows/rpms-viewer-check.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: JS syntax and engineering model data
+        run: |
+          node --check viewer/rpms/app.js
+          node --check viewer/rpms/tests/smoke.cjs
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path("viewer/rpms")
+          d=json.loads((p/"quad12.design.json").read_text())
+          assert len(d["segments"])==13
+          assert len(d["joints"])==12
+          assert len(d["feet"])==4
+          assert len({j["id"] for j in d["joints"]})==12
+          assert all(j["measuredTorqueMax"] is None and j["physicalConstraintUuid"] is None for j in d["joints"])
+          html=(p/"index.html").read_text()
+          assert '<script type="module" src="./app.js"></script>' in html
+          assert 'kinematics' in html.lower()
+          assert 'rpms/index.html' in Path("viewer/index.html").read_text()
+          print("Static source and design configuration tests passed.")
+          PY
+      - name: Install headless browser automation
+        run: npm install --prefix /tmp/rpms-browser --no-audit --no-fund --no-save playwright-core@1.56.1
+      - name: Verify real 3D page renders and controls work in Chrome
+        env:
+          NODE_PATH: /tmp/rpms-browser/node_modules
+        run: |
+          python3 -m http.server 8033 --directory viewer >/tmp/rpms-http.log 2>&1 &
+          node viewer/rpms/tests/smoke.cjs
+      - name: Upload visual test screenshots
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rpms-q12-webgl-desktop-mobile
+          path: viewer/rpms/tests/rpms-*.png
+          if-no-files-found: ignore
