@@ -167,7 +167,7 @@ public final class PeakAnimationController {
         boolean isLeft = part.equals("leftArm") || part.equals("left_arm");
         boolean isRight = part.equals("rightArm") || part.equals("right_arm");
         if ((!isLeft && !isRight) || !playback.contactReady) return Optional.empty();
-        PeakVisuals.Pose pose = PeakVisuals.pose(client);
+        PeakVisuals.Pose pose = PeakVisuals.pose(client, client == Minecraft.getInstance().player);
         if (pose == null || !pose.climbing() || pose.action() == WALL_JUMP
                 || pose.normal().lengthSqr() < .5)
             return Optional.empty();
