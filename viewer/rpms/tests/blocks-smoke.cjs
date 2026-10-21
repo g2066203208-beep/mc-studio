@@ -22,7 +22,7 @@ await page.locator('[data-mode="explode"]').click();
 assert.equal(await page.evaluate(()=>window.__AERO_API__.getMode()),'explode');
 await page.locator('[data-joint="RR.KFE"]').click();
 await page.locator('[data-view="front"]').click();
-assert.ok(await page.locator('#blockLabels .block-tag').count()>=18,'Expected real 3D bearing/control label elements');
+assert.ok(await page.locator('#blockLabels .block-tag').count()>=17,'Expected 12 bearing labels and 5 control labels');
 await page.locator('#showLabels').uncheck();
 assert.equal(await page.locator('#blockLabels').evaluate(el=>el.hidden),true);
 await page.locator('#showLabels').check();
