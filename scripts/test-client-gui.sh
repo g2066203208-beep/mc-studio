@@ -129,6 +129,17 @@ sleep 1
 xdotool type --clearmodifiers --delay 50 '/setblock ~2 ~ ~ minecraft:stone'
 xdotool key Return
 sleep 2
+xdotool key --clearmodifiers t
+sleep 1
+xdotool type --clearmodifiers --delay 30 '/execute if block ~2 ~ ~ minecraft:stone run say REME_MINING_PREPARED'
+xdotool key Return
+sleep 1
+# Face east toward the selected target two blocks away, camera down 30 degrees.
+xdotool key --clearmodifiers t
+sleep 1
+xdotool type --clearmodifiers --delay 50 '/tp ~ ~ ~ -90 30'
+xdotool key Return
+sleep 2
 import -window root client-gui-mine-prepared.png
 xdotool key --clearmodifiers t
 sleep 1
@@ -138,13 +149,36 @@ sleep 2
 import -window root client-gui-mining-progress.png
 sleep 10
 import -window root client-gui-mining-finished.png
+# Query the actual integrated server's block state, not a screenshot guess.
+xdotool key --clearmodifiers t
+sleep 1
+xdotool type --clearmodifiers --delay 35 '/execute if block ~2 ~ ~ minecraft:air run say REME_MINING_CONFIRMED_AIR'
+xdotool key Return
+sleep 2
+import -window root client-gui-mining-block-confirmed.png
+# Show the miner's actual equipment NBT after its action.
+xdotool key --clearmodifiers t
+sleep 1
+xdotool type --clearmodifiers --delay 30 '/data get entity @e[type=reme_studio:player_npc,name=MinerGUI,limit=1] HandItems'
+xdotool key Return
+sleep 2
+import -window root client-gui-mining-tool-after.png
 xdotool key --clearmodifiers t
 sleep 1
 xdotool type --clearmodifiers --delay 50 '/npc info'
 xdotool key Return
 sleep 2
 import -window root client-gui-mining-status.png
-echo "Captured real in-world mining witness: fixture/tool/command/progress/final status; inspect all screens, do not infer success from script exit."
+echo "Captured real in-world mining witness: fixture/tool/command/progress/final status."
+# A screenshot pipeline that silently fails to perform mining is not an
+# acceptance test. Require observed integrated-server conditional success.
+if ! grep -q 'REME_MINING_PREPARED' run/logs/latest.log; then
+  echo "Minecraft did not confirm the prepared stone block"; exit 1
+fi
+if ! grep -q 'REME_MINING_CONFIRMED_AIR' run/logs/latest.log; then
+  echo "Minecraft did not confirm that NPC mined the test block"; exit 1
+fi
+echo "PASS: actual integrated Minecraft server confirmed stone -> air following NPC mining"
 
 echo "Window id: $found"
 echo "Minecraft launch/render indicators:"
