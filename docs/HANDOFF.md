@@ -42,3 +42,5 @@ GitHub 是整个 Minecraft 工作室的开发中心。代码、需求、研究�
 ## WorldSeam 独立 Mod（2026-10-21）
 
 从 `main` 开始的 `feat/worldseam-standalone` 仅新增 `mods/worldseam/` 及其独立 CI、仓库说明。WorldSeam Mod ID 改为 `worldseam`，入口 `dev.reme.worldseam.WorldSeamMod`，指令 `/worldseam`。旧引擎功能分支 PR #18 应标记被取代、不可合并；PEAK 攀爬分支保持原状。对新 Mod 的验证必须在独立 `mods/worldseam` 下完成，不能用工作室通用 `mod/` 编译替代。
+
+- WorldSeam v0.6.0-dev 新增**默认关闭**的 `/worldseam smooth enable` 原生无 Respawn 协同换维实验（9 个真实远端 Chunk+light 预热、握手、ClientLevel/LevelRenderer 直接切换）。仅可备份测试世界验证，CI 不可替代 GUI 实机；主要源码 `mods/worldseam/`，见 `mods/worldseam/docs/NO_LOADING_ARCHITECTURE.md`。保持 PEAK 攀爬完全独立。
