@@ -31,10 +31,10 @@ import java.util.Map;
  */
 public final class SeamNativeGeometryClient {
     private record Cell(int x,int y,int z,BlockState state,int light) {}
-    private static final int MAX_COLUMNS = 9;
-    private static final int VERTICAL_SECTIONS = 7;
+    private static final int MAX_COLUMNS = 25;
+    private static final int VERTICAL_SECTIONS = 10;
     private static final int MAX_DRAW = 3500;
-    private static final double MAX_DISTANCE_SQ = 144 * 144;
+    private static final double MAX_DISTANCE_SQ = 192 * 192;
     private static final Map<Long,List<Cell>> columns = new LinkedHashMap<>();
     private static String source = "";
     private static String target = "";

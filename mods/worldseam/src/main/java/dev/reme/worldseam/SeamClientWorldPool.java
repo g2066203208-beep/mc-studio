@@ -125,7 +125,12 @@ public final class SeamClientWorldPool {
             !target.equals(message.target())) return;
         try {
             var cache = remote.getChunkSource();
-            cache.updateViewCenter(message.chunkX(), message.chunkZ());
+            // Keep the whole 5x5 ring resident. Re-centering the cache
+            // around EACH arriving edge packet would evict opposite chunks.
+            cache.updateViewCenter(
+                Math.floorDiv(mc.player.blockPosition().getX(),16),
+                Math.floorDiv(mc.player.blockPosition().getZ(),16)
+            );
             var data = message.data();
             cache.replaceWithPacketData(message.chunkX(), message.chunkZ(),
                 data.getReadBuffer(), data.getHeightmaps(),

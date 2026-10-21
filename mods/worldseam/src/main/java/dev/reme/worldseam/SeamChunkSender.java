@@ -13,13 +13,24 @@ import java.util.UUID;
 
 /**
  * Remote native chunk stream: never generate missing chunks synchronously.
- * One real full chunk per second per near-seam player. Each of the 3x3 chunks
- * is refreshed at most once per 200 ticks, bounding idle bandwidth.
+ * Near nine chunks are sent FIRST for crossing readiness, then the outer
+ * 5x5 ring for natural End/Nether scenery. One packet per 10 ticks max,
+ * with a bounded 25-chunk window and an idle refresh delay.
  */
 public final class SeamChunkSender {
-    private static final int INTERVAL = 20;
-    private static final int REFRESH_TICKS = 200;
-    private static final double RADIUS_FROM_EDGE = 64;
+    private static final int INTERVAL = 10;
+    private static final int REFRESH_TICKS = 1200;
+    private static final double RADIUS_FROM_EDGE = 96;
+    private static final int[][] OFFSETS = offsets();
+    private static int[][] offsets() {
+        var list=new java.util.ArrayList<int[]>();
+        for(int z=-2;z<=2;z++)for(int x=-2;x<=2;x++)
+            list.add(new int[]{x,z});
+        list.sort(java.util.Comparator.comparingInt((int[] p) ->
+            Math.max(Math.abs(p[0]),Math.abs(p[1])) * 100 +
+            p[0]*p[0]+p[1]*p[1]));
+        return list.toArray(new int[0][]);
+    }
     private static MinecraftServer lastServer;
     private static final Map<UUID, Session> sessions = new HashMap<>();
 
@@ -66,9 +77,11 @@ public final class SeamChunkSender {
             session.lastSent.clear();
         }
 
-        int slot = session.cursor++ % 9;
-        int x = Math.floorDiv(player.blockPosition().getX(),16) + (slot % 3) - 1;
-        int z = Math.floorDiv(player.blockPosition().getZ(),16) + (slot / 3) - 1;
+        int slot = session.cursor++ % OFFSETS.length;
+        int cx = Math.floorDiv(player.blockPosition().getX(),16);
+        int cz = Math.floorDiv(player.blockPosition().getZ(),16);
+        int x = cx + OFFSETS[slot][0];
+        int z = cz + OFFSETS[slot][1];
         // One destination chunk may be prepared per second, never an
         // unbounded synchronous remote load pass.
         if (!target.hasChunk(x,z)) target.getChunk(x,z);
