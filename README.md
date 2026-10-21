@@ -63,3 +63,10 @@ bash scripts/build.sh
 - **结构检查**：`python3 skills/immersive-vehicles-modeling/scripts/inspect_obj.py MODEL.obj --texture ATLAS.png --definition VEHICLE.json --json`。
 - **单测**：`python3 -m unittest discover -s skills/immersive-vehicles-modeling/tests -v`。
 - **真实 3D 参照**：[`viewer/index.html`](viewer/index.html)；来源研究还可见 `research/immersive-vehicles/`。没有游戏实际体验前不宣称可驾驶。
+
+## 真实物理机械运动系统（RPMS）
+
+- 企业级工程立项入口：`docs/physical-machinery/00_PROGRAM_CHARTER.md`；需求、ICD、机械装配/零件BOM、运动控制、安全、测试与阶段门禁同在 `docs/physical-machinery/`。
+- 玩家在 Minecraft 内使用 Sable + Create Aeronautics 真正组装的四足机械原型，按 13 刚体与 12 个主动关节设计；未来扩展机械恐龙 Boss、机器人、工程机械、载具。
+- 机器设计数据：`projects/physical-machinery/quad12.design.json`；结构验收：`python3 projects/physical-machinery/validate_design.py`。
+- **目前只有设计文档和机器数据基线**；未完成关节负载试验、单腿抬脚和四足行走。开发按 G0/G1/G2/G3/G4/G5/G6 阶段执行，游戏功能实现后才另发可运行 JAR。

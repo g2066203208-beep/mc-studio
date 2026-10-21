@@ -1,0 +1,31 @@
+name: RPMS engineering design verification
+on:
+  push:
+    paths:
+      - 'docs/physical-machinery/**'
+      - 'projects/physical-machinery/**'
+      - '.github/workflows/rpms-design-check.yml'
+  pull_request:
+    paths:
+      - 'docs/physical-machinery/**'
+      - 'projects/physical-machinery/**'
+      - '.github/workflows/rpms-design-check.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  design:
+    name: Machine graph, BOM and SYS requirements
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate machine assembly graph and evidence baseline
+        run: python3 projects/physical-machinery/validate_design.py
+      - name: Syntax-check design validator
+        run: python3 -m py_compile projects/physical-machinery/validate_design.py
+      - name: Scope note
+        run: echo "DESIGN-ONLY CI: this does not mean the physical robot can stand or walk."
