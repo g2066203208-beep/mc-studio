@@ -5,13 +5,18 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 class SeamStackTest {
-    @Test void vanillaDefaultIsEndOverworldNether() {
+    @Test void vanillaDefaultIsOverworldNetherEnd() {
         SeamStack s=SeamStack.defaults();
-        assertEquals(List.of("minecraft:the_end","minecraft:overworld","minecraft:the_nether"),
+        assertEquals(List.of("minecraft:overworld","minecraft:the_nether","minecraft:the_end"),
             s.entries().stream().map(SeamStack.Entry::id).toList());
         assertEquals(4,s.links().size());
         assertEquals(128,s.boundary("minecraft:the_nether",SeamGraph.EdgeSide.TOP,0,256));
         assertEquals(-64,s.boundary("minecraft:overworld",SeamGraph.EdgeSide.BOTTOM,-64,320));
+        assertEquals(0,s.boundary("minecraft:the_nether",SeamGraph.EdgeSide.BOTTOM,0,256));
+        assertEquals(256,s.boundary("minecraft:the_end",SeamGraph.EdgeSide.TOP,0,256));
+        assertEquals("minecraft:the_end",s.from("minecraft:the_nether").stream()
+            .filter(l->l.exit()==SeamGraph.EdgeSide.BOTTOM).findFirst().orElseThrow().target());
+        assertEquals("minecraft:the_nether",s.from("minecraft:the_end").get(0).target());
     }
     @Test void customModdedOrderAndHeights() {
         SeamStack stack=new SeamStack(List.of(

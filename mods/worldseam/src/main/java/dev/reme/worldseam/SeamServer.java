@@ -52,23 +52,19 @@ public final class SeamServer {
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
             SeamStackSync.tick(server, player);
             String dim=player.serverLevel().dimension().location().toString();
-            boolean ready=false;
-            if(enabled) {
-                for(SeamGraph.Link link:SeamStackRuntime.from(server,dim)) {
-                    if(link.near(player.getY(),SeamStackRuntime.bottom(player.serverLevel()),
-                            SeamStackRuntime.top(player.serverLevel()),48) &&
-                       SeamReadiness.isReady(player.getUUID(),dim,link.target(),tick)) {
-                        ready=true;
-                        break;
-                    }
-                }
-            }
-            // Native 3x3 ready: DO NOT keep encoding duplicate legacy section
-            // and sparse block previews at 4Hz. These consumed server CPU
-            // and network even after the second live ClientLevel was built.
+            // ONE selected target, shared by all three streams. Previously
+            // two fallback samplers could independently select the OTHER
+            // Nether seam and tear down the client's native secondary world.
+            SeamChunkSender.tick(server, player, tick, enabled);
+            SeamGraph.Link active=SeamChunkSender.activeLink(player);
+            boolean ready=enabled && active!=null
+                && active.near(player.getY(),
+                    SeamStackRuntime.bottom(player.serverLevel()),
+                    SeamStackRuntime.top(player.serverLevel()),48)
+                && SeamReadiness.isReady(player.getUUID(),dim,active.target(),tick);
+            // Avoid duplicate legacy previews once native chunks are ready.
             SeamPreviewSender.tick(server, player, tick, enabled && !ready);
             SeamSectionSender.tick(server, player, tick, enabled && !ready);
-            SeamChunkSender.tick(server, player, tick, enabled);
         }
         seamEnabled = enabled;
         terrainEnabled = enabled && SeamSettings.get(server).carveNewChunks();

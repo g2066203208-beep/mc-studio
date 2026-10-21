@@ -10,8 +10,12 @@ class SeamGraphTest {
         assertTrue(SeamGraph.mutuallyConnected());
         assertEquals(4, SeamGraph.LINKS.size());
         assertEquals(1, SeamGraph.from("minecraft:the_end").size());
-        assertEquals(2, SeamGraph.from("minecraft:overworld").size());
-        assertEquals(1, SeamGraph.from("minecraft:the_nether").size());
+        assertEquals(1, SeamGraph.from("minecraft:overworld").size());
+        assertEquals(2, SeamGraph.from("minecraft:the_nether").size());
+        assertTrue(SeamGraph.from("minecraft:the_end").stream()
+            .anyMatch(l -> l.target().equals("minecraft:the_nether")));
+        assertTrue(SeamGraph.from("minecraft:the_nether").stream()
+            .anyMatch(l -> l.target().equals("minecraft:the_end")));
     }
 
     @Test void yMappingPreservesOvershootAndRoundTrips() {
@@ -19,8 +23,8 @@ class SeamGraphTest {
             SeamGraph.Link reverse = SeamGraph.LINKS.stream()
                 .filter(x -> x.source().equals(link.target()) && x.target().equals(link.source()))
                 .findFirst().orElseThrow();
-            double sourceBoundary = link.exit() == SeamGraph.EdgeSide.TOP ? 320 : -64;
-            double targetBoundary = link.entry() == SeamGraph.EdgeSide.TOP ? 256 : 0;
+            double sourceBoundary = endpoint(link.source(),link.exit());
+            double targetBoundary = endpoint(link.target(),link.entry());
             for (double offset : List.of(-13.75, -0.5, 0.5, 12.25)) {
                 double y = sourceBoundary + offset;
                 assertEquals(y, reverse.targetY(
@@ -31,7 +35,9 @@ class SeamGraphTest {
     }
 
     @Test void endpointBoundariesMapTheNetherToOverworldWithoutUnusedRoofVoid() {
-        var netherRoof = SeamGraph.from("minecraft:the_nether").get(0);
+        var netherRoof = SeamGraph.from("minecraft:the_nether").stream()
+            .filter(l -> l.exit()==SeamGraph.EdgeSide.TOP)
+            .findFirst().orElseThrow();
         var overworldFloor = SeamGraph.from("minecraft:overworld").stream()
             .filter(l -> l.exit() == SeamGraph.EdgeSide.BOTTOM)
             .findFirst().orElseThrow();
@@ -48,12 +54,26 @@ class SeamGraphTest {
     }
 
     @Test void crossingRequiresActualBoundaryOvershoot() {
-        var up = SeamGraph.LINKS.get(1);
-        assertFalse(up.crossed(319.99, -64, 320));
-        assertTrue(up.crossed(320.5, -64, 320));
-        var down = SeamGraph.LINKS.get(2);
-        assertFalse(down.crossed(-64.2, -64, 320));
-        assertTrue(down.crossed(-64.5, -64, 320));
+        var up=SeamGraph.from("minecraft:the_nether").stream()
+            .filter(l->l.exit()==SeamGraph.EdgeSide.TOP).findFirst().orElseThrow();
+        assertFalse(up.crossed(127.99, 0, 128));
+        assertTrue(up.crossed(128.5, 0, 128));
+        var down=SeamGraph.from("minecraft:the_nether").stream()
+            .filter(l->l.exit()==SeamGraph.EdgeSide.BOTTOM).findFirst().orElseThrow();
+        assertFalse(down.crossed(-0.2,0,128));
+        assertTrue(down.crossed(-0.5,0,128));
+    }
+
+    private static double endpoint(String dim,SeamGraph.EdgeSide side) {
+        return switch(dim) {
+            case "minecraft:overworld" ->
+                side==SeamGraph.EdgeSide.TOP ? 320:-64;
+            case "minecraft:the_nether" ->
+                side==SeamGraph.EdgeSide.TOP ? 128:0;
+            case "minecraft:the_end" ->
+                side==SeamGraph.EdgeSide.TOP ? 256:0;
+            default -> throw new IllegalArgumentException(dim);
+        };
     }
 
     @Test void rejectsWrongEdgePairs() {

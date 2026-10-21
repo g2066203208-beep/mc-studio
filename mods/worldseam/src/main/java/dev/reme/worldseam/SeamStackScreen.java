@@ -106,8 +106,9 @@ public final class SeamStackScreen extends Screen {
     @Override protected void init() {
         layout();
         LogUtils.getLogger().info(
-            "WORLDSEAM_CREATE_STACK_UI_OPEN: {} available dimensions, {} layers, gui={}x{}",
-            candidates.size(),entries.size(),width,height);
+            "WORLDSEAM_CREATE_STACK_UI_OPEN: {} available dimensions, {} layers, gui={}x{}, default/current top-to-bottom={}",
+            candidates.size(),entries.size(),width,height,
+            String.join(" > ",entries.stream().map(SeamStack.Entry::id).toList()));
 
         // Direct clickable world layer cards (only visible entries).
         scroll=Math.max(0,Math.min(scroll,Math.max(0,entries.size()-rowsVisible)));

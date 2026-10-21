@@ -53,16 +53,10 @@ public final class SeamSectionSender {
         Session s = sessions.computeIfAbsent(id, ignored -> new Session());
         ServerLevel source = player.serverLevel();
         String sourceName = source.dimension().location().toString();
-        SeamGraph.Link selected = null;
-        if (enabled) {
-            for (SeamGraph.Link link : SeamStackRuntime.from(server,sourceName)) {
-                if (link.near(player.getY(), source.getMinBuildHeight(),
-                    SeamBounds.top(source), ACTIVATION_DISTANCE)) {
-                    selected = link;
-                    break;
-                }
-            }
-        }
+        SeamGraph.Link selected=enabled?SeamChunkSender.activeLink(player):null;
+        if(selected!=null && Math.abs(player.getY()-
+            SeamStackRuntime.boundary(source,selected.exit()))>ACTIVATION_DISTANCE)
+            selected=null;
         if (selected == null) {
             if (s.active) {
                 s.active = false;

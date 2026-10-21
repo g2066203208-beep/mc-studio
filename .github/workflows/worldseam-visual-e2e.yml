@@ -61,8 +61,9 @@ jobs:
             xdotool mousemove 640 480 click 1
             sleep 3
             xwd -root -silent | convert xwd:- -resize 800x450 -quality 65 visual-stack-editor.jpg
-            if ! grep -q "WORLDSEAM_CREATE_STACK_UI_OPEN" visual-client.log; then
-              echo "WorldSeam Create World stack editor did not open"
+            if ! grep -q "WORLDSEAM_CREATE_STACK_UI_OPEN.*minecraft:overworld > minecraft:the_nether > minecraft:the_end" visual-client.log; then
+              echo "WorldSeam default stack GUI does not show Overworld > Nether > End"
+              tail -n 50 visual-client.log
               exit 1
             fi
             xdotool key Escape
@@ -163,6 +164,14 @@ jobs:
             if grep -q "WORLDSEAM_E2E_FAIL" visual-client.log; then
               echo "WorldSeam integrated E2E failed"; exit 1
             fi
+            # Historical saved worlds must retain the old order after an
+            # upgrade; the existing Overworld→End test runs in that explicitly
+            # pinned regression fixture. New-world GUI defaults are checked
+            # independently above.
+            if ! grep -q "WORLDSEAM_E2E_LEGACY_STACK_PINNED" visual-client.log; then
+              echo "Historical saved-order E2E was not explicitly configured"
+              exit 1
+            fi
             if ! grep -q "WORLDSEAM_E2E_PASS_CLIENT" visual-client.log ||
                ! grep -q "WORLDSEAM_E2E_PASS_SERVER" visual-client.log ||
                ! grep -q "WORLDSEAM_E2E_PASS_RETURN_CLIENT" visual-client.log ||
@@ -205,6 +214,7 @@ jobs:
             printf 'Source commit: %s\n\n' "$GITHUB_SHA"
             printf 'Captured on: %s UTC\n\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
             printf 'Screenshots: raw real Minecraft via Xvfb/XWD; **not** composited artist mockups.\n\n'
+            printf 'New world Create-World editor uses Overworld > Nether > End; the in-world End-above-Overworld journey is an explicitly pinned historical-save regression.\n\n'
             printf 'The E2E checks native handoff and client state. It does **not** certify pixel-perfect seamless frame composition or FPS.\n\n'
             printf 'Minecraft E2E log markers:\n'
             grep -E 'WORLDSEAM_E2E_(PASS|DUAL_|SECOND_WORLD_LIVE_BLOCK|END_NATURAL|PREVIEW_WINDOW|CROSS_TNT_)' mods/worldseam/visual-client.log | tail -n 70 || true

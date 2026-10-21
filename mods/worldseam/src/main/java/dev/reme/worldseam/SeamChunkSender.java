@@ -36,7 +36,8 @@ public final class SeamChunkSender {
     private static final int DIRTY_COOLDOWN=20;
     private static final int WINDOW_RADIUS=2;
     private static final int TICKET_DISTANCE=3;
-    private static final double RADIUS_FROM_EDGE=96;
+    // Residency state uses independent enter/release radii. Never pin both
+    // Nether connection planes simply because the player is near Y64.
     private static final TicketType<ChunkPos> VIEW_TICKET=TicketType.create(
         "worldseam_dual_view", Comparator.comparingLong(ChunkPos::toLong)
     );
@@ -56,6 +57,7 @@ public final class SeamChunkSender {
 
     private static final class Session {
         String scope="";
+        SeamGraph.Link selectedLink;
         ServerLevel ticketLevel;
         ChunkPos ticketCenter;
         long ticketChanges;
@@ -94,6 +96,7 @@ public final class SeamChunkSender {
         void reset() {
             release();
             scope="";
+            selectedLink=null;
             lastSent.clear();
             dirty.clear();
         }
@@ -108,31 +111,47 @@ public final class SeamChunkSender {
             sessions.clear();
             lastServer=server;
         }
-        Session session=sessions.computeIfAbsent(player.getUUID(),id->new Session());
-        if(!enabled) {session.reset();return;}
-
+        UUID id=player.getUUID();
+        Session session=sessions.get(id);
+        if(!enabled) {
+            if(session!=null){session.reset();sessions.remove(id);}
+            return;
+        }
         ServerLevel source=player.serverLevel();
         String sourceId=source.dimension().location().toString();
-        SeamGraph.Link selected=null;
-        double best=Double.POSITIVE_INFINITY;
-        for(SeamGraph.Link link:SeamStackRuntime.from(server,sourceId)) {
-            double seam=SeamStackRuntime.boundary(source,link.exit());
-            double delta=Math.abs(player.getY()-seam);
-            if(delta<=RADIUS_FROM_EDGE && delta<best) {
-                best=delta;
-                selected=link;
-            }
+        var routes=SeamStackRuntime.from(server,sourceId);
+        var near=new java.util.ArrayList<SeamPreloadSelection.Candidate>();
+        var available=new java.util.HashMap<String,SeamGraph.Link>();
+        for(SeamGraph.Link link:routes) {
+            String key=sourceId+":"+link.target()+":"+link.exit();
+            available.put(key,link);
+            near.add(new SeamPreloadSelection.Candidate(key,
+                Math.abs(player.getY()-
+                    SeamStackRuntime.boundary(source,link.exit()))));
         }
-        if(selected==null) {session.reset();return;}
-
-        ServerLevel target=server.getLevel(SeamServer.dimensionKey(selected.target()));
-        if(target==null) {session.reset();return;}
-
-        String scope=sourceId+":"+selected.target()+":"+selected.exit();
+        var chosen=SeamPreloadSelection.choose(
+            near,session==null?"":session.scope);
+        if(chosen==null) {
+            if(session!=null){session.reset();sessions.remove(id);}
+            return;
+        }
+        SeamGraph.Link selected=available.get(chosen.scope());
+        ServerLevel target=selected==null?null:
+            server.getLevel(SeamServer.dimensionKey(selected.target()));
+        if(target==null) {
+            if(session!=null){session.reset();sessions.remove(id);}
+            return;
+        }
+        if(session==null) {
+            session=new Session();
+            sessions.put(id,session);
+        }
+        String scope=chosen.scope();
         if(!scope.equals(session.scope)) {
             session.reset();
             session.scope=scope;
         }
+        session.selectedLink=selected;
         int centerX=Math.floorDiv(player.blockPosition().getX(),16);
         int centerZ=Math.floorDiv(player.blockPosition().getZ(),16);
         session.updateTicket(target,new ChunkPos(centerX,centerZ));
@@ -197,6 +216,12 @@ public final class SeamChunkSender {
                Math.abs(s.ticketCenter.z-z)>WINDOW_RADIUS)continue;
             if(s.lastSent.containsKey(key))s.dirty.add(key);
         }
+    }
+
+    /** The one authoritative selected adjacent dimension for all streams. */
+    public static SeamGraph.Link activeLink(ServerPlayer player) {
+        Session s=sessions.get(player.getUUID());
+        return s==null?null:s.selectedLink;
     }
 
     public static int activeTickets() {
