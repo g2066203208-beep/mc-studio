@@ -177,9 +177,9 @@ public final class NativeIntegrationGameTests {
             LOG.info("RPMS_NATIVE_LINK_MODES tx={} rx={}", nativeLinkState(sender), nativeLinkState(receiver));
             nativeTransmit(sender, 15);
             helper.runAfterDelay(5, () -> {
-                BlockEntity receiver = helper.getLevel().getBlockEntity(helper.absolutePos(receiverPos));
-                if (receiver == null) throw new AssertionError("Native Redstone receiver entity missing");
-                double got = nativeNumber(receiver, "getReceivedSignal");
+                BlockEntity receivedEntity = helper.getLevel().getBlockEntity(helper.absolutePos(receiverPos));
+                if (receivedEntity == null) throw new AssertionError("Native Redstone receiver entity missing");
+                double got = nativeNumber(receivedEntity, "getReceivedSignal");
                 LOG.info("RPMS_NATIVE_WIRELESS expected=15 received={} frequency=official_default", got);
                 if (got != 15) throw new AssertionError("Create wireless signal did not actually propagate: " + got);
                 nativeTransmit(sender, 0);
