@@ -12,3 +12,7 @@ references/
 *.iml
 .env
 *.local.json
+
+# Official Create, Aeronautics and Sable libraries used only for local GameTest runs
+mod/runtime-mods/
+mod/native-gametest.log
