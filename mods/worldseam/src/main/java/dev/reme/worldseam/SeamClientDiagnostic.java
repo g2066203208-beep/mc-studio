@@ -30,8 +30,13 @@ public final class SeamClientDiagnostic {
             " | cached 3x3: "+SeamClientWorldPool.nearbyChunks()+
             "/9 | geometry: "+SeamNativeGeometryClient.visibleBlockCount()+
             " | drawn: "+SeamNativeGeometryClient.lastFrameDrawn();
-        g.fill(5,5,Math.max(360,mc.font.width(cache)+16),36,0x9A101820);
+        String detail=SeamClientWorldPool.remoteStatus();
+        if (SeamClientWorldPool.receivedChunks()==0 && !detail.contains("FAILED"))
+            detail+=" | no packets: ensure /worldseam enable";
+        g.fill(5,5,Math.max(390,Math.max(mc.font.width(cache),mc.font.width(detail))+16),
+            49,0x9A101820);
         g.drawString(mc.font,info,10,10,0xE8E8E8,true);
+        g.drawString(mc.font,detail,10,36,0xFFAACC,true);
         g.drawString(mc.font,cache,10,23,
             SeamNativeGeometryClient.lastFrameDrawn()>0 ? 0x66FF99 : 0xFFDD77,true);
     }

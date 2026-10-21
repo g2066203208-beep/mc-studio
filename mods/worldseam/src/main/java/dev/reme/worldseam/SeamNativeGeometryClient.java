@@ -135,8 +135,11 @@ public final class SeamNativeGeometryClient {
             if (!source.isEmpty()) reset();
             return;
         }
-        if (columns.isEmpty() || event.getPoseStack()==null ||
-            mc.level.getGameTime()-lastArrivalTick>240) return;
+        if (mc.level.getGameTime()-lastArrivalTick>240) {
+            reset();
+            return;
+        }
+        if (columns.isEmpty() || event.getPoseStack()==null) return;
         PoseStack pose=event.getPoseStack();
         Vec3 camera=event.getCamera().getPosition();
         MultiBufferSource.BufferSource buffers=mc.renderBuffers().bufferSource();

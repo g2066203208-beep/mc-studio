@@ -264,6 +264,11 @@ public final class SeamClientWorldPool {
         return true;
     }
 
+    public static String remoteStatus() {
+        if (failed) return "PREWARM FAILED (check latest.log)";
+        if (remote==null) return "NO TARGET ClientLevel";
+        return "TARGET READY CONTEXT "+target;
+    }
     public static int receivedChunks() { return receivedChunkCount; }
     public static int nearbyChunks() {
         Minecraft mc=Minecraft.getInstance();
