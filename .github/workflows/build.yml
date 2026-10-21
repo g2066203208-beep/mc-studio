@@ -17,21 +17,25 @@ jobs:
           java-version: '21'
       - name: Test living-world planner core
         run: bash scripts/test-living-planner.sh
+      - name: Validate six human skin assets
+        run: python3 scripts/check-npc-skins.py
       - name: Build
         run: bash scripts/build.sh
+      - name: Assert skins packaged in NeoForge JAR
+        run: python3 scripts/check-npc-skins.py
       - name: Verify installer source and mod metadata
-        run: python3 scripts/test-installer.py mod/build/libs/reme_studio-0.5.4-dev.jar
+        run: python3 scripts/test-installer.py mod/build/libs/reme_studio-0.5.5-dev.jar
       - name: Package Windows HMCL one-click installer
         run: |
-          mkdir -p dist/REME-NPC-HMCL-v0.5.4
-          cp mod/build/libs/reme_studio-0.5.4-dev.jar dist/REME-NPC-HMCL-v0.5.4/
-          cp packaging/Install-REME-NPC.cmd packaging/Install-REME-NPC.ps1 dist/REME-NPC-HMCL-v0.5.4/
-          cp docs/NPC_HMCL_ACCEPTANCE.md dist/REME-NPC-HMCL-v0.5.4/README.txt
-          (cd dist/REME-NPC-HMCL-v0.5.4 && zip -q -9 ../REME-NPC-HMCL-v0.5.4-installer.zip ./*)
+          mkdir -p dist/REME-NPC-HMCL-v0.5.5
+          cp mod/build/libs/reme_studio-0.5.5-dev.jar dist/REME-NPC-HMCL-v0.5.5/
+          cp packaging/Install-REME-NPC.cmd packaging/Install-REME-NPC.ps1 dist/REME-NPC-HMCL-v0.5.5/
+          cp docs/NPC_HMCL_ACCEPTANCE.md dist/REME-NPC-HMCL-v0.5.5/README.txt
+          (cd dist/REME-NPC-HMCL-v0.5.5 && zip -q -9 ../REME-NPC-HMCL-v0.5.5-installer.zip ./*)
       - uses: actions/upload-artifact@v4
         with:
-          name: installer-v054
-          path: dist/REME-NPC-HMCL-v0.5.4-installer.zip
+          name: installer-v055
+          path: dist/REME-NPC-HMCL-v0.5.5-installer.zip
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
         with:

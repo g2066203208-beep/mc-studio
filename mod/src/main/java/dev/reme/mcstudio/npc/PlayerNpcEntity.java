@@ -36,6 +36,9 @@ import net.minecraft.world.inventory.MenuType;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.network.syncher.EntityDataAccessor;
+import net.minecraft.network.syncher.EntityDataSerializers;
+import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.world.entity.MobSpawnType;
 import net.minecraft.world.entity.SpawnGroupData;
 import net.minecraft.world.DifficultyInstance;
@@ -58,6 +61,15 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.level.Level;
 
 public class PlayerNpcEntity extends PathfinderMob {
+    private static final EntityDataAccessor<Integer> NPC_SKIN =
+        SynchedEntityData.defineId(PlayerNpcEntity.class, EntityDataSerializers.INT);
+
+    @Override
+    protected void defineSynchedData(SynchedEntityData.Builder builder) {
+        super.defineSynchedData(builder);
+        builder.define(NPC_SKIN, 0);
+    }
+
     public enum Mode { LIVE, FOLLOW, STAY, WANDER, GUARD }
     public enum Profession { FARMER, BAKER, RESIDENT, GUARD, SCOUT, COURIER, BUILDER }
 
@@ -90,6 +102,10 @@ public class PlayerNpcEntity extends PathfinderMob {
     private int parcelsDelivered = 0;
     private int formationSlot = 0;
     private int roamingRadius = 48;
+    public int skinId() { return this.entityData.get(NPC_SKIN); }
+    public void setSkinId(int value) {
+        this.entityData.set(NPC_SKIN, Math.clamp(value, 0, 5));
+    }
     private boolean naturalResident = false;
     private int dailyShiftTicks = 0;
     @Nullable private BlockPos cachedCropTarget;
@@ -126,6 +142,7 @@ public class PlayerNpcEntity extends PathfinderMob {
             setRoamingRadius(32 + getRandom().nextInt(33));
             setMode(Mode.LIVE);
             int traits = getRandom().nextInt(1_000_000);
+            setSkinId(getRandom().nextInt(6));
             setPersonality(new LivingPlanner.Personality(
                 30 + Math.floorMod(traits, 61), 30 + Math.floorMod(traits / 17, 61),
                 30 + Math.floorMod(traits / 31, 61)));
@@ -473,6 +490,7 @@ public class PlayerNpcEntity extends PathfinderMob {
         tag.putInt("NpcParcels", parcelsDelivered);
         tag.putInt("NpcFormationSlot", formationSlot);
         tag.putInt("NpcRoamingRadius", roamingRadius);
+        tag.putInt("NpcSkinId", skinId());
         tag.putBoolean("NpcNaturallySpawned", naturalResident);
         tag.putInt("NpcDailyShift", dailyShiftTicks);
         tag.putBoolean("NpcBuildEnabled", buildEnabled);
@@ -550,6 +568,8 @@ public class PlayerNpcEntity extends PathfinderMob {
         }
         parcelsDelivered = Math.max(0, tag.getInt("NpcParcels"));
         formationSlot = Math.clamp(tag.getInt("NpcFormationSlot"), 0, 15);
+        setSkinId(tag.contains("NpcSkinId", Tag.TAG_INT)
+            ? tag.getInt("NpcSkinId") : Math.floorMod(getUUID().hashCode(), 6));
         setRoamingRadius(tag.contains("NpcRoamingRadius", Tag.TAG_INT)
             ? tag.getInt("NpcRoamingRadius") : 48);
         naturalResident = tag.getBoolean("NpcNaturallySpawned");

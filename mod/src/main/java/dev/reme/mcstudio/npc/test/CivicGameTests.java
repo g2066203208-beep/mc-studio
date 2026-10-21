@@ -321,4 +321,78 @@ public final class CivicGameTests {
         helper.succeed();
     }
 
+    @GameTest(template = "empty", timeoutTicks = 100)
+    public static void npc_skin_is_synced_and_persisted_per_character(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        PlayerNpcEntity npc = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (npc == null) throw new AssertionError("NPC entity registration absent");
+        npc.setSkinId(4);
+        if (npc.skinId() != 4) throw new AssertionError("EntityData skin not assigned");
+        CompoundTag saved = new CompoundTag();
+        npc.addAdditionalSaveData(saved);
+        PlayerNpcEntity recreated = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (recreated == null) throw new AssertionError("NPC entity reload failed");
+        recreated.readAdditionalSaveData(saved);
+        if (recreated.skinId() != 4 || !saved.contains("NpcSkinId"))
+            throw new AssertionError("NPC skin selection lost during NBT save/reload");
+        npc.setSkinId(900);
+        if (npc.skinId() != 5) throw new AssertionError("Out-of-range skin id unbounded");
+        npc.setSkinId(-999);
+        if (npc.skinId() != 0) throw new AssertionError("Negative skin id unbounded");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 195)
+    public static void guard_actually_walks_patrol_in_live_mode(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos center = helper.absolutePos(new BlockPos(10, 1, 10));
+        // A genuine traversable 21x21 stone lane; no fake navigation mock.
+        for (int dx = -10; dx <= 10; dx++) {
+            for (int dz = -10; dz <= 10; dz++) {
+                BlockPos floor = center.offset(dx, -1, dz);
+                level.setBlock(floor, Blocks.STONE.defaultBlockState(), 3);
+                level.setBlock(floor.above(), Blocks.AIR.defaultBlockState(), 3);
+                level.setBlock(floor.above(2), Blocks.AIR.defaultBlockState(), 3);
+            }
+        }
+        PlayerNpcEntity guard = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (guard == null) throw new AssertionError("guard cannot be created");
+        guard.moveTo(center.getX() + 0.5, center.getY(), center.getZ() + 0.5, 0, 0);
+        guard.setHomePos(center);
+        guard.setWorkPos(center);
+        guard.setRoamingRadius(32);
+        guard.setProfession(PlayerNpcEntity.Profession.GUARD);
+        guard.setMode(PlayerNpcEntity.Mode.LIVE);
+        if (!level.addFreshEntity(guard))
+            throw new AssertionError("guard failed to enter real server");
+        helper.runAfterDelay(150, () -> {
+            if (guard.distanceToSqr(center.getX() + 0.5, center.getY(),
+                    center.getZ() + 0.5) < 2.25)
+                helper.fail("Live guard did not move from guard post during scheduled patrol", center);
+            else helper.succeed();
+        });
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 100)
+    public static void real_player_skin_command_changes_owned_npc(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos origin = helper.absolutePos(new BlockPos(2, 1, 2));
+        var player = FakePlayerFactory.getMinecraft(level);
+        player.moveTo(origin.getX()+0.5, origin.getY(), origin.getZ()+0.5, 0, 0);
+        PlayerNpcEntity npc = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (npc == null) throw new AssertionError("No NPC type");
+        npc.moveTo(origin.getX()+1.5, origin.getY(), origin.getZ()+0.5, 0, 0);
+        npc.setOwner(player);
+        npc.setSkinId(0);
+        if (!level.addFreshEntity(npc)) throw new AssertionError("No NPC entity");
+        level.getServer().getCommands().performPrefixedCommand(
+            player.createCommandSourceStack().withPermission(4), "npc skin 4");
+        if (npc.skinId()!=4) throw new AssertionError(
+            "The REAL /npc skin 4 dispatcher failed to mutate owned NPC synchronized skin");
+        CompoundTag save = new CompoundTag();
+        npc.addAdditionalSaveData(save);
+        if (save.getInt("NpcSkinId") != 4)
+            throw new AssertionError("Command-selected skin not persisted");
+        helper.succeed();
+    }
 }

@@ -102,6 +102,11 @@ public final class NpcCommands {
             .then(Commands.literal("stay").executes(ctx -> changeMode(ctx.getSource(), PlayerNpcEntity.Mode.STAY)))
             .then(Commands.literal("wander").executes(ctx -> changeMode(ctx.getSource(), PlayerNpcEntity.Mode.WANDER)))
             .then(Commands.literal("guard").executes(ctx -> changeMode(ctx.getSource(), PlayerNpcEntity.Mode.GUARD)))
+            .then(Commands.literal("skin")
+                .then(Commands.argument("id", IntegerArgumentType.integer(0, 5))
+                    .executes(ctx -> changeSkin(ctx.getSource(),
+                        IntegerArgumentType.getInteger(ctx, "id")))))
+            .then(Commands.literal("skins").executes(ctx -> listSkins(ctx.getSource())))
             .then(Commands.literal("info").executes(ctx -> info(ctx.getSource())))
             .then(Commands.literal("law").executes(ctx -> civicInfo(ctx.getSource(), true)))
             .then(Commands.literal("news").executes(ctx -> civicInfo(ctx.getSource(), false)))
@@ -128,6 +133,7 @@ public final class NpcCommands {
         }
         npc.setOwner(player);
         npc.setMode(PlayerNpcEntity.Mode.LIVE);
+        npc.setSkinId(player.getRandom().nextInt(6));
         npc.setHomePos(player.blockPosition().offset(1, 0, 1));
         npc.setWorkPos(player.blockPosition());
         npc.setCustomName(Component.literal(name.substring(0, Math.min(48, name.length()))));
@@ -152,6 +158,7 @@ public final class NpcCommands {
             if (npc == null) continue;
             npc.setOwner(player);
             npc.setCustomName(Component.literal(names[i]));
+            npc.setSkinId(i);
             npc.setCustomNameVisible(true);
             npc.setMode(PlayerNpcEntity.Mode.LIVE);
             npc.backpack().addItem(new ItemStack(Items.BREAD, 4));
@@ -495,6 +502,28 @@ public final class NpcCommands {
         return 1;
     }
 
+
+    private static int changeSkin(CommandSourceStack source, int id)
+        throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        PlayerNpcEntity npc = closestOwnedNpc(source.getPlayerOrException());
+        if (npc == null) {
+            source.sendFailure(Component.literal("No NPC owned by you within 16 blocks"));
+            return 0;
+        }
+        npc.setSkinId(id);
+        source.sendSuccess(() -> Component.literal(
+            npc.getName().getString() + ": switched to skin " + id +
+            ". Nearby clients see the update immediately."), false);
+        return 1;
+    }
+
+    private static int listSkins(CommandSourceStack source) {
+        source.sendSuccess(() -> Component.literal(
+            "NPC skins (0-5): 0 Green Farmer, 1 Field Explorer, 2 Formal Trader, " +
+            "3 Blue Farmer, 4 Teal Explorer, 5 Brown Trader. Use /npc skin <id>"), false);
+        return 1;
+    }
+
     private static int info(CommandSourceStack source) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
         ServerPlayer player = source.getPlayerOrException();
         // Anyone may inspect the closest live resident; ownership is needed
@@ -521,6 +550,7 @@ public final class NpcCommands {
             + " " + npc.journey().progress() + "%"
             + " | supply " + (npc.supplyPos() == null ? "none" : npc.supplyPos().toShortString())
             + " | delivered " + npc.parcelsDelivered()
+            + " | skin " + npc.skinId()
             + " | roam " + npc.roamingRadius()
             + " | natural " + npc.naturalResident()
             + " | civics: " + npc.civic().reports().size() + " reports"

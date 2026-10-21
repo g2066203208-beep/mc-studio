@@ -78,8 +78,24 @@ public final class SocietyActions {
         }
         if (guard.blockPosition().distSqr(guard.workPos()) > 36) {
             RoadNavigator.moveToward(guard, level, guard.workPos(), 0.9);
-            guard.setAction("patrolling settlement");
+            guard.setAction("returning to guard post");
             return true;
+        }
+        // Assigned guards really walk watch rounds instead of remaining
+        // motionless at their post. Hunger and fatigue may interrupt patrol.
+        if (guard.energy() >= 28 && guard.hunger() >= 24) {
+            var step = PatrolPlanner.choose(tick, guard.getId());
+            BlockPos target = guard.workPos().offset(step.dx(), 0, step.dz());
+            if (DailyRoaming.inRange(guard, target) && level.hasChunkAt(target)
+                && level.getBlockState(target.below()).isSolid()
+                && level.getBlockState(target).isAir()
+                && level.getBlockState(target.above()).isAir()
+                && guard.blockPosition().distSqr(target) > 4) {
+                if (RoadNavigator.moveToward(guard, level, target, 0.86)) {
+                    guard.setAction("walking a watch round around the guard post");
+                    return true;
+                }
+            }
         }
         return false;
     }

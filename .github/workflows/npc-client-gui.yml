@@ -2,7 +2,7 @@ name: Actual Minecraft client GUI screenshots (experimental)
 on:
   workflow_dispatch:
   push:
-    branches: [fix/npc-client-acceptance-v054]
+    branches: [fix/npc-client-acceptance-v054, feature/npc-character-skins-v055]
 permissions:
   contents: read
 jobs:
