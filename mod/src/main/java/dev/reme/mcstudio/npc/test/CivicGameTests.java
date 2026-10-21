@@ -639,7 +639,7 @@ public final class CivicGameTests {
         unrelated.setNoPickUpDelay();
         if (!level.addFreshEntity(mined) || !level.addFreshEntity(unrelated))
             throw new AssertionError("Real item entities failed to spawn");
-        npc.claimMiningDrops(java.util.Set.of(mined.getUUID()), level.getGameTime() + 80);
+        npc.claimMiningDrops(java.util.Map.of(mined.getUUID(), 4), level.getGameTime() + 80);
         if (!PlayerLootPickup.pickUp(npc, mined))
             throw new AssertionError("Claimed mined item could not partially enter real bag");
         if (npc.backpack().countItem(Items.COBBLESTONE) != 64
@@ -660,13 +660,14 @@ public final class CivicGameTests {
         if (npc == null) throw new AssertionError("missing resident");
         UUID id = UUID.randomUUID();
         long deadline = level.getGameTime() + 30;
-        npc.claimMiningDrops(java.util.Set.of(id), deadline);
+        npc.claimMiningDrops(java.util.Map.of(id, 3), deadline);
         CompoundTag tag = new CompoundTag();
         npc.addAdditionalSaveData(tag);
         PlayerNpcEntity restored = NpcRegistry.PLAYER_NPC.get().create(level);
         if (restored == null) throw new AssertionError("cannot restore resident");
         restored.readAdditionalSaveData(tag);
         if (!restored.pendingMiningDrops().contains(id)
+            || restored.remainingMiningDrop(id) != 3
             || restored.miningLootExpiry() != deadline)
             throw new AssertionError("Lost exact item UUID claim on NBT save/load");
         restored.forgetMiningDrop(id);
@@ -716,6 +717,37 @@ public final class CivicGameTests {
                     + " action=" + npc.lastAction(), ore);
             else helper.succeed();
         });
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 100)
+    public static void merged_item_entity_does_not_expand_npc_mined_entitlement(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos pos = helper.absolutePos(new BlockPos(4, 9, 4));
+        level.setBlock(pos.below(), Blocks.STONE.defaultBlockState(), 3);
+        PlayerNpcEntity npc = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (npc == null) throw new AssertionError("Missing NPC");
+        npc.moveTo(pos.getX() + 0.5, pos.getY(),
+            pos.getZ() + 0.5, 0, 0);
+        npc.setMode(PlayerNpcEntity.Mode.STAY);
+        if (!level.addFreshEntity(npc)) throw new AssertionError("NPC spawn failed");
+        ItemEntity mixed = new ItemEntity(level, npc.getX(), npc.getY(),
+            npc.getZ(), new ItemStack(Items.COBBLESTONE, 20));
+        mixed.setNoPickUpDelay();
+        if (!level.addFreshEntity(mixed)) throw new AssertionError("Drop spawn failed");
+        // Only three blocks of this mixed stack came from this NPC's mining.
+        // Its other seventeen belong to pre-existing world inventory.
+        npc.claimMiningDrops(java.util.Map.of(mixed.getUUID(), 3),
+            level.getGameTime() + 80);
+        if (!PlayerLootPickup.pickUp(npc, mixed)
+            || npc.backpack().countItem(Items.COBBLESTONE) != 3
+            || mixed.getItem().getCount() != 17
+            || npc.remainingMiningDrop(mixed.getUUID()) != 0)
+            throw new AssertionError("Merged ground items expanded claim quantity");
+        if (PlayerLootPickup.pickUp(npc, mixed)
+            || npc.backpack().countItem(Items.COBBLESTONE) != 3
+            || mixed.getItem().getCount() != 17)
+            throw new AssertionError("Already paid claim could collect remaining player-owned items");
+        helper.succeed();
     }
 
 }
