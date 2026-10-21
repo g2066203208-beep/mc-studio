@@ -117,6 +117,7 @@ public class PlayerNpcEntity extends PathfinderMob {
     // player's unrelated floor loot. Hard cap and expiry prevent runaway state.
     private final Set<UUID> ownedMiningDrops = new LinkedHashSet<>();
     private long miningLootExpiry = 0L;
+    private long miningLootStarted = 0L;
     private BlockPos lastNavDestination = BlockPos.ZERO;
     private long nextNavRepathTick = 0;
     private final CivicMind civic = new CivicMind();
@@ -234,13 +235,19 @@ public class PlayerNpcEntity extends PathfinderMob {
         return java.util.Collections.unmodifiableSet(ownedMiningDrops);
     }
     public long miningLootExpiry() { return miningLootExpiry; }
+    public long miningLootStarted() { return miningLootStarted; }
     public void claimMiningDrops(Set<UUID> ids, long expiry) {
         ownedMiningDrops.clear();
         ids.stream().limit(24).forEach(ownedMiningDrops::add);
         miningLootExpiry = Math.max(0L, expiry);
+        miningLootStarted = level().getGameTime();
     }
     public void forgetMiningDrop(UUID id) { ownedMiningDrops.remove(id); }
-    public void clearMiningDrops() { ownedMiningDrops.clear(); miningLootExpiry = 0L; }
+    public void clearMiningDrops() {
+        ownedMiningDrops.clear();
+        miningLootExpiry = 0L;
+        miningLootStarted = 0L;
+    }
     public void resetMiningProgress() { miningProgress = 0.0F; }
     public float miningProgress() { return miningProgress; }
     public float advanceMiningProgress(float increment) {
@@ -532,6 +539,7 @@ public class PlayerNpcEntity extends PathfinderMob {
             }
             tag.put("NpcMiningDrops", claims);
             tag.putLong("NpcMiningDropExpiry", miningLootExpiry);
+            tag.putLong("NpcMiningDropStarted", miningLootStarted);
         }
         tag.putBoolean("NpcNaturallySpawned", naturalResident);
         tag.putInt("NpcDailyShift", dailyShiftTicks);
@@ -615,6 +623,7 @@ public class PlayerNpcEntity extends PathfinderMob {
         miningProgress = 0.0F;
         ownedMiningDrops.clear();
         miningLootExpiry = Math.max(0L, tag.getLong("NpcMiningDropExpiry"));
+        miningLootStarted = Math.max(0L, tag.getLong("NpcMiningDropStarted"));
         if (tag.contains("NpcMiningDrops", Tag.TAG_LIST)) {
             ListTag claims = tag.getList("NpcMiningDrops", Tag.TAG_COMPOUND);
             for (int i = 0; i < Math.min(24, claims.size()); i++) {
