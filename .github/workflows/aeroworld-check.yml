@@ -1,0 +1,60 @@
+name: AeroWorld playable browser integration
+on:
+  push:
+    paths:
+      - 'viewer/aero-world/**'
+      - '.github/workflows/aeroworld-check.yml'
+  pull_request:
+    paths:
+      - 'viewer/aero-world/**'
+      - '.github/workflows/aeroworld-check.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  browser-game:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check JS source and asset redistribution boundary
+        run: |
+          node --check viewer/aero-world/world.js
+          node --check viewer/aero-world/resources.js
+          node --check viewer/aero-world/tests/smoke.cjs
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('viewer/aero-world')
+          assert not list(p.rglob('*.jar')) and not list(p.rglob('*.png')), 'No third-party Minecraft assets in website'
+          assert '不是' in (p/'index.html').read_text()
+          PY
+      - name: Build original-art-free synthetic test Mod Jar
+        run: |
+          python3 viewer/rpms/tests/create-fixture.py
+          npm install --prefix /tmp/aeroworld-browser --no-save --no-audit --no-fund playwright-core@1.56.1
+      - name: Run genuine headless Chrome WebGL and interaction regression
+        env:
+          NODE_PATH: /tmp/aeroworld-browser/node_modules
+        run: |
+          python3 -m http.server 8033 --directory viewer >/tmp/aero-http.log 2>&1 &
+          node viewer/aero-world/tests/smoke.cjs
+      - name: Download real published original Create and Aeronautics JARs for runtime import testing
+        run: |
+          curl --fail --location --retry 3 --silent --show-error -o /tmp/aero-original.jar https://api.modrinth.com/maven/maven/modrinth/oWaK0Q19/44pLdPGg/oWaK0Q19-44pLdPGg.jar
+          curl --fail --location --retry 3 --silent --show-error -o /tmp/create-original.jar https://api.modrinth.com/maven/maven/modrinth/LNytGWDc/UjX6dr61/LNytGWDc-UjX6dr61.jar
+          test "$(stat -c%s /tmp/aero-original.jar)" -gt 20000000
+          test "$(stat -c%s /tmp/create-original.jar)" -gt 10000000
+      - name: Test genuine upstream Mod JAR block models inside Chrome
+        env:
+          NODE_PATH: /tmp/aeroworld-browser/node_modules
+        run: node viewer/aero-world/tests/real-jar-smoke.cjs
+      - name: Upload screenshot evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: aeroworld-playable-chrome-desktop-mobile
+          path: viewer/aero-world/tests/aeroworld-*.png
+          if-no-files-found: ignore
