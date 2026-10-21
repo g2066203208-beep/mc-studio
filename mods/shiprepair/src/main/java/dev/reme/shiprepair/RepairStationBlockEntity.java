@@ -64,6 +64,11 @@ public final class RepairStationBlockEntity extends BlockEntity implements Block
         super(ShipRepairMod.STATION_ENTITY.get(),pos,state);
     }
 
+    /** Read-only test diagnostics; only a COMPLETE scan becomes a saved blueprint. */
+    int savedBlockCount() { return saved.size(); }
+    boolean busy() { return job != null; }
+
+
     /** First click saves. Next click restores. Shift-click overwrites blueprint. */
     public void click(Player player,boolean overwrite) {
         if(!(level instanceof ServerLevel server)) return;
