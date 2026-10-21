@@ -3,6 +3,7 @@ package dev.reme.mcstudio;
 import com.mojang.logging.LogUtils;
 import dev.reme.mcstudio.npc.NpcCommands;
 import dev.reme.mcstudio.npc.NpcRegistry;
+import dev.reme.mcstudio.npc.life.NaturalResidentSpawn;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.neoforge.common.NeoForge;
@@ -14,6 +15,7 @@ public final class StudioMod {
     public StudioMod(IEventBus modBus) {
         NpcRegistry.register(modBus);
         modBus.addListener(NpcRegistry::onEntityAttributes);
+        modBus.addListener(NaturalResidentSpawn::register);
         NeoForge.EVENT_BUS.addListener(NpcCommands::register);
         LogUtils.getLogger().info("REME MC Studio player NPC prototype loaded");
     }

@@ -37,6 +37,10 @@ public final class NpcCommands {
                     .executes(ctx -> spawn(ctx.getSource(), StringArgumentType.getString(ctx, "name")))))
             .then(Commands.literal("demo").requires(source -> source.hasPermission(2))
                 .executes(ctx -> demo(ctx.getSource())))
+            .then(Commands.literal("radius")
+                .then(Commands.argument("blocks", IntegerArgumentType.integer(16, 128))
+                    .executes(ctx -> changeRadius(ctx.getSource(),
+                        IntegerArgumentType.getInteger(ctx, "blocks")))))
             .then(Commands.literal("live").executes(ctx -> changeMode(ctx.getSource(), PlayerNpcEntity.Mode.LIVE)))
             .then(Commands.literal("farmer").executes(ctx -> profession(ctx.getSource(), PlayerNpcEntity.Profession.FARMER)))
             .then(Commands.literal("baker").executes(ctx -> profession(ctx.getSource(), PlayerNpcEntity.Profession.BAKER)))
@@ -324,6 +328,16 @@ public final class NpcCommands {
         }
     }
 
+    private static int changeRadius(CommandSourceStack source, int radius)
+        throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        PlayerNpcEntity npc = closestOwnedNpc(source.getPlayerOrException());
+        if (npc == null) return 0;
+        npc.setRoamingRadius(radius);
+        source.sendSuccess(() -> Component.literal(npc.getName().getString()
+            + " home range -> " + npc.roamingRadius() + " blocks"), false);
+        return 1;
+    }
+
     private static PlayerNpcEntity closestOwnedNpc(ServerPlayer player) {
         AABB range = player.getBoundingBox().inflate(16);
         return player.level().getEntitiesOfClass(PlayerNpcEntity.class, range, npc -> npc.isOwnedBy(player))
@@ -483,6 +497,8 @@ public final class NpcCommands {
             + " " + npc.journey().progress() + "%"
             + " | supply " + (npc.supplyPos() == null ? "none" : npc.supplyPos().toShortString())
             + " | delivered " + npc.parcelsDelivered()
+            + " | roam " + npc.roamingRadius()
+            + " | natural " + npc.naturalResident()
             + " | civics: " + npc.civic().reports().size() + " reports"
             + " | personal reputation " + npc.civic().reputation(player.getUUID())
             + " | commission " + (npc.commission() == null ? "none" : npc.commission().state())
