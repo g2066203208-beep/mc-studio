@@ -171,7 +171,7 @@ public final class SeamVisualE2E {
                 } else LOG.error("WORLDSEAM_E2E_FAIL_RETURN_SERVER: wrong dimension");
             });
             phase=7;
-        } else if (phase==7 && !endPreviewLogged && now-startTick>1280) {
+        } else if (phase==7 && !endPreviewLogged && now-startTick>1200) {
             endPreviewLogged=true;
             LOG.info("WORLDSEAM_E2E_END_PREVIEW_WINDOW: current dim={}, y={}, target=the_end, native3x3={}, geometry={}, drawn={}",
                 mc.level.dimension().location(),mc.player.getY(),
@@ -183,10 +183,10 @@ public final class SeamVisualE2E {
                 nativeStone,actuallyRendered);
             if(nativeStone==0 || actuallyRendered==0)
                 LOG.error("WORLDSEAM_E2E_FAIL_END_NATURAL: End main island still not actually visible before crossing");
-        } else if (phase==7 && now-startTick>1440) {
+        } else if (phase==7 && now-startTick>1340) {
             phase=8;
             server.execute(() -> attemptEnd(server,playerId));
-        } else if (phase==8 && now-startTick>1535) {
+        } else if (phase==8 && now-startTick>1435) {
             phase=9;
             if(mc.level.dimension()==Level.END)
                 LOG.info("WORLDSEAM_E2E_PASS_END_CLIENT: Overworld TOP -> End BOTTOM without vanilla respawn");
