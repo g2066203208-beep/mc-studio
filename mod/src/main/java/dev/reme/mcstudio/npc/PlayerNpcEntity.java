@@ -113,6 +113,10 @@ public class PlayerNpcEntity extends PathfinderMob {
     // safely restarts the survival-rate action instead of instant completing.
     @Nullable private BlockPos miningTarget;
     private float miningProgress = 0.0F;
+    // Exact UUIDs of drops created by this NPC's *real* block break, not any
+    // player's unrelated floor loot. Hard cap and expiry prevent runaway state.
+    private final Set<UUID> ownedMiningDrops = new LinkedHashSet<>();
+    private long miningLootExpiry = 0L;
     private BlockPos lastNavDestination = BlockPos.ZERO;
     private long nextNavRepathTick = 0;
     private final CivicMind civic = new CivicMind();
@@ -226,6 +230,17 @@ public class PlayerNpcEntity extends PathfinderMob {
         miningProgress = 0.0F;
     }
     public void clearMiningTarget() { miningTarget = null; miningProgress = 0.0F; }
+    public Set<UUID> pendingMiningDrops() {
+        return java.util.Collections.unmodifiableSet(ownedMiningDrops);
+    }
+    public long miningLootExpiry() { return miningLootExpiry; }
+    public void claimMiningDrops(Set<UUID> ids, long expiry) {
+        ownedMiningDrops.clear();
+        ids.stream().limit(24).forEach(ownedMiningDrops::add);
+        miningLootExpiry = Math.max(0L, expiry);
+    }
+    public void forgetMiningDrop(UUID id) { ownedMiningDrops.remove(id); }
+    public void clearMiningDrops() { ownedMiningDrops.clear(); miningLootExpiry = 0L; }
     public void resetMiningProgress() { miningProgress = 0.0F; }
     public float miningProgress() { return miningProgress; }
     public float advanceMiningProgress(float increment) {
@@ -508,6 +523,16 @@ public class PlayerNpcEntity extends PathfinderMob {
         tag.putInt("NpcRoamingRadius", roamingRadius);
         tag.putInt("NpcSkinId", skinId());
         if (miningTarget != null) tag.putLong("NpcMiningTarget", miningTarget.asLong());
+        if (!ownedMiningDrops.isEmpty()) {
+            ListTag claims = new ListTag();
+            for (UUID id : ownedMiningDrops) {
+                CompoundTag entry = new CompoundTag();
+                entry.putUUID("Id", id);
+                claims.add(entry);
+            }
+            tag.put("NpcMiningDrops", claims);
+            tag.putLong("NpcMiningDropExpiry", miningLootExpiry);
+        }
         tag.putBoolean("NpcNaturallySpawned", naturalResident);
         tag.putInt("NpcDailyShift", dailyShiftTicks);
         tag.putBoolean("NpcBuildEnabled", buildEnabled);
@@ -588,6 +613,15 @@ public class PlayerNpcEntity extends PathfinderMob {
         miningTarget = tag.contains("NpcMiningTarget", Tag.TAG_LONG)
             ? BlockPos.of(tag.getLong("NpcMiningTarget")) : null;
         miningProgress = 0.0F;
+        ownedMiningDrops.clear();
+        miningLootExpiry = Math.max(0L, tag.getLong("NpcMiningDropExpiry"));
+        if (tag.contains("NpcMiningDrops", Tag.TAG_LIST)) {
+            ListTag claims = tag.getList("NpcMiningDrops", Tag.TAG_COMPOUND);
+            for (int i = 0; i < Math.min(24, claims.size()); i++) {
+                CompoundTag entry = claims.getCompound(i);
+                if (entry.hasUUID("Id")) ownedMiningDrops.add(entry.getUUID("Id"));
+            }
+        }
         setSkinId(tag.contains("NpcSkinId", Tag.TAG_INT)
             ? tag.getInt("NpcSkinId") : Math.floorMod(getUUID().hashCode(), 6));
         setRoamingRadius(tag.contains("NpcRoamingRadius", Tag.TAG_INT)
