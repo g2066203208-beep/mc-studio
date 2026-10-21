@@ -20,8 +20,13 @@ const {chromium}=require('playwright-core');
   const standing=await page.evaluate(()=>window.__MULTIBODY_RIG__.advance(240));
   console.log('ARTICULATED_STAND',JSON.stringify(standing));
   assert.ok(Number.isFinite(standing.bodyBottom),'physics must return a body height');
-  assert.ok(standing.position.y>1.4&&standing.position.y<7,'chassis must remain in a physically reasonable range');
-  assert.ok(Math.abs(standing.velocity.y)<3,'servo support must not catapult the chassis');
+  assert.ok(standing.position.y>3.85&&standing.position.y<4.4,'legs must ACTUALLY hold the heavy chassis off the floor: '+standing.position.y);
+  assert.ok(Math.abs(standing.velocity.y)<.1,'actual loaded six-leg platform did not settle under gravity');
+  assert.ok(Math.abs(standing.position.x)<.25&&Math.abs(standing.position.z)<.25,
+    'standing must not drift around as a runaway body');
+  assert.ok(standing.supportContacts>=4,'at least four feet must touch real Rapier static world floor');
+  assert.ok(standing.legAngles.every(x=>Math.abs(x.hip)<.09&&Math.abs(x.knee)<.09),
+    'motor must HOLD actual joint angles while chassis weight bears on feet');
   const moving=await page.evaluate(()=>{
    const rig=window.__MULTIBODY_RIG__;
    rig.setMode('march');rig.setMotor({rpm:28,torqueLimit:2200});
@@ -32,6 +37,8 @@ const {chromium}=require('playwright-core');
   const range=Math.max(...moving.legAngles.map(x=>Math.abs(x.hip)));
   assert.ok(range>.04,'HINGES MUST ROTATE REAL INDEPENDENT RIGID BODIES, not display-only target: '+range);
   assert.ok(moving.legAngles.some(x=>Math.abs(x.hipTarget)>.05),'tripod gait controller not operating');
+  assert.ok(moving.legAngles.filter(x=>Math.abs(x.knee)>.15).length>=2,
+    'gait cannot only spin decorative Create gears; actual Rapier knee bodies must bend');
   const detached=await page.evaluate(()=>{
    const rig=window.__MULTIBODY_RIG__;rig.removeLeg('L1');return rig.advance(80);
   });
