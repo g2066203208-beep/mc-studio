@@ -61,7 +61,7 @@ def _clean_jsonc(s: str) -> str:
             result.append(ch)
             if escaped:
                 escaped = False
-            elif ch == "\\\\":
+            elif ch == "\\":
                 escaped = True
             elif ch == '"':
                 quoted = False
