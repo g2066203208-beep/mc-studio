@@ -6,6 +6,11 @@ import dev.reme.mcstudio.npc.PlayerNpcEntity;
 import dev.reme.mcstudio.npc.life.CivicMind;
 import dev.reme.mcstudio.npc.life.CharacterProfile;
 import dev.reme.mcstudio.npc.life.Commission;
+import dev.reme.mcstudio.npc.life.CivicContracts;
+import dev.reme.mcstudio.npc.life.CivicSocial;
+import dev.reme.mcstudio.npc.life.SocietyRules;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -61,4 +66,46 @@ public final class CivicGameTests {
             throw new AssertionError("identity, evidence or escrow state lost on NBT round-trip");
         helper.succeed();
     }
+    @GameTest(template = "empty", timeoutTicks = 100)
+    public static void nearby_gossip_is_not_global(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        PlayerNpcEntity witness = NpcRegistry.PLAYER_NPC.get().create(level);
+        PlayerNpcEntity neighbor = NpcRegistry.PLAYER_NPC.get().create(level);
+        PlayerNpcEntity outsider = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (witness == null || neighbor == null || outsider == null)
+            throw new AssertionError("NPC registry missing");
+        outsider.setIdentity(SocietyRules.civilian("distant"));
+        UUID attacker = UUID.randomUUID();
+        witness.civic().witness(UUID.randomUUID(), attacker, witness.getUUID(),
+            CivicMind.Kind.ASSAULT, 100);
+        if (CivicSocial.exchangeNews(witness, neighbor, 200) != 1)
+            throw new AssertionError("local trusted conversation failed");
+        if (neighbor.civic().reputation(attacker) != -30)
+            throw new AssertionError("hearsay credibility must be weaker");
+        if (CivicSocial.exchangeNews(neighbor, outsider, 300) != 0 ||
+            outsider.civic().reputation(attacker) != 0)
+            throw new AssertionError("regional boundaries or rumor recursion broken");
+        if (CivicSocial.exchangeNews(witness, neighbor, 350) != 0)
+            throw new AssertionError("same rumor delivered twice");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 100)
+    public static void job_escrow_moves_real_emeralds(GameTestHelper helper) {
+        PlayerNpcEntity npc = NpcRegistry.PLAYER_NPC.get().create(helper.getLevel());
+        if (npc == null) throw new AssertionError("NPC registry missing");
+        npc.backpack().addItem(new ItemStack(Items.EMERALD, 5));
+        if (!CivicContracts.post(npc, Commission.Goods.WHEAT, 3, 2) ||
+            npc.backpack().countItem(Items.EMERALD) != 3)
+            throw new AssertionError("posting did not escrow two actual emeralds");
+        if (CivicContracts.post(npc, Commission.Goods.BREAD, 1, 1))
+            throw new AssertionError("overwrote an active contract");
+        if (!CivicContracts.cancel(npc) ||
+            npc.backpack().countItem(Items.EMERALD) != 5)
+            throw new AssertionError("cancel did not refund escrow exactly");
+        if (CivicContracts.cancel(npc))
+            throw new AssertionError("refunded same escrow twice");
+        helper.succeed();
+    }
+
 }
