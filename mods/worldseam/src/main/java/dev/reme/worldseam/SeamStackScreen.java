@@ -39,7 +39,7 @@ public final class SeamStackScreen extends Screen {
         // LevelStem keys from the world's actual loaded datapack registry.
         // This includes registered dimensions from compatible mods/datapacks.
         parent.getUiState().getSettings().datapackDimensions().keySet()
-            .forEach(key -> found.add(key.location().toString()));
+            .forEach(key -> found.add(key.toString()));
         found.add("minecraft:overworld");
         found.add("minecraft:the_nether");
         found.add("minecraft:the_end");
