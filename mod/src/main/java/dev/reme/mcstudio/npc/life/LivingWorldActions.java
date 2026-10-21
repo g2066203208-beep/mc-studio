@@ -68,6 +68,9 @@ public final class LivingWorldActions {
         // same survival tool / block break pipeline as a player. Danger can
         // interrupt it; routine AI never creates an unapproved mining target.
         if (PlayerMiningActions.tick(npc, level)) return;
+        // Follow the genuine item-entity drops from this NPC's authorized
+        // break, rather than treating ground loot as virtual inventory.
+        if (PlayerLootPickup.tick(npc, level)) return;
         if (SocietyActions.tick(npc, level, tick)) return;
         if (DailyRoaming.tick(npc, level, tick)) return;
         if (npc.profession() == PlayerNpcEntity.Profession.GUARD &&
