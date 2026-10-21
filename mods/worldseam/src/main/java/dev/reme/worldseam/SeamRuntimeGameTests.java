@@ -16,13 +16,13 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 public final class SeamRuntimeGameTests {
     private SeamRuntimeGameTests() {}
 
-    @GameTest(template = "empty", batch = "reme_studio.native_seam", timeoutTicks = 100)
+    @GameTest(template = "empty", batch = "worldseam.vertical_seams", timeoutTicks = 100)
     public static void dimensionsLoadedAndOptInOff(GameTestHelper helper) {
         var server = helper.getLevel().getServer();
         if (server.getLevel(Level.OVERWORLD) == null ||
             server.getLevel(Level.NETHER) == null ||
             server.getLevel(Level.END) == null) {
-            helper.fail("Native Seam requires all three vanilla dimensions");
+            helper.fail("WorldSeam requires all three vanilla dimensions");
             return;
         }
         if (!SeamGraph.mutuallyConnected()) {
@@ -35,7 +35,7 @@ public final class SeamRuntimeGameTests {
         }
         var options = SeamSettings.get(server);
         if (options.enabled() || options.carveNewChunks()) {
-            helper.fail("Native Seam or terrain carving started without explicit opt-in");
+            helper.fail("WorldSeam or terrain carving started without explicit opt-in");
             return;
         }
         helper.succeed();

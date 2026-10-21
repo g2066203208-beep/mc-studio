@@ -17,7 +17,7 @@ public final class SeamSettings extends SavedData {
     public static SeamSettings get(MinecraftServer server) {
         return server.overworld().getDataStorage().computeIfAbsent(
             new SavedData.Factory<>(SeamSettings::new, SeamSettings::load, null),
-            "reme_native_seam"
+            "worldseam_settings"
         );
     }
 
