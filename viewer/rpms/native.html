@@ -17,9 +17,33 @@ body{height:auto;min-height:100vh}main{max-width:1170px;margin:auto;padding:28px
 <div><strong id="unverified">—</strong><small>未通过完整游戏验收</small></div>
 </div>
 <p class="help">范围：Minecraft 1.21.1 / NeoForge / Create 6.0.10 / Aeronautics 1.3.2。本工作台只负责蓝图与部分静态资源；完整行为必须由安装匹配版本的 <strong>真正 Minecraft 游戏客户端与服务端</strong> 执行。风场、升力、空气阻力等还应区分基础 Mod 机制与额外安装的空气动力学扩展。</p>
+<section class="group" id="probeSection">
+<h2>已通过的原版服务器基础测试（不代表全系统完成）</h2>
+<p class="help">这里列出在 Minecraft 1.21.1 + Create 6.0.10 + Aeronautics 1.3.2 + Sable 2.0.6 中经过实际服务器 Tick 的单项功能证据。上面 33 项系统级完备性仍需要更多测试。</p>
+<div class="cases" id="probes">正在读取真实 GameTest 证据…</div>
+</section>
+<h2 style="margin-top:30px">完整游戏子系统的验收缺口</h2>
 <div id="groups">正在读取验收清单…</div>
 <script type="module">
 const root=document.getElementById('groups'),byid=id=>document.getElementById(id);
+try{
+ const r=await fetch('./native-probes.json',{cache:'no-store'});if(!r.ok)throw Error('无法读取 GameTest');
+ const doc=await r.json();
+ const box=document.getElementById('probes');box.replaceChildren();
+ for(const probe of doc.cases){
+  const card=document.createElement('article');card.className='case';
+  const head=document.createElement('div');head.className='rowhead';
+  const name=document.createElement('b');name.textContent=probe.id+' · '+probe.name;
+  const marker=document.createElement('span');marker.className='state';marker.textContent='原版服务器单项通过';
+  head.append(name,marker);
+  const proof=document.createElement('p');proof.textContent=probe.assertion;
+  card.append(head,proof);box.append(card);
+ }
+ const link=document.createElement('a');link.href=doc.evidence.workflow_run;link.target='_blank';link.rel='noopener';
+ link.textContent='查看此批次 Minecraft GameTest 真实运行日志 ↗';
+ link.style.marginTop='8px';link.style.display='block';box.after(link);
+}catch(err){document.getElementById('probes').textContent='原版游戏测试记录加载失败：'+err.message;}
+
 try{
  const r=await fetch('./native-acceptance.json',{cache:'no-store'});if(!r.ok)throw Error('无法读取验收清单');
  const report=await r.json(),cases=report.domains;

@@ -92,6 +92,8 @@ public final class NativeSnapshotCommand {
         out.addProperty("source","Real NeoForge server / read-only blocks and kinetic speed");
         out.addProperty("dimension",level.dimension().location().toString());
         out.addProperty("gameTick",level.getGameTime());
+        // Distinguish measured Sable gravity/drag from any web approximation.
+        out.add("sablePhysics", NativeSableTelemetry.read(level));
         JsonArray origin=new JsonArray();
         origin.add(center.getX());origin.add(center.getY());origin.add(center.getZ());
         out.add("originWorld",origin);
