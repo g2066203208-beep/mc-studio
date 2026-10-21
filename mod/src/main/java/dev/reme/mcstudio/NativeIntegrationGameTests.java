@@ -184,6 +184,40 @@ public final class NativeIntegrationGameTests {
         });
     }
 
+    @GameTest(template = "rpms_empty", timeoutTicks = 120)
+    public static void kineticNetworkDisconnectionStopsShaft(GameTestHelper helper) {
+        requireMods();
+        BlockPos motor = new BlockPos(1, 1, 1);
+        BlockPos middle = new BlockPos(2, 1, 1);
+        BlockPos end = new BlockPos(3, 1, 1);
+        BlockState motorState = block("create:creative_motor").defaultBlockState()
+                .setValue(BlockStateProperties.FACING, Direction.EAST);
+        BlockState shaftState = block("create:shaft").defaultBlockState()
+                .setValue(BlockStateProperties.AXIS, Direction.Axis.X);
+        helper.setBlock(motor, motorState);
+        helper.setBlock(middle, shaftState);
+        helper.setBlock(end, shaftState);
+        helper.runAfterDelay(30, () -> {
+            BlockEntity last = helper.getLevel().getBlockEntity(helper.absolutePos(end));
+            if (last == null) throw new AssertionError("Downstream kinetic entity missing");
+            double running = nativeNumber(last, "getSpeed");
+            LOG.info("RPMS_NATIVE_DISCONNECT phase=connected downstreamRPM={}", running);
+            if (Math.abs(running) < 0.1) throw new AssertionError("Create did not transmit torque to second shaft");
+            helper.setBlock(middle, Blocks.AIR);
+            helper.runAfterDelay(20, () -> {
+                BlockEntity disconnected = helper.getLevel().getBlockEntity(helper.absolutePos(end));
+                if (disconnected == null) throw new AssertionError("Downstream shaft destroyed unexpectedly");
+                double stopped = nativeNumber(disconnected, "getSpeed");
+                LOG.info("RPMS_NATIVE_DISCONNECT phase=removed_middle downstreamRPM={}", stopped);
+                if (Math.abs(stopped) > 0.01) {
+                    throw new AssertionError("Real Create network did not stop after disconnected shaft: " + stopped);
+                }
+                LOG.info("RPMS_NATIVE_PASS kineticNetworkDisconnectionStopsShaft");
+                helper.succeed();
+            });
+        });
+    }
+
     private static void nativeTransmit(Object sender, int strength) {
         try {
             sender.getClass().getMethod("transmit", int.class).invoke(sender, strength);
