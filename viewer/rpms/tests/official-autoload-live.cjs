@@ -18,6 +18,10 @@ const path=require('node:path'),fs=require('node:fs');
   console.log('FIRST_OPEN_VISIBLE_3D',JSON.stringify(initial));
   await page.waitForFunction(()=>window.__STRICT_API__.getOfficialState().length===2 &&
     window.__STRICT_API__.getOfficialState().every(x=>x.phase==='ready'||x.phase==='failed'),null,{timeout:210000});
+  await page.waitForFunction(()=>{
+    const assets=window.__STRICT_API__.getAssetStatus();
+    return assets.length===4&&assets.some(x=>x.status==='authentic');
+  },null,{timeout:120000});
   const states=await page.evaluate(()=>window.__STRICT_API__.getOfficialState());
   const models=await page.evaluate(()=>window.__STRICT_API__.getAssetStatus());
   const summary={states,models,errors,rejected,visible:await page.evaluate(()=>window.__STRICT_API__.getVisualStats())};
