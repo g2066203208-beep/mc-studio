@@ -87,7 +87,9 @@ function visualFor(b){
   if(axisOf(b)==='z')rod.rotation.x=Math.PI/2;
   rod.userData.block=b;g.add(rod);
  }
- g.traverse(o=>{if(o.isMesh){o.userData.block=b;clickable.push(o)}});
+ // Raycasting only the full block cube ensures placement uses MC cardinal
+ // block faces, never arbitrary diagonal normals from decorative rods.
+ clickable.push(mesh);
  return g;
 }
 function renderWorld(){
