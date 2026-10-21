@@ -11,7 +11,8 @@ public final class SeamClientDiagnostic {
 
     private static void draw(RenderGuiEvent.Post e) {
         Minecraft mc = Minecraft.getInstance();
-        if (mc.level==null || mc.player==null || mc.options.hideGui) return;
+        if (mc.level==null || mc.player==null || mc.options.hideGui ||
+            !SeamStackClient.enabled()) return;
         // Do not cover the player's sky/terrain with a development overlay.
         // Show in F3 debug mode, or in explicitly enabled CI E2E screenshots.
         if (!Boolean.getBoolean("worldseam.e2e")

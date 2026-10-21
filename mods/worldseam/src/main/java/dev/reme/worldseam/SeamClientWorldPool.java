@@ -62,6 +62,7 @@ public final class SeamClientWorldPool {
     }
 
     public static void hint(String from, String to) {
+        if (!SeamStackClient.enabled()) return;
         Minecraft mc = Minecraft.getInstance();
         if (mc.level == null || mc.player == null || mc.getConnection() == null ||
             !mc.level.dimension().location().toString().equals(from) ||
@@ -118,6 +119,7 @@ public final class SeamClientWorldPool {
      * This is real target dimension biome and block data, not placeholder art.
      */
     public static void acceptChunk(SeamChunkPayload message) {
+        if (!SeamStackClient.enabled()) return;
         hint(message.source(), message.target());
         Minecraft mc = Minecraft.getInstance();
         if (remote == null || mc.level == null ||
@@ -199,6 +201,7 @@ public final class SeamClientWorldPool {
     }
 
     private static void maybeReportReady(Minecraft mc) {
+        if (!SeamStackClient.enabled()) return;
         if (remote == null || mc.level == null || mc.player == null) return;
         if (remote.getChunkSource().getLoadedChunksCount()
             < SeamReadiness.REQUIRED_CHUNKS) return;

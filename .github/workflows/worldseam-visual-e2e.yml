@@ -121,6 +121,20 @@ jobs:
               sleep 1
             done
             xwd -root -silent | convert xwd:- -resize 800x450 -quality 58 visual-end-after-cross.jpg
+            # Actually turn OFF WorldSeam in the live integrated server;
+            # the client must release its secondary ClientLevel immediately,
+            # rather than retaining a stale world after our idle-TTL fix.
+            cleared=0
+            for step in $(seq 1 110); do
+              if grep -q "WORLDSEAM_E2E_PASS_DISABLE_CLEARED" visual-client.log; then cleared=1; break; fi
+              if grep -q "WORLDSEAM_E2E_FAIL_DISABLE" visual-client.log; then break; fi
+              sleep 1
+            done
+            if [ "$cleared" != 1 ]; then
+              echo "WORLDSEAM_GUI_FAIL: disabling mod left stale client remote world"
+              tail -n 75 visual-client.log
+              exit 1
+            fi
             montage visual-in-world.jpg visual-near-seam.jpg visual-crossing.jpg visual-end-before-cross.jpg visual-end-after-cross.jpg visual-stack-editor.jpg -tile 3x2 -geometry +0+0 -quality 52 visual-sequence.jpg
             echo WORLDSEAM_GUI_JPEG_BEGIN
             base64 -w 0 visual-sequence.jpg

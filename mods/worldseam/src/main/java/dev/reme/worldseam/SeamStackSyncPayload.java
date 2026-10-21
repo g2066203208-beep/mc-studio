@@ -9,7 +9,7 @@ import java.util.List;
 
 /** One authoritative topology snapshot per save, sent to each client. */
 public record SeamStackSyncPayload(SeamStack stack,long revision,
-                                   List<DimensionTypeRef> types)
+                                   boolean enabled,List<DimensionTypeRef> types)
     implements CustomPacketPayload {
     public record DimensionTypeRef(String dimension,String type,int minY,int maxY) {}
     public static final Type<SeamStackSyncPayload> TYPE=new Type<>(
@@ -17,6 +17,7 @@ public record SeamStackSyncPayload(SeamStack stack,long revision,
     public static final StreamCodec<RegistryFriendlyByteBuf,SeamStackSyncPayload> CODEC=
         StreamCodec.of((buf,p)->{
             buf.writeVarLong(p.revision());
+            buf.writeBoolean(p.enabled());
             buf.writeBoolean(p.stack().loop());
             buf.writeVarInt(p.stack().entries().size());
             for(SeamStack.Entry e:p.stack().entries()){
@@ -37,6 +38,7 @@ public record SeamStackSyncPayload(SeamStack stack,long revision,
             }
         },buf->{
             long revision=buf.readVarLong();
+            boolean enabled=buf.readBoolean();
             boolean loop=buf.readBoolean();
             int n=buf.readVarInt();
             if(n<1||n>SeamStack.MAX_ENTRIES)
@@ -56,7 +58,7 @@ public record SeamStackSyncPayload(SeamStack stack,long revision,
             for(int i=0;i<size;i++)
                 types.add(new DimensionTypeRef(buf.readUtf(128),buf.readUtf(128),buf.readInt(),buf.readInt()));
             return new SeamStackSyncPayload(new SeamStack(entries,loop),
-                revision,List.copyOf(types));
+                revision,enabled,List.copyOf(types));
         });
     @Override public Type<? extends CustomPacketPayload> type(){return TYPE;}
 }

@@ -12,13 +12,14 @@ import java.util.UUID;
 /** Server-thread snapshot transmission; no stale stack across saved worlds. */
 public final class SeamStackSync {
     private static MinecraftServer active;
-    private static final Map<UUID,Long> lastRevision=new HashMap<>();
+    private static final Map<UUID,SeamSyncStamp> lastStamp=new HashMap<>();
     private SeamStackSync() {}
     public static void tick(MinecraftServer server, ServerPlayer player) {
-        if(active!=server){active=server;lastRevision.clear();}
+        if(active!=server){active=server;lastStamp.clear();}
         SeamSettings settings=SeamSettings.get(server);
         long version=settings.stackRevision();
-        if(lastRevision.getOrDefault(player.getUUID(),-1L)==version)return;
+        SeamSyncStamp stamp=new SeamSyncStamp(version,settings.enabled());
+        if(stamp.equals(lastStamp.get(player.getUUID())))return;
         var list=new ArrayList<SeamStackSyncPayload.DimensionTypeRef>();
         for(SeamStack.Entry e:settings.stack().entries()) {
             var level=server.getLevel(
@@ -34,7 +35,12 @@ public final class SeamStackSync {
             }
         }
         PacketDistributor.sendToPlayer(player,
-            new SeamStackSyncPayload(settings.stack(),version,List.copyOf(list)));
-        lastRevision.put(player.getUUID(),version);
+            new SeamStackSyncPayload(settings.stack(),version,settings.enabled(),List.copyOf(list)));
+        lastStamp.put(player.getUUID(),stamp);
+    }
+
+    /** Avoid retaining offline UUIDs for the lifetime of a busy server. */
+    public static void prune(java.util.Set<UUID> online) {
+        lastStamp.keySet().retainAll(online);
     }
 }

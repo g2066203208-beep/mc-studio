@@ -37,6 +37,7 @@ public final class SeamPreviewClient {
     }
 
     public static void accept(SeamPreviewPayload message) {
+        if (!SeamStackClient.enabled()) return;
         // Called on the client main thread via context.enqueueWork.
         if (CACHE.accept(message.frame())) {
             Minecraft mc = Minecraft.getInstance();
@@ -102,6 +103,13 @@ public final class SeamPreviewClient {
             anyDrawn = true;
         }
         if (anyDrawn) buffers.endBatch();
+    }
+
+    /** Clear all old dimension models immediately on a disable snapshot. */
+    public static void reset() {
+        CACHE.clear();
+        visibleCells=List.of();
+        lastReceivedTick=-1;
     }
 
     private static boolean isBuried(

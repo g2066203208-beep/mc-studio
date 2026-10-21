@@ -210,6 +210,26 @@ public final class SeamVisualE2E {
                     LOG.info("WORLDSEAM_E2E_PASS_END_SERVER: Overworld TOP -> End BOTTOM");
                 else LOG.error("WORLDSEAM_E2E_FAIL_END_SERVER: player not in End");
             });
+        } else if (phase==9 && now-startTick>1500) {
+            phase=10;
+            server.execute(() -> {
+                SeamSettings.get(server).setEnabled(false);
+                LOG.info("WORLDSEAM_E2E_DISABLE_REQUESTED: toggle WorldSeam OFF without modifying the saved stack");
+            });
+        } else if (phase==10 && now-startTick>1540) {
+            phase=11;
+            String status=SeamClientWorldPool.remoteStatus();
+            boolean cleared=!SeamStackClient.enabled() &&
+                "NO TARGET ClientLevel".equals(status) &&
+                SeamNativeGeometryClient.visibleBlockCount()==0 &&
+                SeamNativeGeometryClient.pendingRebuilds()==0;
+            if(cleared)
+                LOG.info("WORLDSEAM_E2E_PASS_DISABLE_CLEARED: authoritative OFF synced, remote ClientLevel and models released");
+            else
+                LOG.error("WORLDSEAM_E2E_FAIL_DISABLE: enabled={}, remote={}, geometry={}, pending={}",
+                    SeamStackClient.enabled(),status,
+                    SeamNativeGeometryClient.visibleBlockCount(),
+                    SeamNativeGeometryClient.pendingRebuilds());
         }
     }
 
