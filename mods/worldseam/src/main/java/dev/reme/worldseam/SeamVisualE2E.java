@@ -40,6 +40,7 @@ public final class SeamVisualE2E {
     private static volatile int witnessX, witnessZ;
     private static long stableFetches = -1;
     private static long stablePackets = -1;
+    private static long stableLiveUpdates = -1;
 
     private SeamVisualE2E() {}
 
@@ -110,6 +111,7 @@ public final class SeamVisualE2E {
                 var stats=SeamChunkSender.stats(p);
                 stableFetches=stats.fetches();
                 stablePackets=stats.packets();
+                stableLiveUpdates=stats.liveUpdates();
                 LOG.info("WORLDSEAM_E2E_LIVE_PACKET: liveResends={}, totalPackets={}, loaded5x5={}",
                     stats.liveUpdates(),stats.packets(),stats.resident());
                 if(stats.liveUpdates()<1)
@@ -121,13 +123,21 @@ public final class SeamVisualE2E {
                 ServerPlayer p=server.getPlayerList().getPlayer(playerId);
                 if(p==null)return;
                 var stats=SeamChunkSender.stats(p);
-                LOG.info("WORLDSEAM_E2E_DUAL_STABLE: ticket={}, resident5x5={}, transmitted={}, fetches={} (was {}), packets={} (was {})",
+                long stableUnchanged=stablePackets-stableLiveUpdates;
+                long nowUnchanged=stats.packets()-stats.liveUpdates();
+                long transferred=stats.packets()-stablePackets;
+                LOG.info("WORLDSEAM_E2E_DUAL_STABLE: ticket={}, resident5x5={}, transmitted={}, forcedFetches={} (was {}), unchangedPacketSends={} (was {}), legitimateLiveUpdates={} (was {}), totalPacketsDelta={}",
                     stats.ticketActive(),stats.resident(),stats.transmitted(),
-                    stats.fetches(),stableFetches,stats.packets(),stablePackets);
+                    stats.fetches(),stableFetches,nowUnchanged,stableUnchanged,
+                    stats.liveUpdates(),stableLiveUpdates,transferred);
+                // Remote fluids/redstone may legitimately change blocks!
+                // Updates must remain bounded (one/10 server ticks), while
+                // NO new getChunk() or unsolicited re-stream is permitted.
                 if(!stats.ticketActive() || stats.resident()<25 ||
                     stats.fetches()!=stableFetches ||
-                    stats.packets()!=stablePackets)
-                    LOG.error("WORLDSEAM_E2E_FAIL_DUAL_STABLE: target dimension is unnecessarily re-fetching or re-sending chunks");
+                    nowUnchanged!=stableUnchanged ||
+                    transferred<0 || transferred>16)
+                    LOG.error("WORLDSEAM_E2E_FAIL_DUAL_STABLE: duplicate chunk fetch, unsolicited full resend or unbounded live-update packet rate");
             });
         } else if (phase==1 && now-startTick>620) {
             phase=2;
