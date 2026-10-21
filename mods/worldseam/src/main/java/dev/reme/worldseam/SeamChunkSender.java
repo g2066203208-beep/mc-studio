@@ -1,107 +1,193 @@
 package dev.reme.worldseam;
 
+import com.mojang.logging.LogUtils;
+import net.minecraft.network.protocol.game.ClientboundLevelChunkWithLightPacket;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.network.protocol.game.ClientboundLevelChunkWithLightPacket;
+import net.minecraft.server.level.TicketType;
+import net.minecraft.world.level.ChunkPos;
 import net.neoforged.neoforge.network.PacketDistributor;
 
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
 /**
- * Remote native chunk stream: never generate missing chunks synchronously.
- * Near nine chunks are sent FIRST for crossing readiness, then the outer
- * 5x5 ring for natural End/Nether scenery. One packet per 10 ticks max,
- * with a bounded 25-chunk window and an idle refresh delay.
+ * SECOND-WORLD RESIDENCY, not a periodic getChunk() poll.
+ *
+ * Every player near a vertical seam temporarily pins a 5x5 destination
+ * window with an ordinary (non-force-ticking) chunk region ticket.
+ * The actual current dimension remains loaded via vanilla player tickets.
+ * Tickets follow movement and are RELEASED on leaving the seam, dimension
+ * changes, toggling the mod, disconnect, or server shutdown/replacement.
+ *
+ * Arrival chunks are streamed center-first; only changed/new windows are
+ * fetched, avoiding generating the same unloaded chunk each scheduler tick.
  */
 public final class SeamChunkSender {
-    private static final int INTERVAL = 10;
-    private static final int REFRESH_TICKS = 1200;
-    private static final double RADIUS_FROM_EDGE = 96;
-    private static final int[][] OFFSETS = offsets();
+    private static final org.slf4j.Logger LOG=LogUtils.getLogger();
+    private static final int INTERVAL=10;
+    private static final int REFRESH_TICKS=1200;
+    private static final int WINDOW_RADIUS=2;
+    private static final int TICKET_DISTANCE=3;
+    private static final double RADIUS_FROM_EDGE=96;
+    private static final TicketType<ChunkPos> VIEW_TICKET=TicketType.create(
+        "worldseam_dual_view", Comparator.comparingLong(ChunkPos::toLong)
+    );
+    private static final int[][] OFFSETS=offsets();
+    private static MinecraftServer lastServer;
+    private static final Map<UUID,Session> sessions=new HashMap<>();
+
     private static int[][] offsets() {
         var list=new java.util.ArrayList<int[]>();
-        for(int z=-2;z<=2;z++)for(int x=-2;x<=2;x++)
-            list.add(new int[]{x,z});
-        list.sort(java.util.Comparator.comparingInt((int[] p) ->
-            Math.max(Math.abs(p[0]),Math.abs(p[1])) * 100 +
-            p[0]*p[0]+p[1]*p[1]));
+        for(int z=-WINDOW_RADIUS;z<=WINDOW_RADIUS;z++)
+            for(int x=-WINDOW_RADIUS;x<=WINDOW_RADIUS;x++)
+                list.add(new int[]{x,z});
+        list.sort(Comparator.comparingInt((int[] a) ->
+            Math.max(Math.abs(a[0]),Math.abs(a[1]))*100+a[0]*a[0]+a[1]*a[1]));
         return list.toArray(new int[0][]);
     }
-    private static MinecraftServer lastServer;
-    private static final Map<UUID, Session> sessions = new HashMap<>();
 
     private static final class Session {
-        String scope = "";
+        String scope="";
         int cursor;
-        final Map<Long, Long> lastSent = new HashMap<>();
+        ServerLevel ticketLevel;
+        ChunkPos ticketCenter;
+        long ticketChanges;
+        long chunkFetches;
+        long packetsSent;
+        final Map<Long,Long> lastSent=new HashMap<>();
+
+        void release() {
+            if(ticketLevel!=null && ticketCenter!=null)
+                ticketLevel.getChunkSource().removeRegionTicket(
+                    VIEW_TICKET,ticketCenter,TICKET_DISTANCE,ticketCenter);
+            ticketLevel=null;
+            ticketCenter=null;
+        }
+
+        void updateTicket(ServerLevel destination,ChunkPos center) {
+            if(ticketLevel==destination && center.equals(ticketCenter)) return;
+            release();
+            ticketLevel=destination;
+            ticketCenter=center;
+            destination.getChunkSource().addRegionTicket(
+                VIEW_TICKET,center,TICKET_DISTANCE,center);
+            ticketChanges++;
+            cursor=0;
+            // A new nearby view must stream its own 25 chunks first.
+            // Retain only chunks still in the current window.
+            lastSent.keySet().removeIf(key -> {
+                int cx=(int)(key>>32),cz=(int)(long)key;
+                return Math.abs(cx-center.x)>WINDOW_RADIUS ||
+                    Math.abs(cz-center.z)>WINDOW_RADIUS;
+            });
+        }
+
+        void reset() {
+            release();
+            scope="";
+            cursor=0;
+            lastSent.clear();
+        }
     }
+
     private SeamChunkSender() {}
 
-    public static void tick(MinecraftServer server, ServerPlayer player,
-                            long tick, boolean enabled) {
-        if (lastServer != server) {
-            lastServer = server;
+    public static void tick(MinecraftServer server,ServerPlayer player,
+                            long tick,boolean enabled) {
+        if(lastServer!=server) {
+            for(Session s:sessions.values())s.reset();
             sessions.clear();
+            lastServer=server;
         }
-        Session session = sessions.computeIfAbsent(player.getUUID(), id -> new Session());
-        if (!enabled) {
-            session.scope = "";
-            session.lastSent.clear();
-            return;
-        }
-        ServerLevel source = player.serverLevel();
-        String sourceId = source.dimension().location().toString();
-        SeamGraph.Link link = null;
-        for (SeamGraph.Link current : SeamStackRuntime.from(server,sourceId)) {
-            if (current.near(player.getY(), SeamStackRuntime.bottom(source),
-                SeamStackRuntime.top(source), RADIUS_FROM_EDGE)) {
-                link = current;
-                break;
+        Session session=sessions.computeIfAbsent(player.getUUID(),id->new Session());
+        if(!enabled) {session.reset();return;}
+
+        ServerLevel source=player.serverLevel();
+        String sourceId=source.dimension().location().toString();
+        SeamGraph.Link selected=null;
+        double best=Double.POSITIVE_INFINITY;
+        for(SeamGraph.Link link:SeamStackRuntime.from(server,sourceId)) {
+            double seam=SeamStackRuntime.boundary(source,link.exit());
+            double delta=Math.abs(player.getY()-seam);
+            if(delta<=RADIUS_FROM_EDGE && delta<best) {
+                best=delta;
+                selected=link;
             }
         }
-        if (link == null) {
-            session.scope = "";
-            session.lastSent.clear();
-            return;
-        }
-        ServerLevel target = server.getLevel(SeamServer.dimensionKey(link.target()));
-        if (target == null || tick % INTERVAL != 0) return;
-        String scope = sourceId + ":" + link.target() + ":" + link.exit();
-        if (!scope.equals(session.scope)) {
-            session.scope = scope;
-            session.cursor = 0;
-            session.lastSent.clear();
-        }
+        if(selected==null) {session.reset();return;}
 
-        int slot = session.cursor++ % OFFSETS.length;
-        int cx = Math.floorDiv(player.blockPosition().getX(),16);
-        int cz = Math.floorDiv(player.blockPosition().getZ(),16);
-        int x = cx + OFFSETS[slot][0];
-        int z = cz + OFFSETS[slot][1];
-        // One destination chunk may be prepared per second, never an
-        // unbounded synchronous remote load pass.
-        if (!target.hasChunk(x,z)) target.getChunk(x,z);
-        long key = ((long)x << 32) | (z & 0xffffffffL);
-        if (tick - session.lastSent.getOrDefault(key, Long.MIN_VALUE / 2)
-            < REFRESH_TICKS) return;
+        ServerLevel target=server.getLevel(SeamServer.dimensionKey(selected.target()));
+        if(target==null) {session.reset();return;}
 
-        // These bytes are the same canonical chunk payload MC uses for
-        // real chunk ingestion, rather than inventing a fake block palette.
-        ClientboundLevelChunkWithLightPacket nativePacket =
+        String scope=sourceId+":"+selected.target()+":"+selected.exit();
+        if(!scope.equals(session.scope)) {
+            session.reset();
+            session.scope=scope;
+        }
+        int centerX=Math.floorDiv(player.blockPosition().getX(),16);
+        int centerZ=Math.floorDiv(player.blockPosition().getZ(),16);
+        session.updateTicket(target,new ChunkPos(centerX,centerZ));
+
+        if(tick%INTERVAL!=0)return;
+
+        int slot=session.cursor++%OFFSETS.length;
+        int cx=centerX+OFFSETS[slot][0],cz=centerZ+OFFSETS[slot][1];
+        long key=((long)cx<<32)|(cz&0xffffffffL);
+        long previous=session.lastSent.getOrDefault(key,Long.MIN_VALUE/2);
+        // Check LAST SENT timestamp BEFORE ANY getChunk(). Otherwise an
+        // unattended secondary dimension is force-reloaded on each visit.
+        if(tick-previous<REFRESH_TICKS)return;
+
+        // A controlled, bounded one-chunk fetch occurs only for unsent/stale
+        // data. Temporary residency keeps the remaining chunks loaded.
+        if(!target.hasChunk(cx,cz)) {
+            session.chunkFetches++;
+            target.getChunk(cx,cz);
+        }
+        ClientboundLevelChunkWithLightPacket vanilla =
             new ClientboundLevelChunkWithLightPacket(
-                target.getChunk(x,z), target.getLightEngine(), null, null
-            );
+                target.getChunk(cx,cz),target.getLightEngine(),null,null);
         PacketDistributor.sendToPlayer(player,
-            new SeamChunkPayload(sourceId, link.target(), x,z,
-                nativePacket.getChunkData(), nativePacket.getLightData()));
-        session.lastSent.put(key, tick);
+            new SeamChunkPayload(sourceId,selected.target(),cx,cz,
+                vanilla.getChunkData(),vanilla.getLightData()));
+        session.lastSent.put(key,tick);
+        session.packetsSent++;
+        if(slot==8 || slot==24)
+            LOG.info("WorldSeam dual-world target={} center={},{} cached-window={}/25 sent={} forcedFetches={} ticketMoves={}",
+                selected.target(),centerX,centerZ,session.lastSent.size(),
+                session.packetsSent,session.chunkFetches,session.ticketChanges);
+    }
+
+    public static int activeTickets() {
+        int count=0;
+        for(Session session:sessions.values())
+            if(session.ticketLevel!=null)count++;
+        return count;
+    }
+
+    public static int currentTargetLoaded(ServerPlayer player) {
+        Session session=sessions.get(player.getUUID());
+        if(session==null||session.ticketLevel==null||session.ticketCenter==null)
+            return 0;
+        int count=0;
+        for(int z=-WINDOW_RADIUS;z<=WINDOW_RADIUS;z++)
+            for(int x=-WINDOW_RADIUS;x<=WINDOW_RADIUS;x++)
+                if(session.ticketLevel.hasChunk(session.ticketCenter.x+x,
+                    session.ticketCenter.z+z))count++;
+        return count;
     }
 
     public static void prune(Set<UUID> online) {
-        sessions.keySet().retainAll(online);
+        sessions.entrySet().removeIf(e->{
+            if(online.contains(e.getKey()))return false;
+            e.getValue().reset();
+            return true;
+        });
     }
 }
