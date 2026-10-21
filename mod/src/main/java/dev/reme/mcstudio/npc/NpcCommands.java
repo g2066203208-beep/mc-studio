@@ -30,7 +30,24 @@ public final class NpcCommands {
     private NpcCommands() {}
 
     public static void register(RegisterCommandsEvent event) {
+        // Works with no OP privileges; confirms the MOD actually loaded.
+        event.getDispatcher().register(Commands.literal("remecheck")
+            .executes(ctx -> {
+                boolean ready = ctx.getSource().getServer().getCommands()
+                    .getDispatcher().getRoot().getChild("npc") != null;
+                ctx.getSource().sendSuccess(() -> Component.literal(
+                    "REME NPC v0.5.2 active; /npc registered=" + ready
+                    + ". If /npc spawn is denied, enable cheats or operator privileges."),
+                    false);
+                return 1;
+            }));
         event.getDispatcher().register(Commands.literal("npc")
+            .executes(ctx -> {
+                ctx.getSource().sendSuccess(() -> Component.literal(
+                    "REME NPC v0.5.2: /npc info, /npc spawn (cheats required), /npc demo (cheats required)"),
+                    false);
+                return 1;
+            })
             .then(Commands.literal("spawn").requires(source -> source.hasPermission(2))
                 .executes(ctx -> spawn(ctx.getSource(), "NPC"))
                 .then(Commands.argument("name", StringArgumentType.greedyString())

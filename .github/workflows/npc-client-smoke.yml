@@ -2,7 +2,7 @@ name: Client bootstrap smoke (experimental)
 on:
   workflow_dispatch:
   push:
-    branches: [fix/npc-runtime-v051]
+    branches: [fix/npc-runtime-v051, fix/npc-load-diagnostics-v052]
 permissions:
   contents: read
 jobs:
