@@ -17,6 +17,7 @@ public final class ClimbMotion {
         if (s.faceSwitchCooldown > 0) s.faceSwitchCooldown--;
         if (s.wallJumpCooldown > 0) s.wallJumpCooldown--;
         if (s.airborneRegrabTicks > 0) s.airborneRegrabTicks--;
+        if (s.wallJumpAnimationTicks > 0) s.wallJumpAnimationTicks--;
         if (s.roofEntryTicks > 0) s.roofEntryTicks--;
         if (player.isPassenger() || player.isSpectator() || !player.isAlive()
                 || player.getAbilities().flying) {
@@ -44,6 +45,7 @@ public final class ClimbMotion {
             if (c == null) return;
             s.left = candidate;
             s.enabled = true;
+            s.wallJumpAnimationTicks = 0;
             s.grabYaw = ClimbSurfaceMath.facingYaw(c.normal(), player.getYRot());
             s.lastLeft = c.point();
             s.lastResolvedAnchor = candidate;
@@ -70,8 +72,13 @@ public final class ClimbMotion {
             if (s.wallJumpCooldown == 0 && !ClimbSurfaceMath.ceiling(normal)
                     && !ClimbSurfaceMath.floor(normal)) {
                 Vec3 impulse = ClimbSurfaceMath.wallJumpVelocity(player.getLookAngle(), normal);
+                Vec3 departurePoint = contact.point();
                 s.release();                 // keep peakHeld so a new wall may be caught
                 s.airborneRegrabTicks = 7;
+                s.wallJumpAnimationTicks = 10;
+                s.contactNormal = normal;
+                s.contactPoint = departurePoint;
+                s.poseAction = 9;
                 s.wallJumpCooldown = 22;
                 player.setDeltaMovement(impulse);
                 player.fallDistance = 0;

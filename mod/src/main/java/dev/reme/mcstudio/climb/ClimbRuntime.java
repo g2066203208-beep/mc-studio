@@ -45,6 +45,7 @@ public final class ClimbRuntime {
                 s.left = hit;
                 s.right = null;
                 s.enabled = true;
+                s.wallJumpAnimationTicks = 0; // New catch blends directly to grip.
                 GripAnchor.Contact contact = hit.resolve(player.level());
                 s.lastLeft = contact == null ? net.minecraft.world.phys.Vec3.ZERO : contact.point();
                 s.lastResolvedAnchor = contact == null ? null : hit;

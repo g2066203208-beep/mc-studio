@@ -44,16 +44,18 @@ public final class PeakAnimationController {
     private static final ResourceLocation LAYER_ID =
             ResourceLocation.fromNamespaceAndPath(StudioMod.MOD_ID, "peak_climb_layer");
     private static final Map<AbstractClientPlayer, Playback> PLAYBACKS = new WeakHashMap<>();
-    private static final int NONE = -1;
-    private static final int HANG = 0;
-    private static final int ASCEND = 1;
-    private static final int TRAVERSE = 2;
-    private static final int MANTLE = 3;
-    private static final int RELEASE = 7;
-    private static final int CEILING_HANG = 4;
-    private static final int CEILING_CRAWL = 5;
-    private static final int CEILING_TRAVERSE = 6;
-    private static final int ROOF_ENTRY = 8;
+    private static final int NONE = PeakAnimationPolicy.NONE;
+    private static final int HANG = PeakAnimationPolicy.HANG;
+    private static final int ASCEND = PeakAnimationPolicy.ASCEND;
+    private static final int TRAVERSE = PeakAnimationPolicy.TRAVERSE;
+    private static final int MANTLE = PeakAnimationPolicy.MANTLE;
+    private static final int RELEASE = PeakAnimationPolicy.RELEASE;
+    private static final int CEILING_HANG = PeakAnimationPolicy.CEILING_HANG;
+    private static final int CEILING_CRAWL = PeakAnimationPolicy.CEILING_CRAWL;
+    private static final int CEILING_TRAVERSE = PeakAnimationPolicy.CEILING_TRAVERSE;
+    private static final int ROOF_ENTRY = PeakAnimationPolicy.ROOF_ENTRY;
+    private static final int WALL_JUMP = PeakAnimationPolicy.WALL_JUMP;
+    private static final int CEILING_RELEASE = PeakAnimationPolicy.CEILING_RELEASE;
     private static boolean warnedMissing;
 
     private static final class Playback {
@@ -106,30 +108,42 @@ public final class PeakAnimationController {
                     playback.contact = playback.contact.lerp(state.contactPoint(), 0.28);
                 }
             } else playback.contactReady = false;
-            int desired = state == null ? NONE : Math.min(ROOF_ENTRY, Math.max(HANG, state.action()));
+            int desired = PeakAnimationPolicy.requested(
+                    state != null && state.climbing(), state == null ? NONE : state.action());
             if (playback.speed != null && state != null && state.normal().lengthSqr() > .5) {
                 // Link animation cadence to ACTUAL contact-plane movement, not camera.
                 double travel = ClimbSurfaceMath.tangent(client.getDeltaMovement(),
                         state.normal().normalize()).length();
                 float wantedSpeed = (float)Math.max(.72, Math.min(2.2, travel/.16));
                 if (desired == HANG || desired == CEILING_HANG) wantedSpeed = .84f;
-                if (desired == MANTLE) wantedSpeed = 1f;
+                if (desired == MANTLE || desired == WALL_JUMP) wantedSpeed = 1f;
                 playback.speed.speed += (wantedSpeed - playback.speed.speed)*.22f;
             }
 
-            if (desired == NONE && playback.mode >= HANG && playback.mode <= ROOF_ENTRY) {
-                swap(layer, RELEASE);
-                playback.mode = RELEASE;
-                playback.releaseUntil = client.tickCount + 9;
-            } else if (desired >= HANG && desired != playback.mode) {
-                swap(layer, desired);
-                playback.mode = desired;
-                playback.releaseUntil = -1;
-            } else if (desired == NONE && playback.mode == RELEASE
-                    && client.tickCount >= playback.releaseUntil) {
+            int next = PeakAnimationPolicy.next(
+                    playback.mode, desired, client.tickCount, playback.releaseUntil);
+            if (next == playback.mode) continue;
+            if (PeakAnimationPolicy.isRelease(next)) {
+                // Enter ONCE. Replaying the release every tick previously moved
+                // releaseUntil forward forever, permanently freezing vanilla idle/walk!
+                swap(layer, next);
+                playback.mode = next;
+                playback.releaseUntil = client.tickCount
+                        + PeakAnimationPolicy.RELEASE_DURATION_TICKS;
+                if (playback.speed != null) playback.speed.speed = 1f;
+                playback.contactReady = false; // No ghost attachment after release.
+            } else if (next == NONE) {
+                // Restore vanilla animation layer. Clear even in third person.
                 layer.replaceAnimationWithFade(
-                        AbstractFadeModifier.standardFadeIn(4, Ease.INOUTSINE), null);
+                        AbstractFadeModifier.standardFadeIn(5, Ease.INOUTSINE), null);
                 playback.mode = NONE;
+                playback.releaseUntil = -1;
+                playback.contactReady = false;
+                if (playback.speed != null) playback.speed.speed = 1f;
+            } else {
+                swap(layer, next);
+                playback.mode = next;
+                playback.releaseUntil = -1;
             }
         }
     }
@@ -154,7 +168,8 @@ public final class PeakAnimationController {
         boolean isRight = part.equals("rightArm") || part.equals("right_arm");
         if ((!isLeft && !isRight) || !playback.contactReady) return Optional.empty();
         PeakVisuals.Pose pose = PeakVisuals.pose(client);
-        if (pose == null || !pose.climbing() || pose.normal().lengthSqr() < .5)
+        if (pose == null || !pose.climbing() || pose.action() == WALL_JUMP
+                || pose.normal().lengthSqr() < .5)
             return Optional.empty();
         double yaw = Math.toRadians(pose.bodyYaw());
         Vec3 sideways = new Vec3(-Math.cos(yaw), 0, -Math.sin(yaw));
@@ -174,7 +189,7 @@ public final class PeakAnimationController {
         boolean firstPersonRoof = roof && client == Minecraft.getInstance().player
                 && Minecraft.getInstance().options.getCameraType().isFirstPerson();
         float modelSide = isLeft ? 1f : -1f;
-        float wide = firstPersonRoof ? 3.4f : roof ? .25f : 0f;
+        float wide = firstPersonRoof ? 2.25f : roof ? .15f : 0f;
         Vec3f rotation = new Vec3f(-.085f*vertical, .10f*lateral,
                 -.065f*(float)armSide*lateral);
         Vec3f offset = new Vec3f(.67f*lateral + modelSide*wide,
@@ -191,6 +206,8 @@ public final class PeakAnimationController {
             case CEILING_CRAWL -> "peak_ceiling_crawl";
             case CEILING_TRAVERSE -> "peak_ceiling_traverse";
             case ROOF_ENTRY -> "peak_wall_to_ceiling";
+            case WALL_JUMP -> "peak_wall_jump";
+            case CEILING_RELEASE -> "peak_ceiling_release";
             case RELEASE -> "peak_release";
             default -> "peak_hang";
         };
@@ -214,6 +231,6 @@ public final class PeakAnimationController {
                     .setShowLeftItem(true).setShowRightItem(true));
         }
         layer.replaceAnimationWithFade(
-                AbstractFadeModifier.standardFadeIn(4, Ease.INOUTSINE), animation, true);
+                AbstractFadeModifier.standardFadeIn(5, Ease.INOUTSINE), animation, true);
     }
 }

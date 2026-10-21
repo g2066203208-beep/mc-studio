@@ -33,15 +33,18 @@ public final class ClimbServerEvents {
         ClimbState state = ClimbState.of(player);
         ClimbMotion.tick(player, state);
         if (player instanceof ServerPlayer serverPlayer) {
-            // Send close-by clients a compact animation state, also send once on release.
-            if (serverPlayer.tickCount % 3 == 0 || (state.previouslySynced && !state.enabled)) {
-                if (state.enabled || state.previouslySynced) {
+            // Preserve the outward wall-jump animation after the physical grip
+            // releases, then send ONE authoritative inactive update at the end.
+            boolean active = state.enabled
+                    || (state.peakHeld && state.wallJumpAnimationTicks > 0);
+            if (serverPlayer.tickCount % 3 == 0 || (state.previouslySynced && !active)) {
+                if (active || state.previouslySynced) {
                     PacketDistributor.sendToPlayersTrackingEntityAndSelf(serverPlayer,
-                            new ClimbNetwork.Pose(serverPlayer.getId(), state.enabled,
+                            new ClimbNetwork.Pose(serverPlayer.getId(), active,
                                     state.peakPhase, state.poseAction,
                                     state.contactNormal, state.contactPoint, state.grabYaw));
                 }
-                state.previouslySynced = state.enabled;
+                state.previouslySynced = active;
             }
         }
     }

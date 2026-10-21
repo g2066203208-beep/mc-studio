@@ -38,7 +38,8 @@ public final class PeakSurfaceRender {
         // Roof: REAL suspended hang. The legs and torso stay mostly VERTICAL
         // below two raised gripping hands; rotating the entire root 64 degrees
         // made the climber lie horizontally against the ceiling.
-        float tilt = ClimbSurfaceMath.ceiling(normal) ? 0f
+        float tilt = pose.action() == PeakAnimationPolicy.WALL_JUMP ? 0f
+                : ClimbSurfaceMath.ceiling(normal) ? 0f
                 : ClimbSurfaceMath.floor(normal) ? 0f : 5.5f;
         if (tilt != 0) {
             stack.translate(0, 1.16, 0);
