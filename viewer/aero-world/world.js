@@ -21,7 +21,7 @@ const registry=['minecraft:grass_block','minecraft:stone','minecraft:oak_planks'
 let hotbar=['create:andesite_casing','simulated:swivel_bearing','create:shaft','create:creative_motor',
 'simulated:physics_assembler','minecraft:iron_block','simulated:gimbal_sensor','minecraft:glass','minecraft:oak_planks'];
 let slot=0,yaw=0,pitch=-.09,flying=true,paused=true,vy=0,grounded=false,ready=false,assetRevision=0;
-let hovered=null,placeAt=null,noticeUntil=0,lastTime=performance.now(),touchStart=null;
+let hovered=null,placeAt=null,noticeUntil=0,lastTime=performance.now(),touchStart=null,renderFrames=0;
 const eyeHeight=1.62;
 const cubeKey=(x,y,z)=>String(x)+','+String(y)+','+String(z);
 const fromKey=k=>k.split(',').map(Number);
@@ -439,6 +439,7 @@ function render(now){
  motion(dt);camera.rotation.set(pitch,yaw,0,'YXZ');
  if(!paused)aim();
  renderer.render(scene,camera);
+ renderFrames++;
  $('coords').textContent='X '+camera.position.x.toFixed(1)+' · Y '+camera.position.y.toFixed(1)+
  ' · Z '+camera.position.z.toFixed(1)+(flying?' · FLY':'');
  if(now>noticeUntil)$('notice').style.opacity=0;
@@ -455,7 +456,7 @@ function init(){
   getBlockCount:()=>cells.size,getId:(x,y,z)=>cells.get(cubeKey(x,y,z))?.id||null,
   getPlayer:()=>camera.position.toArray(),getHotbar:()=>[...hotbar],isPlaying:()=>!paused,
   modBlocks:()=>assets.catalog.size,archives:()=>assets.archives.length,
-  pressedKeys:()=>[...keyPressed],terrainBatchCount:()=>terrainInstances.length,
+  pressedKeys:()=>[...keyPressed],terrainBatchCount:()=>terrainInstances.length,frames:()=>renderFrames,
   addBlock:(x,y,z,id)=>edit(x,y,z,id),removeBlock:(x,y,z)=>edit(x,y,z,null),
   exportWorld:data,importWorld:restore,refreshModels:refreshWorld,enter:resume,
   inspect:()=>({hovered,placeAt}),
