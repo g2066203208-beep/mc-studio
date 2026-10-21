@@ -177,6 +177,21 @@ xdotool type --clearmodifiers --delay 30 '/data get entity @e[type=reme_studio:p
 xdotool key Return
 sleep 2
 import -window root client-gui-mining-tool-after.png
+# A mined item must actually reach the NPC's own persistent inventory.
+# The 1.21.1 SimpleContainer tag is a list of Slot/id/count compounds.
+sleep 7
+xdotool key --clearmodifiers t
+sleep 1
+xdotool type --clearmodifiers --delay 22 '/data get entity @e[type=reme_studio:player_npc,name=MinerGUI,limit=1] NpcBackpack'
+xdotool key Return
+sleep 2
+import -window root client-gui-loot-backpack.png
+xdotool key --clearmodifiers t
+sleep 1
+xdotool type --clearmodifiers --delay 22 '/execute if data entity @e[type=reme_studio:player_npc,name=MinerGUI,limit=1] NpcBackpack[{id:"minecraft:cobblestone"}] run say REME_NPC_LOOT_IN_BACKPACK'
+xdotool key Return
+sleep 2
+import -window root client-gui-loot-verified.png
 xdotool key --clearmodifiers t
 sleep 1
 xdotool type --clearmodifiers --delay 50 '/npc info'
@@ -192,7 +207,10 @@ fi
 if ! grep -q 'REME_MINING_CONFIRMED_AIR' run/logs/latest.log; then
   echo "Minecraft did not confirm that NPC mined the test block"; exit 1
 fi
-echo "PASS: actual integrated Minecraft server confirmed stone -> air following NPC mining"
+if ! grep -q 'REME_NPC_LOOT_IN_BACKPACK' run/logs/latest.log; then
+  echo "Minecraft did not confirm actual cobblestone in NPC saved backpack"; exit 1
+fi
+echo "PASS: integrated Minecraft confirmed mined stone -> air and cobblestone inside NPC persistent backpack"
 
 echo "Window id: $found"
 echo "Minecraft launch/render indicators:"
