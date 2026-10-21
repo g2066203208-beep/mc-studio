@@ -45,7 +45,7 @@ class SeamBlastGeometryTest {
     }
 
     @Test void upperEdgeEndY256IsAlsoClippedInsideRealWorld() {
-        var mapped=SeamBlastGeometry.map(-0.5,0,256,4);
+        var mapped=SeamBlastGeometry.map(0.5,0,256,4);
         var clipped=SeamBlastGeometry.forNativeBuildRange(mapped,0,256);
         assertNotNull(clipped);
         assertEquals(255.875,clipped.mappedY());
