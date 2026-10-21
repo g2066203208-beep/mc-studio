@@ -42,9 +42,10 @@ export function buildBossPhysics(RAPIER){
   for(const piece of pieces){
    if(piece.removed)continue;
    const {x,y,z}=piece;
-   const rx=2*(q.x*q.z+q.w*q.y),ry=2*(q.y*q.z-q.w*q.x);
-   const sx=2*(q.x*q.y-q.w*q.z),sy=1-2*(q.x*q.x+q.z*q.z);
-   const tx=1-2*(q.y*q.y+q.z*q.z),tz=2*(q.y*q.z+q.w*q.x);
+   // World-space Y projection of the quaternion rotation matrix.
+   const ry=2*(q.x*q.y+q.w*q.z);
+   const sy=1-2*(q.x*q.x+q.z*q.z);
+   const tz=2*(q.y*q.z-q.w*q.x);
    const cy=p.y+ry*x+sy*y+tz*z;
    const halfExtent=.5*(Math.abs(ry)+Math.abs(sy)+Math.abs(tz));
    lowest=Math.min(lowest,cy-halfExtent);
