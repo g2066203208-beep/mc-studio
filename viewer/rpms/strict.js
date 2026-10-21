@@ -346,8 +346,12 @@ async function init(){
   getOfficialState:()=>[...packageState.entries()].map(([slug,status])=>({slug,...status})),
   runAutoLoad:startOfficialLoading,
   place,removeAt,setMode,selectBlock,reset:()=>{world=[];inspected=null;renderWorld()}};
-  $('example').click(); // first visitor sees genuine 3D objects, not an empty scene
-  window.__STRICT_READY__=true;notify('已展示机械动力 3D 示例；正在从官方源读取模型资源');
+  $('example').click(); // first visitor sees visible 3D objects, not an empty scene
+  // Show at least one Aeronautics/Simulated physics bearing immediately too.
+  // Keep it separate from the demonstrated Create kinetic network.
+  world.push({id:'simulated:swivel_bearing',pos:[-2,1,0],axis:'z',facing:'north'});
+  renderWorld();
+  window.__STRICT_READY__=true;notify('已展示 Create 传动和 Simulated 轴承 3D 示例；正在载入原版贴图');
   startOfficialLoading();
  }catch(err){window.__STRICT_ERROR__=err.message;notify('初始化失败：'+err.message);console.error(err)}
 }
