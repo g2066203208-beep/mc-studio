@@ -28,3 +28,9 @@ Bedrock world-generation fix: custom `SeamChunkGenerationMixin` at MC 1.21.1 `Ch
 `/worldseam enable` now enables no-respawn by default because legacy teleport was misleading. Admin can still explicitly use `/worldseam smooth disable` for regression testing of the legacy path, but that is not seamless.
 
 This does NOT yet solve multi-ClientLevel frame rendering, visual depth clipping, synchronization of all entities, collision bridging for physics mods, or verified smooth client handoff. Prior GameTest and headless client startup are insufficient for complete user-visible no-loading claims.
+
+## v0.8 save-specific editable stack
+
+The previous `SeamGraph.LINKS` is retained only as a legacy baseline for pure tests. New server-side runtime world routing takes `SeamSettings.stack()` via `SeamStackRuntime`. The create-world GUI (registered using NeoForge `ScreenEvent.Init.Post`) obtains candidate dimensions from the world-creation `datapackDimensions` registry and opens `SeamStackScreen`. A CreateWorldScreen Mixin arms the preset only when the actual `onCreate` action is invoked. A one-shot `ServerStartingEvent` installs the validated stack into the new world's persistent SavedData. The server transmits ordered entries and actual target dimension type keys via `SeamStackSyncPayload`; clients run their geometry/HUD mappings from that snapshot. The server dynamically routes chunks, previews, player/entity crossings, and bedrock replacement bands using stack endpoints.
+
+**Remaining issues before declaring complete:** verify screen can be opened/saved in real NeoForge GUI and configuration is persisted across reload. Test actual installed third-party dimension mods with different height and dimension-type keys. Vanilla GUI edit config changes the *seam endpoints*, not the registered `DimensionType` properties. No dynamic registry rewrite of min_y/height. No fully unified multiworld stencil or depth compositing.

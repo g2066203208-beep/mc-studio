@@ -7,7 +7,7 @@
 - **Mod ID：`worldseam`**
 - Java 包：`dev.reme.worldseam`
 - 独立 Gradle 工程：`mods/worldseam/`
-- 构建产物：`mods/worldseam/build/libs/worldseam-0.7.0-dev.jar`
+- 构建产物：`mods/worldseam/build/libs/worldseam-0.8.0-dev.jar`
 - 依赖：Minecraft 与 NeoForge；**不依赖 PEAK 攀爬，也不依赖 Immersive Portals**。
 
 ## 为什么和 PEAK 完全独立
@@ -66,3 +66,13 @@ v0.5 的 teleportTo 仍引发原版 ClientboundRespawnPacket/加载界面。本�
 **警告：** WorldSeam 当前的多 ClientLevel 和 direct handoff 已通过自动化编译/部分启动测试，但还没有实际 GUI 存档穿越录屏验收。渲染仍然是实验性稀疏代理，不能保证完整区块视觉无缝、双向实体同步和流体光照正确；这些是下一个阻断验收。
 
 **本版重要限制**：虽然新增了真实物理接缝提前判断，远端世界仍未建立一个已通过 GUI 穿越验收的完整跨维渲染合成器。不要把测试世界的无 Respawn 实验模式当成完成版。
+
+## v0.8.0-dev — 可编辑维度堆叠（测试中）
+
+进入 **创建世界 → WorldSeam: Stack** 可以配置堆叠。以从上到下的顺序排列，每层可 **Prev/Next 选择、Move UP/DOWN 换位、Add/Remove 增减、设置 Bottom Y/Top Y、选择 UP/DOWN 单向/双向连接以及 Loop**。在 **Save stack** 后返回创建世界界面，**最后点击创建世界**才提交到该新存档。
+
+“可用维度”来自创建世界当前已加载的世界生成 `LevelStem` 注册表（含安装的维度 Mod 与数据包实际提供的维度），而不是写死三个原版维度。服务器还会再次校验每一个所选 ID 是否存在以及上/下连接面是否在真实可建造范围内；不存在就拒绝启用，不能自动生成别的 Mod 的维度。独立运行时从存档读取该堆叠并把配置发给客户端。
+
+**重要区别**：这里的 Top/Bottom Y 是“连接面坐标”，不是修改 Minecraft 的 `DimensionType.min_y`/`height` 本身。配置里的下界 Top Y=128 不会自动将下界原版实际建筑上限 Y=256 修改为128。底层完整远端渲染与世界生物/光照/流体同步仍处实验阶段。**目前尚未用真实第三方维度 Mod 进行 GUI 游戏内验证**，不能保证所有维度 Mod 的兼容性。存档修改高度和堆叠前请备份，尽量只在新建世界设置。
+
+默认堆叠为 **末地（顶部）→ 主世界（中间）→ 下界（底部）**，默认无环。未来新生成区块才会可选地处理接缝的基岩，已有地形不会自动回填或剪裁。**暂未实现**跨维完整视频遮挡合成、原生真实全维度地形拼接、直接编辑 DimensionType 原生高度、Mod 维度生成器重建。
