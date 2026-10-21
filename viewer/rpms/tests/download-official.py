@@ -53,8 +53,20 @@ def download_version(slug,required,filename):
     print(f'VALIDATED official {slug} {v["version_number"]}; bytes={len(data)}; sha512={hashlib.sha512(data).hexdigest()}',flush=True)
     return {'slug':slug,'version':v['version_number'],'sha512':hashlib.sha512(data).hexdigest(),
         'filename':str(target),'bytes':len(data),'source_id':v['id']}
+def download_minecraft_client():
+    manifest=json.loads(retrieve('https://piston-meta.mojang.com/mc/game/version_manifest_v2.json'))
+    version=next(x for x in manifest['versions'] if x['id']=='1.21.1')
+    detail=json.loads(retrieve(version['url']))['downloads']['client']
+    data=retrieve(detail['url'])
+    sha=hashlib.sha1(data).hexdigest()
+    if sha!=detail['sha1']:raise RuntimeError('Minecraft client SHA1 verification failed')
+    target=OUT/'minecraft-1.21.1.jar'
+    target.write_bytes(data)
+    print(f'VALIDATED Minecraft client 1.21.1, bytes={len(data)} sha1={sha}',flush=True)
+    return {'version':'1.21.1','sha1':sha,'filename':str(target),'bytes':len(data)}
 record={'minecraft':'1.21.1','neoforge':True,'mods':[
     download_version('create','6.0.10','create-1.21.1.jar'),
-    download_version('create-aeronautics','1.3.2','aeronautics-1.21.1.jar')]}
+    download_version('create-aeronautics','1.3.2','aeronautics-1.21.1.jar')],
+    'client':download_minecraft_client()}
 (OUT/'versions.json').write_text(json.dumps(record,indent=2),encoding='utf-8')
 print('OFFICIAL_MOD_DIR='+str(OUT),flush=True)
