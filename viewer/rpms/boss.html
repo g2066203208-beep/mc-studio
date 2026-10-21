@@ -52,12 +52,12 @@
   <div class="metric large"><span>机身底面高度</span><strong id="bodyHeight">—</strong><small>距离静态地面的高度（格）</small></div>
   <div class="metric"><span>剩余支撑腿</span><strong id="feetCount">—</strong><small>共 4 条</small></div>
   <div class="metric"><span>实际刚体质量</span><strong id="bodyMass">—</strong><small>Rapier 自动按密度计算</small></div>
-  <div class="metric"><span>脚底距地面</span><strong id="footGap">—</strong><small>接触时应接近 0</small></div>
+  <div class="metric"><span>最低碰撞体距地面</span><strong id="footGap">—</strong><small>当前有效方块与地面的真实碰撞间隙</small></div>
   <div class="metric"><span>垂直速度</span><strong id="velocity">—</strong><small>m/s · 由物理引擎计算</small></div>
   <div class="metric"><span>物理求解帧数</span><strong id="steps">—</strong><small>固定步长 1/60 秒</small></div>
   <div class="subhead">真实性边界</div>
-  <p class="truth">本页面**确实运行 Rapier 的 WebAssembly 刚体、重力和碰撞求解**，可以无安装直接操作；但它不是 Minecraft NeoForge Java 服务端，也没有声称运行 Sable 的所有模组接口。当前腿与机身为一体刚体，关节、动力传动和自主步行仍需逐阶段做。</p>
-  <a class="source" href="https://github.com/g2066203208-beep/mc-studio/blob/main/docs/boss/P0_FOUR_FOOT_RIG.md">查看原版游戏内 P0 承重对照 ↗</a>
+  <p class="truth">本页面确实运行 <strong>Rapier WebAssembly 刚体、重力和碰撞求解</strong>，可以无安装直接操作；但它不是 Minecraft NeoForge Java 服务端，也没有声称运行 Sable 的所有模组接口。当前腿与机身为一体刚体，关节、动力传动和自主步行仍需逐阶段做。</p>
+  <a class="source" href="https://github.com/g2066203208-beep/mc-studio/blob/main/docs/boss/P0_BROWSER_PHYSICS.md">查看网页物理实现与原版对照 ↗</a>
  </aside>
 </div>
 <script type="module" src="./boss.js"></script>
