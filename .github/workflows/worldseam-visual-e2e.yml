@@ -55,7 +55,7 @@ jobs:
             xdotool mousemove 640 540 click 1
             sleep 8
             xwd -root -silent | convert xwd:- -resize 600x338 -quality 48 visual-world-create.jpg
-            # Open WorldSeam's native Create World editor at upper-right.
+            # Open the native WorldSeam Create World editor at upper-right.
             # This UI verification runs before any world is created.
             xdotool mousemove 1100 32 click 1
             sleep 3
