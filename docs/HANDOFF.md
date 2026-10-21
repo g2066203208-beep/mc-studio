@@ -182,3 +182,13 @@ Push CI `39518033958` SUCCESS，PR CI `39518039426` SUCCESS。Artifact `12310085
 - 游戏测试新增一项，确保未授权不能放置、正确材料真实放置并消耗一次、重复/错误材料拒绝。新 `runGameTestServer` [39574791216](https://github.com/g2066203208-beep/mc-studio/actions/runs/39574791216) **17/17 required passed**；[Build 39574791189](https://github.com/g2066203208-beep/mc-studio/actions/runs/39574791189) **success**；Windows 安装器 [39574791312](https://github.com/g2066203208-beep/mc-studio/actions/runs/39574791312) **success**。客户端截图 [39574786212](https://github.com/g2066203208-beep/mc-studio/actions/runs/39574786212) 仅为独立 Xvfb 功能拍照回归，必须查看图像才可声称实际展示新建造步骤（脚本不会直接展示建造）。
 - **未实现/验证**：玩家完整挖掘进度、工具耐久消耗、多种 mod 工作方块、合成界面、玩家背包等价、网络玩家身份、区域保护模组适配、长跑 FakePlayer 内存、真实动态双层 NPC 皮肤。没有完整玩家等价能力，不要标记整个项目完成。
 - 本分支基于 `fix/npc-guard-patrol-v056`，与 PR #34 视觉依赖测试是并行开发，仍需安全合流和游戏内完整组合测试。
+
+
+## 2026-10-21 v0.5.7 玩家式实际挖掘 P1：最终客户端和 GameTest 验收
+
+- 专业实施 Prompt 与 P0–P6 路线图：`docs/NPC_PLAYER_PARITY_MASTER_PLAN.md`；实测总结和复盘：`docs/NPC_PLAYER_PARITY_V057_PLAYTEST.md`；总控 Issue #41；独立 draft PR #39（based on `feature/npc-player-action-bridge-v056`，**绝不直接合入 main**）。
+- 编码源码验收提交 `351536ac5c6f4d62daff4045658061af37b9131c`；后续仅文档更改，JAR Java/资源不变。实际功能是带真实工具磨损和原版生存速度的授权单目标挖掘；NeoForge FakePlayer player gameMode.destroyBlock 负责破坏事件与掉落，不是绕过 API 直接修改方块。防错误镐子、超距、未加载区块、越过家园边界；危机打断、NBT 保留目标但重置进度；FakePlayer 复用一份身份。
+- [NeoForge GameTest 39585377144](https://github.com/g2066203208-beep/mc-studio/actions/runs/39585377144) **22/22 SUCCESS**；[Build 39585377197](https://github.com/g2066203208-beep/mc-studio/actions/runs/39585377197) **SUCCESS**；[Windows HMCL 安装模拟 39585377100](https://github.com/g2066203208-beep/mc-studio/actions/runs/39585377100) **SUCCESS**。JAR `reme_studio-0.5.7-dev.jar` 165572 bytes，SHA256 `cd95c3089bad7524fd0fc3f46e692e242b148a5f06b34f5bde1fcdefc5b9694b`，真实打包 artifact 12338173240。
+- **NeoForge 真实客户端进世界采矿验收**：[39585369776](https://github.com/g2066203208-beep/mc-studio/actions/runs/39585369776) **SUCCESS**，artifact 12338619819（19 张真实窗口截图与日志）。模拟键鼠召唤 MinerGUI，给予真实铁镐并放置石头，执行 `/npc mine` 后原版世界状态条件断言 `REME_MINING_CONFIRMED_AIR` 成功，石头消失且世界出现圆石掉落；`/data get entity` NBT 显示镐子 `minecraft:damage: 1`。不是 AI 生成的图片，也不是单看命令成功。
+- 首轮图形断言曾在 [39584228885](https://github.com/g2066203208-beep/mc-studio/actions/runs/39584228885) **失败**：GUI 测试有六个旧 NPC，铁镐按最近实体选错；脚本给 `/tp` 使用错误语法。修复为仅隔离测试世界清理其他 NPC、铺实地测试平台、按 MinerGUI 实体名装备、使用 `/tp @s ...`，并保留原石→空气和工具 NBT 硬断言，最终 39585369776 绿。
+- **严格范围声明**：P1 完成不等于“与玩家所有功能完全相同”。还未做完整容器/副手/物品自动收集/工作台合成/采矿职业自主寻矿/POI/长期生命循环/自绘双层 3D 皮肤/动态眼部帧/多人口长测，未在用户实际 HMCL＋222-Mod 整合包验证。后续优先 P2 行为适配器+真实客户端截图验证，不要将 BUILD SUCCESS 冒充完美兼容。

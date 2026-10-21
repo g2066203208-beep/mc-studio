@@ -106,6 +106,94 @@ xdotool key Return
 sleep 15
 import -window root client-gui-night.png
 echo "Captured six NPC demo and night-cycle screen evidence"
+# Extra P1 player-equivalent mining witness: real Minecraft commands in
+# a disposable world, not a synthetic picture. Capture before and after,
+# including chat confirmations and any errors. The world remains isolated.
+xdotool key --clearmodifiers t
+sleep 1
+xdotool type --clearmodifiers --delay 45 '/time set day'
+xdotool key Return
+sleep 3
+# After documenting the village screenshots, clear other NPCs in this
+# disposable world so nearest-owned command cannot select the wrong NPC.
+xdotool key --clearmodifiers t
+sleep 1
+xdotool type --clearmodifiers --delay 35 '/kill @e[type=reme_studio:player_npc]'
+xdotool key Return
+sleep 3
+# Guarantee the fresh miner and target stand on the same walkable platform,
+# regardless of random world seed, mountain/cliff or initial spawn elevation.
+xdotool key --clearmodifiers t
+sleep 1
+xdotool type --clearmodifiers --delay 35 '/fill ~-2 ~-1 ~-2 ~4 ~-1 ~4 minecraft:stone'
+xdotool key Return
+sleep 3
+xdotool key --clearmodifiers t
+sleep 1
+xdotool type --clearmodifiers --delay 50 '/npc spawn MinerGUI'
+xdotool key Return
+sleep 3
+xdotool key --clearmodifiers t
+sleep 1
+xdotool type --clearmodifiers --delay 25 '/item replace entity @e[type=reme_studio:player_npc,name=MinerGUI,limit=1] weapon.mainhand with minecraft:iron_pickaxe'
+xdotool key Return
+sleep 3
+xdotool key --clearmodifiers t
+sleep 1
+xdotool type --clearmodifiers --delay 50 '/setblock ~2 ~ ~ minecraft:stone'
+xdotool key Return
+sleep 2
+xdotool key --clearmodifiers t
+sleep 1
+xdotool type --clearmodifiers --delay 30 '/execute if block ~2 ~ ~ minecraft:stone run say REME_MINING_PREPARED'
+xdotool key Return
+sleep 1
+# Face east toward the selected target two blocks away, camera down 30 degrees.
+xdotool key --clearmodifiers t
+sleep 1
+xdotool type --clearmodifiers --delay 50 '/tp @s ~ ~ ~ -90 30'
+xdotool key Return
+sleep 2
+import -window root client-gui-mine-prepared.png
+xdotool key --clearmodifiers t
+sleep 1
+xdotool type --clearmodifiers --delay 50 '/npc mine ~2 ~ ~'
+xdotool key Return
+sleep 2
+import -window root client-gui-mining-progress.png
+sleep 10
+import -window root client-gui-mining-finished.png
+# Query the actual integrated server's block state, not a screenshot guess.
+xdotool key --clearmodifiers t
+sleep 1
+xdotool type --clearmodifiers --delay 35 '/execute if block ~2 ~ ~ minecraft:air run say REME_MINING_CONFIRMED_AIR'
+xdotool key Return
+sleep 2
+import -window root client-gui-mining-block-confirmed.png
+# Show the miner's actual equipment NBT after its action.
+xdotool key --clearmodifiers t
+sleep 1
+xdotool type --clearmodifiers --delay 30 '/data get entity @e[type=reme_studio:player_npc,name=MinerGUI,limit=1] HandItems'
+xdotool key Return
+sleep 2
+import -window root client-gui-mining-tool-after.png
+xdotool key --clearmodifiers t
+sleep 1
+xdotool type --clearmodifiers --delay 50 '/npc info'
+xdotool key Return
+sleep 2
+import -window root client-gui-mining-status.png
+echo "Captured real in-world mining witness: fixture/tool/command/progress/final status."
+# A screenshot pipeline that silently fails to perform mining is not an
+# acceptance test. Require observed integrated-server conditional success.
+if ! grep -q 'REME_MINING_PREPARED' run/logs/latest.log; then
+  echo "Minecraft did not confirm the prepared stone block"; exit 1
+fi
+if ! grep -q 'REME_MINING_CONFIRMED_AIR' run/logs/latest.log; then
+  echo "Minecraft did not confirm that NPC mined the test block"; exit 1
+fi
+echo "PASS: actual integrated Minecraft server confirmed stone -> air following NPC mining"
+
 echo "Window id: $found"
 echo "Minecraft launch/render indicators:"
 grep -E 'Reloading ResourceManager|mod/reme_studio|Created.*atlas' client-gui.log | tail -n 10 || true

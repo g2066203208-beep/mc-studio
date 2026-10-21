@@ -23,19 +23,25 @@ jobs:
         run: bash scripts/build.sh
       - name: Assert skins packaged in NeoForge JAR
         run: python3 scripts/check-npc-skins.py
+      - name: Resolve exact mod version from Gradle property
+        run: |
+          VERSION="$(sed -n 's/^mod_version=//p' mod/gradle.properties | tail -n 1)"
+          test -n "$VERSION"
+          echo "MOD_VERSION=$VERSION" >> "$GITHUB_ENV"
       - name: Verify installer source and mod metadata
-        run: python3 scripts/test-installer.py mod/build/libs/reme_studio-0.5.5-dev.jar
+        run: python3 scripts/test-installer.py "mod/build/libs/reme_studio-${MOD_VERSION}.jar"
       - name: Package Windows HMCL one-click installer
         run: |
-          mkdir -p dist/REME-NPC-HMCL-v0.5.5
-          cp mod/build/libs/reme_studio-0.5.5-dev.jar dist/REME-NPC-HMCL-v0.5.5/
-          cp packaging/Install-REME-NPC.cmd packaging/Install-REME-NPC.ps1 dist/REME-NPC-HMCL-v0.5.5/
-          cp docs/NPC_HMCL_ACCEPTANCE.md dist/REME-NPC-HMCL-v0.5.5/README.txt
-          (cd dist/REME-NPC-HMCL-v0.5.5 && zip -q -9 ../REME-NPC-HMCL-v0.5.5-installer.zip ./*)
+          folder="dist/REME-NPC-HMCL-${MOD_VERSION}"
+          mkdir -p "$folder"
+          cp "mod/build/libs/reme_studio-${MOD_VERSION}.jar" "$folder/"
+          cp packaging/Install-REME-NPC.cmd packaging/Install-REME-NPC.ps1 "$folder/"
+          cp docs/NPC_HMCL_ACCEPTANCE.md "$folder/README.txt"
+          (cd "$folder" && zip -q -9 "../REME-NPC-HMCL-${MOD_VERSION}-installer.zip" ./*)
       - uses: actions/upload-artifact@v4
         with:
-          name: installer-v055
-          path: dist/REME-NPC-HMCL-v0.5.5-installer.zip
+          name: installer-${{ env.MOD_VERSION }}
+          path: dist/REME-NPC-HMCL-${{ env.MOD_VERSION }}-installer.zip
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
         with:

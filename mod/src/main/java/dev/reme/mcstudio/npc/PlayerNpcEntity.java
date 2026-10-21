@@ -109,6 +109,10 @@ public class PlayerNpcEntity extends PathfinderMob {
     private boolean naturalResident = false;
     private int dailyShiftTicks = 0;
     @Nullable private BlockPos cachedCropTarget;
+    // Single operator-authorized mining order. Progress is transient; reload
+    // safely restarts the survival-rate action instead of instant completing.
+    @Nullable private BlockPos miningTarget;
+    private float miningProgress = 0.0F;
     private BlockPos lastNavDestination = BlockPos.ZERO;
     private long nextNavRepathTick = 0;
     private final CivicMind civic = new CivicMind();
@@ -216,6 +220,18 @@ public class PlayerNpcEntity extends PathfinderMob {
     public boolean naturalResident() { return naturalResident; }
     public int dailyShiftTicks() { return dailyShiftTicks; }
     @Nullable public BlockPos cachedCropTarget() { return cachedCropTarget; }
+    @Nullable public BlockPos miningTarget() { return miningTarget; }
+    public void setMiningTarget(@Nullable BlockPos target) {
+        miningTarget = target == null ? null : target.immutable();
+        miningProgress = 0.0F;
+    }
+    public void clearMiningTarget() { miningTarget = null; miningProgress = 0.0F; }
+    public void resetMiningProgress() { miningProgress = 0.0F; }
+    public float miningProgress() { return miningProgress; }
+    public float advanceMiningProgress(float increment) {
+        miningProgress = Math.clamp(miningProgress + increment, 0.0F, 1.0F);
+        return miningProgress;
+    }
     public void setCachedCropTarget(@Nullable BlockPos target) { cachedCropTarget = target; }
     public boolean canRepath(BlockPos target, long tick) {
         if (tick >= nextNavRepathTick || !target.equals(lastNavDestination) &&
@@ -491,6 +507,7 @@ public class PlayerNpcEntity extends PathfinderMob {
         tag.putInt("NpcFormationSlot", formationSlot);
         tag.putInt("NpcRoamingRadius", roamingRadius);
         tag.putInt("NpcSkinId", skinId());
+        if (miningTarget != null) tag.putLong("NpcMiningTarget", miningTarget.asLong());
         tag.putBoolean("NpcNaturallySpawned", naturalResident);
         tag.putInt("NpcDailyShift", dailyShiftTicks);
         tag.putBoolean("NpcBuildEnabled", buildEnabled);
@@ -568,6 +585,9 @@ public class PlayerNpcEntity extends PathfinderMob {
         }
         parcelsDelivered = Math.max(0, tag.getInt("NpcParcels"));
         formationSlot = Math.clamp(tag.getInt("NpcFormationSlot"), 0, 15);
+        miningTarget = tag.contains("NpcMiningTarget", Tag.TAG_LONG)
+            ? BlockPos.of(tag.getLong("NpcMiningTarget")) : null;
+        miningProgress = 0.0F;
         setSkinId(tag.contains("NpcSkinId", Tag.TAG_INT)
             ? tag.getInt("NpcSkinId") : Math.floorMod(getUUID().hashCode(), 6));
         setRoamingRadius(tag.contains("NpcRoamingRadius", Tag.TAG_INT)

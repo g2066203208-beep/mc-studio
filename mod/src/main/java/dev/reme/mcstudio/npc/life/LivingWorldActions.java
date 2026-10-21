@@ -64,6 +64,10 @@ public final class LivingWorldActions {
             CivicContracts.post(npc, Commission.Goods.BREAD, 2,
                 npc.character().empathy() >= 75 ? 3 : 2);
         }
+        // A bounded, operator-authorized mining task is performed through the
+        // same survival tool / block break pipeline as a player. Danger can
+        // interrupt it; routine AI never creates an unapproved mining target.
+        if (PlayerMiningActions.tick(npc, level)) return;
         if (SocietyActions.tick(npc, level, tick)) return;
         if (DailyRoaming.tick(npc, level, tick)) return;
         if (npc.profession() == PlayerNpcEntity.Profession.GUARD &&
