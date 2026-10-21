@@ -33,7 +33,7 @@ class SeamGeometryQueueTest {
         SeamGeometryQueue q = new SeamGeometryQueue();
         q.invalidate(2,2);
         q.invalidate(0,0);
-        assertEquals(SeamGeometryQueue.pack(0,0),q.drain(1,0,0,2).get(0));
+        assertEquals(Long.valueOf(SeamGeometryQueue.pack(0,0)),q.drain(1,0,0,2).get(0));
     }
 
     @Test void movingAwayDropsStaleWindowAndSupportsNegativeChunks() {
