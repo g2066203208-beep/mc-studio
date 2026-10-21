@@ -43,9 +43,9 @@ public record SeamStack(List<Entry> entries, boolean loop) {
 
     public static SeamStack defaults() {
         return new SeamStack(List.of(
-            new Entry("minecraft:the_end",null,null,true,true),
             new Entry("minecraft:overworld",null,null,true,true),
-            new Entry("minecraft:the_nether",null,128,true,true)
+            new Entry("minecraft:the_nether",null,128,true,true),
+            new Entry("minecraft:the_end",null,null,true,true)
         ),false);
     }
 
