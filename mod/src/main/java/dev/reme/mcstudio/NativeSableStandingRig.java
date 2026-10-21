@@ -68,6 +68,22 @@ public final class NativeSableStandingRig {
                 throw new IllegalStateException("Cannot read real Sable/Rapier body velocity", e);
             }
         }
+        public Vector3d centerOfMass() {
+            try {
+                Object massTracker=sublevel.getClass().getMethod("getMassTracker").invoke(sublevel);
+                Object center=massTracker.getClass().getMethod("getCenterOfMass").invoke(massTracker);
+                if(center==null)throw new IllegalStateException("No real Sable center of mass");
+                return new Vector3d((Vector3dc)center);
+            }catch(ReflectiveOperationException e){
+                throw new IllegalStateException("Cannot access Sable actual mass tracker COM",e);
+            }
+        }
+        // Sable logicalPose.position() is the physical body reference/COM.
+        // Subtract the mass-tracker COM measured in plot block coordinates to
+        // obtain a world-space contact height. Critically, this also remains
+        // meaningful after removing legs changes the center of mass.
+        public double footSoleWorldY() {return position().y()-centerOfMass().y();}
+        public double torsoBottomWorldY() {return footSoleWorldY()+2.0;}
         public void removeFeet() {
             for(int x : new int[]{0,2})for(int z : new int[]{0,2})
                 for(int y=0;y<=1;y++) {
