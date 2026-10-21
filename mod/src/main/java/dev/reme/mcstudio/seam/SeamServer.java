@@ -34,6 +34,7 @@ public final class SeamServer {
     private static final Map<UUID, Long> lastCross = new HashMap<>();
     private static MinecraftServer lastServer;
     private static boolean seamEnabled;
+    private static boolean terrainEnabled;
 
     private SeamServer() {}
 
@@ -50,6 +51,7 @@ public final class SeamServer {
             SeamSectionSender.tick(server, player, tick, enabled);
         }
         seamEnabled = enabled;
+        terrainEnabled = enabled && SeamSettings.get(server).carveNewChunks();
         if (!enabled) return;
         // Only one teleport per player per tick. All operations on server thread.
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
@@ -64,7 +66,7 @@ public final class SeamServer {
             String dim = source.dimension().location().toString();
             for (SeamGraph.Link link : SeamGraph.from(dim)) {
                 int min = source.getMinBuildHeight();
-                int max = source.getMaxBuildHeight();
+                int max = SeamBounds.top(source);
                 if (!link.crossed(player.getY(), min, max)) {
                     continue;
                 }
@@ -77,7 +79,7 @@ public final class SeamServer {
                 // DOES NOT apply to this 1:1 spatial fold.
                 double sourceBoundary = SeamGraph.boundaryY(link.exit(), min, max);
                 double targetBoundary = SeamGraph.boundaryY(link.entry(),
-                    target.getMinBuildHeight(), target.getMaxBuildHeight());
+                    target.getMinBuildHeight(), SeamBounds.top(target));
                 double nextY = link.targetY(player.getY(), sourceBoundary, targetBoundary);
                 Vec3 previousVelocity = player.getDeltaMovement();
                 float previousFall = player.fallDistance;
@@ -157,6 +159,10 @@ public final class SeamServer {
             }
             return;
         }
+    }
+
+    public static boolean shouldCarveNewChunk(MinecraftServer server) {
+        return server == lastServer && terrainEnabled;
     }
 
     public static ResourceKey<Level> dimensionKey(String id) {

@@ -23,14 +23,20 @@ public final class SeamCommands {
                 .then(Commands.literal("disable")
                     .requires(src -> src.hasPermission(2))
                     .executes(ctx -> toggle(ctx, false)))
+                .then(Commands.literal("terrain")
+                    .requires(src -> src.hasPermission(2))
+                    .then(Commands.literal("enable").executes(ctx -> terrain(ctx,true)))
+                    .then(Commands.literal("disable").executes(ctx -> terrain(ctx,false))))
                 .then(Commands.literal("probe").executes(SeamCommands::probe))));
     }
 
     private static int status(CommandContext<CommandSourceStack> ctx) {
         var src = ctx.getSource();
-        boolean enabled = SeamSettings.get(src.getServer()).enabled();
+        SeamSettings config = SeamSettings.get(src.getServer());
+        boolean enabled = config.enabled();
         src.sendSuccess(() -> Component.literal(
             "REME Native Seam: " + (enabled ? "ON" : "OFF")
+                + " | carve new chunks: " + (config.carveNewChunks() ? "ON" : "OFF")
                 + " | dimension edges: " + SeamGraph.LINKS.size()
                 + " | rendering: near-border snapshot prototype (not full world renderer)"
         ), false);
@@ -47,6 +53,17 @@ public final class SeamCommands {
         return 1;
     }
 
+    private static int terrain(CommandContext<CommandSourceStack> ctx, boolean enabled) {
+        var src = ctx.getSource();
+        SeamSettings.get(src.getServer()).setCarveNewChunks(enabled);
+        src.sendSuccess(() -> Component.literal(
+            "New chunk seam terrain " + (enabled ? "enabled" : "disabled")
+                + ". Applies only to FUTURE generated chunks while Seam is enabled."
+                + " Existing world chunks are untouched; backup the test world first."
+        ), true);
+        return 1;
+    }
+
     private static int probe(CommandContext<CommandSourceStack> ctx) {
         var src = ctx.getSource();
         if (!(src.getLevel() instanceof ServerLevel level)) {
@@ -55,7 +72,7 @@ public final class SeamCommands {
         var connections = SeamGraph.from(level.dimension().location().toString());
         for (SeamGraph.Link link : connections) {
             double sourceY = SeamGraph.boundaryY(link.exit(),
-                level.getMinBuildHeight(), level.getMaxBuildHeight());
+                level.getMinBuildHeight(), SeamBounds.top(level));
             src.sendSuccess(() -> Component.literal("Seam: " + link.exit()
                 + " Y=" + sourceY + " -> " + link.target()
                 + " " + link.entry()), false);

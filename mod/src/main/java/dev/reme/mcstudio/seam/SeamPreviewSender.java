@@ -67,7 +67,7 @@ public final class SeamPreviewSender {
         SeamGraph.Link selected = null;
         for (SeamGraph.Link link : SeamGraph.from(dimension)) {
             if (link.near(player.getY(), source.getMinBuildHeight(),
-                source.getMaxBuildHeight(), VIEW_DISTANCE_TO_SEAM)) {
+                SeamBounds.top(source), VIEW_DISTANCE_TO_SEAM)) {
                 selected = link;
                 break;
             }
@@ -120,7 +120,7 @@ public final class SeamPreviewSender {
         int sourceBound = (int) SeamGraph.boundaryY(link.exit(),
             source.getMinBuildHeight(), source.getMaxBuildHeight());
         int targetBound = (int) SeamGraph.boundaryY(link.entry(),
-            target.getMinBuildHeight(), target.getMaxBuildHeight());
+            target.getMinBuildHeight(), SeamBounds.top(target));
         int forcedLoads = 0;
         Set<Long> visitedChunks = new HashSet<>();
         BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
