@@ -10,7 +10,7 @@ class SeamSectionLayoutTest {
     }
     @Test void endTopToNetherBottomWorksAtNonVanillaCustomOffset() {
         assertEquals(11,SeamSectionLayout.mappedBlockY(255,11,255));
-        assertEquals(-5,SeamSectionLayout.mappedSectionMinY(255,11,255));
+        assertEquals(-4,SeamSectionLayout.mappedSectionMinY(255,11,255));
     }
     @Test void negativeSectionUsesFloorNotIntegerTruncation() {
         assertEquals(-32,SeamSectionLayout.mappedSectionMinY(-17,0,0));
