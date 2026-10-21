@@ -108,6 +108,10 @@ public final class ClimbSurfaceMath {
     /** Smooth visual body turning through the +/-180 boundary. Movement is not delayed. */
     public static float approachYaw(float current, float desired, float maxStep) {
         float delta = net.minecraft.util.Mth.wrapDegrees(desired - current);
+        // Minecraft wraps EXACT +180 to -180. Without this tie-break the
+        // climber begins turning left, then cancels that motion when the
+        // camera swings right toward the roof's free side on the next tick.
+        if (Math.abs(delta + 180f) < .0001f) delta = 180f;
         return current + net.minecraft.util.Mth.clamp(delta, -maxStep, maxStep);
     }
 
