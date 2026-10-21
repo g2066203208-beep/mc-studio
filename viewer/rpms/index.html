@@ -31,7 +31,8 @@
  <div class="stress-controls">
  <label>动力容量倍率 <strong id="capacityScaleLabel">1.00×</strong><input id="capacityScale" type="range" min="0.0001" max="1" step="0.0001" value="1"></label>
  <label>负载倍率 <strong id="impactScaleLabel">1.0×</strong><input id="impactScale" type="range" min="0" max="32" step="0.5" value="1"></label>
- <small>源自 Create 6.0.10 默认 stressValues，倍率只用于预演过载；正式游戏可能由服务器配置覆盖。</small>
+ <button type="button" id="stressScenario" class="aux-button" style="grid-column:span 2;margin:2px 0">一键演示过载／恢复（预览）</button>
+ <small>源自 Create 6.0.10 默认 stressValues；一键演示会人为降低容量，只用于预演网络停转。真正服务器 SU 由游戏配置决定。</small>
  </div>
  <div class="status-row"><span id="selectedName">尚未选择方块</span><span id="coverageState"></span></div></div>
 </main>
