@@ -54,6 +54,9 @@ public final class SeamExplosionBridge {
             SeamBlastGeometry.Plan plan=SeamBlastGeometry.map(
                 center.y,fromY,toY,radius);
             if(plan==null) continue;
+            var nativePlan=SeamBlastGeometry.forNativeBuildRange(
+                plan,target.getMinBuildHeight(),target.getMaxBuildHeight());
+            if(nativePlan==null) continue;
 
             // A bedrock-sealed seam must not leak a blast to a different
             // dimension. The source-side contact cell must be open.
@@ -93,11 +96,12 @@ public final class SeamExplosionBridge {
                 interaction=Level.ExplosionInteraction.BLOCK;
             forwarding=true;
             try {
-                target.explode(null,center.x,plan.mappedY(),center.z,
-                    plan.radius(),false,interaction);
-                LOG.info("WORLDSEAM_CROSS_BLAST: {} -> {}, center=({}, {}, {}), mappedY={}, radius={}",
+                target.explode(null,center.x,nativePlan.mappedY(),center.z,
+                    nativePlan.radius(),false,interaction);
+                LOG.info("WORLDSEAM_CROSS_BLAST: {} -> {}, center=({}, {}, {}), mappedY={}, nativeY={}, nativePower={}, originalPower={}",
                     sourceId,link.target(),center.x,center.y,center.z,
-                    plan.mappedY(),plan.radius());
+                    plan.mappedY(),nativePlan.mappedY(),
+                    nativePlan.radius(),plan.radius());
             } finally {
                 forwarding=false;
             }
