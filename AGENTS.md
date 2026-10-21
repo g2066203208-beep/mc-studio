@@ -22,3 +22,10 @@
 - When the user requests a model inspired by Immersive Vehicles, Blockbench/MTS vehicle construction, a motorcycle, UV atlas, functional vehicle parts, or a real 3D web preview, load `skills/immersive-vehicles-modeling/SKILL.md` first, then the relevant references.
 - Inspect *real OBJ, PNG, and vehicle JSON* and distinguish source-repo assets from actual released JARs. Never pass off generated illustrations or flat screenshots as rotatable 3D models.
 - Run the bundled OBJ inspector and unit tests before claiming the model or new skill validated. Keep unverified game-runtime facts clearly marked.
+
+## RPMS 真实物理机械运动系统
+
+- 游戏内真实拼装的机械装置（腿、关节、动力、传感、平衡、机器人/Boss/步行载具）先读 `docs/physical-machinery/00_PROGRAM_CHARTER.md`、`01_SYSTEM_REQUIREMENTS.md`、`02_SYSTEM_ARCHITECTURE_AND_ICD.md` 和 BOM/设计参数。不要先做展示模型。
+- 首版工程方案为 13 物理刚体/12 主动关节；其中扭矩、质量、碰撞率和脚压均须根据实际 pinned Sable/Aeronautics 二进制标定，禁止臆造数值和用 setPose 假运动。
+- 阶段验收 G0 版本→G1 关节→G2 单腿→G3 四足站立→G4 连续步行→G5 故障→G6 Boss，无法通过 gate 不得自称完整。
+- 设计检查：`python3 projects/physical-machinery/validate_design.py`，只证明 JSON/BOM/需求一致，不证明游戏机器会走路。PR 需要同时附真实 GameTest、负载测试与录制结果。

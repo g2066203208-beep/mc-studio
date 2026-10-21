@@ -46,3 +46,16 @@ GitHub 是整个 Minecraft 工作室的开发中心。代码、需求、研究�
 - 可行性审查见 docs/bosses/AERONAUTICS_BOSS_FEASIBILITY.md：Create Aeronautics 1.3.2 + Sable 2.0.6、Gadgets & Gizmos 伺服轴承、Transmission & Linkage 液压/万向节、CC/Avionics 可选控制。
 - 优先真实单腿三关节承重闭环 GameTest，再四足多子空间步态；必须自研 Brain、平衡控制、足底接触、目标视野、物理碰撞伤害和 Boss 结构完整度。
 - 本分支只有文档规划，还没有构建/游戏内测试 Boss 实体或方块；不能说已经实现了恐龙 Boss。
+
+
+## 2026-10-21｜RPMS 真实物理机械运动系统工程立项（规划未实装）
+
+- **目标**：将物理机体运动抽象为可复用机器平台，不只是一只恐龙 Boss。设计基线 13 个真实 Sable 刚体、12 个主动旋转关节（每腿 HAA/HFE/KFE），脚踝首版固定被动足垫。
+
+- 新工程规划文档入口：`docs/physical-machinery/00_PROGRAM_CHARTER.md` 至 `06_ROADMAP_RISKS_AND_MANAGEMENT.md`。机器参数：`projects/physical-machinery/quad12.design.json`；组件 BOM：`docs/physical-machinery/COMPONENT_REGISTER.csv`；设计图检查：`python3 projects/physical-machinery/validate_design.py`。
+
+- 工程需求 SYS-001..030、门禁 G0..G6；M1 先验证真实航空学旋转轴承 + Sable 物理关节在锁定二进制版本下的可控扭矩/角度，然后 G2 单腿与 G3 四足站立，不得直接跳去 Boss 美术/动画。
+
+- 核心安全：不以 setPose/瞬移假装行走，不隐藏禁用重力/无限力，关节必须实际承载、失电后反馈真实重力。Sable 物理 API 若不提供足底真实冲量需研发 FootContactPad，并将估计值显式标注。
+
+- **本分支仅是系统工程设计**：设计文档校验是静态验收，尚无可行走的独立 JAR/关节机、无负载/实机性能测试。后续先执行 M1/RPMS-101..108，不要声称 Boss/步行已实现。
