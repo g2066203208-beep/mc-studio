@@ -10,6 +10,8 @@ import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.state.properties.BooleanProperty;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.neoforged.fml.ModList;
 import net.neoforged.neoforge.gametest.GameTestHolder;
@@ -134,6 +136,60 @@ public final class NativeIntegrationGameTests {
         placeEntity(helper, "create:redstone_link", new BlockPos(1, 1, 1));
         LOG.info("RPMS_NATIVE_PASS wirelessRedstoneLinkHasNativeEntity (NOT signal propagation)");
         helper.succeed();
+    }
+
+    @GameTest(template = "rpms_empty", timeoutTicks = 120)
+    public static void wirelessSignalActuallyPropagates(GameTestHelper helper) {
+        requireMods();
+        // Two actual Create Redstone Link blocks, both with an identical
+        // native EMPTY/EMPTY frequency. No fake numeric signal is assigned to
+        // the receiver. The source BE sends into Create's own wireless network.
+        BlockPos senderPos = new BlockPos(1, 1, 1);
+        BlockPos receiverPos = new BlockPos(3, 1, 1);
+        helper.setBlock(senderPos.below(), Blocks.STONE);
+        helper.setBlock(receiverPos.below(), Blocks.STONE);
+        Block link = block("create:redstone_link");
+        BooleanProperty receiving = (BooleanProperty) link.getStateDefinition().getProperty("receiver");
+        if (receiving == null) throw new AssertionError("Official Redstone Link 'receiver' state missing");
+        BlockState senderState = link.defaultBlockState()
+                .setValue(BlockStateProperties.FACING, Direction.UP)
+                .setValue(receiving, false);
+        BlockState receiverState = link.defaultBlockState()
+                .setValue(BlockStateProperties.FACING, Direction.UP)
+                .setValue(receiving, true);
+        helper.setBlock(senderPos, senderState);
+        helper.setBlock(receiverPos, receiverState);
+        helper.assertBlockPresent(link, senderPos);
+        helper.assertBlockPresent(link, receiverPos);
+        helper.runAfterDelay(25, () -> {
+            BlockEntity sender = helper.getLevel().getBlockEntity(helper.absolutePos(senderPos));
+            if (sender == null) throw new AssertionError("Native Redstone transmitter entity missing");
+            nativeTransmit(sender, 15);
+            helper.runAfterDelay(5, () -> {
+                BlockEntity receiver = helper.getLevel().getBlockEntity(helper.absolutePos(receiverPos));
+                if (receiver == null) throw new AssertionError("Native Redstone receiver entity missing");
+                double got = nativeNumber(receiver, "getReceivedSignal");
+                LOG.info("RPMS_NATIVE_WIRELESS expected=15 received={} frequency=official_default", got);
+                if (got != 15) throw new AssertionError("Create wireless signal did not actually propagate: " + got);
+                nativeTransmit(sender, 0);
+                helper.runAfterDelay(5, () -> {
+                    BlockEntity receiverAfter = helper.getLevel().getBlockEntity(helper.absolutePos(receiverPos));
+                    double off = nativeNumber(receiverAfter, "getReceivedSignal");
+                    LOG.info("RPMS_NATIVE_WIRELESS expected=0 received={}", off);
+                    if (off != 0) throw new AssertionError("Native Create wireless power did not turn off: " + off);
+                    LOG.info("RPMS_NATIVE_PASS wirelessSignalActuallyPropagates");
+                    helper.succeed();
+                });
+            });
+        });
+    }
+
+    private static void nativeTransmit(Object sender, int strength) {
+        try {
+            sender.getClass().getMethod("transmit", int.class).invoke(sender, strength);
+        } catch (ReflectiveOperationException | SecurityException e) {
+            throw new AssertionError("Cannot drive the official Create Redstone Link transmitter: " + e, e);
+        }
     }
 
     private static double nativeNumber(Object receiver, String methodName) {
