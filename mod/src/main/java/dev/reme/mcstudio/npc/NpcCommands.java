@@ -5,6 +5,9 @@ import com.mojang.brigadier.arguments.IntegerArgumentType;
 import net.minecraft.commands.arguments.coordinates.BlockPosArgument;
 import dev.reme.mcstudio.npc.life.PlayerMiningActions;
 import dev.reme.mcstudio.npc.life.DailyRoaming;
+import dev.reme.mcstudio.npc.life.FootTrafficData;
+import dev.reme.mcstudio.npc.life.EmergentSettlements;
+import dev.reme.mcstudio.npc.life.SettlementLedger;
 import dev.reme.mcstudio.npc.life.Commission;
 import dev.reme.mcstudio.npc.life.CivicContracts;
 import dev.reme.mcstudio.npc.life.CivicMind;
@@ -73,6 +76,14 @@ public final class NpcCommands {
             .then(Commands.literal("courier").executes(ctx -> profession(ctx.getSource(), PlayerNpcEntity.Profession.COURIER)))
             .then(Commands.literal("guardjob").executes(ctx -> profession(ctx.getSource(), PlayerNpcEntity.Profession.GUARD)))
             .then(Commands.literal("builder").executes(ctx -> profession(ctx.getSource(), PlayerNpcEntity.Profession.BUILDER)))
+            .then(Commands.literal("trails")
+                .executes(ctx -> pathInfo(ctx.getSource()))
+                .then(Commands.literal("on").requires(source -> source.hasPermission(2))
+                    .executes(ctx -> setPaths(ctx.getSource(), true)))
+                .then(Commands.literal("off").requires(source -> source.hasPermission(2))
+                    .executes(ctx -> setPaths(ctx.getSource(), false))))
+            .then(Commands.literal("settlement")
+                .executes(ctx -> settlementInfo(ctx.getSource())))
             .then(Commands.literal("mine").requires(source -> source.hasPermission(2))
                 .then(Commands.argument("target", BlockPosArgument.blockPos())
                     .executes(ctx -> authorizeMining(ctx.getSource(),
@@ -131,6 +142,56 @@ public final class NpcCommands {
                                 StringArgumentType.getString(ctx, "goods"),
                                 IntegerArgumentType.getInteger(ctx, "count"),
                                 IntegerArgumentType.getInteger(ctx, "reward"))))))));
+    }
+
+    private static int pathInfo(CommandSourceStack source) {
+        FootTrafficData traffic = FootTrafficData.get(source.getLevel());
+        source.sendSuccess(() -> Component.literal(
+            "Desire paths: " + traffic.trackedCells() + " recorded foot tiles; "
+            + "physical path shaping " + (traffic.physicalPathsEnabled() ? "ON" : "OFF")
+            + ". Every real passing resident strengthens familiar routes."
+            + " Terrain wear requires OP /npc trails on and mobGriefing=true."), false);
+        return 1;
+    }
+
+    private static int setPaths(CommandSourceStack source, boolean enabled) {
+        FootTrafficData traffic = FootTrafficData.get(source.getLevel());
+        traffic.setPhysicalPathsEnabled(enabled);
+        source.sendSuccess(() -> Component.literal(
+            "NPC physical trail formation " + (enabled ? "ENABLED" : "DISABLED")
+            + ". Traffic still learns when off; only exposed natural grass/dirt"
+            + " may become dirt_path, after repeated visits, through real player item use."
+            + " Other-player buildings/crops are never chosen as trail surfaces."), true);
+        return 1;
+    }
+
+    private static int settlementInfo(CommandSourceStack source)
+        throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        ServerPlayer player = source.getPlayerOrException();
+        PlayerNpcEntity reference = closestNpc(player);
+        if (reference == null) {
+            source.sendFailure(Component.literal(
+                "No resident within 16 blocks to census; visit a populated area"));
+            return 0;
+        }
+        var community = EmergentSettlements.survey(player.serverLevel(), reference);
+        if (community == null) {
+            source.sendSuccess(() -> Component.literal(
+                "No organic hamlet yet. At least 3 living allied residents"
+                + " with distinct nearby homes are required; an identity label"
+                + " alone does not build a village."), false);
+            return 0;
+        }
+        SettlementLedger.get(player.serverLevel()).record(
+            community.founder(), community.hub(), community.households(),
+            player.serverLevel().getGameTime(), community.culture());
+        source.sendSuccess(() -> Component.literal(
+            "Organic " + community.tier() + " | " + community.households()
+            + " real households | " + community.culture()
+            + " | meeting hub " + community.hub().toShortString()
+            + " | chronicle settlements: "
+            + SettlementLedger.get(player.serverLevel()).knownSettlements()), false);
+        return 1;
     }
 
     private static int spawn(CommandSourceStack source, String name) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
