@@ -74,7 +74,7 @@ public final class SeamClientWorldPool {
                     mc.getConnection(), data, dimension, type, 3,
                     mc.level.getServerSimulationDistance(), mc::getProfiler,
                     renderer, mc.level.isDebug(),
-                    mc.level.getBiomeManager().biomeZoomSeed
+                    0L /* biome zoom seed must be supplied by server later */
                 );
                 renderer.setLevel(secondary);
                 renderer.onResourceManagerReload(mc.getResourceManager());
