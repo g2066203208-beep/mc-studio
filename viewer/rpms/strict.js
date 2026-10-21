@@ -41,6 +41,17 @@ const ray=new THREE.Raycaster(),pointer=new THREE.Vector2();
 const matCache=new Map();let clickable=[],selectionOutline=null;
 const nativeKineticSet=new Set(['create:shaft','create:cogwheel','create:large_cogwheel']);
 const faceVector={east:[1,0,0],west:[-1,0,0],up:[0,1,0],down:[0,-1,0],south:[0,0,1],north:[0,0,-1]};
+function faceForOffset(a){return Object.entries(faceVector).find(([,v])=>v.every((n,i)=>n===a[i]))?.[0]||null;}
+function applyStateKey(b,raw){
+ if(!raw)return b;
+ for(const pair of raw.split(',')){
+  const [k,v]=pair.split('=');
+  if(k==='axis'&&['x','y','z'].includes(v))b.axis=v;
+  if(k==='facing'&&faceVector[v])b.facing=v;
+  if(k==='powered'&&(v==='true'||v==='false'))b.powered=v==='true';
+ }
+ return b;
+}
 function angleAxis(b){const a=axisOf(b);return a==='x'?'x':a==='z'?'z':'y';}
 function isBareRotor(b){return nativeKineticSet.has(b.id);}
 function rotorFor(b){
@@ -119,6 +130,14 @@ function displayInspector(item){
   p.textContent='来自原版服务器：'+(item.nativeRuntime.blockEntity||'原版方块')+
    '，实时采样于导出时刻；不是网页物理模拟。'+
    (item.nativeRuntime.getReceivedSignal!==undefined?' 无线信号 '+item.nativeRuntime.getReceivedSignal:'');
+  box.append(p);
+ }
+ const operating=lastResult?.byPos?.[item.pos.join(',')];
+ if(operating){
+  const p=document.createElement('p');
+  p.className='model-state';
+  p.textContent='网页动力预演：'+(operating.overstressed?'应力过载，已停转':operating.rpm.toFixed(1)+' RPM')+
+   ' · SU 消耗 '+operating.impact.toFixed(1)+' / 容量 '+operating.capacity.toFixed(1);
   box.append(p);
  }
  const model=modelStatus.get(item.pos.join(','));
@@ -266,8 +285,15 @@ function interaction(e,actionMode){
  }
  if(!selectedId){notify('先在左侧选择方块');return;}
  const b={id:selectedId,pos:hit.where,axis:$('axis').value,facing:$('facing').value};
+ // Like Create's getPreferredFacing: place a directional motor with its output
+ // shaft aimed back at the clicked neighboring kinetic machine, when enabled.
+ if($('autoFacing').checked&&hit.onBlock&&(behavior(b.id).kind==='source'||behavior(b.id).kind==='bearing')){
+  const toward=hit.target.pos.map((n,i)=>n-b.pos[i]);
+  const face=faceForOffset(toward);if(face)b.facing=face;
+  b.axis=axisOf(b);
+ }
  if(b.id==='create:creative_motor')b.rpm=Number($('rpm').value);
- if($('statePreset').value)b.stateKey=$('statePreset').value;
+ if($('statePreset').value){b.stateKey=$('statePreset').value;applyStateKey(b,b.stateKey);}
  place(b);
 }
 let down=null;
@@ -276,7 +302,7 @@ $('viewWrap').addEventListener('pointerup',e=>{if(!down)return;const distance=Ma
 $('viewWrap').addEventListener('contextmenu',e=>e.preventDefault());
 $('layer').addEventListener('input',e=>{activeLayer=Number(e.target.value);$('layerValue').textContent=activeLayer});
 $('animateToggle').addEventListener('change',e=>{animationEnabled=e.target.checked;});
-$('capacityScale').addEventListener('input',e=>{stressCapacityScale=Number(e.target.value);$('capacityScaleLabel').textContent=stressCapacityScale.toFixed(2)+'×';updateStatus();});
+$('capacityScale').addEventListener('input',e=>{stressCapacityScale=Number(e.target.value);$('capacityScaleLabel').textContent=stressCapacityScale<.01?stressCapacityScale.toPrecision(3)+'×':stressCapacityScale.toFixed(2)+'×';updateStatus();});
 $('impactScale').addEventListener('input',e=>{stressImpactScale=Number(e.target.value);$('impactScaleLabel').textContent=stressImpactScale.toFixed(1)+'×';updateStatus();});
 $('rpm').addEventListener('change',e=>{
  if(inspected?.id==='create:creative_motor'){
@@ -294,8 +320,10 @@ for(const b of document.querySelectorAll('[data-view]'))b.addEventListener('clic
 for(const id of ['search','namespace','coverage'])$(id).addEventListener(id==='search'?'input':'change',drawPalette);
 $('statePreset').addEventListener('change',e=>{
  if(inspected&&inspected.id===selectedId){
-  if(e.target.value)inspected.stateKey=e.target.value;
+  if(e.target.value){inspected.stateKey=e.target.value;applyStateKey(inspected,e.target.value);}
   else delete inspected.stateKey;
+  $('axis').value=axisOf(inspected);
+  if(inspected.facing)$('facing').value=inspected.facing;
   renderWorld();
  }
 });
