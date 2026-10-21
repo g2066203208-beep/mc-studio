@@ -242,8 +242,11 @@ public final class NpcCommands {
                 case 4 -> PlayerNpcEntity.Profession.SCOUT;
                 default -> PlayerNpcEntity.Profession.COURIER;
             });
+            // Make the demonstration town emerge from THREE actual nearby
+            // settler homes (including the baker), not from a hardcoded
+            // village flag. Other residents retain separate affiliations.
             SocietyRules.Faction demoFaction = switch (i) {
-                case 2, 5 -> SocietyRules.Faction.MERCHANTS;
+                case 5 -> SocietyRules.Faction.MERCHANTS;
                 case 3, 4 -> SocietyRules.Faction.RANGERS;
                 default -> SocietyRules.Faction.SETTLERS;
             };
