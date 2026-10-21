@@ -29,8 +29,11 @@ jobs:
       - name: Download SHA-verified official Minecraft Create Aeronautics JARs (temporary only)
         run: |
           python3 viewer/rpms/tests/download-official.py
-      - name: Install Chrome automation without bundling official resources
+      - name: Install CJK screenshot fonts and Chrome automation
         run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq fonts-noto-cjk
+          fc-cache -f
           npm install --prefix /tmp/rpms-real-release-test --no-save --no-audit --no-fund playwright-core@1.56.1
       - name: Launch source website and inspect actual Minecraft 1.21.1 Mod assets
         env:
