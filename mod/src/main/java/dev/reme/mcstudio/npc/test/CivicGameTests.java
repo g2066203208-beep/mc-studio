@@ -10,6 +10,7 @@ import dev.reme.mcstudio.npc.life.CivicContracts;
 import dev.reme.mcstudio.npc.life.CivicSocial;
 import dev.reme.mcstudio.npc.life.SocietyRules;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.entity.MobSpawnType;
 import net.minecraft.world.entity.MobCategory;
@@ -292,6 +293,31 @@ public final class CivicGameTests {
             !reloaded.identity().region().equals(npc.identity().region()) ||
             reloaded.roamingRadius() != npc.roamingRadius())
             throw new AssertionError("chunk-generated resident NBT identity did not survive");
+        helper.succeed();
+    }
+
+
+    @GameTest(template = "empty", timeoutTicks = 100)
+    public static void real_owner_rightclick_npc_updates_social_memory(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos origin = helper.absolutePos(new BlockPos(2, 1, 2));
+        PlayerNpcEntity npc = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (npc == null) throw new AssertionError("NPC entity type missing");
+        var player = FakePlayerFactory.getMinecraft(level);
+        player.moveTo(origin.getX() + 0.5, origin.getY(), origin.getZ() + 0.5, 0, 0);
+        npc.moveTo(origin.getX() + 1.5, origin.getY(), origin.getZ() + 0.5, 0, 0);
+        npc.setOwner(player);
+        npc.setMode(PlayerNpcEntity.Mode.LIVE);
+        npc.setHomePos(origin);
+        player.setItemInHand(InteractionHand.MAIN_HAND, ItemStack.EMPTY);
+        if (!level.addFreshEntity(npc)) throw new AssertionError("NPC cannot enter test server");
+        int before = npc.memory().trust(player.getUUID());
+        var result = npc.interact(player, InteractionHand.MAIN_HAND);
+        if (!result.consumesAction() || npc.memory().trust(player.getUUID()) <= before
+            || npc.memory().recentEvents().stream().noneMatch(e ->
+                e.actor().equals(player.getUUID()) &&
+                e.kind() == dev.reme.mcstudio.npc.life.ResidentMemory.Kind.GREETING))
+            throw new AssertionError("Right-click on live owner NPC failed to generate real greeting and friendship");
         helper.succeed();
     }
 
