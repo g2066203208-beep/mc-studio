@@ -34,30 +34,27 @@ export function buildBossPhysics(RAPIER){
  });
  let elapsed=0,steps=0,removedCount=0;
  const pose=()=>({translation:body.translation(),rotation:body.rotation(),linear:body.linvel(),angular:body.angvel()});
- const floorGap=()=>{
-  // The torso is 2 units above the boot soles; use local vertical axis
-  // transformed by body quaternion (so tilting is represented honestly).
+ // Exact lowest collider corner in world space, even when impact rolls
+ // the body onto its side. These are Rapier's solved pose coordinates.
+ const lowestCollider=(filter=()=>true)=>{
   const q=body.rotation(),p=body.translation();
+  const yx=2*(q.x*q.y+q.w*q.z),yy=1-2*(q.x*q.x+q.z*q.z),yz=2*(q.y*q.z-q.w*q.x);
+  const half=.5*(Math.abs(yx)+Math.abs(yy)+Math.abs(yz));
   let lowest=Infinity;
   for(const piece of pieces){
-   if(piece.removed)continue;
-   const {x,y,z}=piece;
-   // World-space Y projection of the quaternion rotation matrix.
-   const ry=2*(q.x*q.y+q.w*q.z);
-   const sy=1-2*(q.x*q.x+q.z*q.z);
-   const tz=2*(q.y*q.z-q.w*q.x);
-   const cy=p.y+ry*x+sy*y+tz*z;
-   const halfExtent=.5*(Math.abs(ry)+Math.abs(sy)+Math.abs(tz));
-   lowest=Math.min(lowest,cy-halfExtent);
+   if(piece.removed||!filter(piece))continue;
+   const worldY=p.y+yx*piece.x+yy*piece.y+yz*piece.z;
+   lowest=Math.min(lowest,worldY-half);
   }
   return lowest;
  };
+ const floorGap=()=>lowestCollider();
  const snapshot=()=>({
   solver:'Rapier WebAssembly',source:'browser-rigid-body-solver-not-NeoForge',
   elapsed:+elapsed.toFixed(2),steps,
   position:body.translation(),velocity:body.linvel(),rotation:body.rotation(),
   mass:body.mass(),feet:SUPPORT_POSITIONS.length-removedCount,
-  bodyBottom:body.translation().y+2,
+  bodyBottom:lowestCollider(piece=>piece.name==='torso'),
   footGap:floorGap(),
   blocks:pieces.filter(p=>!p.removed).length,
   contactState:Math.abs(floorGap())<.08&&Math.abs(body.linvel().y)<.23?'standing':
