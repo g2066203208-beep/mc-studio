@@ -10,6 +10,9 @@ public final class SeamSettings extends SavedData {
     private boolean enabled;
     private boolean carveNewChunks;
     private boolean experimentalNoRespawn;
+    private SeamStack stack = SeamStack.defaults();
+    private boolean stackChosenByUser;
+    private long stackRevision = 1;
 
     private SeamSettings() {
         enabled = false;
@@ -27,7 +30,31 @@ public final class SeamSettings extends SavedData {
         result.enabled = tag.getBoolean("enabled");
         result.carveNewChunks = tag.getBoolean("carveNewChunks");
         result.experimentalNoRespawn = tag.getBoolean("experimentalNoRespawn");
+        if (tag.contains("stack",net.minecraft.nbt.Tag.TAG_COMPOUND)) {
+            try {
+                result.stack = SeamStack.read(tag.getCompound("stack"));
+                result.stackChosenByUser = true;
+            } catch (IllegalArgumentException ex) {
+                com.mojang.logging.LogUtils.getLogger().error(
+                    "Invalid WorldSeam save stack; leaving feature OFF",ex);
+                result.enabled=false;
+            }
+        }
         return result;
+    }
+
+    public SeamStack stack() { return stack; }
+    public long stackRevision() { return stackRevision; }
+    public boolean stackChosenByUser() { return stackChosenByUser; }
+
+    public void setStack(SeamStack next, MinecraftServer server) {
+        next.validate(server);
+        if (!stack.equals(next) || !stackChosenByUser) {
+            stack=next;
+            stackChosenByUser=true;
+            stackRevision++;
+            setDirty();
+        }
     }
 
     public boolean enabled() {
@@ -67,6 +94,7 @@ public final class SeamSettings extends SavedData {
         tag.putBoolean("enabled", enabled);
         tag.putBoolean("carveNewChunks", carveNewChunks);
         tag.putBoolean("experimentalNoRespawn", experimentalNoRespawn);
+        tag.put("stack",stack.save());
         return tag;
     }
 }

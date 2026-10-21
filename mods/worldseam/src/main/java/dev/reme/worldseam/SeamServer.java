@@ -50,6 +50,7 @@ public final class SeamServer {
         boolean enabled = SeamSettings.get(server).enabled();
         long tick = server.overworld().getGameTime();
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            SeamStackSync.tick(server, player);
             SeamPreviewSender.tick(server, player, tick, enabled);
             SeamSectionSender.tick(server, player, tick, enabled);
             SeamChunkSender.tick(server, player, tick, enabled);

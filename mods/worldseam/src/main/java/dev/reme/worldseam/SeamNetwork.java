@@ -42,5 +42,11 @@ public final class SeamNetwork {
             (message, context) ->
                 context.enqueueWork(() -> SeamClientWorldPool.handoff(message))
         );
+        event.registrar("3").playToClient(
+            SeamStackSyncPayload.TYPE,
+            SeamStackSyncPayload.CODEC,
+            (message, context) ->
+                context.enqueueWork(() -> SeamStackClient.accept(message))
+        );
     }
 }

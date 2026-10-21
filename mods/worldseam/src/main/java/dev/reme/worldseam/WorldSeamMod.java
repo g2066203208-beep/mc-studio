@@ -13,6 +13,7 @@ public final class WorldSeamMod {
         modBus.addListener(SeamNetwork::register);
         NeoForge.EVENT_BUS.addListener(SeamCommands::register);
         NeoForge.EVENT_BUS.addListener(SeamServer::tick);
+        NeoForge.EVENT_BUS.addListener(SeamPendingWorldPreset::apply);
         NeoForge.EVENT_BUS.addListener(SeamServer::entityTick);
         NeoForge.EVENT_BUS.addListener(SeamTerrain::onChunkLoad);
         if (FMLEnvironment.dist == Dist.CLIENT) {
@@ -22,6 +23,8 @@ public final class WorldSeamMod {
             SeamNativeGeometryClient.install();
             SeamClientDiagnostic.install();
             SeamVisualE2E.install();
+            SeamStackClient.install();
+            SeamWorldCreation.install();
         }
         LogUtils.getLogger().info("WorldSeam standalone mod loaded; no climbing integration");
     }
