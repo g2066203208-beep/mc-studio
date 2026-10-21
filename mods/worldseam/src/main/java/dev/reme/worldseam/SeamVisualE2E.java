@@ -8,6 +8,8 @@ import net.minecraft.world.level.GameType;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
 import net.neoforged.neoforge.common.NeoForge;
@@ -110,7 +112,70 @@ public final class SeamVisualE2E {
         cfg.setCarveNewChunks(true);
         int x=player.blockPosition().getX();
         int z=player.blockPosition().getZ();
+        var overworld=server.getLevel(Level.OVERWORLD);
+        var nether=server.getLevel(Level.NETHER);
+        var end=server.getLevel(Level.END);
+        if (overworld==null || nether==null || end==null ||
+            overworld.getMinBuildHeight()!=-64 || overworld.getMaxBuildHeight()!=320 ||
+            nether.getMinBuildHeight()!=0 || nether.getMaxBuildHeight()!=256 ||
+            end.getMinBuildHeight()!=0 || end.getMaxBuildHeight()!=256 ||
+            SeamBounds.top(nether)!=128) {
+            LOG.error("WORLDSEAM_E2E_FAIL_BOUNDS: actual dimension heights disagree with expected vanilla 1.21.1");
+            return;
+        }
+        LOG.info("WORLDSEAM_E2E_BOUNDS: overworld=[{},{}), nether=[{},{}), end=[{},{}), joined overworld floor Y=-64 to nether roof Y=128",
+            overworld.getMinBuildHeight(),overworld.getMaxBuildHeight(),
+            nether.getMinBuildHeight(),nether.getMaxBuildHeight(),
+            end.getMinBuildHeight(),end.getMaxBuildHeight());
         int cleared=SeamTerrain.openTestColumn(server,x,z);
+        // A BEDROCK-ONLY opening is not an OBSERVATION WELL: the original
+        // Y=-61 player position may be inside solid deepslate.
+        // CI-only: excavate an 11x11 window through the local floor so
+        // the camera has an unobstructed line of sight across Y=-64.
+        // Excavation is NEVER performed in regular installed worlds.
+        int excavated=0;
+        BlockPos.MutableBlockPos at=new BlockPos.MutableBlockPos();
+        for (int dx=-5;dx<=5;dx++) for (int dz=-5;dz<=5;dz++)
+            for (int y=-64;y<=-54;y++) {
+                at.set(x+dx,y,z+dz);
+                if (!overworld.getBlockState(at).isAir()) {
+                    if (overworld.setBlock(at,Blocks.AIR.defaultBlockState(),3))
+                        excavated++;
+                }
+            }
+        // Also open the target Nether roof; otherwise the photographed
+        // target is mostly roof netherrack rather than the lower world.
+        int netherOpened=0;
+        for (int dx=-5;dx<=5;dx++) for (int dz=-5;dz<=5;dz++)
+            for (int y=120;y<=127;y++) {
+                at.set(x+dx,y,z+dz);
+                if (!nether.getBlockState(at).isAir()) {
+                    if (nether.setBlock(at,Blocks.AIR.defaultBlockState(),3))
+                        netherOpened++;
+                }
+            }
+        // Bright, distinctive target-only blocks at Nether Y=126/127.
+        // WorldSeam maps them below the OVERWORLD boundary, at -66/-65.
+        // They must never appear in the Overworld block palette itself.
+        int markers=0;
+        for(int dz=-3;dz<=3;dz++) for(int dx=-3;dx<=3;dx++) {
+            if (Math.abs(dx)<2 && Math.abs(dz)<2) continue; // landing safe
+            at.set(x+dx,126,z+dz);
+            if(nether.setBlock(at,Blocks.MAGENTA_CONCRETE.defaultBlockState(),3))
+                markers++;
+            at.set(x+dx,127,z+dz);
+            if(nether.setBlock(at,Blocks.GLOWSTONE.defaultBlockState(),3))
+                markers++;
+        }
+        if (!overworld.getBlockState(new BlockPos(x,-61,z)).isAir() ||
+            !overworld.getBlockState(new BlockPos(x,-64,z)).isAir() ||
+            !nether.getBlockState(new BlockPos(x,127,z)).isAir() ||
+            nether.getBlockState(new BlockPos(x+3,127,z+3)).getBlock()!=Blocks.GLOWSTONE) {
+            LOG.error("WORLDSEAM_E2E_FAIL_GEOMETRY: test shaft or remote-only marker not built");
+            return;
+        }
+        LOG.info("WORLDSEAM_E2E_GEOMETRY: opened local deepslate shaft={} blocks, Nether roof={} blocks, target-only magenta/glowstone markers={}, player view Overworld -61 toward mapped Nether Y127",
+            excavated,netherOpened,markers);
         player.setGameMode(GameType.CREATIVE);
         // Real in-game NIGHT_VISION effect for a visible test near dark
         // Nether/Overworld roofs. Only in the opt-in CI-only E2E harness.
