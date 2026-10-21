@@ -78,6 +78,7 @@ public final class SeamServer {
             var online=server.getPlayerList().getPlayers().stream()
                 .map(Entity::getUUID).collect(java.util.stream.Collectors.toSet());
             SeamChunkSender.prune(online);
+            SeamStackSync.prune(online);
         }
         if (!enabled) return;
         // Only one teleport per player per tick. All operations on server thread.
