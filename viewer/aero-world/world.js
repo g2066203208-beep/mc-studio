@@ -14,6 +14,7 @@ const sun=new THREE.DirectionalLight(0xfff1d1,1.25);sun.position.set(-20,25,12);
 const root=new THREE.Group();scene.add(root);
 const geometry=new THREE.BoxGeometry(1,1,1);
 const cells=new Map(),nodes=new Map(),textures=new Map(),matCache=new Map(),keyPressed=new Set(),touchPressed=new Set();
+const terrainInstances=[],terrainLocations=new Map(); // InstancedMesh reduces terrain to ~12 draw calls.
 const registry=['minecraft:grass_block','minecraft:stone','minecraft:oak_planks','minecraft:iron_block','minecraft:glass','minecraft:bricks',
 'minecraft:oak_log','minecraft:polished_andesite','create:andesite_casing','create:shaft','create:creative_motor',
 'simulated:swivel_bearing','simulated:physics_assembler','simulated:gimbal_sensor','simulated:analog_transmission','simulated:optical_sensor'];
@@ -82,6 +83,32 @@ function materials(id){
 function fallback(id){
  const g=new THREE.Group();const mesh=new THREE.Mesh(geometry,materials(id));g.add(mesh);return g;
 }
+function retireTerrain(k){
+ const ref=terrainLocations.get(k);
+ if(!ref)return;
+ const blank=new THREE.Object3D();blank.scale.setScalar(0);blank.updateMatrix();
+ ref.mesh.setMatrixAt(ref.index,blank.matrix);
+ ref.mesh.instanceMatrix.needsUpdate=true;
+ terrainLocations.delete(k);
+}
+function batchTerrain(){
+ for(const batch of terrainInstances)root.remove(batch);
+ terrainInstances.length=0;terrainLocations.clear();
+ for(const id of ['minecraft:stone','minecraft:grass_block']){
+  const slots=[...cells].filter(([k,b])=>b.id===id).map(([k])=>k);
+  if(!slots.length)continue;
+  const inst=new THREE.InstancedMesh(geometry,materials(id),slots.length);
+  inst.frustumCulled=false;
+  const pose=new THREE.Object3D();
+  slots.forEach((k,i)=>{
+    const old=nodes.get(k);if(old){root.remove(old);nodes.delete(k);}
+    pose.position.set(...fromKey(k));pose.rotation.set(0,0,0);pose.scale.set(1,1,1);pose.updateMatrix();
+    inst.setMatrixAt(i,pose.matrix);terrainLocations.set(k,{mesh:inst,index:i});
+  });
+  inst.userData.terrainKeys=slots;inst.instanceMatrix.needsUpdate=true;
+  root.add(inst);terrainInstances.push(inst);
+ }
+}
 function updateVisual(k){
  const block=cells.get(k);if(!block)return;
  const prev=nodes.get(k);if(prev)root.remove(prev);
@@ -100,16 +127,17 @@ async function replaceWithAsset(k,group,block,rev){
 function edit(x,y,z,id,state=null,silent=false){
  if(![x,y,z].every(Number.isInteger)||[x,y,z].some(n=>Math.abs(n)>96))return false;
  const k=cubeKey(x,y,z);
- if(!id){cells.delete(k);const group=nodes.get(k);if(group)root.remove(group);nodes.delete(k);}
+ if(!id){cells.delete(k);retireTerrain(k);const group=nodes.get(k);if(group)root.remove(group);nodes.delete(k);}
  else{
   if(!/^[a-z0-9_.-]+:[a-z0-9_./-]+$/.test(id))return false;
+  retireTerrain(k);
   cells.set(k,{id,state:{...(defaults[id]||{}),...(state||{})}});
   updateVisual(k);
  }
  if(!silent)autosave();return true;
 }
 function generate(){
- assetRevision++;root.clear();cells.clear();nodes.clear();
+ assetRevision++;root.clear();cells.clear();nodes.clear();terrainInstances.length=0;terrainLocations.clear();
  for(let x=-14;x<=14;x++)for(let z=-14;z<=14;z++){
   const height=Math.max(-1,Math.min(1,Math.round(1.2*Math.sin(x*.18)*Math.cos(z*.22))));
   for(let y=-2;y<=height;y++)edit(x,y,z,y===height?'minecraft:grass_block':'minecraft:stone',null,true);
@@ -122,6 +150,7 @@ function generate(){
  edit(-2,3,-8,'simulated:physics_assembler',null,true);
  edit(-2,3,-7,'simulated:gimbal_sensor',null,true);
  edit(0,3,-5,'simulated:optical_sensor',null,true);
+ batchTerrain();
  camera.position.set(0,3.12,9);yaw=0;pitch=-.09;flying=true;vy=0;
  notice('测试世界已加载：WASD移动、I选方块、F切换飞行。',6);autosave();
 }
@@ -145,6 +174,7 @@ function restore(obj){
  }
  assetRevision++;root.clear();cells.clear();nodes.clear();
  for(const e of obj.blocks)edit(...e.pos,e.id,e.state,true);
+ batchTerrain();
  if(Array.isArray(obj.player?.pos)&&obj.player.pos.length===3&&obj.player.pos.every(Number.isFinite)){
    camera.position.fromArray(obj.player.pos);yaw=Number(obj.player.yaw)||0;pitch=Number(obj.player.pitch)||0;
    flying=!!obj.player.flying;
@@ -238,6 +268,14 @@ $('jarInput').addEventListener('change',async e=>{
 });
 async function refreshWorld(){
  const version=++assetRevision,entries=[...nodes.entries()];let count=0;
+ // Use authentic installed vanilla 16x16 terrain textures when the user's vanilla JAR is present.
+ for(const id of ['minecraft:grass_block','minecraft:stone']){
+   const faces=id.endsWith('grass_block')?['minecraft:block/grass_block_side','minecraft:block/grass_block_side','minecraft:block/grass_block_top','minecraft:block/dirt','minecraft:block/grass_block_side','minecraft:block/grass_block_side']:
+     Array(6).fill('minecraft:block/stone');
+   const mats=materials(id);
+   for(let i=0;i<6;i++){const tex=await assets.texture(faces[i],'minecraft');if(tex)mats[i].map=tex;mats[i].needsUpdate=true;}
+ }
+
  for(const [k,group] of entries){
   if(version!==assetRevision)return;
   const cell=cells.get(k);if(cell)await replaceWithAsset(k,group,cell,version);
@@ -250,9 +288,9 @@ const ray=new THREE.Raycaster();ray.far=7;
 function aim(){
  hovered=null;placeAt=null;outlines.visible=false;
  ray.setFromCamera(new THREE.Vector2(0,0),camera);
- const targets=ray.intersectObjects([...nodes.values()],true);
+ const targets=ray.intersectObjects([...nodes.values(),...terrainInstances],true);
  for(const hit of targets){
-   const k=hit.object.userData.voxelKey;
+   const k=hit.object.userData.voxelKey||hit.object.userData.terrainKeys?.[hit.instanceId];
    if(!k||!cells.has(k))continue;
    const normal=hit.face?.normal?.clone().transformDirection(hit.object.matrixWorld)||new THREE.Vector3(0,1,0);
    // Geometry is centered at integer voxel coordinates; using the normal yields the adjacent block.
@@ -417,6 +455,7 @@ function init(){
   getBlockCount:()=>cells.size,getId:(x,y,z)=>cells.get(cubeKey(x,y,z))?.id||null,
   getPlayer:()=>camera.position.toArray(),getHotbar:()=>[...hotbar],isPlaying:()=>!paused,
   modBlocks:()=>assets.catalog.size,archives:()=>assets.archives.length,
+  pressedKeys:()=>[...keyPressed],terrainBatchCount:()=>terrainInstances.length,
   addBlock:(x,y,z,id)=>edit(x,y,z,id),removeBlock:(x,y,z)=>edit(x,y,z,null),
   exportWorld:data,importWorld:restore,refreshModels:refreshWorld,enter:resume,
   inspect:()=>({hovered,placeAt}),
