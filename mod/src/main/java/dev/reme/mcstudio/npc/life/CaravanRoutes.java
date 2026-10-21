@@ -2,6 +2,7 @@ package dev.reme.mcstudio.npc.life;
 
 import dev.reme.mcstudio.npc.PlayerNpcEntity;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.item.ItemStack;
@@ -48,9 +49,27 @@ public final class CaravanRoutes {
             return true;
         }
         if (npc.blockPosition().distSqr(target) > 6) {
-            RoadNavigator.moveToward(npc, level, target, 0.95);
-            npc.setAction("caravan travelling on familiar paths to "
-                + (target.equals(npc.caravanPickup()) ? "pickup depot" : "destination depot"));
+            // A chest occupies its own collision cube. Asking navigation to
+            // stand INSIDE it prevents the courier reaching interaction range.
+            // Resolve a genuine nearby air/solid-floor approach point first.
+            BlockPos stand = depotApproach(npc, level, target);
+            if (stand == null) {
+                npc.setAction("caravan paused: no reachable standing room next to chest");
+                return true;
+            }
+            if (npc.distanceToSqr(net.minecraft.world.phys.Vec3.atCenterOf(stand)) <= 16.0) {
+                // RoadNavigator deliberately stops early (<5 blockSq); finish
+                // in exact vanilla navigation reach to the accessible side.
+                if (npc.getNavigation().isDone()
+                    || npc.canRepath(stand, level.getGameTime())) {
+                    npc.getNavigation().moveTo(stand.getX() + 0.5, stand.getY(),
+                        stand.getZ() + 0.5, 0.96);
+                }
+            } else {
+                RoadNavigator.moveToward(npc, level, stand, 0.95);
+            }
+            npc.setAction("caravan walking to accessible depot side: "
+                + (target.equals(npc.caravanPickup()) ? "pickup" : "delivery"));
             return true;
         }
         if (target.equals(npc.caravanPickup())) {
@@ -64,6 +83,28 @@ public final class CaravanRoutes {
                 : "destination chest full; real wheat retained in NPC bag");
         }
         return true;
+    }
+
+    /** Find a real loaded, solid-floor, two-high-air standing spot beside a
+     * real chest; never force a route through an occupied block.
+     */
+    private static BlockPos depotApproach(PlayerNpcEntity npc, ServerLevel level, BlockPos chest) {
+        BlockPos best = null;
+        double closest = Double.MAX_VALUE;
+        for (Direction face : Direction.Plane.HORIZONTAL) {
+            BlockPos spot = chest.relative(face);
+            if (!level.hasChunkAt(spot)
+                || !level.getBlockState(spot).isAir()
+                || !level.getBlockState(spot.above()).isAir()
+                || !level.getBlockState(spot.below()).isSolid()
+                || !DailyRoaming.inRange(npc, spot)) continue;
+            double distance = npc.distanceToSqr(net.minecraft.world.phys.Vec3.atCenterOf(spot));
+            if (distance < closest) {
+                closest = distance;
+                best = spot.immutable();
+            }
+        }
+        return best;
     }
 
     /** One-way transfer, all-or-nothing on the 1..8 units actually available
