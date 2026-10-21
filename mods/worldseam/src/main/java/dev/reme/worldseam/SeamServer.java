@@ -32,6 +32,7 @@ public final class SeamServer {
     private static final Logger LOG = LogUtils.getLogger();
     private static final int COOLDOWN_TICKS = 12;
     private static final Map<UUID, Long> lastCross = new HashMap<>();
+    private static final SeamReturnGuard RETURN_GUARD = new SeamReturnGuard();
     private static MinecraftServer lastServer;
     private static volatile boolean seamEnabled;
     private static volatile boolean terrainEnabled;
@@ -43,6 +44,7 @@ public final class SeamServer {
         if (server != lastServer) {
             lastServer = server;
             lastCross.clear();
+            RETURN_GUARD.clear();
             SeamReadiness.clear();
         }
         boolean enabled = SeamSettings.get(server).enabled();
@@ -87,6 +89,28 @@ public final class SeamServer {
                 }
                 double targetBoundaryY = SeamGraph.boundaryY(link.entry(),
                     target.getMinBuildHeight(), SeamBounds.top(target));
+                // A freshly arrived player must enter the new world before
+                // gravity or position correction can send them back out.
+                if (RETURN_GUARD.blocked(player.getUUID(), dim, link.exit(),
+                    player.getY(), min, max)) {
+                    double holdY=SeamReturnGuard.safeY(link.exit(),min,max);
+                    if (link.exit()==SeamGraph.EdgeSide.BOTTOM
+                        && player.getY()<holdY && player.getDeltaMovement().y()<0) {
+                        player.connection.teleport(player.getX(),holdY,player.getZ(),
+                            player.getYRot(),player.getXRot());
+                        player.setDeltaMovement(new Vec3(player.getDeltaMovement().x(),
+                            0,player.getDeltaMovement().z()));
+                        player.fallDistance=0;
+                    } else if (link.exit()==SeamGraph.EdgeSide.TOP
+                        && player.getY()>holdY && player.getDeltaMovement().y()>0) {
+                        player.connection.teleport(player.getX(),holdY,player.getZ(),
+                            player.getYRot(),player.getXRot());
+                        player.setDeltaMovement(new Vec3(player.getDeltaMovement().x(),
+                            0,player.getDeltaMovement().z()));
+                        player.fallDistance=0;
+                    }
+                    continue;
+                }
                 SeamCrossing.Decision crossing = SeamCrossing.evaluate(
                     link, player.getY(), player.yo,
                     player.getDeltaMovement().y(), min, max, targetBoundaryY);
@@ -141,6 +165,7 @@ public final class SeamServer {
                     player.setDeltaMovement(previousVelocity);
                     player.fallDistance = previousFall;
                     lastCross.put(player.getUUID(), tick);
+                    RETURN_GUARD.landed(player.getUUID(), link.target(), link.entry());
                 } else {
                     LOG.warn("Seam teleport rejected: {} -> {}", dim, link.target());
                 }
