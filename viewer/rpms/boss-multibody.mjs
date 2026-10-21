@@ -81,10 +81,11 @@ export function createMultibodyBoss(RAPIER,opts={}){
   return rec;
  });
  const motors=motorSpecs;
- let mode='stand',elapsed=0,steps=0,commandRPM=18,torque=135,frequency=.76;
+ let mode='stand',elapsed=0,steps=0,commandRPM=18,torque=135,gearRatio=2,frequency=.76;
  let hipGain=115,kneeGain=92,hipDamping=15,kneeDamping=13;
  let phase=0;
- const setMotor=({rpm,torqueLimit,stiffness,damping,period}={})=>{
+ const setMotor=({rpm,torqueLimit,stiffness,damping,period,ratio}={})=>{
+  if([1,2,4].includes(Number(ratio)))gearRatio=Number(ratio);
   if(Number.isFinite(rpm))commandRPM=clamp(rpm,0,96);
   if(Number.isFinite(torqueLimit))torque=clamp(torqueLimit,0,5500);
   if(Number.isFinite(stiffness))hipGain=clamp(stiffness,0,4000);
@@ -118,7 +119,7 @@ export function createMultibodyBoss(RAPIER,opts={}){
  const applyController=()=>{
   // Motor command = target relative hinge angle, NOT a visual pose.
   // Controlled by Create-like motor RPM and phase timings.
-  if(mode==='walk'||mode==='march')phase+=DT*Math.PI*2*(commandRPM/60);
+  if(mode==='walk'||mode==='march')phase+=DT*Math.PI*2*(commandRPM/gearRatio/60);
   for(const leg of motors){
    if(leg.detached)continue;
    const drive=mode==='walk'||mode==='march';
@@ -129,8 +130,8 @@ export function createMultibodyBoss(RAPIER,opts={}){
    const kneeT=drive?clamp(.09+.54*lift,0,.84):0;
    leg.hipTarget=hipT;leg.kneeTarget=kneeT;
    if(mode!=='relax'&&torque>0){
-    servoTorque(body,leg.upper,hipT,hipGain,hipDamping,torque);
-    servoTorque(leg.upper,leg.lower,kneeT,kneeGain,kneeDamping,torque*.85);
+    servoTorque(body,leg.upper,hipT,hipGain,hipDamping,torque*gearRatio*.9);
+    servoTorque(leg.upper,leg.lower,kneeT,kneeGain,kneeDamping,torque*gearRatio*.9*.85);
    }
   }
  };
@@ -154,6 +155,7 @@ export function createMultibodyBoss(RAPIER,opts={}){
    footMeasurements:feet,
    joints:motors.filter(x=>!x.detached).length*2,
    rigidBodies:allBodies.length,torqueLimit:torque,motorRPM:commandRPM,
+   gearRatio,outputRPM:commandRPM/gearRatio,outputTorqueLimit:torque*gearRatio*.9,
    position:nowPos,velocity:body.linvel(),rotation:body.rotation(),
    bodyBottom:nowPos.y-.575,travel:nowPos.z,
    legAngles:motors.map(m=>({id:m.id,hip:getJointAngle(body,m.upper),knee:getJointAngle(m.upper,m.lower),
