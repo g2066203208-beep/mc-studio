@@ -803,6 +803,9 @@ public final class CivicGameTests {
         FootTrafficData data = FootTrafficData.get(level);
         boolean previous = data.physicalPathsEnabled();
         data.setPhysicalPathsEnabled(false);
+        for (int i = 0; i < FootTrafficData.PATH_THRESHOLD; i++)
+            if (!data.countPassage(UUID.randomUUID(), foot, 10L + i))
+                throw new AssertionError("Real cumulative traffic did not reach path threshold");
         if (EmergentFootpaths.tryWearPath(resident, level, foot)
             || !level.getBlockState(ground).is(Blocks.GRASS_BLOCK))
             throw new AssertionError("Road changed even when physical paths were disabled");
@@ -949,6 +952,48 @@ public final class CivicGameTests {
             || courier.backpack().countItem(Items.WHEAT) != 3
             || raider.backpack().countItem(Items.WHEAT) != 0)
             throw new AssertionError("No room in raider inventory but wheat was duplicated/lost");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 100)
+    public static void terrain_protection_mod_can_cancel_emergent_path_tool_event(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos foot = helper.absolutePos(new BlockPos(4, 9, 4));
+        BlockPos ground = foot.below();
+        level.setBlock(ground, Blocks.GRASS_BLOCK.defaultBlockState(), 3);
+        level.setBlock(foot, Blocks.AIR.defaultBlockState(), 3);
+        level.setBlock(foot.above(), Blocks.AIR.defaultBlockState(), 3);
+        PlayerNpcEntity npc = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (npc == null) throw new AssertionError("NPC type not registered");
+        npc.moveTo(foot.getX() + 0.5, foot.getY(), foot.getZ() + 0.5, 0, 0);
+        npc.setOnGround(true);
+        npc.setMode(PlayerNpcEntity.Mode.STAY);
+        if (!level.addFreshEntity(npc)) throw new AssertionError("Cannot spawn traffic NPC");
+        FootTrafficData data = FootTrafficData.get(level);
+        boolean previous = data.physicalPathsEnabled();
+        for (int i = 0; i < FootTrafficData.PATH_THRESHOLD; i++)
+            data.countPassage(UUID.randomUUID(), foot, level.getGameTime() + i + 1);
+        data.setPhysicalPathsEnabled(true);
+        AtomicBoolean fired = new AtomicBoolean(false);
+        Consumer<BlockEvent.BlockToolModificationEvent> veto = event -> {
+            if (!event.isSimulated() && event.getPos().equals(ground)
+                && event.getPlayer() != null
+                && event.getPlayer().getUUID().equals(npc.getUUID())) {
+                fired.set(true);
+                event.setCanceled(true);
+            }
+        };
+        NeoForge.EVENT_BUS.addListener(veto);
+        try {
+            if (EmergentFootpaths.tryWearPath(npc, level, foot)
+                || !level.getBlockState(ground).is(Blocks.GRASS_BLOCK))
+                throw new AssertionError("Canceled vanilla shovel tool event modified protected grass");
+            if (!fired.get())
+                throw new AssertionError("Desire path bypassed NeoForge BlockToolModificationEvent");
+        } finally {
+            NeoForge.EVENT_BUS.unregister(veto);
+            data.setPhysicalPathsEnabled(previous);
+        }
         helper.succeed();
     }
 
