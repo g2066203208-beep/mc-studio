@@ -3,6 +3,7 @@ package dev.reme.mcstudio.climb;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
 import dev.reme.mcstudio.StudioMod;
+import net.minecraft.client.Minecraft;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.api.distmarker.Dist;
@@ -25,7 +26,7 @@ public final class PeakSurfaceRender {
     @SubscribeEvent
     public static void before(RenderPlayerEvent.Pre event) {
         Player player = event.getEntity();
-        PeakVisuals.Pose pose = PeakVisuals.pose(player);
+        PeakVisuals.Pose pose = PeakVisuals.pose(player, player == Minecraft.getInstance().player);
         if (pose == null || !pose.climbing() || !Float.isFinite(pose.bodyYaw())
                 || pose.normal().lengthSqr() < .5) return;
         Vec3 normal = pose.normal().normalize();

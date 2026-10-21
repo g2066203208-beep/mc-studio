@@ -95,7 +95,7 @@ public final class PeakAnimationController {
             @SuppressWarnings("unchecked")
             ModifierLayer<IAnimation> layer = (ModifierLayer<IAnimation>) raw;
             Playback playback = PLAYBACKS.computeIfAbsent(client, ignored -> new Playback());
-            PeakVisuals.Pose state = PeakVisuals.pose(client);
+            PeakVisuals.Pose state = PeakVisuals.pose(client, client == Minecraft.getInstance().player);
             if (state != null && state.normal().lengthSqr() > .5) {
                 if (!playback.contactReady) {
                     playback.contact = state.contactPoint();

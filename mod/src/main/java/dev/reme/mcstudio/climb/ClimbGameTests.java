@@ -272,6 +272,8 @@ public final class ClimbGameTests {
                 "Wall jump must release the wall, not release the held RMB intent");
         helper.assertTrue(state.airborneRegrabTicks>0 && state.wallJumpCooldown>0,
                 "Jump must start an anti-magnetic regrab delay and cooldown");
+        helper.assertTrue(state.wallJumpAnimationTicks == 10 && state.poseAction == 9,
+                "Wall jump must play its own synchronized air pose");
         helper.assertTrue(player.getDeltaMovement().z<-.12
                         && player.getDeltaMovement().y>.12,
                 "Dyno should propel player AWAY from wall and into aimed upwards arc");
@@ -279,6 +281,9 @@ public final class ClimbGameTests {
         helper.assertTrue(!state.gripping() && !state.jumpRequested,
                 "Held SPACE and RMB must not retrigger jump or recapture departure wall");
         ClimbRuntime.accept(player,4,-1,false,false,false,0,0);
+        helper.assertTrue(state.wallJumpAnimationTicks == 0 && !state.peakHeld
+                        && state.poseAction == 0 && state.contactNormal.lengthSqr() < .001,
+                "RMB release must clear wall-jump pose and restore vanilla movement");
         ClimbState.remove(player);
         helper.setBlock(wall,Blocks.AIR);
         helper.succeed();
