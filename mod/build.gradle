@@ -69,6 +69,7 @@ neoForge {
         // The gametest system is also enabled by default for other run configs under the /test command.
         gameTestServer {
             type = "gameTestServer"
+            // Real Java 21 NeoForge GameTest server, not headless WebGL.
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
         }
 
@@ -116,6 +117,11 @@ configurations {
 }
 
 dependencies {
+    // Official release JARs are downloaded to this ignored directory only by
+    // the optional native GameTest CI workflow. Not redistributed in our jar.
+    if (project.hasProperty('rpmsNativeRuntime')) {
+        localRuntime files('runtime-mods/create-1.21.1.jar', 'runtime-mods/aeronautics-1.21.1.jar')
+    }
     // Example optional mod dependency with JEI
     // The JEI API is declared for compile time use, while the full JEI artifact is used at runtime
     // compileOnly "mezz.jei:jei-${mc_version}-common-api:${jei_version}"
@@ -187,4 +193,37 @@ idea {
         downloadSources = true
         downloadJavadoc = true
     }
+}
+
+
+// Generate a minimal valid MC 1.21.1 compressed StructureTemplate for
+// actual in-game tests.  No binary structure is checked into GitHub.
+// This task is platform-independent and needs only Gradle's Java toolchain.
+def gametestStructure = layout.buildDirectory.file('generated/native-tests/data/reme_studio/structure/rpms_empty.nbt')
+tasks.register('writeNativeGameTestTemplate') {
+    outputs.file(gametestStructure)
+    doLast {
+        def destination = gametestStructure.get().asFile
+        destination.parentFile.mkdirs()
+        new java.util.zip.GZIPOutputStream(new FileOutputStream(destination)).withCloseable { gz ->
+            new DataOutputStream(gz).withCloseable { out ->
+                out.writeByte(10); out.writeUTF('') // root Compound
+                out.writeByte(3); out.writeUTF('DataVersion'); out.writeInt(3955)
+                out.writeByte(9); out.writeUTF('size')
+                out.writeByte(3); out.writeInt(3)
+                [5, 5, 5].each { out.writeInt(it) }
+                out.writeByte(9); out.writeUTF('palette')
+                out.writeByte(10); out.writeInt(1)
+                out.writeByte(8); out.writeUTF('Name'); out.writeUTF('minecraft:air')
+                out.writeByte(0) // end state Compound
+                out.writeByte(9); out.writeUTF('blocks'); out.writeByte(10); out.writeInt(0)
+                out.writeByte(9); out.writeUTF('entities'); out.writeByte(10); out.writeInt(0)
+                out.writeByte(0) // end root
+            }
+        }
+    }
+}
+sourceSets.main.resources.srcDir(layout.buildDirectory.dir('generated/native-tests'))
+tasks.named('processResources').configure {
+    dependsOn tasks.named('writeNativeGameTestTemplate')
 }
