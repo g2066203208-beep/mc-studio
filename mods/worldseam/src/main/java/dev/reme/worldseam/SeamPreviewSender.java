@@ -64,14 +64,10 @@ public final class SeamPreviewSender {
         }
         ServerLevel source = player.serverLevel();
         String dimension = source.dimension().location().toString();
-        SeamGraph.Link selected = null;
-        for (SeamGraph.Link link : SeamStackRuntime.from(server,dimension)) {
-            if (link.near(player.getY(), source.getMinBuildHeight(),
-                SeamBounds.top(source), VIEW_DISTANCE_TO_SEAM)) {
-                selected = link;
-                break;
-            }
-        }
+        SeamGraph.Link selected=SeamChunkSender.activeLink(player);
+        if (selected!=null && Math.abs(player.getY()-
+            SeamStackRuntime.boundary(source,selected.exit()))>VIEW_DISTANCE_TO_SEAM)
+            selected=null;
         if (selected == null) {
             if (sessions.remove(id) != null) {
                 transmit(player, id, new SeamFrameState.Frame(
