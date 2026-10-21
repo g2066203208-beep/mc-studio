@@ -116,6 +116,9 @@ configurations {
 }
 
 dependencies {
+    // The following is included only for the isolated developer client test.
+    // No third-party cosmetics are redistributed inside our output JAR.
+    localRuntime fileTree(dir: 'run/mods', include: ['*.jar'])
     // Example optional mod dependency with JEI
     // The JEI API is declared for compile time use, while the full JEI artifact is used at runtime
     // compileOnly "mezz.jei:jei-${mc_version}-common-api:${jei_version}"

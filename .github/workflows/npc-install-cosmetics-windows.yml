@@ -1,0 +1,55 @@
+name: Verify Windows HMCL 3D Skin + EyeMod installer
+on:
+  push:
+    branches: [feature/npc-3dskin-dynamic-eyes-test]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  native-windows-install:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare a simulated HMCL game directory and old visual mods
+        shell: pwsh
+        run: |
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $game=Join-Path $env:RUNNER_TEMP "REME-Cosmetics-HMCL"
+          $mods=Join-Path $game "mods"
+          New-Item -ItemType Directory -Force -Path $mods | Out-Null
+          function FakeJar($path,$modid) {
+            $zip=[System.IO.Compression.ZipFile]::Open($path, [System.IO.Compression.ZipArchiveMode]::Create)
+            try {
+              $entry=$zip.CreateEntry('META-INF/neoforge.mods.toml')
+              $writer=New-Object System.IO.StreamWriter($entry.Open())
+              try { $writer.Write("[[mods]]`nmodId=`"$modid`"`n") }
+              finally { $writer.Dispose() }
+            } finally { $zip.Dispose() }
+          }
+          FakeJar (Join-Path $mods "unrelated-mod.jar") "some_other_mod"
+          FakeJar (Join-Path $mods "old-eyes-with-unusual-name.jar") "eyemod"
+      - name: Actually download both JARs via Modrinth and install with PowerShell
+        shell: pwsh
+        run: |
+          $game=Join-Path $env:RUNNER_TEMP "REME-Cosmetics-HMCL"
+          & ./packaging/Install-3D-Skin-and-EyeMod.ps1 -GameDirectory $game -ConfirmInstall
+          $mods=Join-Path $game "mods"
+          if (-not (Test-Path (Join-Path $mods "skinlayers3d-neoforge-1.11.4-mc1.21.1.jar"))) { throw "Missing 3D Skin Layers after install" }
+          if (-not (Test-Path (Join-Path $mods "neoforge_1.21.1_eyemod_1.1.0.jar"))) { throw "Missing EyeMod after install" }
+          if (-not (Test-Path (Join-Path $mods "unrelated-mod.jar"))) { throw "Unrelated mod was touched" }
+          if ((Get-ChildItem $mods -File -Filter "*.jar").Count -ne 3) { throw "Duplicate or lost mod" }
+          $bak=Get-ChildItem $mods -Directory -Filter 'REME-visual-backup-*' | Select-Object -First 1
+          if (-not $bak) { throw "Old mod backup missing" }
+          if (-not (Test-Path (Join-Path $bak.FullName "old-eyes-with-unusual-name.jar"))) { throw "Old EyeMod not backed up" }
+          Write-Host "PASS: actual Windows remote download, SHA checks, backup and no unrelated-mod modification"
+      - name: Package only downloader scripts — never redistribute cosmetic mod JARs
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path out | Out-Null
+          Compress-Archive -Path 'packaging/Install-3D-Skin-and-EyeMod.cmd','packaging/Install-3D-Skin-and-EyeMod.ps1' -DestinationPath 'out/REME-Visual-Mods-Installer-only.zip' -Force
+      - uses: actions/upload-artifact@v4
+        with:
+          name: install-3dskin-and-eyemod-scripts-only
+          path: out/REME-Visual-Mods-Installer-only.zip
+          if-no-files-found: error

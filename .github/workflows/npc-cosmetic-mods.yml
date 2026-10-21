@@ -1,0 +1,38 @@
+name: NeoForge GUI + installed 3D Skin Layers and EyeMod
+on:
+  push:
+    branches: [feature/npc-3dskin-dynamic-eyes-test]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify-cosmetic-mods:
+    runs-on: ubuntu-latest
+    timeout-minutes: 17
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Install two official NeoForge 1.21.1 client mods, verifying hashes
+        run: |
+          python3 scripts/install-appearance-dependencies.py --mods-dir mod/run/mods --report visual-dependencies.json
+          find mod/run/mods -maxdepth 1 -type f -name '*.jar' -printf '%f\n'
+      - name: Virtual graphical desktop
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq xvfb xdotool imagemagick openbox
+      - name: Start actual Minecraft NeoForge 1.21.1 client with installed mods
+        shell: bash
+        run: |
+          timeout --signal=INT --kill-after=10s 500s             xvfb-run -a -s "-screen 0 1280x720x24" bash scripts/test-cosmetics-client.sh
+      - name: Upload only screenshots, log and official metadata (NEVER third-party jars)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: minecraft-client-3dskin-eyemod-proof
+          path: |
+            visual-dependencies.json
+            mod/client-cosmetics.log
+            mod/client-cosmetics-*.png
+            mod/run/logs/*.log
+          if-no-files-found: warn
