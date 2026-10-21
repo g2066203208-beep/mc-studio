@@ -39,9 +39,10 @@ GitHub 是整个 Minecraft 工作室的开发中心。代码、需求、研究�
 - 已有真实 3D 源码 `viewer/index.html`，主要针对 Mustang；如果要预览自己制作的摩托车需扩展支持任意 OBJ+PNG。
 - 操作门槛：审查来源许可后使用原创资产；执行自动化测试，再审阅 CI 和 PR。
 
-## 2026-10-21：无缝维度独立职责
+## 2026-10-21：纠正无缝维度项目路由（以现存 WorldSeam 为准）
 
-- 项目隔离目录：`projects/seamless-dimensions/`；规则见其 `AGENTS.md`，范围登记见 `docs/PROJECT_BOUNDARIES.md`。
-- 无缝维度对话**只负责跨维度视觉连续、双维度预加载/渲染、垂直维度排序与边界映射**；不得修改其他两个项目。
-- 现有 `mod/`、`viewer/rpms/` 属于既有机械动力/航空学工作；NPC 的独立工程路径尚未确认，不应声称三个完整工程已经完全分开。
-- 当前仅建立隔离规则，尚无独立可运行的无缝维度构建/视觉修复验收，禁止误报完成。
+- **真实项目是 WorldSeam（界缝）**：`feat/worldseam-standalone` 分支里的 `mods/worldseam/`，独立 NeoForge/Gradle 工程、Mod ID `worldseam`、Java 包 `dev.reme.worldseam`、独立 CI；详见 [PR #21](https://github.com/g2066203208-beep/mc-studio/pull/21)。
+- 检查该分支 `mods/worldseam/gradle.properties` 时版本为 **`0.9.0-dev`**；`mods/worldseam/README.md` 记录了 0.8 可编辑维度堆叠和 0.9 双维度区块驻留。PR #21 当时仍未合入 `main`，所以仅查看 main 会漏掉已有代码。
+- **禁止另起新 Mod 或平行目录**：此前误建 `projects/seamless-dimensions/` 是检查不完整造成的重复，已撤销。后续唯一开发源在 WorldSeam 原工程分支，不覆盖 0.8/0.9 已有实现、配置或测试。
+- 本无缝维度对话只负责跨维度渲染、稳定双维度加载、垂直维度排序与边界映射；不改 NPC、Create/Aeronautics/Sable 网站或 `mod/` 等其他项目。
+- **验收状态**：已有 0.8/0.9 功能源码和测试机制，但尚不能宣称完成真正跨维多 LevelRenderer 同帧视觉拼接、完整实体/流体/粒子/光照同步和全兼容。单独检查其 PR、CI、客户端原始截图和日志。
