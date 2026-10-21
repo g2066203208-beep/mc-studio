@@ -245,3 +245,183 @@ async function refreshWorld(){
  }
  if(version===assetRevision){$('jarStatus').textContent='资源已载入；可用 ID '+assets.catalog.size+' 种。动态 Mod 逻辑未执行。';notice('原版方块资源已刷新',4);}
 }
+
+const ray=new THREE.Raycaster();ray.far=7;
+function aim(){
+ hovered=null;placeAt=null;outlines.visible=false;
+ ray.setFromCamera(new THREE.Vector2(0,0),camera);
+ const targets=ray.intersectObjects([...nodes.values()],true);
+ for(const hit of targets){
+   const k=hit.object.userData.voxelKey;
+   if(!k||!cells.has(k))continue;
+   const normal=hit.face?.normal?.clone().transformDirection(hit.object.matrixWorld)||new THREE.Vector3(0,1,0);
+   // Geometry is centered at integer voxel coordinates; using the normal yields the adjacent block.
+   const p=fromKey(k),adj=p.map((v,i)=>v+Math.round(normal.getComponent(i)));
+   hovered={key:k,pos:p,...cells.get(k)};placeAt=adj;
+   outlines.position.set(...p);outlines.visible=true;break;
+ }
+ $('target').textContent=hovered?hovered.id+' · '+hovered.pos.join(', '):'瞄准方块';
+}
+function playerOverlaps(x,y,z){
+ const p=camera.position,r=.31;
+ return p.x+r>x-.5&&p.x-r<x+.5&&p.z+r>z-.5&&p.z-r<z+.5&&
+   p.y+.18>y-.5&&p.y-eyeHeight<y+.5;
+}
+function dig(){
+ if(paused||!hovered)return false;
+ const old=hovered;edit(...old.pos,null);aim();notice('拆除 '+old.id,2);return true;
+}
+function build(){
+ if(paused||!placeAt)return false;
+ const [x,y,z]=placeAt;
+ if(cells.has(cubeKey(x,y,z))||playerOverlaps(x,y,z)){notice('此处不能放置方块',2);return false;}
+ const id=hotbar[slot];edit(x,y,z,id);aim();notice('放置 '+id,2);return true;
+}
+function interact(){
+ if(!hovered)return;
+ if(hovered.id.startsWith('simulated:')||hovered.id.startsWith('create:')){
+   notice(hovered.id+'：网页不能执行原版 Java BlockEntity/轴承动力；这里仅支持建造和检视。',8);
+ }else notice('该方块的原版交互暂未实现：'+hovered.id,5);
+}
+function rotate(){
+ if(!hovered)return;
+ const dirs=['north','east','south','west','up','down'];
+ const curr=dirs.indexOf(hovered.state.facing||'north');
+ const state={...hovered.state,facing:dirs[(curr+1)%6]};
+ edit(...hovered.pos,hovered.id,state);notice('调整展示朝向 '+state.facing,2);
+}
+canvas.addEventListener('contextmenu',e=>e.preventDefault());
+document.addEventListener('keydown',e=>{
+ if(['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName))return;
+ if(e.code==='Escape'){
+   e.preventDefault();
+   if(!paused)show('menu');
+   else if(!$('inventory').classList.contains('hidden'))show('menu');
+   else if(!$('library').classList.contains('hidden'))show(libraryReturn);
+   return;
+ }
+ if(e.code==='KeyI'){if(!paused)show('inventory');return;}
+ if(paused)return;
+ if(/^Digit[1-9]$/.test(e.code)){hotbarPick(Number(e.code.slice(-1))-1);return;}
+ if(e.code==='KeyF'){flying=!flying;vy=0;notice(flying?'飞行模式：空格上升 / Shift下降':'行走模式：空格跳跃',3);}
+ if(e.code==='KeyE')interact();
+ if(e.code==='KeyR')rotate();
+ keyPressed.add(e.code);
+ if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code))e.preventDefault();
+});
+document.addEventListener('keyup',e=>keyPressed.delete(e.code));
+window.addEventListener('blur',()=>{keyPressed.clear();touchPressed.clear();});
+let lockedOnce=false;
+document.addEventListener('pointerlockchange',()=>{
+ if(document.pointerLockElement===canvas)lockedOnce=true;
+ else if(lockedOnce&&!paused&&!document.hidden)show('menu');
+});
+document.addEventListener('mousemove',e=>{
+ if(paused||document.pointerLockElement!==canvas)return;
+ yaw-=e.movementX*.0024;
+ pitch=THREE.MathUtils.clamp(pitch-e.movementY*.0024,-1.52,1.52);
+});
+canvas.addEventListener('pointerdown',e=>{
+ if(paused)return;
+ if(e.pointerType==='touch'){touchStart=[e.clientX,e.clientY];return;}
+ if(e.button===0)dig();
+ if(e.button===2)build();
+});
+canvas.addEventListener('pointermove',e=>{
+ if(paused||e.pointerType!=='touch'||!touchStart)return;
+ yaw-=(e.clientX-touchStart[0])*.006;
+ pitch=THREE.MathUtils.clamp(pitch-(e.clientY-touchStart[1])*.006,-1.52,1.52);
+ touchStart=[e.clientX,e.clientY];
+});
+canvas.addEventListener('pointerup',e=>{if(e.pointerType==='touch')touchStart=null;});
+canvas.addEventListener('wheel',e=>{
+ if(paused)return;
+ hotbarPick((slot+(e.deltaY>0?1:8))%9);e.preventDefault();
+},{passive:false});
+for(const b of document.querySelectorAll('[data-move]')){
+ const id=b.dataset.move;
+ b.addEventListener('pointerdown',e=>{e.preventDefault();b.setPointerCapture(e.pointerId);touchPressed.add(id);});
+ b.addEventListener('pointerup',()=>touchPressed.delete(id));
+ b.addEventListener('pointercancel',()=>touchPressed.delete(id));
+}
+$('mobileJump').addEventListener('click',()=>{
+ if(paused)return;
+ if(flying)camera.position.y+=.5;
+ else if(grounded){vy=7;grounded=false;}
+});
+$('mobileBreak').addEventListener('click',dig);
+$('mobilePlace').addEventListener('click',build);
+function collide(pos){
+ const r=.3,minX=Math.floor(pos.x-r+.5),maxX=Math.floor(pos.x+r+.5);
+ const minZ=Math.floor(pos.z-r+.5),maxZ=Math.floor(pos.z+r+.5);
+ const minY=Math.floor(pos.y-eyeHeight+.5),maxY=Math.floor(pos.y+.18+.5);
+ for(let x=minX;x<=maxX;x++)for(let y=minY;y<=maxY;y++)for(let z=minZ;z<=maxZ;z++){
+  if(!cells.has(cubeKey(x,y,z)))continue;
+  if(pos.x+r>x-.499&&pos.x-r<x+.499&&pos.z+r>z-.499&&pos.z-r<z+.499&&
+     pos.y+.18>y-.499&&pos.y-eyeHeight<y+.499)return true;
+ }
+ return false;
+}
+function motion(dt){
+ if(paused)return;
+ const f=Number(keyPressed.has('KeyW')||keyPressed.has('ArrowUp')||touchPressed.has('forward'))-
+         Number(keyPressed.has('KeyS')||keyPressed.has('ArrowDown')||touchPressed.has('back'));
+ const s=Number(keyPressed.has('KeyD')||touchPressed.has('right'))-
+         Number(keyPressed.has('KeyA')||touchPressed.has('left'));
+ const norm=Math.hypot(f,s)||1,step=(keyPressed.has('ControlLeft')?8:5)*dt;
+ const dx=(-Math.sin(yaw)*f+Math.cos(yaw)*s)*step/norm;
+ const dz=(-Math.cos(yaw)*f-Math.sin(yaw)*s)*step/norm;
+ const p=camera.position,test=p.clone();test.x+=dx;
+ if(flying||!collide(test))p.x=test.x;
+ test.copy(p);test.z+=dz;
+ if(flying||!collide(test))p.z=test.z;
+ if(flying){
+  p.y+=(Number(keyPressed.has('Space'))-Number(keyPressed.has('ShiftLeft')||keyPressed.has('ShiftRight')))*step;
+  vy=0;grounded=false;
+ }else{
+  if(keyPressed.has('Space')&&grounded){vy=6.8;grounded=false;}
+  vy=Math.max(-26,vy-22*dt);
+  const dy=vy*dt,n=Math.max(1,Math.ceil(Math.abs(dy)/.17));
+  for(let i=0;i<n;i++){
+   test.copy(p);test.y+=dy/n;
+   if(collide(test)){if(vy<0)grounded=true;vy=0;break;}
+   p.y=test.y;grounded=false;
+  }
+ }
+ p.x=THREE.MathUtils.clamp(p.x,-90,90);p.z=THREE.MathUtils.clamp(p.z,-90,90);
+ if(p.y< -12){p.set(0,5,9);vy=0;flying=true;notice('已恢复飞行，避免跌出世界',4);}
+}
+function resize(){
+ const w=Math.max(1,canvas.clientWidth),h=Math.max(1,canvas.clientHeight);
+ renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();
+}
+new ResizeObserver(resize).observe(canvas);
+function render(now){
+ const dt=Math.min((now-lastTime)/1000||0,.06);lastTime=now;
+ motion(dt);camera.rotation.set(pitch,yaw,0,'YXZ');
+ if(!paused)aim();
+ renderer.render(scene,camera);
+ $('coords').textContent='X '+camera.position.x.toFixed(1)+' · Y '+camera.position.y.toFixed(1)+
+ ' · Z '+camera.position.z.toFixed(1)+(flying?' · FLY':'');
+ if(now>noticeUntil)$('notice').style.opacity=0;
+ requestAnimationFrame(render);
+}
+function init(){
+ try{
+  const saved=localStorage.getItem('aeroworld-v1');
+  if(saved)restore(JSON.parse(saved));else generate();
+ }catch(e){console.warn('Local world could not be restored',e);generate();}
+ renderHotbar();renderPalette();resize();ready=true;
+ window.__AEROWORLD_READY__=true;
+ window.__AEROWORLD_API__={
+  getBlockCount:()=>cells.size,getId:(x,y,z)=>cells.get(cubeKey(x,y,z))?.id||null,
+  getPlayer:()=>camera.position.toArray(),getHotbar:()=>[...hotbar],isPlaying:()=>!paused,
+  modBlocks:()=>assets.catalog.size,archives:()=>assets.archives.length,
+  addBlock:(x,y,z,id)=>edit(x,y,z,id),removeBlock:(x,y,z)=>edit(x,y,z,null),
+  exportWorld:data,importWorld:restore,refreshModels:refreshWorld,enter:resume,
+  inspect:()=>({hovered,placeAt})
+ };
+ notice('AeroWorld已准备好，点击进入并搭建原版航空学方块。',8);
+ requestAnimationFrame(render);
+}
+init();
