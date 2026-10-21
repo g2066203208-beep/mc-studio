@@ -72,6 +72,11 @@ try{
  await page.locator('#example').click();
  await page.screenshot({path:path.join(__dirname,'strict-mobile.png'),fullPage:true});
  assert.ok((await page.evaluate(()=>document.documentElement.scrollWidth-window.innerWidth))<20,'mobile horizontal overflow');
+ await page.goto('http://127.0.0.1:8033/rpms/native.html',{waitUntil:'domcontentloaded'});
+ await page.waitForFunction(()=>document.querySelectorAll('.case').length>=30,null,{timeout:15000});
+ assert.equal(await page.locator('#passed').textContent(),'0','Must never claim native mechanics work without game tests');
+ assert.ok((await page.locator('.case').count())>=30,'Core Create/Aeronautics physics and wireless certification entries missing');
+ await page.screenshot({path:path.join(__dirname,'strict-native-certification-mobile.png'),fullPage:true});
  console.log('PASS true browser MC workbench, registry '+n+', kinetic example, placement UI, filtering, local JAR, mobile screenshots');
 }finally{await browser.close()}
 })().catch(e=>{console.error(e.stack||e);process.exit(1)});
