@@ -23,6 +23,13 @@ public final class MovementPolicy {
         return Math.floorMod(tick, interval) == phase(entityId, interval);
     }
 
+    /** Regional affiliation derived from persisted absolute world position.
+     * Negative coordinates use floorDiv, not truncation toward zero.
+     */
+    public static String region(int x, int z) {
+        return "sector_" + Math.floorDiv(x, 512) + "_" + Math.floorDiv(z, 512);
+    }
+
     public static int dailyShift(int personalitySeed) {
         // Spread morning schedules by at most 20 in-game minutes.
         return Math.floorMod(personalitySeed * 53, 800) - 400;

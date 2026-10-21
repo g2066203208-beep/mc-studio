@@ -124,6 +124,8 @@ public final class CivicGameTests {
         if (!resident.naturalResident() || resident.mode() != PlayerNpcEntity.Mode.LIVE ||
             resident.roamingRadius() < 32 || resident.roamingRadius() > 64 ||
             !resident.homePos().equals(position) ||
+            !resident.identity().region().equals(
+                MovementPolicy.region(position.getX(), position.getZ())) ||
             resident.backpack().countItem(Items.BREAD) != 2)
             throw new AssertionError("natural resident missing initial life, shelter or inventory");
         helper.succeed();

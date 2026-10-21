@@ -10,6 +10,9 @@ public final class MovementPolicySpec {
         ok(MovementPolicy.radius(-100) == 16, "min");
         ok(MovementPolicy.radius(900) == 128, "max");
         ok(MovementPolicy.radius(64) == 64, "normal");
+        ok(MovementPolicy.region(-1, -1).equals("sector_-1_-1"), "negative regions");
+        ok(MovementPolicy.region(511, 511).equals("sector_0_0"), "last cell position");
+        ok(MovementPolicy.region(512, 0).equals("sector_1_0"), "regional boundary");
         ok(MovementPolicy.within(0, 0, 30, 40, 50), "boundary included");
         ok(!MovementPolicy.within(0, 0, 30, 40, 49), "boundary rejects");
         ok(MovementPolicy.within(-25000000, 20000000, -25000020, 20000010, 24), "large world coords");

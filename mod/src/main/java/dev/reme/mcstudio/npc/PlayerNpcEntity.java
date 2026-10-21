@@ -120,6 +120,8 @@ public class PlayerNpcEntity extends PathfinderMob {
             BlockPos anchor = blockPosition();
             setHomePos(anchor);
             setWorkPos(anchor);
+            setIdentity(SocietyRules.civilian(
+                MovementPolicy.region(anchor.getX(), anchor.getZ())));
             setRoamingRadius(32 + getRandom().nextInt(33));
             setMode(Mode.LIVE);
             int traits = getRandom().nextInt(1_000_000);
