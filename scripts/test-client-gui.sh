@@ -106,6 +106,46 @@ xdotool key Return
 sleep 15
 import -window root client-gui-night.png
 echo "Captured six NPC demo and night-cycle screen evidence"
+# Extra P1 player-equivalent mining witness: real Minecraft commands in
+# a disposable world, not a synthetic picture. Capture before and after,
+# including chat confirmations and any errors. The world remains isolated.
+xdotool key --clearmodifiers t
+sleep 1
+xdotool type --clearmodifiers --delay 45 '/time set day'
+xdotool key Return
+sleep 3
+xdotool key --clearmodifiers t
+sleep 1
+xdotool type --clearmodifiers --delay 50 '/npc spawn MinerGUI'
+xdotool key Return
+sleep 3
+xdotool key --clearmodifiers t
+sleep 1
+xdotool type --clearmodifiers --delay 25 '/item replace entity @e[type=reme_studio:player_npc,sort=nearest,limit=1] weapon.mainhand with minecraft:iron_pickaxe'
+xdotool key Return
+sleep 3
+xdotool key --clearmodifiers t
+sleep 1
+xdotool type --clearmodifiers --delay 50 '/setblock ~2 ~ ~ minecraft:stone'
+xdotool key Return
+sleep 2
+import -window root client-gui-mine-prepared.png
+xdotool key --clearmodifiers t
+sleep 1
+xdotool type --clearmodifiers --delay 50 '/npc mine ~2 ~ ~'
+xdotool key Return
+sleep 2
+import -window root client-gui-mining-progress.png
+sleep 10
+import -window root client-gui-mining-finished.png
+xdotool key --clearmodifiers t
+sleep 1
+xdotool type --clearmodifiers --delay 50 '/npc info'
+xdotool key Return
+sleep 2
+import -window root client-gui-mining-status.png
+echo "Captured real in-world mining witness: fixture/tool/command/progress/final status; inspect all screens, do not infer success from script exit."
+
 echo "Window id: $found"
 echo "Minecraft launch/render indicators:"
 grep -E 'Reloading ResourceManager|mod/reme_studio|Created.*atlas' client-gui.log | tail -n 10 || true
