@@ -221,6 +221,18 @@ xdotool key Return
 sleep 2
 import -window root client-gui-mining-status.png
 echo "Captured real in-world mining witness: fixture/tool/command/progress/final status."
+# These are genuine chat results from the integrated Minecraft server,
+# not a screenshot filename being treated as gameplay proof.
+if ! grep -q 'Organic hamlet | 3 real households' run/logs/latest.log; then
+  echo "Minecraft did not verify organically recognized households"; exit 1
+fi
+if ! grep -q 'Desire paths: .*physical path shaping OFF' run/logs/latest.log; then
+  echo "Minecraft did not verify non-destructive foot traffic by default"; exit 1
+fi
+if ! grep -q 'NPC physical trail formation ENABLED' run/logs/latest.log; then
+  echo "Minecraft did not confirm OP-enabled natural path formation"; exit 1
+fi
+echo "PASS: integrated Minecraft verified 3-home hamlet and guarded foot-traffic opt-in"
 # A screenshot pipeline that silently fails to perform mining is not an
 # acceptance test. Require observed integrated-server conditional success.
 if ! grep -q 'REME_MINING_PREPARED' run/logs/latest.log; then
