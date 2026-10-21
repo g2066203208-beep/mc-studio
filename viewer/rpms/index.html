@@ -13,8 +13,8 @@
 <div class="layout">
 <aside class="palette">
  <div class="aside-heading"><div class="eyebrow">01 / INVENTORY</div><h1>方块工作台</h1><p>从官方源码建立方块目录；也可载入你当前版本的 Create / Simulated JAR，补齐实际资源中的注册模型。</p></div>
- <label class="upload" for="jarInput">＋ 导入本地 Create / 航空学 JAR</label><input id="jarInput" type="file" accept=".jar,.zip" multiple hidden>
- <div id="jarStatus" class="hint">未加载游戏 JAR。当前显示源码登记的方块名；外观为明确的占位几何。</div>
+ <label class="upload" for="jarInput">＋ 导入 Create / Simulated / MC 1.21.1 JAR</label><input id="jarInput" type="file" accept=".jar,.zip" multiple hidden>
+ <div id="jarStatus" class="hint">真实方块材质受原作者版权保护，本站不内置贴图。导入本地游戏使用的 Mod JAR 后，场景自动读取原版模型和 PNG；未导入时明确使用线框。复杂动态 BlockEntity 需要原版游戏渲染器。</div>
  <div class="filters"><input id="search" type="search" placeholder="搜索：shaft / 轴承 / 模组 ID" aria-label="搜索方块">
  <select id="namespace" aria-label="模组过滤"><option value="all">全部模组</option><option value="create">机械动力 · Create</option><option value="simulated">航空学 · Simulated</option></select>
  <select id="coverage" aria-label="规则覆盖状态"><option value="all">全部功能覆盖状态</option><option value="topology">已有局部规则</option><option value="requires-game">需游戏原版执行</option></select></div>
@@ -25,14 +25,14 @@
  <div class="toolbar"><div class="modes"><button data-mode="place" class="active">▣ 放置</button><button data-mode="inspect">◎ 检查</button><button data-mode="erase">⌫ 拆除</button><button data-mode="wrench">⟳ 扳手</button></div><div class="toolbar-right"><button id="example">载入合法传动示例</button><button id="resetScene" class="danger">清空</button></div></div>
  <div class="view-wrap" id="viewWrap"><canvas id="view" aria-label="MC 逐方块三维建造视图"></canvas>
  <div class="hud-top"><div><span class="mini-label">ACTIVE WORLD</span><strong>整数网格 · 可检查连接方向</strong><span class="hud-sub" id="worldHint">点击地面放置；点击已有方块表面向外放置；右键拆除</span></div><div class="state-pill">原版行为：仅游戏内权威</div></div>
- <div class="hud-bottom"><div id="canvasStatus">等待浏览器 WebGL 初始化…</div><div class="views"><button data-view="iso" class="active">3/4</button><button data-view="top">顶视</button><button data-view="side">侧视</button></div></div>
+ <div class="hud-bottom"><div><div id="modelCounter" class="asset-count">没有放置方块</div><div id="canvasStatus">等待浏览器 WebGL 初始化…</div></div><div class="views"><button data-view="iso" class="active">3/4</button><button data-view="top">顶视</button><button data-view="side">侧视</button></div></div>
  </div>
- <div class="bottom-panel"><div class="grid-controls"><label>施工高度层 <output id="layerValue">1</output><input id="layer" type="range" min="1" max="10" step="1" value="1"></label><label>轴方向 <select id="axis"><option value="x">X 东西</option><option value="y" selected>Y 上下</option><option value="z">Z 南北</option></select></label><label>朝向 <select id="facing"><option value="up">上</option><option value="north">北</option><option value="east">东</option><option value="south">南</option><option value="west">西</option><option value="down">下</option></select></label><label>预览转速 <input id="rpm" type="number" value="16" min="-256" max="256" step="1" title="仅创造马达预览用，非服务端物理实测"></label></div>
+ <div class="bottom-panel"><div class="grid-controls"><label>施工高度层 <output id="layerValue">1</output><input id="layer" type="range" min="1" max="10" step="1" value="1"></label><label>轴方向 <select id="axis"><option value="x">X 东西</option><option value="y" selected>Y 上下</option><option value="z">Z 南北</option></select></label><label>朝向 <select id="facing"><option value="up">上</option><option value="north">北</option><option value="east">东</option><option value="south">南</option><option value="west">西</option><option value="down">下</option></select></label><label>预览转速 <input id="rpm" type="number" value="16" min="-256" max="256" step="1" title="仅创造马达预览用，非服务端物理实测"></label><label>原版方块状态 <select id="statePreset"><option value="">根据朝向自动</option></select><small id="stateCount">需要对应 JAR</small></label></div>
  <div class="status-row"><span id="selectedName">尚未选择方块</span><span id="coverageState"></span></div></div>
 </main>
 <aside class="inspector">
  <div class="eyebrow">02 / VALIDATION</div><h2>机械诊断</h2>
- <p class="warning">网页不运行 MC、Create BlockEntity 或 Sable。未知机制不假装通过：只有已核对的部分旋转拓扑提供预检。</p>
+ <p class="warning">导入对应版本的 Create/Simulated JAR 后，本站解码静态方块 JSON/PNG。动态 BlockEntity Renderer、Ponder 动画与机械动力物理必须由真实游戏运行。</p>
  <div class="metrics"><div><small>方块</small><strong id="blocksNum">0</strong></div><div><small>传动连接</small><strong id="linksNum">0</strong></div><div><small>收到动力</small><strong id="poweredNum">0</strong></div></div>
  <div class="section-title">选择方块属性</div><div id="inspection" class="inspection">从左侧选取方块后，点击画布将其放入 MC 方格。</div>
  <div class="section-title">原版规则核对</div><div class="diagnostic-status" id="overall">空场景</div><div id="diagnostics" class="diagnostics"><p>通过摆放机械轴和齿轮可以测试部分方向连接。</p></div>

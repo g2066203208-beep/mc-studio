@@ -42,3 +42,17 @@
 4. 只有验收成功的功能，才在网页工具栏标记为“游戏已验证”。
 
 **验收边界**：网页能看到一个方块、能导入 JSON、能计算转速比，并不意味着能在游戏中组装、旋转、行走或战斗。
+
+
+## 2026-10-21：将官方 JAR 真实静态模型接入主工作台
+
+用户明确要求网页放置的方块与 Minecraft 中原版一致，因此不再把自制方盒/圆柱体伪装为实体外观。本版新增 \`authentic-models.mjs\`：
+- 通过浏览器 File API + JSZip 从用户主动选择的 Create、Simulated、Minecraft 1.21.1 客户端 JAR 或资源包中读取 \`assets/<namespace>/blockstates/*.json\`、\`models/**/*.json\` 与 \`textures/**/*.png\`。
+- 按 blockstate 变量键选择原始模型，提供变体下拉框，也支持 Multipart 的简单 AND/OR 匹配、JSON 模型继承、Element 面、像素 UV、部分 face rotation 和 model x/y 旋转。
+- 使用导入的 PNG 创建 nearest-neighbour WebGL 贴图。对应模型能解析时立即取代占位线框，保留独立、不可见的整数方块点击区域。
+- 原始游戏素材只在用户自己的浏览器内处理，不保存至 GitHub、不上传站点，不重分发。Create \`LICENSE.md\` 与 Simulated \`LICENSE.md\` 对 assets 目录均声明 All Rights Reserved，必须尊重。
+- 没有资源或不支持时明确显示线框，旁边显示“真实模型 xx / 已放方块 xx”“partial / unsupported / missing”，**不会伪称与游戏一模一样**。
+- 静态元素无法完全渲染 Create/航空学自定义几何 Loader、BlockEntityRenderer、程序化机械动态零件、TESR、玩家所装资源包着色、Sable 刚体动力学。复杂混合变体、uvlock 和某些非立方体实现也未必完全等同 MC。
+- 进一步做到逐像素一致，应由 **真实 Minecraft 1.21.1 + 用户精确版本 Mod + 一致资源包 + 游戏内 BER** 渲染到可预览的离线截图/实时画面，不能把 Three.js 小渲染器称作客户端。
+- CI 使用项目自创的 Simulated bearing / Create shaft & motor 多部分合成 JAR 进行解析器冒烟测试，绝不包含上游原版贴图。只有通过 CI 才能合入 main。
+
