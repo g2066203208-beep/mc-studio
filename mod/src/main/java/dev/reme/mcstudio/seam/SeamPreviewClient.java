@@ -14,6 +14,8 @@ import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
 import net.neoforged.neoforge.common.NeoForge;
 
 import java.util.Map;
+import java.util.List;
+import java.util.ArrayList;
 
 /**
  * Renders real remote models and remote sky/block light from incremental
@@ -22,6 +24,8 @@ import java.util.Map;
  */
 public final class SeamPreviewClient {
     private static final SeamFrameState CACHE = new SeamFrameState();
+    private record RenderCell(SeamFrameState.Position position, SeamFrameState.Visual visual) {}
+    private static List<RenderCell> visibleCells = List.of();
     private static long lastReceivedTick = -1;
     private static final int EXPIRY_TICKS = 80;
     private static final double MAX_RENDER_DISTANCE_SQ = 384 * 384;
@@ -37,6 +41,16 @@ public final class SeamPreviewClient {
         if (CACHE.accept(message.frame())) {
             Minecraft mc = Minecraft.getInstance();
             lastReceivedTick = mc.level != null ? mc.level.getGameTime() : -1;
+            // Expensive inner-block occlusion is computed only after an
+            // incoming delta, never 60+ times a second in the render loop.
+            Map<SeamFrameState.Position, SeamFrameState.Visual> cells = CACHE.blocks();
+            List<RenderCell> rebuilt = new ArrayList<>(cells.size());
+            for (var entry : cells.entrySet()) {
+                if (!isBuried(entry.getKey(), cells)) {
+                    rebuilt.add(new RenderCell(entry.getKey(), entry.getValue()));
+                }
+            }
+            visibleCells = List.copyOf(rebuilt);
         }
     }
 
@@ -45,6 +59,7 @@ public final class SeamPreviewClient {
         Minecraft mc = Minecraft.getInstance();
         if (mc.level == null || event.getPoseStack() == null) {
             CACHE.clear();
+            visibleCells = List.of();
             lastReceivedTick = -1;
             return;
         }
@@ -55,16 +70,15 @@ public final class SeamPreviewClient {
             lastReceivedTick = -1;
             return;
         }
-        Map<SeamFrameState.Position, SeamFrameState.Visual> cells = CACHE.blocks();
-        if (cells.isEmpty()) return;
+        if (visibleCells.isEmpty()) return;
 
         Vec3 camera = event.getCamera().getPosition();
         PoseStack pose = event.getPoseStack();
         MultiBufferSource.BufferSource buffers = mc.renderBuffers().bufferSource();
         boolean anyDrawn = false;
-        for (var entry : cells.entrySet()) {
-            var p = entry.getKey();
-            var visual = entry.getValue();
+        for (RenderCell entry : visibleCells) {
+            var p = entry.position();
+            var visual = entry.visual();
             double dx = p.x() + .5 - camera.x;
             double dy = p.y() + .5 - camera.y;
             double dz = p.z() + .5 - camera.z;
@@ -72,7 +86,6 @@ public final class SeamPreviewClient {
             if (!event.getFrustum().isVisible(new AABB(
                 p.x(), p.y(), p.z(), p.x()+1, p.y()+1, p.z()+1
             ))) continue;
-            if (isBuried(p, cells)) continue;
             BlockState state = Block.stateById(visual.stateId());
             if (state.getRenderShape() != RenderShape.MODEL) continue;
 
