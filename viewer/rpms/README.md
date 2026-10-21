@@ -83,3 +83,14 @@
 - **与网页对接：** 在 RPMS 网页先导入当前游戏版本的 Create/Aeronautics/Minecraft JAR，然后通过“导入 JSON”载入该游戏快照。游戏中实际测得的 RPM 在方块信息栏与纯网页预览 RPM 区分显示。快照导入绝不意味着网页已经执行原版物理运算。
 - **边界：** 测试套件专门检验明确的原版数据或作用，不据此宣称全部应力、无线覆盖、Sable 刚体、风、升力或碰撞已完成。应以 /rpms/native.html 的系统级验收状态为准。
 
+
+## 2026-10-21 修正首屏无模型 / 放置只出现线框的问题
+
+根因：先前 `renderWorld()` 在 `jarModels.archives.length===0` 时不渲染实体，只绘制透明方盒线框。用户没有主动上传 JAR，导致“方块没有模型”。以前 CI 只验收上传后的情形，属于验收缺口。
+
+- 首屏放置**可见**的机械动力动力示例与 Simulated 旋转轴承；即使断网，所有方块也用`procedural-models.mjs`的独立创作 3D 形状（轴、齿轮齿、轴承环、马达壳、机器等）替代空线框；这些仅是原创预览，不是原版。
+- 使用 `official-autoload.mjs` 在访问时直接向 Modrinth 官方 API 查询匹配 Minecraft 1.21.1/NeoForge 的 **Create 6.0.10** 和 **Create Aeronautics 1.3.2**，由用户浏览器直接从官方 CDN 下载分发 JAR， SHA-512 校验后临时解析模型，不在仓库或本站服务器存放受原作者版权保护的美术资源。没有上传 JAR 的要求；保留可选本地 JAR 导入（用于版本不一致或官方 CDN 受网络限制时）。
+- 真正 JSON/PNG 模型贴图加载后替换首屏预览；UI **等 3D 实体已挂载到 Three.js 场景才报告“原版模型已就绪”**。无法获取资产时则显示明确的“原创预览”与网络失败说明，不能误报原版还原。
+- 浏览器 GitHub Actions 为这个缺陷增加双重端到端检查：**零网络／零用户上传**时第一帧必须有实体 Mesh；有网络时 **实际 Chrome 从 Modrinth 下载正式 JAR（不 mock、不上传）**且原始贴图代替可见几何、无 console 错误，保存截图 `real-cdn-autoload-desktop.png`。
+- 这只是原版静态模型的前端展示；Create BER/TESR 复杂动画、Sable 模组真正物理和游戏内交互仍未全部移植，详见 native.html。
+

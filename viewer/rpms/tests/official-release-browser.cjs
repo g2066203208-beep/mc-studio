@@ -9,12 +9,12 @@ for(const f of mods)assert.ok(fs.statSync(f).size>1e6,'Official file not found: 
  try{
   const page=await browser.newPage({viewport:{width:1620,height:990},deviceScaleFactor:1});
   const exceptions=[];page.on('pageerror',e=>exceptions.push(e.message));
-  const response=await page.goto('http://127.0.0.1:8033/rpms/',{waitUntil:'domcontentloaded',timeout:60000});
+  const response=await page.goto('http://127.0.0.1:8033/rpms/?autoload=off',{waitUntil:'domcontentloaded',timeout:60000});
   assert.equal(response.status(),200);
   await page.waitForFunction(()=>window.__STRICT_READY__||window.__STRICT_ERROR__,null,{timeout:60000});
   assert.equal(await page.evaluate(()=>window.__STRICT_ERROR__||null),null);
   await page.locator('#jarInput').setInputFiles(mods,{timeout:160000});
-  await page.waitForFunction(()=>window.__STRICT_API__.getJarCount()===3&&document.querySelector('#jarStatus').textContent.includes('已本地读取'),null,{timeout:180000});
+  await page.waitForFunction(()=>window.__STRICT_API__.getJarCount()===3&&document.querySelector('#jarStatus').textContent.includes('成功读取'),null,{timeout:180000});
   const catalog=await page.evaluate(()=>window.__STRICT_API__.getCatalog());
   console.log('OFFICIAL ASSET LOADED: 3 archives; registry=',catalog.length);
   const namespaces=[...new Set(catalog.map(id=>id.split(':')[0]))].sort();

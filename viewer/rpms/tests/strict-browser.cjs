@@ -1,11 +1,14 @@
 const assert=require('node:assert/strict');
 const {chromium}=require('playwright-core');
 const path=require('node:path');
+const fs=require('node:fs');
 (async()=>{
 const browser=await chromium.launch({channel:'chrome',headless:true,args:['--no-sandbox','--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader','--enable-webgl','--disable-dev-shm-usage']});
 try{
  const page=await browser.newPage({viewport:{width:1500,height:920}});
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ // Test what the user actually sees with zero manual JARs and no network.
+ await page.route('https://api.modrinth.com/**',route=>route.abort());
  const r=await page.goto('http://127.0.0.1:8033/rpms/',{waitUntil:'domcontentloaded'});
  assert.equal(r.status(),200);
  await page.waitForFunction(()=>window.__STRICT_READY__===true||window.__STRICT_ERROR__,null,{timeout:50000});
@@ -13,10 +16,36 @@ try{
  const n=await page.evaluate(()=>window.__STRICT_API__.getCatalog().length);
  assert.ok(n>=216,'Official registration catalog missing: '+n);
  const count=await page.locator('#paletteItems .item').count();assert.ok(count>=216);
- assert.equal(await page.locator('#blocksNum').textContent(),'0','must start with EMPTY MC grid, not fake Q12');
- await page.locator('#example').click();
+ assert.equal(await page.locator('#blocksNum').textContent(),'5','first visit must display Create and Aeronautics mechanical models immediately');
+ const before=await page.evaluate(()=>({stats:window.__STRICT_API__.getVisualStats(),assets:window.__STRICT_API__.getAssetStatus()}));
+ assert.ok(before.stats.meshes>=8,'FIRST-PAINT BLOCKS HAVE NO VISIBLE MESHES: '+JSON.stringify(before));
+ assert.ok(before.assets.every(x=>x.status==='preview'),'Network offline must show 3D preview, not transparent wireframes');
+ await page.screenshot({path:path.join(__dirname,'strict-first-open-no-jar.png'),fullPage:true});
+ // Official publisher network is now mocked only for this deterministic
+ // parser UI test. It represents auto-loaded JARs, NOT an official release.
+ await page.unroute('https://api.modrinth.com/**');
+ const fixture=fs.readFileSync(path.join(__dirname,'fixture-simulated.jar'));
+ await page.route('https://api.modrinth.com/**',async route=>{
+  const aero=route.request().url().includes('create-aeronautics');
+  const name=aero?'create-aeronautics':'create';
+  const version=aero?'1.3.2':'6.0.10';
+  await route.fulfill({status:200,contentType:'application/json',
+   headers:{'access-control-allow-origin':'*'},
+   body:JSON.stringify([{version_number:version+'+mc1.21.1',version_type:'release',
+    files:[{primary:true,url:'https://cdn.modrinth.com/data/'+name+'/versions/mock/'+name+'.jar',hashes:{}}]}])});
+ });
+ await page.route('https://cdn.modrinth.com/**',route=>route.fulfill({status:200,
+  contentType:'application/java-archive',headers:{'access-control-allow-origin':'*'},body:fixture}));
+ await page.locator('#loadOfficial').click();
+ await page.waitForFunction(()=>window.__STRICT_API__.getOfficialState().length===2 &&
+  window.__STRICT_API__.getOfficialState().every(s=>s.phase==='ready'),null,{timeout:45000});
+ assert.equal(await page.evaluate(()=>window.__STRICT_API__.getJarCount()),2,
+  'auto loader must install two official-source archives without user file input');
+ await page.waitForFunction(()=>window.__STRICT_API__.getAssetStatus().some(x=>x.status==='authentic'),null,{timeout:25000});
+ await page.screenshot({path:path.join(__dirname,'strict-automatic-models.png'),fullPage:true});
+
  const status=await page.evaluate(()=>window.__STRICT_API__.getResult());
- assert.equal(status.summary.blocks,4);
+ assert.equal(status.summary.blocks,5);
  assert.equal(status.summary.links,3);
  assert.equal(status.rpms['2,1,1'],-16);
  await page.locator('[data-mode="inspect"]').click();
@@ -40,9 +69,9 @@ try{
  assert.ok((await page.locator('#paletteItems .item').count())>=30);
  await page.locator('#namespace').selectOption('all');
  await page.locator('#jarInput').setInputFiles(path.join(__dirname,'fixture-simulated.jar'));
- await page.waitForFunction(()=>document.getElementById('jarStatus').textContent.includes('本地读取'),null,{timeout:30000});
- assert.ok((await page.locator('#jarStatus').textContent()).includes('种变体'));
- assert.ok((await page.locator('#jarStatus').textContent()).includes('1 个嵌套组件'),'packaged Aeronautics inner mod must be scanned');
+ await page.waitForFunction(()=>document.getElementById('jarStatus').textContent.includes('成功读取'),null,{timeout:30000});
+ assert.ok((await page.locator('#jarStatus').textContent()).includes('种原版方块状态'));
+ assert.ok((await page.locator('#jarStatus').textContent()).includes('1 个内嵌包'),'packaged Aeronautics inner mod must be scanned');
  await page.evaluate(()=>{
   const api=window.__STRICT_API__;api.reset();
   api.place({id:'simulated:physics_assembler',pos:[0,1,0],axis:'y',facing:'north'});
@@ -62,7 +91,7 @@ try{
  await page.screenshot({path:path.join(__dirname,'strict-authentic-jar.png'),fullPage:true});
  await page.evaluate(()=>{const api=window.__STRICT_API__;api.reset();api.place({id:'simulated:swivel_bearing',pos:[0,1,0],axis:'y',facing:'up'});});
  await page.waitForFunction(()=>window.__STRICT_API__.getAssetStatus().some(x=>x.status==='authentic'));
- assert.ok((await page.locator('#modelCounter').textContent()).includes('原始资源模型 1/1'));
+ assert.ok((await page.locator('#modelCounter').textContent()).includes('原版模型 1/1'));
 
  assert.equal(errors.length,0,'Browser errors: '+errors.join('; '));
  // Mobile responsiveness in the same initialized WebGL session to avoid
