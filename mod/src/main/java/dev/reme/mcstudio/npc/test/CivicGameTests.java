@@ -321,4 +321,24 @@ public final class CivicGameTests {
         helper.succeed();
     }
 
+    @GameTest(template = "empty", timeoutTicks = 100)
+    public static void npc_skin_is_synced_and_persisted_per_character(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        PlayerNpcEntity npc = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (npc == null) throw new AssertionError("NPC entity registration absent");
+        npc.setSkinId(4);
+        if (npc.skinId() != 4) throw new AssertionError("EntityData skin not assigned");
+        CompoundTag saved = new CompoundTag();
+        npc.addAdditionalSaveData(saved);
+        PlayerNpcEntity recreated = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (recreated == null) throw new AssertionError("NPC entity reload failed");
+        recreated.readAdditionalSaveData(saved);
+        if (recreated.skinId() != 4 || !saved.contains("NpcSkinId"))
+            throw new AssertionError("NPC skin selection lost during NBT save/reload");
+        npc.setSkinId(900);
+        if (npc.skinId() != 5) throw new AssertionError("Out-of-range skin id unbounded");
+        npc.setSkinId(-999);
+        if (npc.skinId() != 0) throw new AssertionError("Negative skin id unbounded");
+        helper.succeed();
+    }
 }
