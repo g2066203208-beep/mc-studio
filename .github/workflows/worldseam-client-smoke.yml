@@ -1,0 +1,49 @@
+name: WorldSeam Headless Client Smoke
+on:
+  push:
+    branches: [feat/worldseam-standalone]
+    paths:
+      - "mods/worldseam/**"
+      - ".github/workflows/worldseam-client-smoke.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  client-startup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Install virtual desktop and software GL
+        run: sudo apt-get update -qq && sudo apt-get install -y xvfb libgl1-mesa-dri libglx-mesa0
+      - name: Boot actual NeoForge Minecraft client
+        working-directory: mods/worldseam
+        shell: bash
+        run: |
+          set +e
+          timeout --signal=TERM 240s xvfb-run -a -s '-screen 0 1280x720x24' bash ./gradlew runClient --no-daemon --console=plain > client-smoke.log 2>&1
+          exitcode=$?
+          set -e
+          tail -n 100 client-smoke.log
+          if grep -E 'Mixin apply failed|InvalidMixinException|NoSuchMethodError|NoSuchFieldError|Reported exception thrown|Exception during client tick|NoClassDefFoundError' client-smoke.log; then
+            echo 'WorldSeam client runtime failure'; exit 1
+          fi
+          # A running interactive client will be terminated by timeout.
+          if [ "$exitcode" -ne 0 ] && [ "$exitcode" -ne 124 ]; then
+            echo "Client exited unexpectedly ($exitcode)"; exit 1
+          fi
+          if ! grep -E 'OpenAL initialized|Sound engine started|Reloading ResourceManager|Created: .*OpenGL' client-smoke.log; then
+            echo 'Client did not demonstrate reaching resource startup'; exit 1
+          fi
+          echo 'Headless client startup smoke succeeded (not a dimension-crossing render test)'
+      - name: Upload client logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: worldseam-client-smoke-log
+          path: mods/worldseam/client-smoke.log
+          if-no-files-found: ignore

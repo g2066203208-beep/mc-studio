@@ -1,0 +1,20 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "dev.reme.worldseam.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "SeamEntityAccess",
+    "SeamChunkGenerationMixin",
+    "SeamBlockUpdateMixin"
+  ],
+  "client": [
+    "SeamMinecraftAccess",
+    "SeamPacketListenerAccess",
+    "SeamClientPlayerAccess",
+    "SeamCreateWorldMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

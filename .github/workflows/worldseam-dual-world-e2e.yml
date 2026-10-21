@@ -1,0 +1,97 @@
+name: WorldSeam Dual World Live Client E2E
+on:
+  push:
+    branches: [feat/worldseam-standalone]
+    paths:
+      - "mods/worldseam/src/**"
+      - "mods/worldseam/build.gradle"
+      - "mods/worldseam/gradle.properties"
+      - ".github/workflows/worldseam-dual-world-e2e.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  dual-world:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Install real Minecraft graphical test dependencies
+        run: sudo apt-get update -qq && sudo apt-get install -y xvfb libgl1-mesa-dri libglx-mesa0 xdotool imagemagick x11-apps
+      - name: Verify TWO live dimensions with in-world screenshots and strict counters
+        working-directory: mods/worldseam
+        shell: bash
+        run: |
+          set -euo pipefail
+          xvfb-run -a -s '-screen 0 1280x720x24' bash -c '
+            set -euo pipefail
+            export LIBGL_ALWAYS_SOFTWARE=1
+            bash ./gradlew runClient -PworldseamE2E --no-daemon --console=plain > dual-world.log 2>&1 &
+            pid=$!
+            trap "kill $pid 2>/dev/null || true" EXIT
+            for step in $(seq 1 200); do
+              if grep -q "Reloading ResourceManager" dual-world.log; then break; fi
+              if ! kill -0 $pid 2>/dev/null; then
+                tail -n 90 dual-world.log; exit 1
+              fi
+              sleep 1
+            done
+            sleep 22
+            xdotool mousemove 640 568 click 1
+            sleep 8
+            xdotool mousemove 640 336 click 1
+            sleep 8
+            xdotool mousemove 640 540 click 1
+            sleep 8
+            xdotool mousemove 640 403 click 1
+            sleep 2
+            xdotool mousemove 480 565 click 1
+            ready=0
+            for step in $(seq 1 220); do
+              if grep -q "WORLDSEAM_E2E_PREVIEW_WINDOW" dual-world.log; then ready=1; break; fi
+              if grep -q "WORLDSEAM_E2E_FAIL" dual-world.log; then break; fi
+              if ! kill -0 $pid 2>/dev/null; then break; fi
+              sleep 1
+            done
+            if [ "$ready" != 1 ]; then
+              echo "WORLDSEAM_DUAL_GUI_FAIL: no real pre-crossing scene"; tail -n 100 dual-world.log; exit 1
+            fi
+            xwd -root -silent | convert xwd:- -resize 800x450 -quality 62 dual-world-start.jpg
+            ready=0
+            for step in $(seq 1 220); do
+              if grep -q "WORLDSEAM_E2E_DUAL_STABLE" dual-world.log; then ready=1; break; fi
+              if grep -q "WORLDSEAM_E2E_FAIL" dual-world.log; then break; fi
+              if ! kill -0 $pid 2>/dev/null; then break; fi
+              sleep 1
+            done
+            xwd -root -silent | convert xwd:- -resize 800x450 -quality 62 dual-world-stable.jpg
+            echo "=== REAL NEOFORGE DUAL WORLD E2E ==="
+            grep -E "WORLDSEAM_E2E_(DUAL_|MUTATE_REMOTE|SECOND_WORLD_LIVE_BLOCK|LIVE_PACKET|FAIL)" dual-world.log | tail -n 35 || true
+            if [ "$ready" != 1 ] || grep -q "WORLDSEAM_E2E_FAIL" dual-world.log; then
+              echo "WORLDSEAM_DUAL_GUI_FAIL: live dual-dimension conditions not met"; exit 1
+            fi
+            for marker in WORLDSEAM_E2E_DUAL_PREWARM \
+                          WORLDSEAM_E2E_MUTATE_REMOTE_NETHER \
+                          "WORLDSEAM_E2E_SECOND_WORLD_LIVE_BLOCK: mirrored=true" \
+                          WORLDSEAM_E2E_LIVE_PACKET \
+                          WORLDSEAM_E2E_DUAL_STABLE; do
+              if ! grep -q "$marker" dual-world.log; then
+                echo "WORLDSEAM_DUAL_GUI_FAIL: missing $marker"; exit 1
+              fi
+            done
+            echo "WORLDSEAM_DUAL_GUI_PASS: actual server resident25/25, client live block sync, no redundant chunk churn"
+          '
+      - name: Upload original Minecraft screenshots and client log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: worldseam-two-live-dimensions-evidence
+          path: |
+            mods/worldseam/dual-world.log
+            mods/worldseam/dual-world-start.jpg
+            mods/worldseam/dual-world-stable.jpg
+          if-no-files-found: ignore

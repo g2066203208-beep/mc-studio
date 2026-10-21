@@ -1,0 +1,161 @@
+name: WorldSeam Real Client Visual Evidence
+on:
+  push:
+    branches: [feat/worldseam-standalone]
+    paths:
+      - "mods/worldseam/src/**"
+      - "mods/worldseam/build.gradle"
+      - "mods/worldseam/gradle.properties"
+      - ".github/workflows/worldseam-visual-e2e.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  visual-client:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Install actual GUI software renderer and screenshot utilities
+        run: sudo apt-get update -qq && sudo apt-get install -y xvfb libgl1-mesa-dri libglx-mesa0 xdotool imagemagick x11-apps
+      - name: Open actual Minecraft graphical client and capture display
+        shell: bash
+        working-directory: mods/worldseam
+        run: |
+          set -euo pipefail
+          xvfb-run -a -s '-screen 0 1280x720x24' bash -c '
+            set -euo pipefail
+            export LIBGL_ALWAYS_SOFTWARE=1
+            bash ./gradlew runClient -PworldseamE2E --no-daemon --console=plain > visual-client.log 2>&1 &
+            pid=$!
+            trap "kill $pid 2>/dev/null || true" EXIT
+            for step in $(seq 1 170); do
+              if grep -q "Reloading ResourceManager" visual-client.log; then break; fi
+              if ! kill -0 $pid 2>/dev/null; then
+                tail -n 70 visual-client.log
+                exit 1
+              fi
+              sleep 1
+            done
+            sleep 22
+            echo "Minecraft GUI windows:"
+            xdotool search --name Minecraft getwindowname 2>/dev/null || true
+            xwd -root -silent | convert xwd:- -resize 600x338 -quality 48 visual-dialog.jpg
+            # Minecraft first-launch accessibility welcome screen blocks all menus.
+            xdotool mousemove 640 568 click 1
+            sleep 8
+            xwd -root -silent | convert xwd:- -resize 600x338 -quality 48 visual-mainmenu.jpg
+            xdotool mousemove 640 336 click 1
+            sleep 8
+            xwd -root -silent | convert xwd:- -resize 600x338 -quality 48 visual-world-select.jpg
+            xdotool mousemove 640 540 click 1
+            sleep 8
+            xwd -root -silent | convert xwd:- -resize 600x338 -quality 48 visual-world-create.jpg
+            # Open the native WorldSeam Create World editor at upper-right.
+            # This UI verification runs before any world is created.
+            xdotool mousemove 640 480 click 1
+            sleep 3
+            xwd -root -silent | convert xwd:- -resize 800x450 -quality 65 visual-stack-editor.jpg
+            if ! grep -q "WORLDSEAM_CREATE_STACK_UI_OPEN" visual-client.log; then
+              echo "WorldSeam Create World stack editor did not open"
+              exit 1
+            fi
+            xdotool key Escape
+            sleep 3
+            # The actual screenshot shows Allow Commands at GUI x640 y403.
+            # Enable commands and create a fresh DISPOSABLE survival world.
+            xdotool mousemove 640 403 click 1
+            sleep 2
+            xdotool mousemove 480 565 click 1
+            # Wait for REAL INTEGRATED SERVER E2E stage markers instead of
+            # guessing fixed GUI-load times. The first frame MUST be in the
+            # OVERWORLD, looking through Y=-64 into the Nether visual markers.
+            found=0
+            for step in $(seq 1 180); do
+              if grep -q "WORLDSEAM_E2E_PREVIEW_WINDOW" visual-client.log; then found=1; break; fi
+              if grep -q "WORLDSEAM_E2E_FAIL" visual-client.log; then break; fi
+              sleep 1
+            done
+            if [ "$found" != 1 ]; then
+              echo "WorldSeam NEVER reached pre-crossing visual evidence stage"; tail -n 60 visual-client.log; exit 1
+            fi
+            xwd -root -silent | convert xwd:- -resize 800x450 -quality 58 visual-in-world.jpg
+            echo "WORLDSEAM_CAPTURED_PRE_CROSSING_OVERWORLD"
+            found=0
+            for step in $(seq 1 90); do
+              if grep -q "WORLDSEAM_E2E_REVERSE_STAGE" visual-client.log; then found=1; break; fi
+              sleep 1
+            done
+            if [ "$found" != 1 ]; then
+              echo "WorldSeam NEVER entered Nether"; tail -n 50 visual-client.log; exit 1
+            fi
+            sleep 2
+            xwd -root -silent | convert xwd:- -resize 800x450 -quality 58 visual-near-seam.jpg
+            echo "WORLDSEAM_CAPTURED_NETHER_LOOKING_UP"
+            found=0
+            for step in $(seq 1 80); do
+              if grep -q "WORLDSEAM_E2E_PASS_RETURN_CLIENT" visual-client.log; then found=1; break; fi
+              sleep 1
+            done
+            xwd -root -silent | convert xwd:- -resize 800x450 -quality 58 visual-crossing.jpg
+            # At Overworld TOP before crossing, capture actual End underside.
+            found=0
+            for step in $(seq 1 220); do
+              if grep -q "WORLDSEAM_E2E_END_PREVIEW_WINDOW" visual-client.log; then found=1; break; fi
+              if grep -q "WORLDSEAM_E2E_FAIL" visual-client.log; then break; fi
+              sleep 1
+            done
+            if [ "$found" != 1 ]; then
+              echo "End preview stage never reached"; tail -n 45 visual-client.log; exit 1
+            fi
+            xwd -root -silent | convert xwd:- -resize 800x450 -quality 58 visual-end-before-cross.jpg
+            found=0
+            for step in $(seq 1 220); do
+              if grep -q "WORLDSEAM_E2E_PASS_END_CLIENT" visual-client.log; then found=1; break; fi
+              if grep -q "WORLDSEAM_E2E_FAIL_END" visual-client.log; then break; fi
+              sleep 1
+            done
+            xwd -root -silent | convert xwd:- -resize 800x450 -quality 58 visual-end-after-cross.jpg
+            montage visual-in-world.jpg visual-near-seam.jpg visual-crossing.jpg visual-end-before-cross.jpg visual-end-after-cross.jpg visual-stack-editor.jpg -tile 3x2 -geometry +0+0 -quality 52 visual-sequence.jpg
+            echo WORLDSEAM_GUI_JPEG_BEGIN
+            base64 -w 0 visual-sequence.jpg
+            echo
+            echo WORLDSEAM_GUI_JPEG_END
+            if ! grep -q "WorldSeam standalone mod loaded" visual-client.log; then
+              echo "Mod never loaded in graphical client!"
+              exit 1
+            fi
+            echo "=== WORLDSEAM ACTUAL INTEGRATED CLIENT E2E LOG ==="
+            grep -E "WORLDSEAM_E2E_|WorldSeam prewarmed|WorldSeam direct local ClientLevel switch" visual-client.log | tail -n 50 || true
+            if grep -q "WORLDSEAM_E2E_FAIL" visual-client.log; then
+              echo "WorldSeam integrated E2E failed"; exit 1
+            fi
+            if ! grep -q "WORLDSEAM_E2E_PASS_CLIENT" visual-client.log ||
+               ! grep -q "WORLDSEAM_E2E_PASS_SERVER" visual-client.log ||
+               ! grep -q "WORLDSEAM_E2E_PASS_RETURN_CLIENT" visual-client.log ||
+               ! grep -q "WORLDSEAM_E2E_PASS_RETURN_SERVER" visual-client.log ||
+               ! grep -q "WORLDSEAM_E2E_PASS_END_CLIENT" visual-client.log ||
+               ! grep -q "WORLDSEAM_E2E_PASS_END_SERVER" visual-client.log; then
+              echo "WorldSeam never proved BOTH actual server and client dimension change"; exit 1
+            fi
+            echo "WorldSeam integrated E2E verified server and client dimension handoff"
+
+            if grep -E "Mixin apply failed|InvalidMixinException|Exception during client tick|NoSuchMethodError" visual-client.log; then
+              echo "WorldSeam failed in GUI client"
+              exit 1
+            fi
+            echo "WorldSeam GUI captured and integrated two-way dimension checks passed; visual frame-level seamless composition still requires separate validation"
+          '
+      - name: Save full reproducible GUI evidence
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: worldseam-real-gui-evidence
+          path: |
+            mods/worldseam/visual-client.log
+            mods/worldseam/visual-*.jpg
+          if-no-files-found: ignore

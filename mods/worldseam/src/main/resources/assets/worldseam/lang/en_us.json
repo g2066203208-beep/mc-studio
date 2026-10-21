@@ -1,0 +1,11 @@
+{
+  "mod.worldseam.name": "WorldSeam Dimension Stack",
+  "gui.worldseam.stack": "Dimension Stack",
+  "gui.worldseam.under": "Connect Below",
+  "gui.worldseam.over": "Connect Above",
+  "gui.worldseam.end": "The End",
+  "gui.worldseam.nether": "The Nether",
+  "gui.worldseam.overworld": "Overworld",
+  "gui.worldseam.save": "Save Stack",
+  "gui.worldseam.cancel": "Cancel"
+}

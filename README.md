@@ -63,3 +63,8 @@ bash scripts/build.sh
 - **结构检查**：`python3 skills/immersive-vehicles-modeling/scripts/inspect_obj.py MODEL.obj --texture ATLAS.png --definition VEHICLE.json --json`。
 - **单测**：`python3 -m unittest discover -s skills/immersive-vehicles-modeling/tests -v`。
 - **真实 3D 参照**：[`viewer/index.html`](viewer/index.html)；来源研究还可见 `research/immersive-vehicles/`。没有游戏实际体验前不宣称可驾驶。
+
+## 独立 Minecraft Mod
+
+- **WorldSeam（界缝）**：独立世界维度底层 Mod，参见 [mods/worldseam](mods/worldseam/README.md)，单独 Gradle 工程和 JAR；**不包含 PEAK 攀爬代码**。
+- **PEAK 攀爬**：独立攀爬开发分支 `feat/peak-*`，不能与 WorldSeam 使用同一 Mod ID、包或打包流程。
