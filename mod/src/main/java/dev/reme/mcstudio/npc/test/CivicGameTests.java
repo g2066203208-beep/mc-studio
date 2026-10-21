@@ -11,6 +11,7 @@ import dev.reme.mcstudio.npc.life.CivicSocial;
 import dev.reme.mcstudio.npc.life.SocietyRules;
 import dev.reme.mcstudio.npc.life.PlayerActionBridge;
 import dev.reme.mcstudio.npc.life.PlayerMiningActions;
+import dev.reme.mcstudio.npc.life.PlayerLootPickup;
 import dev.reme.mcstudio.npc.life.NpcPlayerActor;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.level.BlockEvent;
@@ -505,8 +506,10 @@ public final class CivicGameTests {
                     new AABB(target).inflate(3.0),
                     drop -> drop.getItem().is(Items.COBBLESTONE))
                     .stream().mapToLong(drop -> drop.getItem().getCount()).sum();
-                if (cobble < 1)
-                    helper.fail("Real player block break produced no cobblestone drop", target);
+                long stored = npc.backpack().countItem(Items.COBBLESTONE);
+                if (cobble + stored != 1)
+                    helper.fail("Real mining loot not conserved across world and backpack: "
+                        + "world=" + cobble + ", bag=" + stored, target);
                 else helper.succeed();
             }
         });
@@ -608,6 +611,69 @@ public final class CivicGameTests {
         var after = NpcPlayerActor.forNpc(npc, level);
         if (before != after || !before.getUUID().equals(npc.getUUID()))
             throw new AssertionError("Player actions created inconsistent FakePlayer identities");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 100)
+    public static void mined_drop_pickup_conserves_partial_stack_and_skips_unrelated_loot(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos pos = helper.absolutePos(new BlockPos(4, 9, 4));
+        level.setBlock(pos.below(), Blocks.STONE.defaultBlockState(), 3);
+        PlayerNpcEntity npc = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (npc == null) throw new AssertionError("missing player-like resident");
+        npc.moveTo(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5, 0, 0);
+        npc.setHomePos(pos);
+        npc.setMode(PlayerNpcEntity.Mode.STAY);
+        if (!level.addFreshEntity(npc)) throw new AssertionError("NPC not loaded");
+
+        // 35 other full stacks and exactly one spare cobblestone slot.
+        npc.backpack().setItem(0, new ItemStack(Items.COBBLESTONE, 63));
+        for (int i = 1; i < 36; i++)
+            npc.backpack().setItem(i, new ItemStack(Items.DIRT, 64));
+
+        ItemEntity mined = new ItemEntity(level, npc.getX(), npc.getY(),
+            npc.getZ(), new ItemStack(Items.COBBLESTONE, 4));
+        mined.setNoPickUpDelay();
+        ItemEntity unrelated = new ItemEntity(level, npc.getX(), npc.getY(),
+            npc.getZ(), new ItemStack(Items.DIAMOND, 2));
+        unrelated.setNoPickUpDelay();
+        if (!level.addFreshEntity(mined) || !level.addFreshEntity(unrelated))
+            throw new AssertionError("Real item entities failed to spawn");
+        npc.claimMiningDrops(java.util.Set.of(mined.getUUID()), level.getGameTime() + 80);
+        if (!PlayerLootPickup.pickUp(npc, mined))
+            throw new AssertionError("Claimed mined item could not partially enter real bag");
+        if (npc.backpack().countItem(Items.COBBLESTONE) != 64
+            || !mined.isAlive() || mined.getItem().getCount() != 3
+            || !unrelated.isAlive() || unrelated.getItem().getCount() != 2)
+            throw new AssertionError("Partial pickup duplicated/deleted items or stole unrelated loot");
+
+        if (PlayerLootPickup.pickUp(npc, mined)
+            || !mined.isAlive() || mined.getItem().getCount() != 3)
+            throw new AssertionError("Full backpack removed or vacuumed an item");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 100)
+    public static void mined_drop_claims_survive_reload_and_expire_without_items(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        PlayerNpcEntity npc = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (npc == null) throw new AssertionError("missing resident");
+        UUID id = UUID.randomUUID();
+        long deadline = level.getGameTime() + 30;
+        npc.claimMiningDrops(java.util.Set.of(id), deadline);
+        CompoundTag tag = new CompoundTag();
+        npc.addAdditionalSaveData(tag);
+        PlayerNpcEntity restored = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (restored == null) throw new AssertionError("cannot restore resident");
+        restored.readAdditionalSaveData(tag);
+        if (!restored.pendingMiningDrops().contains(id)
+            || restored.miningLootExpiry() != deadline)
+            throw new AssertionError("Lost exact item UUID claim on NBT save/load");
+        restored.forgetMiningDrop(id);
+        CompoundTag after = new CompoundTag();
+        restored.addAdditionalSaveData(after);
+        if (after.contains("NpcMiningDrops"))
+            throw new AssertionError("Completed claim should not remain in saved NBT");
         helper.succeed();
     }
 
