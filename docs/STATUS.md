@@ -44,3 +44,7 @@ Gradle 报告使用了将来不兼容 Gradle 10 的弃用功能；当前固定 W
 - 废弃上游 Dimension Stack 适配方案（PR #16 closed）。
 - 自主 Java 空间拓扑与跨维度玩家传送，版本 `0.3.0-dev`；无 Immersive Portals 依赖。
 - 只有真正开发跨维度可视化渲染与数据流后才能称为无缝，不得提前宣称已实现。
+
+## 2026-10-21 自研 Native Seam v0.4.0-dev
+
+已完成自研帧版本协议、远端方块/光照增量推送、遮挡缓存、视锥裁剪和 320 格远程地形高度图取样。源代码仍在 PR #18。**严格区分 CI 编译/单测与真正客户端跨维无缝体验：后者尚未完成。** 参见 `docs/NATIVE_SEAM_ARCHITECTURE.md`。

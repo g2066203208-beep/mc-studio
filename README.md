@@ -63,3 +63,7 @@ bash scripts/build.sh
 - **结构检查**：`python3 skills/immersive-vehicles-modeling/scripts/inspect_obj.py MODEL.obj --texture ATLAS.png --definition VEHICLE.json --json`。
 - **单测**：`python3 -m unittest discover -s skills/immersive-vehicles-modeling/tests -v`。
 - **真实 3D 参照**：[`viewer/index.html`](viewer/index.html)；来源研究还可见 `research/immersive-vehicles/`。没有游戏实际体验前不宣称可驾驶。
+
+## Native Seam v0.4.0-dev · 自研跨维度引擎
+
+新代码：`mod/src/main/java/dev/reme/mcstudio/seam/`，见 [自研引擎架构](docs/NATIVE_SEAM_ARCHITECTURE.md) 与 [当前源码 PR #18](https://github.com/g2066203208-beep/mc-studio/pull/18)。不依赖 Immersive Portals。目前是带自然光照、增量网络与远景高度图的实验性视觉代理，尚不是完整无加载的无缝世界。存档默认关闭，测试时输入 `/reme seam enable`。
