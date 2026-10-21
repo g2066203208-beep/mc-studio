@@ -163,3 +163,12 @@ Push CI `39518033958` SUCCESS，PR CI `39518039426` SUCCESS。Artifact `12310085
 - Java21 + NeoForge 编译及双 ZIP artifact [39545266219](https://github.com/g2066203208-beep/mc-studio/actions/runs/39545266219) SUCCESS，installer artifact `12321820441`，ZIP `REME-NPC-HMCL-v0.5.4-installer.zip`，完整解压得到 `Install-REME-NPC.cmd`、`Install-REME-NPC.ps1`、`README.txt`、`reme_studio-0.5.4-dev.jar`。JAR 128021 bytes, SHA256 `c31c085d490d3a60353ae4ffd098c1d9736a6dd6b027d40b09b9cf2a5c277568`，已解包并确认元数据 ModID=reme_studio，version 0.5.4-dev。
 - **尚未完成**：用户自己的 HMCL 游戏实例是否已经载入正确版本、222 Mod 整合包兼容性、真实 GUI 右键与背包窗口、长时间自然生成/数日行为、床/工作台 POI、充分的生活生产、20/50/100/200 NPC TPS。不得以已进入 CI 测试世界推论“所有人环境可用”。
 - 已发现轻微文案问题：v0.5.4 Mod 元数据正确，但部分自检/登录提示仍显示旧 `v0.5.2`，只是字符串未更新，不应误当实际安装的 JAR 版本；以模组界面的 Mod 版本和文件 SHA 为准。
+
+
+## 2026-10-21 NPC 守卫巡逻 GameTest 修复 v0.5.6
+
+- 分支 `fix/npc-guard-patrol-v056`，草稿 PR #36（base `feature/npc-character-skins-v055`）。**不要误合并到 main**：该分支是 v0.5.5 修复，和 PR #34 的视觉依赖安装分支是并行的，尚未整合。
+- 观察到 v0.5.5 源提交 `2d166478` 的真 NeoForge GameTest [39565701732](https://github.com/g2066203208-beep/mc-studio/actions/runs/39565701732) 为 **15/16**，失败项为 `guard_actually_walks_patrol_in_live_mode`（守卫未实际离开工作台）。
+- 修复源提交 `12e42ccab2f874f9ae8c41373614535202242fc8`：守卫检查 40 tick，保留正在运行的导航，原巡逻点不可走时按至多 4 方位×3 距离的固定预算寻找安全地点，不加载未加载的区块；测试舞台与其他并行 GameTest 垂直分离，并要求实际**水平移动**。
+- **已核验**：NeoForge GameTest [39572991788](https://github.com/g2066203208-beep/mc-studio/actions/runs/39572991788) **SUCCESS、16/16 required passed**，日志 `All 16 required tests passed :)`；[Build 39572991773](https://github.com/g2066203208-beep/mc-studio/actions/runs/39572991773) **SUCCESS**；Windows 安装器测试 [39572991713](https://github.com/g2066203208-beep/mc-studio/actions/runs/39572991713) **SUCCESS**。
+- 未完成：用户 HMCL 所在实例验收、多人实际场景卡路恢复、长时间 TPS、PR #34 3D Skin Layers/EyeMod 自定义 NPC 渲染器适配，以及用户指定的自绘像素 64×64 基础+外套双层皮肤替换旧下载贴图。PR 保留草稿，不能声称这些已完成。

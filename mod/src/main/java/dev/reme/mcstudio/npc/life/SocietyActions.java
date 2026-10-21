@@ -17,7 +17,10 @@ public final class SocietyActions {
 
     public static boolean tick(PlayerNpcEntity npc, ServerLevel level, long tick) {
         if (npc.mode() != PlayerNpcEntity.Mode.LIVE) return false;
-        if (!MovementPolicy.due(tick, npc.getId(), 80)) return false;
+        // Guards need timely checks so short patrol windows and threats are not skipped.
+        // Other professions retain the lower-cost 80-tick cadence.
+        int interval = npc.profession() == PlayerNpcEntity.Profession.GUARD ? 40 : 80;
+        if (!MovementPolicy.due(tick, npc.getId(), interval)) return false;
         return switch (npc.profession()) {
             case GUARD -> guard(npc, level, tick);
             case SCOUT -> scout(npc, level, tick);
@@ -81,19 +84,29 @@ public final class SocietyActions {
             guard.setAction("returning to guard post");
             return true;
         }
-        // Assigned guards really walk watch rounds instead of remaining
-        // motionless at their post. Hunger and fatigue may interrupt patrol.
+        // Respect a live route instead of restarting it on every AI pulse.
+        if (!guard.getNavigation().isDone()) return true;
+
+        // No global search: try a cardinal watchpoint, then three alternatives.
+        // If terrain or another mod blocks the 8-block target, fall back to a
+        // nearer walkable point, never force-load a chunk or walk beyond home.
         if (guard.energy() >= 28 && guard.hunger() >= 24) {
-            var step = PatrolPlanner.choose(tick, guard.getId());
-            BlockPos target = guard.workPos().offset(step.dx(), 0, step.dz());
-            if (DailyRoaming.inRange(guard, target) && level.hasChunkAt(target)
-                && level.getBlockState(target.below()).isSolid()
-                && level.getBlockState(target).isAir()
-                && level.getBlockState(target.above()).isAir()
-                && guard.blockPosition().distSqr(target) > 4) {
-                if (RoadNavigator.moveToward(guard, level, target, 0.86)) {
-                    guard.setAction("walking a watch round around the guard post");
-                    return true;
+            for (int quarter = 0; quarter < 4; quarter++) {
+                var step = PatrolPlanner.choose(tick + quarter * 260L, guard.getId());
+                for (int radius : new int[]{8, 5, 3}) {
+                    BlockPos destination = guard.workPos().offset(
+                        Integer.signum(step.dx()) * radius, 0,
+                        Integer.signum(step.dz()) * radius);
+                    if (!DailyRoaming.inRange(guard, destination)
+                        || !level.hasChunkAt(destination)
+                        || !level.getBlockState(destination.below()).isSolid()
+                        || !level.getBlockState(destination).isAir()
+                        || !level.getBlockState(destination.above()).isAir()
+                        || guard.blockPosition().distSqr(destination) <= 4) continue;
+                    if (RoadNavigator.moveToward(guard, level, destination, 0.86)) {
+                        guard.setAction("walking a watch round around the guard post");
+                        return true;
+                    }
                 }
             }
         }

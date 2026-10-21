@@ -345,7 +345,9 @@ public final class CivicGameTests {
     @GameTest(template = "empty", timeoutTicks = 195)
     public static void guard_actually_walks_patrol_in_live_mode(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
-        BlockPos center = helper.absolutePos(new BlockPos(10, 1, 10));
+        // Keep the arena twelve blocks above the other concurrently running
+        // GameTests: their world edits must not erase this patrol platform.
+        BlockPos center = helper.absolutePos(new BlockPos(10, 12, 10));
         // A genuine traversable 21x21 stone lane; no fake navigation mock.
         for (int dx = -10; dx <= 10; dx++) {
             for (int dz = -10; dz <= 10; dz++) {
@@ -366,10 +368,17 @@ public final class CivicGameTests {
         if (!level.addFreshEntity(guard))
             throw new AssertionError("guard failed to enter real server");
         helper.runAfterDelay(150, () -> {
-            if (guard.distanceToSqr(center.getX() + 0.5, center.getY(),
-                    center.getZ() + 0.5) < 2.25)
-                helper.fail("Live guard did not move from guard post during scheduled patrol", center);
-            else helper.succeed();
+            // Verify actual horizontal walking, not gravity or a teleport.
+            double dx = guard.getX() - (center.getX() + 0.5);
+            double dz = guard.getZ() - (center.getZ() + 0.5);
+            if (dx * dx + dz * dz < 2.25) {
+                helper.fail("Guard failed to patrol: action=" + guard.lastAction()
+                    + ", energy=" + guard.energy() + ", hunger=" + guard.hunger()
+                    + ", navigationDone=" + guard.getNavigation().isDone()
+                    + ", position=" + guard.blockPosition().toShortString(), center);
+            } else if (Math.abs(guard.getY() - center.getY()) > 1.5) {
+                helper.fail("Guard left the walkable patrol platform vertically", center);
+            } else helper.succeed();
         });
     }
 
