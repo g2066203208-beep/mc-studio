@@ -100,6 +100,14 @@ public final class NpcCommands {
             .then(Commands.literal("disband").executes(ctx -> squad(ctx.getSource(), false)))
             .then(Commands.literal("setstore").requires(source -> source.hasPermission(2))
                 .executes(ctx -> setStore(ctx.getSource())))
+            .then(Commands.literal("route")
+                .executes(ctx -> routeStatus(ctx.getSource()))
+                .then(Commands.literal("pickup").requires(source -> source.hasPermission(2))
+                    .executes(ctx -> setRouteDepot(ctx.getSource(), true)))
+                .then(Commands.literal("dropoff").requires(source -> source.hasPermission(2))
+                    .executes(ctx -> setRouteDepot(ctx.getSource(), false)))
+                .then(Commands.literal("clear").requires(source -> source.hasPermission(2))
+                    .executes(ctx -> clearRoute(ctx.getSource()))))
             .then(Commands.literal("nation").requires(source -> source.hasPermission(2))
                 .then(Commands.argument("id", StringArgumentType.word())
                     .executes(ctx -> setIdentity(ctx.getSource(), "nation",
@@ -371,6 +379,59 @@ public final class NpcCommands {
         npc.setMode(PlayerNpcEntity.Mode.LIVE);
         source.sendSuccess(() -> Component.literal("Started consented 5x5 shelter build at " +
             npc.workPos().toShortString() + "; uses actual cobblestone/planks, cannot clear blocks"), true);
+        return 1;
+    }
+
+    private static int routeStatus(CommandSourceStack source)
+        throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        PlayerNpcEntity npc = closestOwnedNpc(source.getPlayerOrException());
+        if (npc == null) return 0;
+        source.sendSuccess(() -> Component.literal(
+            npc.getName().getString() + " | caravan pickup=" + npc.caravanPickup()
+            + " | dropoff=" + npc.caravanDropoff()
+            + " | cargo wheat=" + npc.backpack().countItem(Items.WHEAT)
+            + " | deliveries=" + npc.parcelsDelivered()), false);
+        return 1;
+    }
+
+    private static int setRouteDepot(CommandSourceStack source, boolean pickup)
+        throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        ServerPlayer player = source.getPlayerOrException();
+        PlayerNpcEntity npc = closestOwnedNpc(player);
+        if (npc == null) return 0;
+        HitResult hit = player.pick(6.0D, 0.0F, false);
+        if (!(hit instanceof BlockHitResult block)
+            || !(player.serverLevel().getBlockEntity(block.getBlockPos())
+                instanceof ChestBlockEntity)) {
+            source.sendFailure(Component.literal(
+                "Look directly at a loaded vanilla CHEST within six blocks"));
+            return 0;
+        }
+        BlockPos chosen = block.getBlockPos();
+        if (!DailyRoaming.inRange(npc, chosen)) {
+            source.sendFailure(Component.literal(
+                "Depot outside resident's mobility radius; assign a local site"));
+            return 0;
+        }
+        if (pickup) npc.setCaravanPickup(chosen);
+        else npc.setCaravanDropoff(chosen);
+        npc.setProfession(PlayerNpcEntity.Profession.COURIER);
+        npc.setMode(PlayerNpcEntity.Mode.LIVE);
+        source.sendSuccess(() -> Component.literal(
+            "Caravan " + (pickup ? "SOURCE" : "DESTINATION") + " authorized at "
+            + chosen.toShortString()
+            + ". Point at the other chest and assign it; only actual wheat moves."), false);
+        return 1;
+    }
+
+    private static int clearRoute(CommandSourceStack source)
+        throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        PlayerNpcEntity npc = closestOwnedNpc(source.getPlayerOrException());
+        if (npc == null) return 0;
+        npc.setCaravanPickup(null);
+        npc.setCaravanDropoff(null);
+        source.sendSuccess(() -> Component.literal(
+            "Caravan route canceled. Existing goods remain in actual NPC backpack."), false);
         return 1;
     }
 
