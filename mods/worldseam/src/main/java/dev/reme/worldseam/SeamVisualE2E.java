@@ -31,6 +31,7 @@ public final class SeamVisualE2E {
     private static int phase;
     private static long startTick;
     private static UUID playerId;
+    private static boolean previewLogged;
 
     private SeamVisualE2E() {}
 
@@ -52,14 +53,21 @@ public final class SeamVisualE2E {
             phase=1;
             LOG.info("WORLDSEAM_E2E_START: actually joined world {}",mc.level.dimension().location());
             server.execute(() -> prepare(server,playerId));
-        } else if (phase==1 && now-startTick>390) {
+        } else if (phase==1 && !previewLogged && now-startTick>290) {
+            previewLogged=true;
+            LOG.info("WORLDSEAM_E2E_PREVIEW_WINDOW: client dim={}, received={}, cached3x3={}, surface geometry={}, drawn={}, camera near floor Y={}",
+                mc.level.dimension().location(),SeamClientWorldPool.receivedChunks(),
+                SeamClientWorldPool.nearbyChunks(),
+                SeamNativeGeometryClient.visibleBlockCount(),
+                SeamNativeGeometryClient.lastFrameDrawn(),mc.player.getY());
+        } else if (phase==1 && now-startTick>620) {
             phase=2;
             LOG.info("WORLDSEAM_E2E_CHECK: client native packets={}, 3x3={}, geometry={}, drawn={}",
                 SeamClientWorldPool.receivedChunks(),SeamClientWorldPool.nearbyChunks(),
                 SeamNativeGeometryClient.visibleBlockCount(),
                 SeamNativeGeometryClient.lastFrameDrawn());
             server.execute(() -> attempt(server,playerId));
-        } else if (phase==2 && now-startTick>500) {
+        } else if (phase==2 && now-startTick>730) {
             phase=3;
             String clientDimension=mc.level.dimension().location().toString();
             if (clientDimension.equals(DEST)) {
@@ -80,10 +88,10 @@ public final class SeamVisualE2E {
                     LOG.info("WORLDSEAM_E2E_REVERSE_STAGE: hovering inside Nether below Y128, looking UP");
                 } else LOG.error("WORLDSEAM_E2E_FAIL_SERVER: did not migrate player");
             });
-        } else if (phase==4 && now-startTick>745) {
+        } else if (phase==4 && now-startTick>975) {
             phase=5;
             server.execute(() -> attemptReverse(server,playerId));
-        } else if (phase==5 && now-startTick>850) {
+        } else if (phase==5 && now-startTick>1080) {
             phase=6;
             String clientDimension=mc.level.dimension().location().toString();
             if (clientDimension.equals("minecraft:overworld"))

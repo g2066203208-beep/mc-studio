@@ -60,16 +60,38 @@ jobs:
             xdotool mousemove 640 403 click 1
             sleep 2
             xdotool mousemove 480 565 click 1
-            # World creation can be CPU-heavy with software OpenGL.
-            sleep 78
-            xwd -root -silent | convert xwd:- -resize 600x338 -quality 48 visual-in-world.jpg
-            # In-game harness on REAL integrated server controls player using
-            # server-thread APIs, not unreliable xdotool chat keystrokes.
-            sleep 24
-            xwd -root -silent | convert xwd:- -resize 600x338 -quality 48 visual-near-seam.jpg
-            sleep 38
-            xwd -root -silent | convert xwd:- -resize 600x338 -quality 48 visual-crossing.jpg
-            montage visual-in-world.jpg visual-near-seam.jpg visual-crossing.jpg visual-world-create.jpg -tile 2x2 -geometry +0+0 -quality 48 visual-sequence.jpg
+            # Wait for REAL INTEGRATED SERVER E2E stage markers instead of
+            # guessing fixed GUI-load times. The first frame MUST be in the
+            # OVERWORLD, looking through Y=-64 into the Nether visual markers.
+            found=0
+            for step in $(seq 1 180); do
+              if grep -q "WORLDSEAM_E2E_PREVIEW_WINDOW" visual-client.log; then found=1; break; fi
+              if grep -q "WORLDSEAM_E2E_FAIL" visual-client.log; then break; fi
+              sleep 1
+            done
+            if [ "$found" != 1 ]; then
+              echo "WorldSeam NEVER reached pre-crossing visual evidence stage"; tail -n 60 visual-client.log; exit 1
+            fi
+            xwd -root -silent | convert xwd:- -resize 800x450 -quality 58 visual-in-world.jpg
+            echo "WORLDSEAM_CAPTURED_PRE_CROSSING_OVERWORLD"
+            found=0
+            for step in $(seq 1 90); do
+              if grep -q "WORLDSEAM_E2E_REVERSE_STAGE" visual-client.log; then found=1; break; fi
+              sleep 1
+            done
+            if [ "$found" != 1 ]; then
+              echo "WorldSeam NEVER entered Nether"; tail -n 50 visual-client.log; exit 1
+            fi
+            sleep 2
+            xwd -root -silent | convert xwd:- -resize 800x450 -quality 58 visual-near-seam.jpg
+            echo "WORLDSEAM_CAPTURED_NETHER_LOOKING_UP"
+            found=0
+            for step in $(seq 1 80); do
+              if grep -q "WORLDSEAM_E2E_PASS_RETURN_CLIENT" visual-client.log; then found=1; break; fi
+              sleep 1
+            done
+            xwd -root -silent | convert xwd:- -resize 800x450 -quality 58 visual-crossing.jpg
+            montage visual-in-world.jpg visual-near-seam.jpg visual-crossing.jpg visual-world-create.jpg -tile 2x2 -geometry +0+0 -quality 52 visual-sequence.jpg
             echo WORLDSEAM_GUI_JPEG_BEGIN
             base64 -w 0 visual-sequence.jpg
             echo
