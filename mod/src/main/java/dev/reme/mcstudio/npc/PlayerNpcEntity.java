@@ -141,6 +141,12 @@ public class PlayerNpcEntity extends PathfinderMob {
     @Nullable private Commission commission;
     private long lastAttackReport = -10000L;
     private long nextRaidTick = 0L;
+    // Bounded local police case. No global suspect scans or arbitrary arrests.
+    @Nullable private UUID policeSuspect;
+    private long policeAlertUntil = 0L;
+    @Nullable private BlockPos policeJail;
+    private long detainedUntil = 0L;
+    @Nullable private BlockPos detentionJail;
     private boolean buildEnabled = false;
     private int buildCursor = 0;
     private long nextSocialTick = 0;
@@ -355,6 +361,36 @@ public class PlayerNpcEntity extends PathfinderMob {
     public UUID recentAggressor() { return recentAggressor; }
     public boolean isAfraid(long tick) { return recentAggressor != null && tick < afraidUntil; }
     public long nextRaidTick() { return nextRaidTick; }
+    @Nullable public UUID policeSuspect() { return policeSuspect; }
+    public long policeAlertUntil() { return policeAlertUntil; }
+    @Nullable public BlockPos policeJail() { return policeJail; }
+    public void setPoliceJail(@Nullable BlockPos jail) {
+        policeJail = jail == null ? null : jail.immutable();
+    }
+    public void assignPoliceCase(UUID suspect, long until) {
+        policeSuspect = suspect;
+        policeAlertUntil = Math.max(0L, until);
+    }
+    public void clearPoliceCase() {
+        policeSuspect = null;
+        policeAlertUntil = 0L;
+    }
+    public boolean isDetained(long tick) {
+        return detentionJail != null && tick < detainedUntil;
+    }
+    @Nullable public BlockPos detentionJail() { return detentionJail; }
+    public long detainedUntil() { return detainedUntil; }
+    public void detainAt(BlockPos jail, long until) {
+        detentionJail = jail.immutable();
+        detainedUntil = Math.max(0L, until);
+        clearMiningTarget();
+        getNavigation().stop();
+        setTarget(null);
+    }
+    public void releaseDetention() {
+        detentionJail = null;
+        detainedUntil = 0L;
+    }
     public void postponeRaid(long tick) { nextRaidTick = Math.max(nextRaidTick, tick); }
     /** Non-player assault also has consequences: victim fear and personal
      * memory. Only called after an ACTUAL transfer of existing cargo.
@@ -597,6 +633,11 @@ public class PlayerNpcEntity extends PathfinderMob {
         tag.putInt("NpcRoamingRadius", roamingRadius);
         tag.putInt("NpcSkinId", skinId());
         tag.putLong("NpcNextRaidTick", nextRaidTick);
+        if (policeSuspect != null) tag.putUUID("NpcPoliceSuspect", policeSuspect);
+        tag.putLong("NpcPoliceAlertUntil", policeAlertUntil);
+        if (policeJail != null) tag.putLong("NpcPoliceJail", policeJail.asLong());
+        if (detentionJail != null) tag.putLong("NpcDetentionJail", detentionJail.asLong());
+        tag.putLong("NpcDetainedUntil", detainedUntil);
         if (miningTarget != null) tag.putLong("NpcMiningTarget", miningTarget.asLong());
         if (!ownedMiningDrops.isEmpty()) {
             ListTag claims = new ListTag();
@@ -694,6 +735,16 @@ public class PlayerNpcEntity extends PathfinderMob {
         miningTarget = tag.contains("NpcMiningTarget", Tag.TAG_LONG)
             ? BlockPos.of(tag.getLong("NpcMiningTarget")) : null;
         nextRaidTick = Math.max(0L, tag.getLong("NpcNextRaidTick"));
+        policeSuspect = tag.hasUUID("NpcPoliceSuspect")
+            ? tag.getUUID("NpcPoliceSuspect") : null;
+        policeAlertUntil = Math.max(0L, tag.getLong("NpcPoliceAlertUntil"));
+        policeJail = tag.contains("NpcPoliceJail", Tag.TAG_LONG)
+            ? BlockPos.of(tag.getLong("NpcPoliceJail")) : null;
+        detentionJail = tag.contains("NpcDetentionJail", Tag.TAG_LONG)
+            ? BlockPos.of(tag.getLong("NpcDetentionJail")) : null;
+        detainedUntil = Math.max(0L, tag.getLong("NpcDetainedUntil"));
+        if (detentionJail != null && detainedUntil <= level().getGameTime())
+            releaseDetention();
         miningProgress = 0.0F;
         ownedMiningDrops.clear();
         miningLootExpiry = Math.max(0L, tag.getLong("NpcMiningDropExpiry"));
