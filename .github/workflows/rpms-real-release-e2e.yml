@@ -1,0 +1,54 @@
+name: RPMS Real Create/Aeronautics Release E2E
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'viewer/rpms/**'
+      - '.github/workflows/rpms-real-release-e2e.yml'
+  pull_request:
+    paths:
+      - 'viewer/rpms/**'
+      - '.github/workflows/rpms-real-release-e2e.yml'
+permissions:
+  contents: read
+jobs:
+  real-official-release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check local test sources
+        run: |
+          node --check viewer/rpms/authentic-models.mjs
+          node --check viewer/rpms/strict.js
+          node --check viewer/rpms/tests/official-release-browser.cjs
+          python3 -m py_compile viewer/rpms/tests/download-official.py
+      - name: Download SHA-verified official Minecraft Create Aeronautics JARs (temporary only)
+        run: |
+          python3 viewer/rpms/tests/download-official.py
+      - name: Install CJK screenshot fonts and Chrome automation
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq fonts-noto-cjk
+          fc-cache -f
+          npm install --prefix /tmp/rpms-real-release-test --no-save --no-audit --no-fund playwright-core@1.56.1
+      - name: Launch source website and inspect actual Minecraft 1.21.1 Mod assets
+        env:
+          NODE_PATH: /tmp/rpms-real-release-test/node_modules
+          OFFICIAL_MOD_DIR: ${{ runner.temp }}/rpms-official-mods
+        run: |
+          python3 -m http.server 8033 --directory viewer >/tmp/rpms-real-http.log 2>&1 &
+          node viewer/rpms/tests/official-release-browser.cjs
+      - name: Upload screenshots and JSON status report, never Mod JAR files
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rpms-official-releases-model-coverage
+          path: |
+            viewer/rpms/tests/official-create-aeronautics-*.png
+            viewer/rpms/tests/official-model-coverage.json
+          if-no-files-found: ignore
+          retention-days: 7

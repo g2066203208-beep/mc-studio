@@ -13,10 +13,10 @@
 <div class="layout">
 <aside class="palette">
  <div class="aside-heading"><div class="eyebrow">01 / INVENTORY</div><h1>方块工作台</h1><p>从官方源码建立方块目录；也可载入你当前版本的 Create / Simulated JAR，补齐实际资源中的注册模型。</p></div>
- <label class="upload" for="jarInput">＋ 导入 Create / Simulated / MC 1.21.1 JAR</label><input id="jarInput" type="file" accept=".jar,.zip" multiple hidden>
+ <label class="upload" for="jarInput">＋ 导入 Create / Aeronautics / MC 客户端 JAR</label><input id="jarInput" type="file" accept=".jar,.zip" multiple hidden>
  <div id="jarStatus" class="hint">真实方块材质受原作者版权保护，本站不内置贴图。导入本地游戏使用的 Mod JAR 后，场景自动读取原版模型和 PNG；未导入时明确使用线框。复杂动态 BlockEntity 需要原版游戏渲染器。</div>
  <div class="filters"><input id="search" type="search" placeholder="搜索：shaft / 轴承 / 模组 ID" aria-label="搜索方块">
- <select id="namespace" aria-label="模组过滤"><option value="all">全部模组</option><option value="create">机械动力 · Create</option><option value="simulated">航空学 · Simulated</option></select>
+ <select id="namespace" aria-label="模组过滤"><option value="all">全部模组</option><option value="create">机械动力 · Create</option><option value="simulated">Simulated</option><option value="aeronautics">Aeronautics</option><option value="offroad">Offroad</option><option value="minecraft">原版 Minecraft</option></select>
  <select id="coverage" aria-label="规则覆盖状态"><option value="all">全部功能覆盖状态</option><option value="topology">已有局部规则</option><option value="requires-game">需游戏原版执行</option></select></div>
  <div class="palette-summary"><strong id="registryCount">—</strong> 个源码显式注册方块条目 <span id="jarCount"></span></div>
  <div id="paletteItems" class="palette-items" role="listbox" aria-label="MC 方块目录"></div>

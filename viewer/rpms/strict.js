@@ -257,13 +257,14 @@ $('importJson').addEventListener('change',async e=>{
 });
 $('jarInput').addEventListener('change',async e=>{
  if(typeof JSZip==='undefined'){$('jarStatus').textContent='JSZip 未加载，无法读取本地 JAR';return;}
- const files=[...e.target.files];let added=0,count=0,variants=0,failed=[];
+ const files=[...e.target.files];let added=0,count=0,variants=0,embedded=0,failed=[];
  $('jarStatus').textContent='正在解析原始模型、方块状态与贴图索引…';
  for(const f of files){
   try{
    const result=await jarModels.addFile(f,JSZip);
-   for(const path of result.paths.filter(s=>/^assets\/(create|simulated|minecraft)\/blockstates\/[^/]+\.json$/.test(s))){
-    const match=path.match(/^assets\/(create|simulated|minecraft)\/blockstates\/([^/]+)\.json$/),id=match[1]+':'+match[2];
+   embedded+=result.embedded;
+   for(const path of result.paths.filter(s=>/^assets\/[a-z0-9_.-]+\/blockstates\/[^/]+\.json$/.test(s))){
+    const match=path.match(/^assets\/([a-z0-9_.-]+)\/blockstates\/([^/]+)\.json$/),id=match[1]+':'+match[2];
     if(!registry.some(b=>b.id===id)){registry.push({id,source:'local-jar'});added++;}
     try{variants+=(await jarModels.stateKeys(id)).length;}catch(err){failed.push(path+' '+err.message);}
    }
@@ -271,7 +272,7 @@ $('jarInput').addEventListener('change',async e=>{
   }catch(err){failed.push(f.name+' '+err.message);}
  }
  jarFiles+=count;registry.sort((a,b)=>a.id.localeCompare(b.id));
- $('jarStatus').textContent='已本地读取 '+count+' 个 JAR、'+added+' 新方块、'+variants+' 种变体。已启用原始 JSON + PNG 模型渲染（特殊动态 BER 不保证与 MC 一致）。'+(failed.length?' 错误 '+failed.length+' 项':'');
+ $('jarStatus').textContent='已本地读取 '+count+' 个外部 JAR / '+embedded+' 个嵌套组件、'+added+' 新方块、'+variants+' 种变体。已启用原始 JSON + PNG 模型渲染（特殊动态 BER 不保证与 MC 一致）。'+(failed.length?' 错误 '+failed.length+' 项':'');
  drawPalette();if(selectedId)refreshStateOptions(selectedId);
  renderWorld();
  e.target.value='';
@@ -286,7 +287,7 @@ async function init(){
   registry=data.entries;drawPalette();renderWorld();selectBlock('create:shaft');
   window.__STRICT_API__={version:CORE_VERSION,getCatalog:()=>registry.map(o=>o.id),getState:()=>world.map(o=>({...o,pos:[...o.pos]})),
   getResult:()=>evaluate(world),getAssetStatus:()=>[...modelStatus.entries()].map(([pos,status])=>({pos,...status})),
-  getStateOptions:id=>jarModels.stateKeys(id),getJarCount:()=>jarModels.archives.length,
+  getStateOptions:id=>jarModels.stateKeys(id),getJarCount:()=>jarFiles,getDecodedArchiveCount:()=>jarModels.archives.length,
   place,removeAt,setMode,selectBlock,reset:()=>{world=[];inspected=null;renderWorld()}};
   window.__STRICT_READY__=true;notify('方块注册表已加载 · MC 整数网格施工预览');
  }catch(err){window.__STRICT_ERROR__=err.message;notify('初始化失败：'+err.message);console.error(err)}

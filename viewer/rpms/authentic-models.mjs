@@ -72,13 +72,41 @@ export class MinecraftJarModels {
  constructor(){this.archives=[];this.jsonCache=new Map();this.textureCache=new Map();this.meshCache=new Map();this.urls=[];this.stats={archives:0,models:0,textures:0};}
  async addFile(file,Zip=globalThis.JSZip){
   if(!Zip)throw Error('JSZip 尚未加载');
-  const zip=await Zip.loadAsync(file);
-  const paths=Object.keys(zip.files).filter(p=>p.startsWith('assets/')&&!zip.files[p].dir);
-  const count=paths.filter(p=>/^assets\/[^/]+\/blockstates\/.+\.json$/.test(p)).length;
-  this.archives.push({name:file.name||'local zip',zip,paths:new Set(paths)});
+  // The official Aeronautics 1.3.2 distribution is a wrapper with
+  // THREE nested JARs (Simulated / Aeronautics / Offroad). Without traversing
+  // META-INF/jarjar, no genuine Aeronautics model can ever load.
+  const added=[],allPaths=new Set(),maxDepth=2,maxArchives=24;
+  const unpack=async(bytes,name,depth)=>{
+   if(added.length>=maxArchives)throw Error('超出嵌套 JAR 安全数量');
+   const zip=await Zip.loadAsync(bytes);
+   const paths=Object.keys(zip.files).filter(p=>p.startsWith('assets/')&&!zip.files[p].dir);
+   this.archives.push({name,zip,paths:new Set(paths)});
+   added.push({name,blocks:paths.filter(p=>/^assets\/[^/]+\/blockstates\/.+\.json$/.test(p)).length});
+   paths.forEach(p=>allPaths.add(p));
+   if(depth>=maxDepth)return;
+   const children=Object.keys(zip.files).filter(p=>/^META-INF\/jarjar\/[^/]+\.jar$/i.test(p));
+   if(children.length>maxArchives)throw Error('包含过多嵌套依赖 JAR');
+   for(const child of children){
+    const entry=zip.file(child);
+    if(!entry)continue;
+    if((entry._data?.uncompressedSize||0)>90*1024*1024)
+     throw Error('超大内部 JAR 不允许在浏览器解析: '+child);
+    const raw=await entry.async('uint8array');
+    if(raw.length>90*1024*1024)throw Error('内部 JAR 体积超限');
+    await unpack(raw,name+'!/'+child,depth+1);
+   }
+  };
+  await unpack(file,file.name||'local zip',0);
   this.jsonCache.clear();this.meshCache.clear();
+  // Layering a resource pack or client after a Mod JAR must also invalidate
+  // cached MISSING textures, otherwise previously absent assets stay invisible.
+  for(const url of this.urls)URL.revokeObjectURL(url);
+  this.urls=[];
+  for(const texture of this.textureCache.values())texture?.dispose?.();
+  this.textureCache.clear();
   this.stats.archives=this.archives.length;
-  return {archive:file.name,blockstates:count,paths};
+  return {archive:file.name,embedded:Math.max(0,added.length-1),
+   blockstates:added.reduce((n,o)=>n+o.blocks,0),paths:[...allPaths]};
  }
  has(id){
   const path=assetPath(id,'blockstates');
@@ -143,14 +171,22 @@ export class MinecraftJarModels {
   if(item.stateKey!==undefined&&item.stateKey!==''&&Object.hasOwn(variants,item.stateKey))
    return {parts:[choice(variants[item.stateKey])],matched:item.stateKey,exact:true};
   const candidates=Object.entries(variants).map(([key,value])=>{
-   const p=parseKey(key);
-   const all=Object.entries(p).every(([k,v])=>props[k]===v);
-   return {key,value,score:all?Object.keys(p).length:-1};
-  }).filter(e=>e.score>=0).sort((a,b)=>b.score-a.score);
-  let found=candidates[0];
-  if(!found&&Object.hasOwn(variants,''))found={key:'',value:variants[''],score:0};
+   const pairs=Object.entries(parseKey(key));
+   let matches=0,mismatches=0,unknown=0;
+   for(const [k,v] of pairs){
+    if(props[k]===undefined)unknown++;
+    else if(String(props[k])===v)matches++;
+    else mismatches++;
+   }
+   // First choose an exact state if possible. Otherwise select the closest
+   // genuine JAR variant and label it PARTIAL, never an invented fake mesh.
+   return {key,value,matches,mismatches,unknown,
+    score:matches*10-mismatches*100-unknown};
+  }).sort((a,b)=>b.score-a.score||a.key.localeCompare(b.key));
+  const found=candidates[0];
   if(!found)return {parts:[],matched:null,exact:false};
-  return {parts:[choice(found.value)],matched:found.key,exact:true};
+  return {parts:[choice(found.value)],matched:found.key,
+   exact:found.mismatches===0&&found.unknown===0};
  }
  async create(item){
   const data=await this.json(item.id,'blockstates');
@@ -200,8 +236,12 @@ export class MinecraftJarModels {
    root.add(layer);
   }
   if(!meshes)return {status:'unsupported',reason:unsupported?'该方块使用自定义模型加载器 / 动态渲染或缺少依赖资源':'模型缺少 PNG 贴图/方块材质',group:null};
-  const partial=unsupported>0||missingTextures>0;
-  return {status:partial?'partial':'authentic',reason:partial?'部分模型/贴图不支持（不会伪称完全还原）':'已读取本地原始 JSON 元素与 PNG 贴图',
+  const fallback=!!Object.keys(data.variants||{}).length&&!stateResult.exact;
+  const partial=unsupported>0||missingTextures>0||fallback;
+  const reason=fallback
+   ?'完整 BlockState 尚未提供；显示正式 JAR 的接近变体 '+stateResult.matched+'，需在下方原版状态列表选择'
+   :partial?'部分静态模型/贴图缺失，动态原版渲染另行检查':'已读取 JAR 原始静态 JSON 元素与 PNG 贴图';
+  return {status:partial?'partial':'authentic',reason,
     group:root,matched:stateResult.matched,meshes,missingTextures,unsupported};
  }
  async render(item){
