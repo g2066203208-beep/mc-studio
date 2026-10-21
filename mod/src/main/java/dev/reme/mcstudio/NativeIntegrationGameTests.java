@@ -266,6 +266,33 @@ public final class NativeIntegrationGameTests {
         }
     }
 
+    @GameTest(template = "rpms_empty", timeoutTicks = 120)
+    public static void snapshotReadsRealServerBlockStates(GameTestHelper helper) {
+        requireMods();
+        BlockPos motor = new BlockPos(1, 1, 1);
+        BlockState state = block("create:creative_motor").defaultBlockState()
+                .setValue(BlockStateProperties.FACING, Direction.EAST);
+        helper.setBlock(motor, state);
+        helper.runAfterDelay(25, () -> {
+            var capture = NativeSnapshotCommand.snapshot(helper.getLevel(), helper.absolutePos(motor), 2);
+            boolean found = false;
+            for (var element : capture.getAsJsonArray("blocks")) {
+                var item = element.getAsJsonObject();
+                if (!"create:creative_motor".equals(item.get("id").getAsString())) continue;
+                if (!"east".equals(item.getAsJsonObject("state").get("facing").getAsString())) {
+                    throw new AssertionError("Native snapshot lost actual MC blockstate orientation");
+                }
+                double speed = item.getAsJsonObject("nativeRuntime").get("getSpeed").getAsDouble();
+                LOG.info("RPMS_NATIVE_SNAPSHOT_PROBE id=create:creative_motor facing=east actualRPM={}",speed);
+                if (Math.abs(speed) < 0.1) throw new AssertionError("Native JSON export lacks true Create speed");
+                found = true;
+            }
+            if (!found) throw new AssertionError("Real Create motor not exported from loaded MC region");
+            LOG.info("RPMS_NATIVE_PASS snapshotReadsRealServerBlockStates");
+            helper.succeed();
+        });
+    }
+
     private static void nativeTransmit(Object sender, int strength) {
         try {
             sender.getClass().getMethod("transmit", int.class).invoke(sender, strength);
