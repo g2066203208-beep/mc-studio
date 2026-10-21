@@ -97,6 +97,20 @@ jobs:
             sleep 2
             xwd -root -silent | convert xwd:- -resize 800x450 -quality 58 visual-near-seam.jpg
             echo "WORLDSEAM_CAPTURED_NETHER_LOOKING_UP"
+            # Wait for a real PrimedTnt entity in Nether to explode and
+            # destroy a GLASS block owned by Overworld Y=-64.
+            blast=0
+            for step in $(seq 1 130); do
+              if grep -q "WORLDSEAM_E2E_PASS_CROSS_TNT" visual-client.log; then blast=1; break; fi
+              if grep -q "WORLDSEAM_E2E_FAIL_CROSS_TNT" visual-client.log; then break; fi
+              sleep 1
+            done
+            if [ "$blast" != 1 ]; then
+              echo "WORLDSEAM_REAL_TNT_FAIL: remote explosion did not destroy Overworld floor"
+              tail -n 90 visual-client.log
+              exit 1
+            fi
+            xwd -root -silent | convert xwd:- -resize 800x450 -quality 64 visual-cross-tnt.jpg
             found=0
             for step in $(seq 1 80); do
               if grep -q "WORLDSEAM_E2E_PASS_RETURN_CLIENT" visual-client.log; then found=1; break; fi
@@ -135,7 +149,7 @@ jobs:
               tail -n 75 visual-client.log
               exit 1
             fi
-            montage visual-in-world.jpg visual-near-seam.jpg visual-crossing.jpg visual-end-before-cross.jpg visual-end-after-cross.jpg visual-stack-editor.jpg -tile 3x2 -geometry +0+0 -quality 52 visual-sequence.jpg
+            montage visual-in-world.jpg visual-near-seam.jpg visual-cross-tnt.jpg visual-crossing.jpg visual-end-before-cross.jpg visual-end-after-cross.jpg visual-stack-editor.jpg -tile 4x2 -geometry +0+0 -quality 55 visual-sequence.jpg
             echo WORLDSEAM_GUI_JPEG_BEGIN
             base64 -w 0 visual-sequence.jpg
             echo
@@ -181,7 +195,7 @@ jobs:
           set -euo pipefail
           dest=mods/worldseam/docs/evidence/latest-neoforge
           mkdir -p "$dest"
-          for name in visual-in-world.jpg visual-near-seam.jpg visual-crossing.jpg visual-end-before-cross.jpg visual-end-after-cross.jpg visual-stack-editor.jpg visual-sequence.jpg; do
+          for name in visual-in-world.jpg visual-near-seam.jpg visual-cross-tnt.jpg visual-crossing.jpg visual-end-before-cross.jpg visual-end-after-cross.jpg visual-stack-editor.jpg visual-sequence.jpg; do
             test -s "mods/worldseam/$name"
             cp "mods/worldseam/$name" "$dest/$name"
           done
@@ -193,7 +207,7 @@ jobs:
             printf 'Screenshots: raw real Minecraft via Xvfb/XWD; **not** composited artist mockups.\n\n'
             printf 'The E2E checks native handoff and client state. It does **not** certify pixel-perfect seamless frame composition or FPS.\n\n'
             printf 'Minecraft E2E log markers:\n'
-            grep -E 'WORLDSEAM_E2E_(PASS|DUAL_|SECOND_WORLD_LIVE_BLOCK|END_NATURAL|PREVIEW_WINDOW)' mods/worldseam/visual-client.log | tail -n 70 || true
+            grep -E 'WORLDSEAM_E2E_(PASS|DUAL_|SECOND_WORLD_LIVE_BLOCK|END_NATURAL|PREVIEW_WINDOW|CROSS_TNT_)' mods/worldseam/visual-client.log | tail -n 70 || true
             printf '\n'
           } > "$dest/summary.md"
           git config user.name 'github-actions[bot]'
