@@ -25,7 +25,7 @@ floor.rotation.x=-Math.PI/2;floor.position.y=-.045;floor.receiveShadow=true;scen
 const root=new THREE.Group();root.position.y=6.1;scene.add(root);
 const ray=new THREE.Raycaster(), pointer=new THREE.Vector2();
 let mode='assembly', playing=true,speed=1,time=0,config=null,currentSelection=null;
-const limbs=new Map(),jointNodes=new Map(),blocks=[],meshOwners=[],materials=new Map(),assetArchives=[],assets=new Map();
+const limbs=new Map(),jointNodes=new Map(),blocks=[],meshOwners=[],materials=new Map(),assetArchives=[],assets=new Map(),labelItems=[];
 let archiveGeneration=0,selected="LF.HFE";
 const MATERIALS={
  'minecraft:iron_block':0x9fb2bd,'minecraft:deepslate_tiles':0x4a5869,
@@ -53,7 +53,16 @@ function stateFor(id,values={}){return Object.assign({},defaultState[id]||{},val
 function block(group,segment,id,x,y,z,props={},role='structure'){
  const item={segment,id,local:[x,y,z],state:stateFor(id,props),role,group:null,pivot:group};
  const obj=new THREE.Group();obj.position.set(x,y,z);group.add(obj);item.group=obj;blocks.push(item);
- placeholder(item);return item;
+ placeholder(item);
+ // Only noteworthy controls and bearings get labels, to keep the 3D view readable.
+ if(role.startsWith('joint ')||['sensor','power','transmission'].includes(role)){
+  const tag=document.createElement('span');
+  tag.className='block-tag';
+  tag.textContent=(role.startsWith('joint ')?role.slice(6):role)+' · '+id;
+  tag.title=id+' — '+segment;
+  $('blockLabels').append(tag);item.tag=tag;labelItems.push(item);
+ }
+ return item;
 }
 const placeholderMats=new Map();
 function matFor(id) {
@@ -162,11 +171,15 @@ function showItem(item){
 $('selection').textContent='点击方块查看 Mod ID 与具体 BlockState 属性';
 
 const textureCache=new Map(),modelCache=new Map(),jsonCache=new Map(),allUrls=[];
-function normalizeRef(id,ref){
- if(ref.includes(':'))return ref;
- const ns=id.includes(':')?id.split(':')[0]:'minecraft';
- return ns+':'+ref;
+function normalizeRef(_id,ref){
+ // Minecraft resource locations with no namespace default to minecraft, not the
+ // namespace of the child model (e.g. simulated:block/foo -> block/cube_all).
+ return ref.includes(':')?ref:'minecraft:'+ref;
 }
+const fallbackCubeAll={texture_size:[16,16],textures:{},elements:[{
+ from:[0,0,0],to:[16,16,16],
+ faces:Object.fromEntries(['north','south','east','west','up','down'].map(side=>[side,{texture:'#all'}]))
+}]};
 function normalizePath(ref,kind){
  const [ns,loc]=ref.includes(':')?ref.split(':'):['minecraft',ref];
  return 'assets/'+ns+'/'+kind+'/'+(loc.includes('/')?loc:loc)+(kind==='textures'?'.png':'.json');
@@ -200,7 +213,9 @@ async function resolveModel(ref,seen=new Set()){
  if(seen.has(ref))return null;
  seen.add(ref);
  const data=await loadJson(ref,'models');
- if(!data)return null;
+ // The user usually imports only Aeronautics/Create JARs, not the base Minecraft
+ // client JAR. cube_all is vanilla model geometry, not a copyrighted texture.
+ if(!data)return ref==='minecraft:block/cube_all'?fallbackCubeAll:null;
  let merged={elements:[],textures:{},texture_size:data.texture_size||[16,16]};
  if(data.parent){
   const p=normalizeRef(ref,data.parent.startsWith('block/')?data.parent:
@@ -375,7 +390,10 @@ for(const b of document.querySelectorAll('[data-view]'))b.addEventListener('clic
 for(const b of document.querySelectorAll('[data-mode]'))b.addEventListener('click',()=>setMode(b.dataset.mode));
 $('showAxes').addEventListener('change',e=>axes.forEach(a=>a.visible=e.target.checked));
 $('showGrid').addEventListener('change',e=>{grid.visible=e.target.checked;floor.visible=e.target.checked;});
-$('showLabels').addEventListener('change',e=>{const show=e.target.checked;$('selection').style.opacity=show?1:.55;});
+$('showLabels').addEventListener('change',e=>{
+ $('blockLabels').hidden=!e.target.checked;
+ $('blockLabels').setAttribute('aria-hidden',String(!e.target.checked));
+});
 $('speed').addEventListener('input',e=>{speed=Number(e.target.value);$('speedLabel').textContent=speed.toFixed(1)+'×';});
 $('pause').addEventListener('click',()=>{playing=!playing;$('pause').textContent=playing?'Ⅱ 暂停':'▶ 播放';});
 $('reset').addEventListener('click',()=>{time=0;playing=true;$('pause').textContent='Ⅱ 暂停';setMode('assembly');});
@@ -414,12 +432,28 @@ function resize(){
  const w=$('stage').clientWidth,h=$('stage').clientHeight;
  renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();
 }
+const labelPoint=new THREE.Vector3();
+function updateLabels(){
+ if($('blockLabels').hidden)return;
+ scene.updateMatrixWorld(true);
+ for(const item of labelItems){
+  item.group.getWorldPosition(labelPoint);
+  labelPoint.y+=.6;
+  labelPoint.project(camera);
+  const visible=labelPoint.z>=-1&&labelPoint.z<=1&&Math.abs(labelPoint.x)<1&&Math.abs(labelPoint.y)<1;
+  item.tag.hidden=!visible;
+  if(visible){
+   item.tag.style.left=((labelPoint.x+1)*50)+'%';
+   item.tag.style.top=((1-labelPoint.y)*50)+'%';
+  }
+ }
+}
 new ResizeObserver(resize).observe($('stage'));resize();
 let previous=performance.now();
 function draw(now){
  const dt=Math.min(.06,(now-previous)/1000);previous=now;
  if(playing&&mode==='gait')time+=dt*speed;
- updateKinematics();orbit.update();renderer.render(scene,camera);
+ updateKinematics();orbit.update();updateLabels();renderer.render(scene,camera);
  requestAnimationFrame(draw);
 }
 async function init(){
