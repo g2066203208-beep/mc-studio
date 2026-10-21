@@ -57,9 +57,10 @@ public record SeamStack(List<Entry> entries, boolean loop) {
     /** All actual target worlds must exist before enabling the stack. */
     public void validate(MinecraftServer server) {
         for(Entry e:entries) {
-            ServerLevel level=server.getAllLevels().stream()
-                .filter(w->w.dimension().location().toString().equals(e.id()))
-                .findFirst().orElse(null);
+            ServerLevel level=server.getLevel(
+                net.minecraft.resources.ResourceKey.create(
+                    net.minecraft.core.registries.Registries.DIMENSION,
+                    ResourceLocation.parse(e.id())));
             if(level==null)throw new IllegalArgumentException(
                 "Missing dimension in this save (check mod/datapack): "+e.id());
             int min=level.getMinBuildHeight(), max=level.getMaxBuildHeight();
@@ -101,7 +102,7 @@ public record SeamStack(List<Entry> entries, boolean loop) {
     }
     public int boundary(String id,SeamGraph.EdgeSide side,int min,int max) {
         Entry e=find(id);
-        if(e==null)return SeamGraph.boundaryY(side,min,max);
+        if(e==null)return side==SeamGraph.EdgeSide.BOTTOM?min:max;
         return edge(e,side,min,max);
     }
     public List<SeamGraph.Link> from(String id) {
