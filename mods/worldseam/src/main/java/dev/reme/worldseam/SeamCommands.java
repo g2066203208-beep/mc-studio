@@ -1,4 +1,4 @@
-package dev.reme.mcstudio.seam;
+package dev.reme.worldseam;
 
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.context.CommandContext;

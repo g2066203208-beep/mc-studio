@@ -1,4 +1,4 @@
-package dev.reme.mcstudio.seam;
+package dev.reme.worldseam;
 
 import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
 
