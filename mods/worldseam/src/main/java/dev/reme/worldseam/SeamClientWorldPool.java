@@ -4,6 +4,14 @@ import com.mojang.logging.LogUtils;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.LevelRenderer;
+import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.phys.Vec3;
+import net.neoforged.neoforge.network.PacketDistributor;
+import dev.reme.worldseam.mixin.SeamMinecraftAccess;
+import dev.reme.worldseam.mixin.SeamPacketListenerAccess;
+import dev.reme.worldseam.mixin.SeamEntityAccess;
+import dev.reme.worldseam.mixin.SeamClientPlayerAccess;
 import net.minecraft.core.Holder;
 import net.minecraft.core.SectionPos;
 import net.minecraft.world.level.ChunkPos;
@@ -41,6 +49,7 @@ public final class SeamClientWorldPool {
     private static String target = "";
     private static boolean failed;
     private static int constructedCount;
+    private static long lastReadySent = Long.MIN_VALUE / 2;
 
     private SeamClientWorldPool() {}
 
@@ -92,6 +101,7 @@ public final class SeamClientWorldPool {
             remoteRenderer = renderer;
             remote = secondary;
             failed = false;
+            lastReadySent = Long.MIN_VALUE / 2;
             constructedCount++;
             LOG.info("WorldSeam prewarmed real secondary ClientLevel {} from {}", to, from);
         } catch (Throwable error) {
@@ -123,6 +133,7 @@ public final class SeamClientWorldPool {
                 )
             );
             applyLight(message.chunkX(), message.chunkZ(), message.lighting());
+            maybeReportReady(mc);
         } catch (RuntimeException problem) {
             LOG.warn("WorldSeam rejected redirected remote chunk {},{} in {}",
                 message.chunkX(), message.chunkZ(), message.target(), problem);
@@ -168,6 +179,72 @@ public final class SeamClientWorldPool {
             throw new IllegalArgumentException("Unused remote light updates");
     }
 
+    private static void maybeReportReady(Minecraft mc) {
+        if (remote == null || mc.level == null || mc.player == null) return;
+        if (remote.getChunkSource().getLoadedChunksCount()
+            < SeamReadiness.REQUIRED_CHUNKS) return;
+        long tick = mc.level.getGameTime();
+        if (tick - lastReadySent < 40) return;
+        PacketDistributor.sendToServer(new SeamReadyPayload(
+            source, target, remote.getChunkSource().getLoadedChunksCount()
+        ));
+        lastReadySent = tick;
+    }
+
+    /**
+     * Experimental direct handoff. Only called after a server-side ready
+     * handshake and authoritative ServerLevel migration. Keeps both worlds
+     * and renderers alive instead of calling Minecraft#setLevel/respawn.
+     */
+    public static boolean handoff(SeamHandoffPayload instruction) {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.level == null || mc.player == null || mc.getConnection() == null ||
+            remote == null || remoteRenderer == null ||
+            !mc.level.dimension().location().toString().equals(instruction.from()) ||
+            !target.equals(instruction.to()) ||
+            remote.getChunkSource().getLoadedChunksCount()
+                < SeamReadiness.REQUIRED_CHUNKS) {
+            LOG.error("WorldSeam cannot hand off to {}: destination native chunks not ready",
+                instruction.to());
+            return false;
+        }
+        ClientLevel oldWorld = mc.level;
+        LevelRenderer oldRenderer = mc.levelRenderer;
+        ClientLevel newWorld = remote;
+        LevelRenderer newRenderer = remoteRenderer;
+        LocalPlayer player = mc.player;
+
+        oldWorld.removeEntity(player.getId(), Entity.RemovalReason.CHANGED_DIMENSION);
+        ((SeamEntityAccess) player).worldseam$unsetRemoved();
+        ((SeamEntityAccess) player).worldseam$setLevel(newWorld);
+        player.setPos(instruction.x(),instruction.y(),instruction.z());
+        player.xo = instruction.x();
+        player.yo = instruction.y();
+        player.zo = instruction.z();
+        player.setYRot(instruction.yaw());
+        player.setXRot(instruction.pitch());
+        ((SeamClientPlayerAccess) player).worldseam$setClientLevel(newWorld);
+        newWorld.addEntity(player);
+
+        ((SeamPacketListenerAccess) mc.getConnection()).worldseam$setLevel(newWorld);
+        mc.level = newWorld;
+        ((SeamMinecraftAccess) mc).worldseam$setLevelRenderer(newRenderer);
+        mc.particleEngine.setLevel(newWorld);
+        mc.getBlockEntityRenderDispatcher().setLevel(newWorld);
+
+        // Retain the source world as the secondary world for reverse crossings.
+        remote = oldWorld;
+        remoteRenderer = oldRenderer;
+        source = instruction.to();
+        target = instruction.from();
+        failed = false;
+        lastReadySent = Long.MIN_VALUE / 2;
+        LOG.info("WorldSeam direct local ClientLevel switch {} -> {} at {} {} {}",
+            instruction.from(), instruction.to(),
+            instruction.x(),instruction.y(),instruction.z());
+        return true;
+    }
+
     public static boolean hasPrewarmed(String destination) {
         return remote != null && target.equals(destination);
     }
@@ -180,6 +257,7 @@ public final class SeamClientWorldPool {
         Minecraft mc = Minecraft.getInstance();
         if (mc.level == null || (!source.isEmpty() &&
             !mc.level.dimension().location().toString().equals(source))) clear();
+        else maybeReportReady(mc);
     }
 
     public static void clear() {
@@ -192,5 +270,6 @@ public final class SeamClientWorldPool {
         source = "";
         target = "";
         failed = false;
+        lastReadySent = Long.MIN_VALUE / 2;
     }
 }

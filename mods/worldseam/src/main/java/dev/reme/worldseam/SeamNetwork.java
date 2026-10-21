@@ -28,5 +28,19 @@ public final class SeamNetwork {
             (message, context) ->
                 context.enqueueWork(() -> SeamClientWorldPool.acceptChunk(message))
         );
+        event.registrar("3").playToServer(
+            SeamReadyPayload.TYPE,
+            SeamReadyPayload.CODEC,
+            (message, context) -> context.enqueueWork(() -> {
+                if (context.player() instanceof net.minecraft.server.level.ServerPlayer p)
+                    SeamReadiness.acceptNetwork(p, message);
+            })
+        );
+        event.registrar("3").playToClient(
+            SeamHandoffPayload.TYPE,
+            SeamHandoffPayload.CODEC,
+            (message, context) ->
+                context.enqueueWork(() -> SeamClientWorldPool.handoff(message))
+        );
     }
 }
