@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 import {behavior,canPlace,evaluate,axisOf,CORE_VERSION} from './strict-core.mjs';
 import {MinecraftJarModels} from './authentic-models.mjs';
+import {createPreviewModel} from './procedural-models.mjs';
+import {loadOfficialModelArchives} from './official-autoload.mjs';
 
 const $=id=>document.getElementById(id);
 const names={
@@ -18,6 +20,8 @@ let mode='place',registry=[],world=[],selectedId=null,inspected=null;
 let jarFiles=0,activeLayer=1,lastResult=null;
 const jarModels=new MinecraftJarModels();
 const modelStatus=new Map();let visualEpoch=0;
+let officialAutoloadStarted=false;
+const packageState=new Map();
 const scene=new THREE.Scene();scene.background=new THREE.Color('#172736');
 const camera=new THREE.PerspectiveCamera(43,1,.05,200);camera.position.set(12,13,17);
 const renderer=new THREE.WebGLRenderer({canvas:$('view'),antialias:true});
@@ -100,7 +104,7 @@ function displayInspector(item){
  const row=document.createElement('p');
  row.className='model-state';
  row.textContent=model?'模型状态：'+model.status+' · '+model.reason
-  :(jarModels.has(item.id)?'模型正在从本地 JAR 解码…':'缺失真实模型：请导入本地 Create/Simulated JAR');
+  :(jarModels.has(item.id)?'模型正在解码官方纹理…':'正在显示可见的原创 3D 预览（尚未取得原版贴图）');
  box.append(row);
 }
 // The hit volume is deliberately invisible and independent of appearance.
@@ -116,6 +120,9 @@ function visualFor(b){
  const wire=new THREE.LineSegments(new THREE.EdgesGeometry(geo),new THREE.LineBasicMaterial({color:0xeab777,transparent:true,opacity:.8}));
  ghost.add(fill,wire);
  const original=new THREE.Group();g.add(ghost,original);
+ // Never show an empty translucent cube as the only appearance.
+ // The visual model is available synchronously on the very first frame.
+ original.add(createPreviewModel(b));ghost.visible=false;
  g.userData.ghost=ghost;g.userData.original=original;
  return g;
 }
@@ -132,7 +139,7 @@ function renderWorld(){
  }
  updateStatus();
  if(jarModels.archives.length)refreshAuthenticModels(epoch);
- else{for(const b of world)modelStatus.set(b.pos.join(','),{status:'missing',reason:'未导入 Mod/JAR 贴图'});updateAssetCounter();}
+ else{for(const b of world)modelStatus.set(b.pos.join(','),{status:'preview',reason:'可见原创 3D 预览，正在自动载入原版模型和贴图'});updateAssetCounter();}
 }
 async function refreshAuthenticModels(epoch=visualEpoch){
  const placements=[...placedGroup.children];
@@ -145,7 +152,12 @@ async function refreshAuthenticModels(epoch=visualEpoch){
    g.userData.original.clear();
    g.userData.original.add(result.group);
    g.userData.ghost.visible=false;
-  }else g.userData.ghost.visible=true;
+  }else{
+   // Keep the visually meaningful 3D model, not a fake "empty"/wireframe.
+   g.userData.ghost.visible=false;
+   if(!g.userData.original.children.length)g.userData.original.add(createPreviewModel(b));
+   modelStatus.set(b.pos.join(','),{status:'preview',reason:'该原版动态/特殊模型尚未被静态模型解析器支持；已显示原创 3D 预览'});
+  }
  }));
  if(epoch===visualEpoch){
   updateAssetCounter();
@@ -156,7 +168,7 @@ function updateAssetCounter(){
  const all=[...modelStatus.values()];
  const total=world.length,ok=all.filter(x=>x.status==='authentic').length;
  const partial=all.filter(x=>x.status==='partial').length;
- $('modelCounter').textContent=total?('原始资源模型 '+ok+'/'+total+' · 部分 '+partial+' · 未加载 '+Math.max(0,total-ok-partial))
+ $('modelCounter').textContent=total?('原版模型 '+ok+'/'+total+' · 原版部分 '+partial+' · 3D 预览 '+Math.max(0,total-ok-partial))
   :'没有放置方块';
  $('modelCounter').dataset.authentic=String(ok);
  $('modelCounter').dataset.partial=String(partial);
@@ -267,26 +279,51 @@ $('importJson').addEventListener('change',async e=>{
   world=valid;inspected=null;renderWorld();notify('载入 JSON 坐标完成；不代表已验证装配及游戏运行');
  }catch(err){notify('导入失败：'+err.message)}e.target.value='';
 });
+async function installAssetsFromFile(f){
+ const result=await jarModels.addFile(f,JSZip);
+ let added=0,variants=0;
+ for(const path of result.paths.filter(s=>/^assets\/[a-z0-9_.-]+\/blockstates\/[^/]+\.json$/.test(s))){
+  const match=path.match(/^assets\/([a-z0-9_.-]+)\/blockstates\/([^/]+)\.json$/),id=match[1]+':'+match[2];
+  if(!registry.some(b=>b.id===id)){registry.push({id,source:'jar-resource'});added++;}
+  variants+=(await jarModels.stateKeys(id)).length;
+ }
+ jarFiles++;registry.sort((a,b)=>a.id.localeCompare(b.id));drawPalette();
+ if(selectedId)refreshStateOptions(selectedId);
+ renderWorld();
+ return {added,variants,embedded:result.embedded||0};
+}
+async function startOfficialLoading(){
+ if(officialAutoloadStarted)return;
+ officialAutoloadStarted=true;
+ if(typeof JSZip==='undefined'){
+  $('jarStatus').textContent='原版资源解压器未能加载，已先显示可见 3D 模型；请刷新页面或手动导入。';return;
+ }
+ await loadOfficialModelArchives({
+  onState:state=>{
+   packageState.set(state.slug,state);
+   const messages=[...packageState.values()].map(s=>s.message);
+   $('jarStatus').textContent=messages.join(' ｜ ');
+   $('jarStatus').dataset.phase=state.phase;
+  },
+  onFile:async file=>{await installAssetsFromFile(file);},
+  onFailed:(_project,message)=>console.warn('Original publisher CDN model loading unavailable:',message)
+ });
+}
+$('loadOfficial').addEventListener('click',()=>{
+ officialAutoloadStarted=false;packageState.clear();startOfficialLoading();
+});
 $('jarInput').addEventListener('change',async e=>{
  if(typeof JSZip==='undefined'){$('jarStatus').textContent='JSZip 未加载，无法读取本地 JAR';return;}
  const files=[...e.target.files];let added=0,count=0,variants=0,embedded=0,failed=[];
- $('jarStatus').textContent='正在解析原始模型、方块状态与贴图索引…';
- for(const f of files){
+ $('jarStatus').textContent='正在读取你选定的真实 Mod JAR…';
+ for(const file of files){
   try{
-   const result=await jarModels.addFile(f,JSZip);
-   embedded+=result.embedded;
-   for(const path of result.paths.filter(s=>/^assets\/[a-z0-9_.-]+\/blockstates\/[^/]+\.json$/.test(s))){
-    const match=path.match(/^assets\/([a-z0-9_.-]+)\/blockstates\/([^/]+)\.json$/),id=match[1]+':'+match[2];
-    if(!registry.some(b=>b.id===id)){registry.push({id,source:'local-jar'});added++;}
-    try{variants+=(await jarModels.stateKeys(id)).length;}catch(err){failed.push(path+' '+err.message);}
-   }
-   count++;
-  }catch(err){failed.push(f.name+' '+err.message);}
+   const report=await installAssetsFromFile(file);
+   added+=report.added;variants+=report.variants;embedded+=report.embedded;count++;
+  }catch(err){failed.push(file.name+' '+err.message)}
  }
- jarFiles+=count;registry.sort((a,b)=>a.id.localeCompare(b.id));
- $('jarStatus').textContent='已本地读取 '+count+' 个外部 JAR / '+embedded+' 个嵌套组件、'+added+' 新方块、'+variants+' 种变体。已启用原始 JSON + PNG 模型渲染（特殊动态 BER 不保证与 MC 一致）。'+(failed.length?' 错误 '+failed.length+' 项':'');
- drawPalette();if(selectedId)refreshStateOptions(selectedId);
- renderWorld();
+ $('jarStatus').textContent='成功读取 '+count+' 个本地 JAR / '+embedded+' 个内嵌包 · '+added+' 个新方块 · '+variants+' 种原版方块状态。'+
+ (failed.length?' 有错误：'+failed.join('；'):' 静态模型、PNG 贴图已接入场景。');
  e.target.value='';
 });
 function resize(){const e=$('viewWrap');const w=Math.max(100,e.clientWidth),h=Math.max(100,e.clientHeight);renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();}
@@ -300,8 +337,13 @@ async function init(){
   window.__STRICT_API__={version:CORE_VERSION,getCatalog:()=>registry.map(o=>o.id),getState:()=>world.map(o=>({...o,pos:[...o.pos]})),
   getResult:()=>evaluate(world),getAssetStatus:()=>[...modelStatus.entries()].map(([pos,status])=>({pos,...status})),
   getStateOptions:id=>jarModels.stateKeys(id),getJarCount:()=>jarFiles,getDecodedArchiveCount:()=>jarModels.archives.length,
+  getVisualStats:()=>{let meshes=0,groups=0;placedGroup.traverse(o=>{if(o.isMesh&&o.material!==hitMaterial&&o.visible)meshes++;if(o.isGroup)groups++;});return {meshes,groups,blocks:world.length}},
+  getOfficialState:()=>[...packageState.entries()].map(([slug,status])=>({slug,...status})),
+  runAutoLoad:startOfficialLoading,
   place,removeAt,setMode,selectBlock,reset:()=>{world=[];inspected=null;renderWorld()}};
-  window.__STRICT_READY__=true;notify('方块注册表已加载 · MC 整数网格施工预览');
+  $('example').click(); // first visitor sees genuine 3D objects, not an empty scene
+  window.__STRICT_READY__=true;notify('已展示机械动力 3D 示例；正在从官方源读取模型资源');
+  startOfficialLoading();
  }catch(err){window.__STRICT_ERROR__=err.message;notify('初始化失败：'+err.message);console.error(err)}
 }
 init();draw();
