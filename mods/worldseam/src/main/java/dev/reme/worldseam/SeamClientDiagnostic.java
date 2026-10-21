@@ -46,6 +46,7 @@ public final class SeamClientDiagnostic {
         String cache="已接收区块: "+SeamClientWorldPool.receivedChunks()+
             " | 远端缓存: "+SeamClientWorldPool.remoteWindowChunks()+
             "/25 | 远端模型: "+SeamNativeGeometryClient.visibleBlockCount()+
+            " | 待重建: "+SeamNativeGeometryClient.pendingRebuilds()+
             " | 本帧: "+SeamNativeGeometryClient.lastFrameDrawn();
         String rawStatus=SeamClientWorldPool.remoteStatus();
         String detail=rawStatus.contains("FAILED")?"目标维度初始化失败，请看日志":
