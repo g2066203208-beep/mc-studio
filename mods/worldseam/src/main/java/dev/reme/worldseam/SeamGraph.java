@@ -43,14 +43,14 @@ public final class SeamGraph {
 
     // Sequence: upper realm -> lower realm. No torus/loop.
     public static final List<Link> LINKS = List.of(
-        new Link("minecraft:the_end", EdgeSide.BOTTOM,
-            "minecraft:overworld", EdgeSide.TOP),
-        new Link("minecraft:overworld", EdgeSide.TOP,
-            "minecraft:the_end", EdgeSide.BOTTOM),
         new Link("minecraft:overworld", EdgeSide.BOTTOM,
             "minecraft:the_nether", EdgeSide.TOP),
         new Link("minecraft:the_nether", EdgeSide.TOP,
-            "minecraft:overworld", EdgeSide.BOTTOM)
+            "minecraft:overworld", EdgeSide.BOTTOM),
+        new Link("minecraft:the_nether", EdgeSide.BOTTOM,
+            "minecraft:the_end", EdgeSide.TOP),
+        new Link("minecraft:the_end", EdgeSide.TOP,
+            "minecraft:the_nether", EdgeSide.BOTTOM)
     );
 
     private SeamGraph() {}
