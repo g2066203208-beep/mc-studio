@@ -235,21 +235,9 @@ public final class SeamVisualE2E {
             if(nether.setBlock(at,Blocks.GLOWSTONE.defaultBlockState(),3))
                 markers++;
         }
-        // CI-only visibility witness in End just ABOVE the Y=0 connection.
-        // Appears to be floating beyond Overworld TOP at Y=320 when composed.
-        int endMarkers=0;
-        for(int dz=-5;dz<=5;dz++)for(int dx=-5;dx<=5;dx++){
-            if(Math.abs(dx)<2 && Math.abs(dz)<2)continue;
-            at.set(x+dx,3,z+dz);
-            if(end.setBlock(at,Blocks.PURPUR_BLOCK.defaultBlockState(),3))
-                endMarkers++;
-            if(Math.abs(dx)==5 || Math.abs(dz)==5) {
-                at.set(x+dx,2,z+dz);
-                if(end.setBlock(at,Blocks.SEA_LANTERN.defaultBlockState(),3))
-                    endMarkers++;
-            }
-        }
-        LOG.info("WORLDSEAM_E2E_END_MARKERS: {} End-only purpur/sea-lantern witness blocks at Y2..3",endMarkers);
+        // The End visual benchmark must use NATURALLY GENERATED island
+        // terrain, not a synthetic purpur/sea-lantern frame.
+        LOG.info("WORLDSEAM_E2E_END_WITNESS: NO synthetic End blocks created");
         if (!overworld.getBlockState(new BlockPos(x,-61,z)).isAir() ||
             !overworld.getBlockState(new BlockPos(x,-64,z)).isAir() ||
             !nether.getBlockState(new BlockPos(x,127,z)).isAir() ||
