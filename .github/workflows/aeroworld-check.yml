@@ -41,6 +41,16 @@ jobs:
         run: |
           python3 -m http.server 8033 --directory viewer >/tmp/aero-http.log 2>&1 &
           node viewer/aero-world/tests/smoke.cjs
+      - name: Download real published original Create and Aeronautics JARs for runtime import testing
+        run: |
+          curl --fail --location --retry 3 --silent --show-error -o /tmp/aero-original.jar https://api.modrinth.com/maven/maven/modrinth/oWaK0Q19/44pLdPGg/oWaK0Q19-44pLdPGg.jar
+          curl --fail --location --retry 3 --silent --show-error -o /tmp/create-original.jar https://api.modrinth.com/maven/maven/modrinth/LNytGWDc/UjX6dr61/LNytGWDc-UjX6dr61.jar
+          test "$(stat -c%s /tmp/aero-original.jar)" -gt 20000000
+          test "$(stat -c%s /tmp/create-original.jar)" -gt 10000000
+      - name: Test genuine upstream Mod JAR block models inside Chrome
+        env:
+          NODE_PATH: /tmp/aeroworld-browser/node_modules
+        run: node viewer/aero-world/tests/real-jar-smoke.cjs
       - name: Upload screenshot evidence
         if: always()
         uses: actions/upload-artifact@v4
