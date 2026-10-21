@@ -80,11 +80,22 @@ public final class SafeBuilder {
             npc.setAction("construction waiting for " + step.item());
             return;
         }
-        if (!level.setBlock(step.pos(), step.block().defaultBlockState(), 3)) return;
-        npc.backpack().getItem(slot).shrink(1);
-        npc.backpack().setChanged();
+        // Reach and click the site like a player before spending material.
+        if (npc.distanceToSqr(net.minecraft.world.phys.Vec3.atCenterOf(step.pos())) > 36.0) {
+            BlockPos approach = step.pos().offset(
+                step.pos().getX() >= anchor.getX() ? 1 : -1, 0,
+                step.pos().getZ() >= anchor.getZ() ? 1 : -1);
+            RoadNavigator.moveToward(npc, level, approach, 0.9);
+            npc.setAction("walking into player interaction reach of building site");
+            return;
+        }
+        if (!PlayerActionBridge.placeOwnedBlock(npc, level, step.pos(), slot, step.block())) {
+            npc.setAction("construction paused: item-use failed, no material spent");
+            return;
+        }
         npc.advanceBuildCursor();
         npc.journey().succeeded(LifeJourney.Achievement.BUILD);
-        npc.setAction("placed one real " + step.item() + " at " + step.pos().toShortString());
+        npc.setAction("used real player block-placement pipeline for " + step.item()
+            + " at " + step.pos().toShortString());
     }
 }
