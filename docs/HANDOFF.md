@@ -140,3 +140,11 @@ Push CI `39518033958` SUCCESS，PR CI `39518039426` SUCCESS。Artifact `12310085
 - 首次尝试用 Xvfb 启动 NeoForge 客户端：Render thread 确认已加载 `mod/reme_studio`，超时 180s 主动结束 [39537393170](https://github.com/g2066203208-beep/mc-studio/actions/runs/39537393170)。不是手工 HMCL、不是实机视觉验收。
 - 最新 JAR 0.5.1-dev: 124714 bytes, SHA-256 aa61ce2e079b08e395cddbc4e54fc7213a7a51c37483e03dbc8b3f518dd1ac88, artifact 12317652189, Build 39537399591 successful。
 - 玩家反馈未解决前勿合入 main；可索取实际 HMCL `logs/latest.log` 以定位差异，同时继续补客户端交互与进世界测试。
+
+
+## 2026-10-21 NPC 开源源码审查与 v0.5.3 区块出生修复
+- 阅读实际 Java 源码而非 README：Millénaire `GoalScheduler` / `WaypointNavigator` / `PerVillagerThrottle`，Kithkyn `RoamGoal` / `BedtimeWithoutBedGoal` / `UnstuckPersonGoal`，MCA Reborn `SchedulesMCA` / `VillagerBrain`，MineColonies `TickRateStateMachine`。
+- 精确源码链接、调用逻辑、和 REME 的差距见 `docs/OPEN_SOURCE_NPC_CODE_AUDIT.md`。**不能说已移植这些项目；只是完成源码学习，并发现并修复一个具体 bug。**
+- `fix/npc-born-lifecycle-v053` PR #27 独立于 main；统一 NATURAL / CHUNK_GENERATION 初始化身份，两个原因均应用局部人数限制。NeoForge GameTest **12/12 PASS** [39542185523](https://github.com/g2066203208-beep/mc-studio/actions/runs/39542185523)；Build SUCCESS [39542185445](https://github.com/g2066203208-beep/mc-studio/actions/runs/39542185445)。
+- JAR artifact 12319922214，v0.5.3-dev 127188 bytes SHA256 ee837d2b02f9d7baf65d8e13b646323ad04d97904e3a39fbfc17916a6b012ab9。
+- **重要**：玩家 HMCL 截图中 `/npc` 根命令不存在尚未获得玩家实际运行环境日志，客户端对其真实可用性没有验收。禁止以 CI 代替。

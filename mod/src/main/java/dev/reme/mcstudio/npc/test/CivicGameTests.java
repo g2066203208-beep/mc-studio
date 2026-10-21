@@ -261,4 +261,38 @@ public final class CivicGameTests {
         helper.succeed();
     }
 
+
+    @GameTest(template = "empty", timeoutTicks = 100)
+    public static void chunk_generated_npc_has_full_life_identity(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        PlayerNpcEntity npc = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (npc == null) throw new AssertionError("NPC entity registration absent");
+        BlockPos pos = helper.absolutePos(new BlockPos(2, 1, 2));
+        npc.moveTo(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5, 0, 0);
+        npc.finalizeSpawn(level, level.getCurrentDifficultyAt(pos),
+            MobSpawnType.CHUNK_GENERATION, null);
+
+        if (!npc.naturalResident() ||
+            !npc.homePos().equals(pos) ||
+            !npc.workPos().equals(pos) ||
+            !npc.identity().region().equals(
+                MovementPolicy.region(pos.getX(), pos.getZ())) ||
+            npc.roamingRadius() < 32 || npc.roamingRadius() > 64 ||
+            npc.backpack().countItem(Items.BREAD) != 2 ||
+            npc.getCustomName() == null || npc.mode() != PlayerNpcEntity.Mode.LIVE)
+            throw new AssertionError("CHUNK_GENERATION skipped resident life initialization");
+
+        CompoundTag save = new CompoundTag();
+        npc.addAdditionalSaveData(save);
+        PlayerNpcEntity reloaded = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (reloaded == null) throw new AssertionError("failed to create reloaded NPC");
+        reloaded.readAdditionalSaveData(save);
+        if (!reloaded.naturalResident() ||
+            !reloaded.homePos().equals(pos) ||
+            !reloaded.identity().region().equals(npc.identity().region()) ||
+            reloaded.roamingRadius() != npc.roamingRadius())
+            throw new AssertionError("chunk-generated resident NBT identity did not survive");
+        helper.succeed();
+    }
+
 }

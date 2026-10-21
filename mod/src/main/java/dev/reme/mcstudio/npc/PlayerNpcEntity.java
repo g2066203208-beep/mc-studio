@@ -8,6 +8,7 @@ import dev.reme.mcstudio.npc.life.ResidentMemory;
 import dev.reme.mcstudio.npc.life.SocietyRules;
 import dev.reme.mcstudio.npc.life.LifeJourney;
 import dev.reme.mcstudio.npc.life.MovementPolicy;
+import dev.reme.mcstudio.npc.life.NaturalResidentSpawn;
 import dev.reme.mcstudio.npc.life.CivicMind;
 import dev.reme.mcstudio.npc.life.CivicSocial;
 import dev.reme.mcstudio.npc.life.CivicPersistence;
@@ -115,7 +116,7 @@ public class PlayerNpcEntity extends PathfinderMob {
     public SpawnGroupData finalizeSpawn(ServerLevelAccessor world,
             DifficultyInstance difficulty, MobSpawnType reason, SpawnGroupData group) {
         SpawnGroupData outcome = super.finalizeSpawn(world, difficulty, reason, group);
-        if (reason == MobSpawnType.NATURAL) {
+        if (NaturalResidentSpawn.allowedNaturalReason(reason)) {
             naturalResident = true;
             BlockPos anchor = blockPosition();
             setHomePos(anchor);

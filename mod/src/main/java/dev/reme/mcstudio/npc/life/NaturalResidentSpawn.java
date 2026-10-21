@@ -40,14 +40,16 @@ public final class NaturalResidentSpawn {
                 if (level.dimension() != Level.OVERWORLD) return false;
                 if (position.getY() <= level.getSeaLevel() - 4 ||
                     position.getY() >= level.getMaxBuildHeight() - 3) return false;
-                if (reason == MobSpawnType.NATURAL && !level.hasChunkAt(position) ||
+                if ((reason == MobSpawnType.NATURAL && !level.hasChunkAt(position)) ||
                     !world.canSeeSky(position) ||
                     !world.getBlockState(position).isAir() ||
                     !world.getBlockState(position.above()).isAir()) return false;
                 var soil = world.getBlockState(position.below());
                 if (!(soil.is(Blocks.GRASS_BLOCK) || soil.is(Blocks.DIRT_PATH) ||
                     soil.is(Blocks.PODZOL) || soil.is(Blocks.COARSE_DIRT))) return false;
-                if (reason == MobSpawnType.NATURAL && atCapacity(level, position)) return false;
+                // Apply the same local safeguard to both spawn paths; this only
+                // reads already loaded entities and never requests distant chunks.
+                if (atCapacity(level, position)) return false;
                 return true;
             },
             RegisterSpawnPlacementsEvent.Operation.REPLACE
