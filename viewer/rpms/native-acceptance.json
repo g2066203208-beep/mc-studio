@@ -1,0 +1,355 @@
+{
+  "schema": 1,
+  "project": "RPMS/Create × Aeronautics",
+  "target": {
+    "minecraft": "1.21.1",
+    "modLoader": "NeoForge",
+    "create": "6.0.10",
+    "aeronautics": "1.3.2",
+    "sable": "packaged runtime dependency; exact physics version to verify from launch"
+  },
+  "scope": "No functional equivalence may be inferred from rendering, source inspection or build success.",
+  "levels": {
+    "native_passed": "A real running NeoForge+official Mods runtime GameTest and reproducible evidence demonstrate the function.",
+    "preview_only": "A JavaScript approximation or native-like UI demonstration exists; NOT mechanically authoritative.",
+    "native_unverified": "Not demonstrated in game; acceptance blocked."
+  },
+  "confirmed_native_checks": 0,
+  "domains": [
+    {
+      "id": "R01",
+      "family": "Create",
+      "name": "动力源与持续转速",
+      "criterion": "water/steam/wind/creative sources under native game ticking",
+      "status": "native_unverified",
+      "native_evidence": null,
+      "unit_tests": [],
+      "notes": null
+    },
+    {
+      "id": "R02",
+      "family": "Create",
+      "name": "传动轴与大小齿轮",
+      "criterion": "all orientations, sign, gear ratio and 3D physical connections",
+      "status": "native_unverified",
+      "native_evidence": null,
+      "unit_tests": [],
+      "notes": null
+    },
+    {
+      "id": "R03",
+      "family": "Create",
+      "name": "动力网络拓扑",
+      "criterion": "chunk loading, network merge/split, path conflicts",
+      "status": "native_unverified",
+      "native_evidence": null,
+      "unit_tests": [],
+      "notes": null
+    },
+    {
+      "id": "R04",
+      "family": "Create",
+      "name": "应力容量与消耗 SU",
+      "criterion": "all generators/consumers, config scaling and dynamic load",
+      "status": "native_unverified",
+      "native_evidence": null,
+      "unit_tests": [],
+      "notes": null
+    },
+    {
+      "id": "R05",
+      "family": "Create",
+      "name": "过载停机与恢复",
+      "criterion": "motor stall and recovery with actual block entity data",
+      "status": "native_unverified",
+      "native_evidence": null,
+      "unit_tests": [],
+      "notes": null
+    },
+    {
+      "id": "R06",
+      "family": "Create",
+      "name": "变速箱/离合器/反转器",
+      "criterion": "gearboxes, clutches, gearshifts and redstone changes",
+      "status": "native_unverified",
+      "native_evidence": null,
+      "unit_tests": [],
+      "notes": null
+    },
+    {
+      "id": "R07",
+      "family": "Create",
+      "name": "传送带与输送机械",
+      "criterion": "belt placement, material movement and kinetic transitions",
+      "status": "native_unverified",
+      "native_evidence": null,
+      "unit_tests": [],
+      "notes": null
+    },
+    {
+      "id": "R08",
+      "family": "Create",
+      "name": "机械轴承与结构装配",
+      "criterion": "glue, bearing, rotation, disassembly and persistence",
+      "status": "native_unverified",
+      "native_evidence": null,
+      "unit_tests": [],
+      "notes": null
+    },
+    {
+      "id": "R09",
+      "family": "Create",
+      "name": "加工配方与工具物品",
+      "criterion": "press/mixer/crusher/saw/drill/deployer and all item use",
+      "status": "native_unverified",
+      "native_evidence": null,
+      "unit_tests": [],
+      "notes": null
+    },
+    {
+      "id": "R10",
+      "family": "Create",
+      "name": "储物、物品物流、漏斗及管道",
+      "criterion": "transfers, item locks, NBT persistence",
+      "status": "native_unverified",
+      "native_evidence": null,
+      "unit_tests": [],
+      "notes": null
+    },
+    {
+      "id": "R11",
+      "family": "Create",
+      "name": "流体管网与动力泵",
+      "criterion": "pressure, range, flow direction and tanks",
+      "status": "native_unverified",
+      "native_evidence": null,
+      "unit_tests": [],
+      "notes": null
+    },
+    {
+      "id": "R12",
+      "family": "Create",
+      "name": "红石输入与输出",
+      "criterion": "analog signals, repeaters, pulse/redstone activation",
+      "status": "native_unverified",
+      "native_evidence": null,
+      "unit_tests": [],
+      "notes": null
+    },
+    {
+      "id": "R13",
+      "family": "Create",
+      "name": "无线红石链路",
+      "criterion": "link frequency, range, transmit/receive, interference and loaded chunks",
+      "status": "native_unverified",
+      "native_evidence": null,
+      "unit_tests": [],
+      "notes": null
+    },
+    {
+      "id": "R14",
+      "family": "Create",
+      "name": "机械显示与仪表",
+      "criterion": "speedometer, stressometer, data readout and display links",
+      "status": "native_unverified",
+      "native_evidence": null,
+      "unit_tests": [],
+      "notes": null
+    },
+    {
+      "id": "R15",
+      "family": "Create",
+      "name": "矿车、列车、站点及调度",
+      "criterion": "train physics/schedule/signal/assembly where applicable",
+      "status": "native_unverified",
+      "native_evidence": null,
+      "unit_tests": [],
+      "notes": null
+    },
+    {
+      "id": "R16",
+      "family": "Create",
+      "name": "客户端方块渲染与交互",
+      "criterion": "BlockEntity Renderer, Ponder, GUI, overlays and sound",
+      "status": "native_unverified",
+      "native_evidence": null,
+      "unit_tests": [],
+      "notes": null
+    },
+    {
+      "id": "R17",
+      "family": "Aeronautics",
+      "name": "Sable 物理世界创建",
+      "criterion": "physics sublevels, server tick, client sync",
+      "status": "native_unverified",
+      "native_evidence": null,
+      "unit_tests": [],
+      "notes": null
+    },
+    {
+      "id": "R18",
+      "family": "Aeronautics",
+      "name": "装配/拆卸/胶水",
+      "criterion": "full world->sublevel transfer, collision and inventory persistence",
+      "status": "native_unverified",
+      "native_evidence": null,
+      "unit_tests": [],
+      "notes": null
+    },
+    {
+      "id": "R19",
+      "family": "Aeronautics",
+      "name": "刚体质量、惯性和重心",
+      "criterion": "density/mass, center of mass, inertia tensor",
+      "status": "native_unverified",
+      "native_evidence": null,
+      "unit_tests": [],
+      "notes": null
+    },
+    {
+      "id": "R20",
+      "family": "Aeronautics",
+      "name": "重力与自由落体",
+      "criterion": "acceleration, collision, constraint solver, suspension",
+      "status": "native_unverified",
+      "native_evidence": null,
+      "unit_tests": [],
+      "notes": null
+    },
+    {
+      "id": "R21",
+      "family": "Aeronautics",
+      "name": "摩擦/阻力/碰撞",
+      "criterion": "surface contacts, sliding, damping, velocity-dependent drag",
+      "status": "native_unverified",
+      "native_evidence": null,
+      "unit_tests": [],
+      "notes": null
+    },
+    {
+      "id": "R22",
+      "family": "Aeronautics",
+      "name": "螺旋桨与推进器",
+      "criterion": "engine start, thrust, torque, fuel/power availability",
+      "status": "native_unverified",
+      "native_evidence": null,
+      "unit_tests": [],
+      "notes": null
+    },
+    {
+      "id": "R23",
+      "family": "Aeronautics",
+      "name": "翼面升力/空气阻力",
+      "criterion": "aero coefficients, speed, angle of attack, stall behavior",
+      "status": "native_unverified",
+      "native_evidence": null,
+      "unit_tests": [],
+      "notes": null
+    },
+    {
+      "id": "R24",
+      "family": "Aeronautics",
+      "name": "风场与天气耦合",
+      "criterion": "verify wind is actually built into target configuration or supplied by addon",
+      "status": "native_unverified",
+      "native_evidence": null,
+      "unit_tests": [],
+      "notes": "Wind is not to be assumed present in every Aeronautics release or pack. Inspect target server physics settings and installed addons."
+    },
+    {
+      "id": "R25",
+      "family": "Aeronautics",
+      "name": "浮力与气球/飞艇",
+      "criterion": "buoyant force and density when module supports it",
+      "status": "native_unverified",
+      "native_evidence": null,
+      "unit_tests": [],
+      "notes": null
+    },
+    {
+      "id": "R26",
+      "family": "Aeronautics",
+      "name": "旋转轴承和关节物理",
+      "criterion": "swivel torque, limit, break thresholds and constraints",
+      "status": "native_unverified",
+      "native_evidence": null,
+      "unit_tests": [],
+      "notes": null
+    },
+    {
+      "id": "R27",
+      "family": "Aeronautics",
+      "name": "姿态传感器与控制",
+      "criterion": "gimbal, velocity, optical feedback and analog logic",
+      "status": "native_unverified",
+      "native_evidence": null,
+      "unit_tests": [],
+      "notes": null
+    },
+    {
+      "id": "R28",
+      "family": "Aeronautics",
+      "name": "控制面、操纵、通信",
+      "criterion": "steering, rudders, pilot control and synchronized inputs",
+      "status": "native_unverified",
+      "native_evidence": null,
+      "unit_tests": [],
+      "notes": null
+    },
+    {
+      "id": "R29",
+      "family": "Aeronautics",
+      "name": "多人同步与区块加载",
+      "criterion": "network packets, ownership, chunk borders and save/load",
+      "status": "native_unverified",
+      "native_evidence": null,
+      "unit_tests": [],
+      "notes": null
+    },
+    {
+      "id": "R30",
+      "family": "Aeronautics",
+      "name": "车辆/飞行器与移动结构交互",
+      "criterion": "entity collision, on-board players, item/fluids, Create kinetic interfaces",
+      "status": "native_unverified",
+      "native_evidence": null,
+      "unit_tests": [],
+      "notes": null
+    },
+    {
+      "id": "R31",
+      "family": "Aeronautics",
+      "name": "所有方块/物品/GUI完整交互",
+      "criterion": "registry-wide right/left click, menus, state, recipe, sound",
+      "status": "native_unverified",
+      "native_evidence": null,
+      "unit_tests": [],
+      "notes": null
+    },
+    {
+      "id": "R32",
+      "family": "Both",
+      "name": "性能与确定性",
+      "criterion": "TPS, memory, repeatability and force/controller stability",
+      "status": "native_unverified",
+      "native_evidence": null,
+      "unit_tests": [],
+      "notes": null
+    },
+    {
+      "id": "R33",
+      "family": "Both",
+      "name": "版本兼容性",
+      "criterion": "Minecraft 1.21.1 NeoForge and pinned release versions",
+      "status": "native_unverified",
+      "native_evidence": null,
+      "unit_tests": [],
+      "notes": null
+    }
+  ],
+  "prior_evidence": {
+    "static_model_e2e": "23 representative official JAR block models inspected; 17 original static meshes resolved, 6 partial, 0 missing; NOT gameplay functionality.",
+    "source_code": "viewer/rpms/strict-core.mjs documents a narrow preview-only kinetic network. The Java NeoForge StudioMod is a loading baseline and currently does not integrate Create/Aeronautics gameplay."
+  },
+  "acceptance_policy": "Full native operation cannot be claimed until EVERY applicable domain has native_passed with precise reproducible run evidence and game version/config; native_unverified remains failing."
+}

@@ -28,6 +28,7 @@ jobs:
           node --check viewer/rpms/strict.js
           node --check viewer/rpms/tests/strict-browser.cjs
           node viewer/rpms/tests/strict-core.test.mjs
+          node viewer/rpms/tests/native-acceptance.test.mjs
           node --check viewer/rpms/tests/blocks-smoke.cjs
           python3 - <<'PY'
           import json,pathlib
