@@ -29,6 +29,10 @@ public final class SeamCommands {
                     .requires(src -> src.hasPermission(2))
                     .then(Commands.literal("enable").executes(ctx -> smooth(ctx,true)))
                     .then(Commands.literal("disable").executes(ctx -> smooth(ctx,false))))
+                .then(Commands.literal("explosions")
+                    .requires(src -> src.hasPermission(2))
+                    .then(Commands.literal("enable").executes(ctx -> explosions(ctx,true)))
+                    .then(Commands.literal("disable").executes(ctx -> explosions(ctx,false))))
                 .then(Commands.literal("terrain")
                     .requires(src -> src.hasPermission(2))
                     .then(Commands.literal("enable").executes(ctx -> terrain(ctx,true)))
@@ -63,6 +67,7 @@ public final class SeamCommands {
             "WorldSeam: " + (enabled ? "ON" : "OFF")
                 + " | experimental no-respawn: " + (config.experimentalNoRespawn() ? "ON" : "OFF")
                 + " | carve new chunks: " + (config.carveNewChunks() ? "ON" : "OFF")
+                + " | cross-seam explosions: " + (config.crossSeamExplosions() ? "ON" : "OFF")
                 + " | dimension edges: " + config.stack().links().size()
                 + " | stack layers: " + config.stack().entries().size() + " | rendering: near-border snapshot prototype (not full world renderer)"
         ), false);
@@ -87,6 +92,17 @@ public final class SeamCommands {
             + ". PRELOADING 9 CHUNKS REQUIRED. If unready, seam will block crossing."
             + " Only use on a backed-up test world. Disable if instability occurs."
         ), true);
+        return 1;
+    }
+
+    private static int explosions(CommandContext<CommandSourceStack> ctx, boolean enabled) {
+        var src=ctx.getSource();
+        SeamSettings.get(src.getServer()).setCrossSeamExplosions(enabled);
+        src.sendSuccess(() -> Component.literal(
+            "WorldSeam native cross-seam blasts " + (enabled ? "ENABLED" : "DISABLED")
+            + ". Only sealed-bedrock-free openings; both worlds must be loaded."
+            + " Destructive across dimensions. Back up the test world first."
+        ),true);
         return 1;
     }
 
