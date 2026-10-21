@@ -19,7 +19,7 @@ public final class PlayerNpcRenderer extends MobRenderer<PlayerNpcEntity, Player
     };
 
     public PlayerNpcRenderer(EntityRendererProvider.Context context) {
-        super(context, new PlayerModel<>(context.bakeLayer(ModelLayers.PLAYER), false), 0.45F);
+        super(context, new LivingNpcPlayerModel(context.bakeLayer(ModelLayers.PLAYER), false), 0.45F);
         addLayer(new ItemInHandLayer<>(this, context.getItemInHandRenderer()));
     }
 
