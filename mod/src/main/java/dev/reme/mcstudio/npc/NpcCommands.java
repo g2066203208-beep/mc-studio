@@ -5,6 +5,7 @@ import com.mojang.brigadier.arguments.IntegerArgumentType;
 import net.minecraft.commands.arguments.coordinates.BlockPosArgument;
 import dev.reme.mcstudio.npc.life.PlayerMiningActions;
 import dev.reme.mcstudio.npc.life.DailyRoaming;
+import dev.reme.mcstudio.npc.life.PublicSafety;
 import dev.reme.mcstudio.npc.life.FootTrafficData;
 import dev.reme.mcstudio.npc.life.EmergentSettlements;
 import dev.reme.mcstudio.npc.life.SettlementLedger;
@@ -98,6 +99,12 @@ public final class NpcCommands {
             .then(Commands.literal("unescort").executes(ctx -> escort(ctx.getSource(), false)))
             .then(Commands.literal("squad").executes(ctx -> squad(ctx.getSource(), true)))
             .then(Commands.literal("disband").executes(ctx -> squad(ctx.getSource(), false)))
+            .then(Commands.literal("jail")
+                .executes(ctx -> jailStatus(ctx.getSource()))
+                .then(Commands.literal("set").requires(source -> source.hasPermission(2))
+                    .executes(ctx -> assignJail(ctx.getSource())))
+                .then(Commands.literal("clear").requires(source -> source.hasPermission(2))
+                    .executes(ctx -> clearJail(ctx.getSource()))))
             .then(Commands.literal("setstore").requires(source -> source.hasPermission(2))
                 .executes(ctx -> setStore(ctx.getSource())))
             .then(Commands.literal("route")
@@ -442,6 +449,65 @@ public final class NpcCommands {
         npc.setCaravanDropoff(null);
         source.sendSuccess(() -> Component.literal(
             "Caravan route canceled. Existing goods remain in actual NPC backpack."), false);
+        return 1;
+    }
+
+    private static int jailStatus(CommandSourceStack source)
+        throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        PlayerNpcEntity guard = closestOwnedNpc(source.getPlayerOrException());
+        if (guard == null || guard.profession() != PlayerNpcEntity.Profession.GUARD) {
+            source.sendFailure(Component.literal("Find an owned GUARD NPC within 16 blocks"));
+            return 0;
+        }
+        source.sendSuccess(() -> Component.literal(
+            "Guard: " + guard.getName().getString()
+            + " | designated holding spot=" + guard.policeJail()
+            + " | current crime report=" + guard.policeSuspect()
+            + " | physical iron bars required; no artificial prison generated"), false);
+        return 1;
+    }
+
+    private static int assignJail(CommandSourceStack source)
+        throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        ServerPlayer player = source.getPlayerOrException();
+        PlayerNpcEntity guard = closestOwnedNpc(player);
+        if (guard == null || guard.profession() != PlayerNpcEntity.Profession.GUARD) {
+            source.sendFailure(Component.literal("Owned GUARD NPC must be within 16 blocks"));
+            return 0;
+        }
+        HitResult hit = player.pick(6.0D, 0.0F, false);
+        if (!(hit instanceof BlockHitResult block)
+            || !player.serverLevel().getBlockState(block.getBlockPos())
+                .is(net.minecraft.world.level.block.Blocks.IRON_BARS)) {
+            source.sendFailure(Component.literal("Look directly at existing iron bars within six blocks"));
+            return 0;
+        }
+        BlockPos spot = PublicSafety.nearestHoldingSpot(
+            player.serverLevel(), block.getBlockPos(), guard);
+        if (spot == null) {
+            source.sendFailure(Component.literal(
+                "No loaded walkable cell adjacent to bars within guard territory."
+                + " Provide a solid floor with two air blocks above it."));
+            return 0;
+        }
+        guard.setPoliceJail(spot);
+        source.sendSuccess(() -> Component.literal(
+            "Authorized nonlethal holding location " + spot.toShortString()
+            + ". Only caught NPC raiders with real eyewitness robbery complaints"
+            + " can be detained; no human players are arrested."
+            + " Add actual walls/locked access to make a real secure prison."), true);
+        return 1;
+    }
+
+    private static int clearJail(CommandSourceStack source)
+        throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        PlayerNpcEntity guard = closestOwnedNpc(source.getPlayerOrException());
+        if (guard == null || guard.profession() != PlayerNpcEntity.Profession.GUARD) return 0;
+        guard.setPoliceJail(null);
+        guard.clearPoliceCase();
+        source.sendSuccess(() -> Component.literal(
+            "Guard holding location unset. Existing individual detainees"
+            + " retain their finite sentence and automatic release."), true);
         return 1;
     }
 
