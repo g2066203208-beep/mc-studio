@@ -244,7 +244,7 @@ import -window root client-gui-mining-status.png
 echo "Captured real in-world mining witness: fixture/tool/command/progress/final status."
 # These are genuine chat results from the integrated Minecraft server,
 # not a screenshot filename being treated as gameplay proof.
-if ! grep -Eq 'Organic hamlet \\| ([3-9]|[1-9][0-9]+) real households' run/logs/latest.log; then
+if ! grep -Eq 'Organic hamlet \| ([3-9]|[1-9][0-9]+) real households' run/logs/latest.log; then
   echo "Minecraft did not verify organically recognized households"; exit 1
 fi
 if ! grep -q 'Desire paths: .*physical path shaping OFF' run/logs/latest.log; then
