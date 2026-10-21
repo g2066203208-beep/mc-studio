@@ -1,0 +1,71 @@
+const assert=require('node:assert/strict');
+const {chromium}=require('playwright-core');
+const path=require('node:path'),fs=require('node:fs');
+(async()=>{
+  const browser=await chromium.launch({channel:'chrome',headless:true,args:[
+    '--no-sandbox','--use-angle=swiftshader','--enable-unsafe-swiftshader',
+    '--enable-webgl','--disable-dev-shm-usage']});
+  const errors=[];
+  try{
+    const page=await browser.newPage({viewport:{width:1420,height:870},deviceScaleFactor:1});
+    page.on('pageerror',error=>errors.push(error.stack||error.message));
+    page.on('console',message=>{if(message.type()==='error')console.log('BROWSER ERROR:',message.text());});
+    const r=await page.goto('http://127.0.0.1:8033/aero-world/',{waitUntil:'domcontentloaded'});
+    assert.equal(r.status(),200,'AeroWorld index not served');
+    await page.waitForFunction(()=>window.__AEROWORLD_READY__===true,null,{timeout:55000});
+    const count=await page.evaluate(()=>window.__AEROWORLD_API__.getBlockCount());
+    assert.ok(count>=600,'No 3D voxel terrain loaded: '+count);
+    assert.equal(await page.evaluate(()=>window.__AEROWORLD_API__.getId(0,3,-8)),'simulated:swivel_bearing');
+    console.log('3D world spawned:',count,'voxels, Aero bearing ID placed');
+    await page.locator('#enter').click();
+    await page.waitForFunction(()=>window.__AEROWORLD_API__.isPlaying());
+    const before=await page.evaluate(()=>window.__AEROWORLD_API__.getPlayer());
+    await page.keyboard.down('w');await page.waitForTimeout(440);await page.keyboard.up('w');
+    const after=await page.evaluate(()=>window.__AEROWORLD_API__.getPlayer());
+    assert.ok(Math.hypot(after[0]-before[0],after[2]-before[2])>.6,'WASD did not move in actual 3D world');
+    console.log('Actual WASD moved player',before,'=>',after);
+    assert.equal(await page.evaluate(()=>window.__AEROWORLD_API__.addBlock(6,5,5,'simulated:swivel_bearing')),true);
+    assert.equal(await page.evaluate(()=>window.__AEROWORLD_API__.getId(6,5,5)),'simulated:swivel_bearing');
+    assert.equal(await page.evaluate(()=>window.__AEROWORLD_API__.removeBlock(6,5,5)),true);
+    assert.equal(await page.evaluate(()=>window.__AEROWORLD_API__.getId(6,5,5)),null);
+    const saved=await page.evaluate(()=>window.__AEROWORLD_API__.exportWorld());
+    assert.equal(saved.type,'AEROWORLD_BROWSER_WORLD_NOT_MC_SAVE');
+    await page.evaluate(data=>window.__AEROWORLD_API__.importWorld(data),saved);
+    assert.equal(await page.evaluate(()=>window.__AEROWORLD_API__.getBlockCount()),count);
+    console.log('Block place/break and JSON save/load: PASS');
+    await page.keyboard.press('Escape');await page.waitForTimeout(350);
+    if(await page.locator('#menu').evaluate(e=>e.classList.contains('hidden')))
+      await page.locator('#menuButton').click();
+    await page.locator('#inventoryButton').click();
+    assert.equal(await page.locator('#inventory').evaluate(e=>e.classList.contains('hidden')),false);
+    await page.locator('#search').fill('swivel');
+    assert.ok((await page.locator('#palette button').count())>=1,'Bearing missing from inventory');
+    await page.locator('#palette button').first().click();
+    await page.locator('#inventoryImport').click();
+    const fixture=path.join(__dirname,'..','..','rpms','tests','fixture-simulated.jar');
+    assert.ok(fs.existsSync(fixture),'Generate fixture with create-fixture.py');
+    await page.locator('#jarInput').setInputFiles(fixture);
+    await page.waitForFunction(()=>window.__AEROWORLD_API__.modBlocks()>=1,null,{timeout:40000});
+    await page.waitForTimeout(1200);
+    assert.equal(await page.evaluate(()=>window.__AEROWORLD_API__.archives()),1);
+    console.log('Local JAR resource import: PASS');
+    await page.locator('#libraryDone').click();
+    await page.locator('#inventoryClose').click();
+    const screenshot=path.join(__dirname,'aeroworld-desktop.png');
+    await page.screenshot({path:screenshot,fullPage:true});
+    assert.ok(fs.statSync(screenshot).size>30000,'WebGL screenshot blank or invalid');
+    const mobile=await browser.newPage({viewport:{width:390,height:780},isMobile:true,hasTouch:true});
+    mobile.on('pageerror',error=>errors.push(error.message));
+    await mobile.goto('http://127.0.0.1:8033/aero-world/',{waitUntil:'domcontentloaded'});
+    await mobile.waitForFunction(()=>window.__AEROWORLD_READY__===true,null,{timeout:55000});
+    await mobile.locator('#enter').click();
+    assert.equal(await mobile.evaluate(()=>window.__AEROWORLD_API__.isPlaying()),true);
+    const overflow=await mobile.evaluate(()=>document.documentElement.scrollWidth-innerWidth);
+    assert.ok(overflow<=15,'Mobile overflow: '+overflow);
+    const mobshot=path.join(__dirname,'aeroworld-mobile.png');
+    await mobile.screenshot({path:mobshot});
+    console.log('Mobile touch entry/screenshots PASS',fs.statSync(mobshot).size);
+    assert.deepEqual(errors,[],'Browser runtime errors');
+    console.log('PASS: real Chrome WebGL voxel play, movement, build/destroy, inventory, JSON, JAR and mobile');
+  }finally{await browser.close();}
+})().catch(error=>{console.error(error.stack||error);process.exitCode=1;});
