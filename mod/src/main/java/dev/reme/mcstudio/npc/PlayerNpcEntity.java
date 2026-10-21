@@ -96,6 +96,8 @@ public class PlayerNpcEntity extends PathfinderMob {
     private SocietyRules.Identity identity = SocietyRules.civilian("river");
     private LifeJourney journey = new LifeJourney(LifeJourney.Goal.LIVE_PEACEFULLY);
     @Nullable private BlockPos supplyPos;
+    @Nullable private BlockPos caravanPickup;
+    @Nullable private BlockPos caravanDropoff;
     @Nullable private UUID escortLeader;
     @Nullable private BlockPos exploreTarget;
     private final Set<Long> recentChunks = new LinkedHashSet<>();
@@ -220,6 +222,14 @@ public class PlayerNpcEntity extends PathfinderMob {
     @Nullable public BlockPos supplyPos() { return supplyPos; }
     public void setSupplyPos(@Nullable BlockPos pos) {
         supplyPos = pos == null ? null : pos.immutable();
+    }
+    @Nullable public BlockPos caravanPickup() { return caravanPickup; }
+    @Nullable public BlockPos caravanDropoff() { return caravanDropoff; }
+    public void setCaravanPickup(@Nullable BlockPos pos) {
+        caravanPickup = pos == null ? null : pos.immutable();
+    }
+    public void setCaravanDropoff(@Nullable BlockPos pos) {
+        caravanDropoff = pos == null ? null : pos.immutable();
     }
     @Nullable public UUID escortLeader() { return escortLeader; }
     public int roamingRadius() { return roamingRadius; }
@@ -560,6 +570,8 @@ public class PlayerNpcEntity extends PathfinderMob {
         tag.putString("NpcLifeGoal", journey.goal().name());
         tag.putInt("NpcGoalProgress", journey.progress());
         if (supplyPos != null) tag.putLong("NpcSupplyPos", supplyPos.asLong());
+        if (caravanPickup != null) tag.putLong("NpcCaravanPickup", caravanPickup.asLong());
+        if (caravanDropoff != null) tag.putLong("NpcCaravanDropoff", caravanDropoff.asLong());
         if (escortLeader != null) tag.putUUID("NpcEscortLeader", escortLeader);
         if (exploreTarget != null) tag.putLong("NpcExploreTarget", exploreTarget.asLong());
         tag.putLongArray("NpcRecentChunks", recentChunks.stream().mapToLong(Long::longValue).toArray());
@@ -645,6 +657,10 @@ public class PlayerNpcEntity extends PathfinderMob {
         }
         supplyPos = tag.contains("NpcSupplyPos", Tag.TAG_LONG)
             ? BlockPos.of(tag.getLong("NpcSupplyPos")) : null;
+        caravanPickup = tag.contains("NpcCaravanPickup", Tag.TAG_LONG)
+            ? BlockPos.of(tag.getLong("NpcCaravanPickup")) : null;
+        caravanDropoff = tag.contains("NpcCaravanDropoff", Tag.TAG_LONG)
+            ? BlockPos.of(tag.getLong("NpcCaravanDropoff")) : null;
         escortLeader = tag.hasUUID("NpcEscortLeader")
             ? tag.getUUID("NpcEscortLeader") : null;
         exploreTarget = tag.contains("NpcExploreTarget", Tag.TAG_LONG)
