@@ -65,3 +65,12 @@
 
 ### 后续修订：出生地决定地区
 自然居民在 NATURAL 初始化时，会自动登记为 `sector_<floorDiv(x,512)>_<floorDiv(z,512)>` 地区，而不是全部沿用固定 `river`。如 X=-1，Z=-1，则归属 `sector_-1_-1`。地区保存实体 NBT，不跨越已有自然居民重新赋值，也不声称这个格子是国家控制领土。增加 `MovementPolicySpec` 负坐标/边界测试与 GameTest 中的出生地区断言。最新源码提交：`6393acd5dcd74966b36e5d7072c5033574ada040`，对应 CI 需核验。
+
+
+## 最终可编译实验版本（已核验）
+- **最新实质 Java 源提交** `6393acd5dcd74966b36e5d7072c5033574ada040`；之后仅调整文档。
+- [GitHub Actions PR Build 39525522849](https://github.com/g2066203208-beep/mc-studio/actions/runs/39525522849) **SUCCESS**。
+- [GitHub Actions PR NeoForge GameTest 39525522800](https://github.com/g2066203208-beep/mc-studio/actions/runs/39525522800) **SUCCESS**；游戏服务器日志明确 `All 7 required tests passed :)`。
+- artifact `12313600974`，ZIP 内 `reme_studio-0.5.0-dev.jar`，**121888 bytes**，SHA-256 `c1ee90cf5529430fbd7a322f2c968b0b3fbc43bb90e0a02bde25d60d767356ca`。
+- 已由独立运行容器实际解包并检查 JAR：`NaturalResidentSpawn.class`, `DailyRoaming.class`, `MovementPolicy.class`、`META-INF/neoforge.mods.toml` 与 `data/reme_studio/neoforge/biome_modifier/natural_residents.json` 全部存在。
+- **尚未测：在真实主世界长期随机刷出居民的频率、客户端动画/寻路、222-Mod 整合包、多个世界长时间存档体积、20/100/200 NPC 的 TPS 性能。** 构建与 GameTest 成功不能推导具体性能增幅。

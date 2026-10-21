@@ -132,3 +132,10 @@ Gradle 报告使用了将来不兼容 Gradle 10 的弃用功能；当前固定 W
 - [GameTest run 39524861608](https://github.com/g2066203208-beep/mc-studio/actions/runs/39524861608)：游戏服务器真实运行 6 required tests，全部 PASS。
 - [GameTest run 39525005713](https://github.com/g2066203208-beep/mc-studio/actions/runs/39525005713)：新增人口上限后，真实运行 7 required tests，全部 PASS。
 - 最终客户端真实世界/野外稀有刷新/222-Mod/TPS 还未验证。查看最新 HEAD 的 Actions 才能宣布最终 JAR 已通过。
+
+
+## Living World v0.5 最终 CI 核验
+
+- Java 源提交 `6393acd5dcd74966b36e5d7072c5033574ada040`。GitHub [PR Build 39525522849](https://github.com/g2066203208-beep/mc-studio/actions/runs/39525522849) **SUCCESS** 与 [PR GameTest 39525522800](https://github.com/g2066203208-beep/mc-studio/actions/runs/39525522800) **SUCCESS**；GameTest 7/7 required passed。
+- artifact 12313600974，`reme_studio-0.5.0-dev.jar` (121888 bytes), SHA-256 `c1ee90cf5529430fbd7a322f2c968b0b3fbc43bb90e0a02bde25d60d767356ca`。解包确认生物群系 spawn modifier 和模块类。
+- v0.5 所有性能调整为可计数的触发频率/缓存优化，尚无对照 TPS 量测。真实 222-Mod 整合包未验收。
