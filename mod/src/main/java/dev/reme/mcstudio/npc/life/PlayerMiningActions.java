@@ -1,6 +1,11 @@
 package dev.reme.mcstudio.npc.life;
 
 import dev.reme.mcstudio.npc.PlayerNpcEntity;
+import java.util.Set;
+import java.util.UUID;
+import java.util.stream.Collectors;
+import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.InteractionHand;
@@ -98,6 +103,12 @@ public final class PlayerMiningActions {
             // This fires the real vanilla/NeoForge player break pipeline.
             // It must NOT be replaced by level.setBlock(AIR) or drops conjured
             // from an independently simulated loot table.
+            // Capture only newly spawned loot IDs around the actual block,
+            // rather than claiming every item already lying nearby.
+            AABB lootBounds = new AABB(target).inflate(2.0);
+            Set<UUID> beforeDrops = level.getEntitiesOfClass(
+                ItemEntity.class, lootBounds, ItemEntity::isAlive)
+                .stream().map(ItemEntity::getUUID).collect(Collectors.toSet());
             boolean destroyed = player.gameMode.destroyBlock(target);
             level.destroyBlockProgress(npc.getId(), target, -1);
             npc.resetMiningProgress();
@@ -106,6 +117,14 @@ public final class PlayerMiningActions {
                 npc.setItemSlot(EquipmentSlot.MAINHAND,
                     player.getMainHandItem().copy());
                 npc.clearMiningTarget();
+                Set<UUID> newDrops = level.getEntitiesOfClass(
+                    ItemEntity.class, lootBounds, ItemEntity::isAlive)
+                    .stream().map(ItemEntity::getUUID)
+                    .filter(id -> !beforeDrops.contains(id))
+                    .limit(24).collect(Collectors.toSet());
+                // Original item entities remain in the actual Minecraft
+                // world. Tracking UUIDs is not a resource grant.
+                npc.claimMiningDrops(newDrops, level.getGameTime() + 300L);
                 npc.setAction("mined " + target.toShortString()
                     + " through vanilla player action; drops in world");
             } else {
