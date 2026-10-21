@@ -27,7 +27,7 @@ jobs:
           xvfb-run -a -s '-screen 0 1280x720x24' bash -c '
             set -euo pipefail
             export LIBGL_ALWAYS_SOFTWARE=1
-            bash ./gradlew runClient --no-daemon --console=plain > visual-client.log 2>&1 &
+            bash ./gradlew runClient -PworldseamE2E --no-daemon --console=plain > visual-client.log 2>&1 &
             pid=$!
             trap "kill $pid 2>/dev/null || true" EXIT
             for step in $(seq 1 170); do
@@ -60,35 +60,28 @@ jobs:
             # World creation can be CPU-heavy with software OpenGL.
             sleep 78
             xwd -root -silent | convert xwd:- -resize 600x338 -quality 48 visual-in-world.jpg
-            # Exercise the installed mod in a real integrated singleplayer world.
-            xdotool key --clearmodifiers t
-            xdotool type --clearmodifiers --delay 25 "/gamemode creative"
-            xdotool key Return
-            sleep 3
-            xdotool key --clearmodifiers t
-            xdotool type --clearmodifiers --delay 25 "/worldseam setup-test"
-            xdotool key Return
-            sleep 6
-            xdotool key --clearmodifiers t
-            xdotool type --clearmodifiers --delay 25 "/tp ~ -61 ~ 0 90"
-            xdotool key Return
-            # Wait for actual 9 native target chunks, 1 packet per second.
-            sleep 22
+            # In-game harness on REAL integrated server controls player using
+            # server-thread APIs, not unreliable xdotool chat keystrokes.
+            sleep 24
             xwd -root -silent | convert xwd:- -resize 600x338 -quality 48 visual-near-seam.jpg
-            xdotool key --clearmodifiers t
-            xdotool type --clearmodifiers --delay 25 "/worldseam trace"
-            xdotool key Return
-            sleep 3
-            xdotool key --clearmodifiers t
-            xdotool type --clearmodifiers --delay 25 "/tp ~ -63.70 ~ 0 90"
-            xdotool key Return
-            sleep 8
+            sleep 38
             xwd -root -silent | convert xwd:- -resize 600x338 -quality 48 visual-crossing.jpg
             montage visual-in-world.jpg visual-near-seam.jpg visual-crossing.jpg visual-world-create.jpg -tile 2x2 -geometry +0+0 -quality 48 visual-sequence.jpg
             if ! grep -q "WorldSeam standalone mod loaded" visual-client.log; then
               echo "Mod never loaded in graphical client!"
               exit 1
             fi
+            echo "=== WORLDSEAM ACTUAL INTEGRATED CLIENT E2E LOG ==="
+            grep -E "WORLDSEAM_E2E_|WorldSeam prewarmed|WorldSeam direct local ClientLevel switch" visual-client.log | tail -n 50 || true
+            if grep -q "WORLDSEAM_E2E_FAIL" visual-client.log; then
+              echo "WorldSeam integrated E2E failed"; exit 1
+            fi
+            if ! grep -q "WORLDSEAM_E2E_PASS_CLIENT" visual-client.log ||
+               ! grep -q "WORLDSEAM_E2E_PASS_SERVER" visual-client.log; then
+              echo "WorldSeam never proved BOTH actual server and client dimension change"; exit 1
+            fi
+            echo "WorldSeam integrated E2E verified server and client dimension handoff"
+
             echo WORLDSEAM_GUI_JPEG_BEGIN
             base64 -w 0 visual-sequence.jpg
             echo
