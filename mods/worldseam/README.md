@@ -7,7 +7,7 @@
 - **Mod ID：`worldseam`**
 - Java 包：`dev.reme.worldseam`
 - 独立 Gradle 工程：`mods/worldseam/`
-- 构建产物：`mods/worldseam/build/libs/worldseam-0.9.2-dev.jar`
+- 构建产物：`mods/worldseam/build/libs/worldseam-0.9.3-dev.jar`
 - 依赖：Minecraft 与 NeoForge；**不依赖 PEAK 攀爬，也不依赖 Immersive Portals**。
 
 ## 为什么和 PEAK 完全独立
@@ -99,3 +99,18 @@ v0.5 的 teleportTo 仍引发原版 ClientboundRespawnPacket/加载界面。本�
 真实 NeoForge 单人 GUI 的 E2E 在双向穿越、末地预览后，会从服务端禁用 Mod 并明确要求 `WORLDSEAM_E2E_PASS_DISABLE_CLEARED`，否则截图工作流不得绿灯。纯 Java JUnit 测试验证启停切换即使堆叠修订号不变也会更换同步标记。
 
 **还未完成**：真正双世界同帧透明/深度合成、远端实体/流体/天空、Sable 兼容及持续 FPS 帧时间测量。
+
+## v0.9.3-dev — 世界接缝两侧的原生爆炸（实验功能）
+
+**独立开关，默认关闭：**
+```mcfunction
+/worldseam enable
+/worldseam explosions enable
+/worldseam explosions disable
+```
+
+针对有真实开放连接面的两个维度，使用 NeoForge `ExplosionEvent.Detonate` 与目标维度的**原生服务端爆炸**，按真实水平接缝映射半径与中心：例如下界屋顶 Y128、主世界地板 Y-64。爆炸可能在源维度与目标维度同时破坏方块并伤害实体，反向映射同理；远端 3×3 区块须已经驻留，不会因爆炸生成遥远新区块。8 格以上的超大型 Mod 炸弹不自动跨界。封闭的基岩边界仍阻止爆炸传递，需在**可丢弃测试存档**打开连接面。
+
+新增纯 Java 数学单测及真实 NeoForge GameTest 中的两个原生维度方块破坏验证。**尚未证明**真实 TNT 点火完整客户端 E2E、多玩家、权限保护 Mod 或 Sable 物理结构受力；本阶段不能称为航空学/Sable 物理化方块完美穿越。
+
+完整研究和技术验收见 [docs/CROSS_SEAM_PHYSICS.md](docs/CROSS_SEAM_PHYSICS.md)。
