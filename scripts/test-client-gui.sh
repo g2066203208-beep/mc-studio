@@ -43,7 +43,36 @@ echo "Saved visible menu after first-run Continue"
 xdotool mousemove --sync 642 304 click 1
 sleep 9
 import -window root client-gui-world-list.png
-echo "Saved actual Singleplayer world selection screen"
+echo "Saved actual Singleplayer world creation screen"
+# Inspected the actual 1.21.1 GUI screenshot: creation form, cheats OFF at x640,y425.
+xdotool mousemove --sync 640 425 click 1
+sleep 1
+import -window root client-gui-commands-on.png
+# Inspected Create New World button at x400,y672.
+xdotool mousemove --sync 400 673 click 1
+echo "Clicked Create New World with commands enabled"
+sleep 95
+import -window root client-gui-world.png
+echo "Captured in-world attempt (must inspect picture; not automatically proof of world entry)"
+xdotool key --clearmodifiers t
+sleep 1
+xdotool type --clearmodifiers --delay 80 '/remecheck'
+xdotool key Return
+sleep 4
+import -window root client-gui-remecheck.png
+xdotool key --clearmodifiers t
+sleep 1
+xdotool type --clearmodifiers --delay 80 '/npc spawn'
+xdotool key Return
+sleep 10
+import -window root client-gui-npc-spawn.png
+xdotool key --clearmodifiers t
+sleep 1
+xdotool type --clearmodifiers --delay 80 '/npc info'
+xdotool key Return
+sleep 4
+import -window root client-gui-npc-info.png
+echo "Captured real client command attempts for visual inspection"
 echo "Window id: $found"
 echo "Minecraft launch/render indicators:"
 grep -E 'Reloading ResourceManager|mod/reme_studio|Created.*atlas' client-gui.log | tail -n 10 || true
