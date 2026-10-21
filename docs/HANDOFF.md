@@ -132,3 +132,11 @@ Push CI `39518033958` SUCCESS，PR CI `39518039426` SUCCESS。Artifact `12310085
 - JAR `reme_studio-0.5.0-dev.jar` 121888 bytes，SHA-256 `c1ee90cf5529430fbd7a322f2c968b0b3fbc43bb90e0a02bde25d60d767356ca`，artifact 12313600974，已经打开 ZIP 核查类和 biome modifier。
 - 代码中 NPC 在选定主世界地表稀有生成，附近 72 格 cap4，自动 512×512 地区标签、居家范围与白天漫步；缺少真正家庭居住分配与长期性能测试。
 - 下一阶段优先实机测试新自然世界实际刷新概率/路径与数天日常动作，再做 20/100/200 NPC 稳定负载 profiling、持久人口台账和完整整合包兼容；不要说已经完成这些。
+
+
+## 2026-10-21 用户运行反馈与 v0.5.1 hotfix
+- Hotfix 分支 `fix/npc-runtime-v051`，PR #23，基于 v0.5 draft #19；不能仅依赖旧 v0.5 GameTest 宣称客户端可用。
+- 真正修复低概率 spawn 与拒绝 CHUNK_GENERATION、假导航冷却；真实 Minecraft server GameTests 10/10 [39537399622](https://github.com/g2066203208-beep/mc-studio/actions/runs/39537399622) 成功（包括通过 FakePlayer 命令执行真实 /npc demo 生成六 NPC、实体走动、plains spawn 配置加载）。
+- 首次尝试用 Xvfb 启动 NeoForge 客户端：Render thread 确认已加载 `mod/reme_studio`，超时 180s 主动结束 [39537393170](https://github.com/g2066203208-beep/mc-studio/actions/runs/39537393170)。不是手工 HMCL、不是实机视觉验收。
+- 最新 JAR 0.5.1-dev: 124714 bytes, SHA-256 aa61ce2e079b08e395cddbc4e54fc7213a7a51c37483e03dbc8b3f518dd1ac88, artifact 12317652189, Build 39537399591 successful。
+- 玩家反馈未解决前勿合入 main；可索取实际 HMCL `logs/latest.log` 以定位差异，同时继续补客户端交互与进世界测试。
