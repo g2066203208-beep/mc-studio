@@ -2,6 +2,9 @@ package dev.reme.mcstudio.npc;
 
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
+import net.minecraft.commands.arguments.coordinates.BlockPosArgument;
+import dev.reme.mcstudio.npc.life.PlayerMiningActions;
+import dev.reme.mcstudio.npc.life.DailyRoaming;
 import dev.reme.mcstudio.npc.life.Commission;
 import dev.reme.mcstudio.npc.life.CivicContracts;
 import dev.reme.mcstudio.npc.life.CivicMind;
@@ -70,6 +73,12 @@ public final class NpcCommands {
             .then(Commands.literal("courier").executes(ctx -> profession(ctx.getSource(), PlayerNpcEntity.Profession.COURIER)))
             .then(Commands.literal("guardjob").executes(ctx -> profession(ctx.getSource(), PlayerNpcEntity.Profession.GUARD)))
             .then(Commands.literal("builder").executes(ctx -> profession(ctx.getSource(), PlayerNpcEntity.Profession.BUILDER)))
+            .then(Commands.literal("mine").requires(source -> source.hasPermission(2))
+                .then(Commands.argument("target", BlockPosArgument.blockPos())
+                    .executes(ctx -> authorizeMining(ctx.getSource(),
+                        BlockPosArgument.getLoadedBlockPos(ctx, "target")))))
+            .then(Commands.literal("minestop").requires(source -> source.hasPermission(2))
+                .executes(ctx -> cancelMining(ctx.getSource())))
             .then(Commands.literal("buildstart").requires(source -> source.hasPermission(2))
                 .executes(ctx -> construction(ctx.getSource(), true)))
             .then(Commands.literal("buildstop").requires(source -> source.hasPermission(2))
@@ -230,6 +239,53 @@ public final class NpcCommands {
         return 1;
     }
 
+
+    /** An explicit operator-approved *one block* mining order, never an
+     * unrestricted terrain-razing command for autonomous mobs.
+     */
+    private static int authorizeMining(CommandSourceStack source, BlockPos target)
+        throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        ServerPlayer player = source.getPlayerOrException();
+        PlayerNpcEntity npc = closestOwnedNpc(player);
+        if (npc == null) {
+            source.sendFailure(Component.literal("No owned NPC within 16 blocks"));
+            return 0;
+        }
+        if (!player.serverLevel().hasChunkAt(target) ||
+            player.distanceToSqr(net.minecraft.world.phys.Vec3.atCenterOf(target)) > 256 ||
+            !DailyRoaming.inRange(npc, target) ||
+            !PlayerMiningActions.allowed(player.serverLevel().getBlockState(target))) {
+            source.sendFailure(Component.literal(
+                "Mining order rejected: loaded target must be an allowed natural stone/ore within 16 blocks and home territory"));
+            return 0;
+        }
+        var tool = npc.getMainHandItem();
+        var state = player.serverLevel().getBlockState(target);
+        if (tool.isEmpty() ||
+            (state.requiresCorrectToolForDrops() && !tool.isCorrectToolForDrops(state))) {
+            source.sendFailure(Component.literal(
+                "Give NPC a proper pickaxe: sneak-right-click the NPC with your pickaxe"));
+            return 0;
+        }
+        npc.setMode(PlayerNpcEntity.Mode.LIVE);
+        npc.setMiningTarget(target);
+        source.sendSuccess(() -> Component.literal(
+            "Authorized ONE real player-style mining task for " + npc.getName().getString()
+                + ": " + target.toShortString() + " (no instant destroy)"), false);
+        return 1;
+    }
+
+    private static int cancelMining(CommandSourceStack source)
+        throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        PlayerNpcEntity npc = closestOwnedNpc(source.getPlayerOrException());
+        if (npc == null) return 0;
+        if (npc.miningTarget() != null)
+            source.getLevel().destroyBlockProgress(npc.getId(), npc.miningTarget(), -1);
+        npc.clearMiningTarget();
+        npc.setAction("mining order cancelled by owner");
+        source.sendSuccess(() -> Component.literal("Stopped NPC mining"), false);
+        return 1;
+    }
 
     private static int construction(CommandSourceStack source, boolean start)
         throws com.mojang.brigadier.exceptions.CommandSyntaxException {
