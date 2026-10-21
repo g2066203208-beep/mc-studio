@@ -97,6 +97,24 @@ export function createMultibodyBoss(RAPIER,opts={}){
   mode=value;
   if(mode==='stand')phase=0;
  };
+ const servoTorque=(parent,child,target,kp,kd,limit)=>{
+  // Rapier 0.17.3's motor maximum-force setter is not exposed in WASM.
+  // Enforce a HARD physical torque cap ourselves via equal-and-opposite
+  // angular impulses. These are REAL torques on separate dynamic bodies,
+  // not joint-angle teleports or animation transforms.
+  const q=parent.rotation();
+  const axis=makeV(1-2*(q.y*q.y+q.z*q.z),
+    2*(q.x*q.y+q.w*q.z),2*(q.x*q.z-q.w*q.y));
+  const a=parent.angvel(),b=child.angvel();
+  const omega=(b.x-a.x)*axis.x+(b.y-a.y)*axis.y+(b.z-a.z)*axis.z;
+  const angle=getJointAngle(parent,child);
+  const raw=kp*clamp(target-angle,-1.5,1.5)-kd*omega;
+  const torqueImpulse=clamp(raw,-limit,limit)*DT;
+  if(!torqueImpulse||!Number.isFinite(torqueImpulse))return;
+  const v=makeV(axis.x*torqueImpulse,axis.y*torqueImpulse,axis.z*torqueImpulse);
+  child.applyTorqueImpulse(v,true);
+  parent.applyTorqueImpulse(makeV(-v.x,-v.y,-v.z),true);
+ };
  const applyController=()=>{
   // Motor command = target relative hinge angle, NOT a visual pose.
   // Controlled by Create-like motor RPM and phase timings.
@@ -110,15 +128,9 @@ export function createMultibodyBoss(RAPIER,opts={}){
    const hipT=drive?clamp(wave*stride,-.55,.55):0;
    const kneeT=drive?clamp(.09+.54*lift,0,.84):0;
    leg.hipTarget=hipT;leg.kneeTarget=kneeT;
-   if(mode==='relax'||torque<.01){
-    leg.hip.configureMotorPosition(0,0,0);
-    leg.knee.configureMotorPosition(0,0,0);
-    leg.hip.setMotorMaxForce(0);leg.knee.setMotorMaxForce(0);
-   }else{
-    leg.hip.configureMotorPosition(hipT,hipGain,hipDamping);
-    leg.knee.configureMotorPosition(kneeT,kneeGain,kneeDamping);
-    leg.hip.setMotorMaxForce(torque);
-    leg.knee.setMotorMaxForce(torque*.85);
+   if(mode!=='relax'&&torque>0){
+    servoTorque(body,leg.upper,hipT,hipGain,hipDamping,torque);
+    servoTorque(leg.upper,leg.lower,kneeT,kneeGain,kneeDamping,torque*.85);
    }
   }
  };
