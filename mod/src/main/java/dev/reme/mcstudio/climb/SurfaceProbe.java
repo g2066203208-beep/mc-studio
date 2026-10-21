@@ -42,6 +42,24 @@ public final class SurfaceProbe {
      * the ceiling's downward face, which caused the missing animation switch.
      * Rays share the same Sable-local hit testing as ordinary wall probes.
      */
+    /** Check the two in-face coordinates in the BLOCK'S OWN local axes.
+     * This works even on a rotated Sable sub-level; world XYZ edges do not.
+     * Only near a face edge should the expensive cross-face fan compete
+     * with a valid existing roof/wall hold.
+     */
+    public static boolean nearFaceEdge(GripAnchor anchor) {
+        Vec3 p = anchor.localPoint().subtract(
+                anchor.block().getX(), anchor.block().getY(), anchor.block().getZ());
+        Vec3 n = anchor.localNormal();
+        double border = .24;
+        boolean x = p.x < border || p.x > 1-border;
+        boolean y = p.y < border || p.y > 1-border;
+        boolean z = p.z < border || p.z > 1-border;
+        if (Math.abs(n.x) > .72) return y || z;
+        if (Math.abs(n.y) > .72) return x || z;
+        return x || y;
+    }
+
     @Nullable
     public static GripAnchor traceTransition(Player player, GripAnchor.Contact old, Vec3 movement) {
         if (movement.lengthSqr() < .001) return null;

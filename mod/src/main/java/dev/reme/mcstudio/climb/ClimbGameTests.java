@@ -257,11 +257,12 @@ public final class ClimbGameTests {
         helper.setBlock(wall, Blocks.STONE);
         Player player = helper.makeMockPlayer(GameType.CREATIVE);
         BlockPos origin = helper.absolutePos(new BlockPos(3,2,3));
-        player.moveTo(origin.getX()+.5,origin.getY(),origin.getZ()+.5,0,-20);
+        player.moveTo(origin.getX()+.5,origin.getY(),origin.getZ()+.5,0,0);
         ClimbState.remove(player);
         ClimbRuntime.accept(player,1,-1,true,false,0,0);
         ClimbState state = ClimbState.of(player);
         helper.assertTrue(state.gripping(), "RMB must attach before a wall dyno");
+        player.setXRot(-20); // Look up at the next hold only AFTER gripping.
         ClimbRuntime.accept(player,2,-1,true,false,true,0,0);
         helper.assertTrue(state.jumpRequested,"SPACE rising edge must be delivered");
         ClimbMotion.tick(player,state);
@@ -278,6 +279,30 @@ public final class ClimbGameTests {
         ClimbRuntime.accept(player,4,-1,false,false,false,0,0);
         ClimbState.remove(player);
         helper.setBlock(wall,Blocks.AIR);
+        helper.succeed();
+    }
+
+    @GameTest(template="climb_test", timeoutTicks=80)
+    public static void edgeClassifierUsesAnchorLocalCoordinates(GameTestHelper helper) {
+        BlockPos b = helper.absolutePos(new BlockPos(3,3,5));
+        GripAnchor middle = new GripAnchor(null,b,
+                new Vec3(b.getX()+.50,b.getY()+.50,b.getZ()),
+                new Vec3(0,0,-1));
+        GripAnchor nearTop = new GripAnchor(null,b,
+                new Vec3(b.getX()+.50,b.getY()+.89,b.getZ()),
+                new Vec3(0,0,-1));
+        GripAnchor roofMiddle = new GripAnchor(null,b,
+                new Vec3(b.getX()+.50,b.getY(),b.getZ()+.50),
+                new Vec3(0,-1,0));
+        GripAnchor roofEdge = new GripAnchor(null,b,
+                new Vec3(b.getX()+.94,b.getY(),b.getZ()+.50),
+                new Vec3(0,-1,0));
+        helper.assertTrue(!SurfaceProbe.nearFaceEdge(middle)
+                && !SurfaceProbe.nearFaceEdge(roofMiddle),
+                "Middle of full wall/roof should not trigger expensive corner sweep");
+        helper.assertTrue(SurfaceProbe.nearFaceEdge(nearTop)
+                && SurfaceProbe.nearFaceEdge(roofEdge),
+                "Block-local edge must enable turning probes near the next face");
         helper.succeed();
     }
 

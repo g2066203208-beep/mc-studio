@@ -94,6 +94,7 @@ public final class ClimbMotion {
             // NEW face. A ray pointing only toward the old wall never detects
             // the ceiling underside or a side wall.
             GripAnchor probe = s.faceSwitchCooldown == 0
+                    && SurfaceProbe.nearFaceEdge(oldAnchor)
                     ? SurfaceProbe.traceTransition(player, contact, input) : null;
             boolean faceTransition = probe != null;
             if (probe == null) probe = SurfaceProbe.traceOffset(player, input.scale(.55), normal);
