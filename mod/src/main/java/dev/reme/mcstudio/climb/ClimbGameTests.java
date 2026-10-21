@@ -272,6 +272,8 @@ public final class ClimbGameTests {
                 "Wall jump must release the wall, not release the held RMB intent");
         helper.assertTrue(state.airborneRegrabTicks>0 && state.wallJumpCooldown>0,
                 "Jump must start an anti-magnetic regrab delay and cooldown");
+        helper.assertTrue(state.wallJumpAnimationTicks == 10 && state.poseAction == 9,
+                "Wall jump must play its own synchronized air pose");
         helper.assertTrue(player.getDeltaMovement().z<-.12
                         && player.getDeltaMovement().y>.12,
                 "Dyno should propel player AWAY from wall and into aimed upwards arc");
@@ -279,8 +281,50 @@ public final class ClimbGameTests {
         helper.assertTrue(!state.gripping() && !state.jumpRequested,
                 "Held SPACE and RMB must not retrigger jump or recapture departure wall");
         ClimbRuntime.accept(player,4,-1,false,false,false,0,0);
+        helper.assertTrue(state.wallJumpAnimationTicks == 0 && !state.peakHeld
+                        && state.poseAction == 0 && state.contactNormal.lengthSqr() < .001,
+                "RMB release must clear wall-jump pose and restore vanilla movement");
         ClimbState.remove(player);
         helper.setBlock(wall,Blocks.AIR);
+        helper.succeed();
+    }
+
+    @GameTest(template="climb_test", timeoutTicks=80)
+    public static void wallJumpCanCatchAnotherWallAfterNoRegrabDelay(GameTestHelper helper) {
+        // The game engine still handles the launch motion; in this focused
+        // test, simulate having traveled near the TARGET wall. No teleport is
+        // ever performed by the actual wall-jump controller.
+        BlockPos first = new BlockPos(3,3,5);
+        BlockPos target = new BlockPos(3,3,1);
+        helper.setBlock(first, Blocks.STONE);
+        helper.setBlock(target, Blocks.STONE);
+        Player p = helper.makeMockPlayer(GameType.CREATIVE);
+        BlockPos origin = helper.absolutePos(new BlockPos(3,2,3));
+        p.moveTo(origin.getX()+.5,origin.getY(),origin.getZ()+.5,0,0);
+        ClimbState.remove(p);
+        ClimbRuntime.accept(p,1,-1,true,false,false,0,0);
+        ClimbState state = ClimbState.of(p);
+        helper.assertTrue(state.gripping(),"must first grab departure wall");
+        p.setXRot(-15);
+        ClimbRuntime.accept(p,2,-1,true,false,true,0,0);
+        ClimbMotion.tick(p,state);
+        helper.assertTrue(!state.gripping() && state.wallJumpAnimationTicks>0,
+                "Space must release grip and enter airborne launch animation");
+
+        // Mimic the player reaching a different physical wall in mid-flight.
+        p.moveTo(origin.getX()+.5,origin.getY(),origin.getZ()+.5,180,0);
+        for (int i=0; i<7; i++) {
+            ClimbMotion.tick(p,state);
+        }
+        helper.assertTrue(state.gripping() && state.left != null
+                        && state.left.block().equals(helper.absolutePos(target)),
+                "Continuing RMB after wall-jump should recatch a DIFFERENT wall");
+        helper.assertTrue(state.wallJumpAnimationTicks == 0,
+                "New grip must blend out of airborne pose immediately");
+        ClimbRuntime.accept(p,3,-1,false,false,false,0,0);
+        ClimbState.remove(p);
+        helper.setBlock(first,Blocks.AIR);
+        helper.setBlock(target,Blocks.AIR);
         helper.succeed();
     }
 

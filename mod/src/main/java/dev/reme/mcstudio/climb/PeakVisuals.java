@@ -18,11 +18,14 @@ public final class PeakVisuals {
         else SEEN.put(entityId, new Pose(true, phase, gameTick, action, normal, contactPoint, bodyYaw));
     }
 
-    public static Pose pose(Player player) {
+    public static Pose pose(Player player, boolean locallyControlled) {
         ClimbState local = ClimbState.of(player);
-        if (local.enabled && local.peakHeld)
+        if (local.peakHeld && (local.enabled || local.wallJumpAnimationTicks > 0))
             return new Pose(true, local.peakPhase, player.level().getGameTime(), local.poseAction,
                     local.contactNormal, local.contactPoint, local.grabYaw);
+        // The local controlling player can still have an older server Pose
+        // packet cached. Never let that packet resurrect the grip after RMB up.
+        if (locallyControlled) return null;
         Pose p = SEEN.get(player.getId());
         return p != null && player.level().getGameTime() - p.gameTick() <= 10 ? p : null;
     }

@@ -15,7 +15,7 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 class PeakAnimationResourcesTest {
     @Test
-    void allNineClipsLoadWithRealPlayerAnimatorDecoder() throws Exception {
+    void allElevenClipsLoadWithRealPlayerAnimatorDecoder() throws Exception {
         String resource = "/assets/reme_studio/player_animations/peak_climb.animation.json";
         try (InputStream stream = getClass().getResourceAsStream(resource)) {
             assertNotNull(stream, "Player Animator animation file is absent from the JAR");
@@ -26,7 +26,7 @@ class PeakAnimationResourcesTest {
             assertEquals(Set.of("peak_hang", "peak_ascend", "peak_traverse",
                     "peak_mantle", "peak_release",
                     "peak_ceiling_hang", "peak_ceiling_crawl", "peak_ceiling_traverse",
-                    "peak_wall_to_ceiling"), names,
+                    "peak_wall_to_ceiling", "peak_ceiling_release", "peak_wall_jump"), names,
                     "Player Animator did not decode all PEAK animation clips");
             animations.forEach(a -> assertNotNull(a.playAnimation(),
                     "Decoding succeeded but animation cannot instantiate: " + a.getName()));

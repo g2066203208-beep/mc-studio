@@ -21,6 +21,8 @@ public final class ClimbState {
     public int wallJumpCooldown;
     /** Prevent instant magnetic regrab of the departure wall after a jump. */
     public int airborneRegrabTicks;
+    /** Cosmetic flight phase: the jump is NOT a grip, but has its own arm/leg pose. */
+    public int wallJumpAnimationTicks;
     public boolean previouslySynced;
     public int lungeCooldown;
     public float peakPhase;
@@ -78,6 +80,7 @@ public final class ClimbState {
         lastRight = Vec3.ZERO;
         lungeRequested = false;
         jumpRequested = false;
+        wallJumpAnimationTicks = 0;
         lastResolvedAnchor = null;
         mantleTicks = 0;
         poseAction = 0;
