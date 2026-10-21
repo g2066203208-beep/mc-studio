@@ -38,6 +38,17 @@ public final class SeamRuntimeGameTests {
             helper.fail("WorldSeam or terrain carving started without explicit opt-in");
             return;
         }
+        options.setEnabled(true);
+        try {
+            if (!options.experimentalNoRespawn()) {
+                helper.fail("Enabling WorldSeam must arm no-respawn instead of vanilla loading");
+                return;
+            }
+        } finally {
+            options.setEnabled(false);
+            options.setExperimentalNoRespawn(false);
+            options.setCarveNewChunks(false);
+        }
         helper.succeed();
     }
 }
