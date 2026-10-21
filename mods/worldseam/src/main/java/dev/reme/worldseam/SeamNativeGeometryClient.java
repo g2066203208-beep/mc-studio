@@ -33,6 +33,11 @@ import java.util.Map;
  */
 public final class SeamNativeGeometryClient {
     private record Cell(int x,int y,int z,BlockState state,int light) {}
+    /** Immutable native 16^3 segment; clip ONCE before drawing its models. */
+    private record Slice(List<Cell> cells,AABB bounds) {}
+    private static final double NEAR_PLANE_RENDER_RANGE = 80.0;
+    private static int lastVisibleSlices;
+    private static int lastCulledSlices;
     private static final int MAX_COLUMNS = 25;
     private static final int VERTICAL_SECTIONS = 10;
     private static final int MAX_BUILDS_PER_TICK = 2;
@@ -46,7 +51,7 @@ public final class SeamNativeGeometryClient {
         {-1,0,0},{1,0,0},{0,-1,0},{0,1,0},{0,0,-1},{0,0,1}
     };
     private static final double MAX_DISTANCE_SQ = 192 * 192;
-    private static final Map<Long,List<Cell>> columns = new LinkedHashMap<>();
+    private static final Map<Long,List<Slice>> columns = new LinkedHashMap<>();
     private static String source = "";
     private static String target = "";
     private static int sourceBoundary;
@@ -104,7 +109,7 @@ public final class SeamNativeGeometryClient {
         LevelChunk chunk=cache.getChunk(cx,cz,false);
         if(chunk==null)return;
         long packed=((long)cx << 32) | (cz & 0xffffffffL);
-        List<Cell> visible=new ArrayList<>(2200);
+        Map<Integer,List<Cell>> bySection=new LinkedHashMap<>();
         int ox=cx<<4,oz=cz<<4;
         boolean descending=link.entry()==SeamGraph.EdgeSide.TOP;
         BlockPos.MutableBlockPos pos=new BlockPos.MutableBlockPos();
@@ -126,12 +131,21 @@ public final class SeamNativeGeometryClient {
                 pos.set(ox+x,y,oz+z);
                 int block=remote.getBrightness(LightLayer.BLOCK,pos);
                 int sky=remote.getBrightness(LightLayer.SKY,pos);
-                visible.add(new Cell(ox+x,sourceBoundary+y-targetBoundary,oz+z,
-                    state,LightTexture.pack(block,sky)));
+                bySection.computeIfAbsent(Math.floorDiv(y,16),k->new ArrayList<>(256))
+                    .add(new Cell(ox+x,
+                        SeamSectionLayout.mappedBlockY(y,sourceBoundary,targetBoundary),
+                        oz+z,state,LightTexture.pack(block,sky)));
             }
         }
-        columns.remove(packed);
-        columns.put(packed,List.copyOf(visible));
+        var slices=new ArrayList<Slice>(bySection.size());
+        for(var entry:bySection.entrySet()) {
+            int firstY=SeamSectionLayout.mappedSectionMinY(
+                entry.getKey()*16,sourceBoundary,targetBoundary);
+            // Exact world-space bound, including custom modded seam heights.
+            AABB bound=new AABB(ox,firstY,oz,ox+16,firstY+16,oz+16);
+            slices.add(new Slice(List.copyOf(entry.getValue()),bound));
+        }
+        columns.put(packed,List.copyOf(slices));
     }
 
     /**
@@ -190,7 +204,10 @@ public final class SeamNativeGeometryClient {
         if(changed || !queued.isEmpty()) {
             while(columns.size()>MAX_COLUMNS)
                 columns.remove(columns.keySet().iterator().next());
-            blocksBuilt=columns.values().stream().mapToInt(List::size).sum();
+            int count=0;
+            for(var group:columns.values())for(var slice:group)
+                count+=slice.cells().size();
+            blocksBuilt=count;
         }
     }
 
@@ -213,46 +230,66 @@ public final class SeamNativeGeometryClient {
         // Window pruning and geometry recount already happen in the 20 TPS
         // client tick. Doing another 25-column scan at EVERY render frame
         // (possibly >120 FPS) is redundant.
+        // Only the active seam's physically nearby view deserves GPU work.
+        // Chunk prewarming continues independently for immediate handoff.
+        if(!SeamSectionLayout.nearPlane(mc.player.getY(),
+                sourceBoundary,NEAR_PLANE_RENDER_RANGE)) return;
         long drawStarted=System.nanoTime();
         PoseStack pose=event.getPoseStack();
         Vec3 camera=event.getCamera().getPosition();
         MultiBufferSource.BufferSource buffers=mc.renderBuffers().bufferSource();
-        // Draw the player's closest columns first. A 3x3 native chunk
-        // cache can contain >20k candidate surface models; arbitrary packet
-        // arrival order must never starve the actual seam under the camera.
-        var ordered=new ArrayList<>(columns.entrySet());
-        ordered.sort(java.util.Comparator.comparingDouble(entry -> {
-            long packed=entry.getKey();
-            int cx=(int)(packed >> 32), cz=(int)(long)packed;
-            double dx=(cx<<4)+8-camera.x,dz=(cz<<4)+8-camera.z;
-            return dx*dx+dz*dz;
+
+        // Broad-phase CPU culling using immutable per-16^3 bounds, not a NEW
+        // AABB allocation + frustum test for EACH of thousands of cells.
+        // A slice AABB encloses every mapped block for custom world heights.
+        var visible=new ArrayList<Slice>();
+        lastCulledSlices=0;
+        for(var col:columns.values())for(var slice:col) {
+            if(event.getFrustum().isVisible(slice.bounds()))
+                visible.add(slice);
+            else lastCulledSlices++;
+        }
+        lastVisibleSlices=visible.size();
+        if(visible.isEmpty())return;
+
+        // Prioritize true camera-proximal slices while spreading the CPU
+        // budget across adjacent visible sections; packet arrival order
+        // must not permanently starve the important central seam.
+        visible.sort(java.util.Comparator.comparingDouble(slice -> {
+            AABB box=slice.bounds();
+            double dx=(box.minX+box.maxX)*0.5-camera.x;
+            double dy=(box.minY+box.maxY)*0.5-camera.y;
+            double dz=(box.minZ+box.maxZ)*0.5-camera.z;
+            return dx*dx+dy*dy+dz*dz;
         }));
         int frameLimit=DRAW_BUDGET.limit();
-        int perColumn=Math.max(16,frameLimit / Math.max(1,ordered.size()));
+        int perSlice=Math.max(8,frameLimit/Math.max(1,visible.size()));
+        int longest=0;
+        for(var slice:visible)longest=Math.max(longest,slice.cells().size());
         outer:
-        for(int pass=0;pass<=frameLimit/perColumn;pass++)
-            for (var section:ordered) {
-                List<Cell> cells=section.getValue();
-                int startIndex=pass*perColumn;
-                int endIndex=Math.min(cells.size(),startIndex+perColumn);
+        for(int pass=0;pass*perSlice<longest;pass++) {
+            int startIndex=pass*perSlice;
+            for(var slice:visible) {
+                List<Cell> cells=slice.cells();
+                int endIndex=Math.min(cells.size(),startIndex+perSlice);
                 for(int at=startIndex;at<endIndex;at++) {
                     Cell c=cells.get(at);
-            double dx=c.x()+.5-camera.x,dy=c.y()+.5-camera.y,
-                   dz=c.z()+.5-camera.z;
-            if (dx*dx+dy*dy+dz*dz>MAX_DISTANCE_SQ) continue;
-            if (!event.getFrustum().isVisible(new AABB(
-                c.x(),c.y(),c.z(),c.x()+1,c.y()+1,c.z()+1))) continue;
-            pose.pushPose();
-            pose.translate(c.x()-camera.x,c.y()-camera.y,c.z()-camera.z);
-            mc.getBlockRenderer().renderSingleBlock(
-                c.state(),pose,buffers,c.light(),OverlayTexture.NO_OVERLAY
-            );
-            pose.popPose();
-            lastFrameDrawn++;
-            if (c.state().is(Blocks.END_STONE))lastFrameEndStone++;
-            if (lastFrameDrawn>=frameLimit) break outer;
+                    double dx=c.x()+.5-camera.x;
+                    double dy=c.y()+.5-camera.y;
+                    double dz=c.z()+.5-camera.z;
+                    if(dx*dx+dy*dy+dz*dz>MAX_DISTANCE_SQ)continue;
+                    pose.pushPose();
+                    pose.translate(c.x()-camera.x,c.y()-camera.y,c.z()-camera.z);
+                    mc.getBlockRenderer().renderSingleBlock(
+                        c.state(),pose,buffers,c.light(),OverlayTexture.NO_OVERLAY
+                    );
+                    pose.popPose();
+                    lastFrameDrawn++;
+                    if(c.state().is(Blocks.END_STONE))lastFrameEndStone++;
+                    if(lastFrameDrawn>=frameLimit)break outer;
                 }
             }
+        }
         if (lastFrameDrawn>0) {
             buffers.endBatch();
             lastFrameDrawCpuNanos=Math.max(0,System.nanoTime()-drawStarted);
@@ -263,14 +300,17 @@ public final class SeamNativeGeometryClient {
 
     public static int countEndStone() {
         int count=0;
-        for(var section:columns.values()) for(Cell cell:section)
-            if(cell.state().is(Blocks.END_STONE))count++;
+        for(var col:columns.values())for(var slice:col)
+            for(Cell cell:slice.cells())
+                if(cell.state().is(Blocks.END_STONE))count++;
         return count;
     }
     public static int lastFrameEndStone() { return lastFrameEndStone; }
     public static int visibleBlockCount() { return blocksBuilt; }
     public static int lastFrameDrawn() { return lastFrameDrawn; }
     public static int columnCount() { return columns.size(); }
+    public static int visibleSlices() { return lastVisibleSlices; }
+    public static int culledSlices() { return lastCulledSlices; }
     public static int pendingRebuilds() { return BUILD_QUEUE.pending(); }
     /** Measures client CPU model submission only; never interpreted as GPU frame time. */
     public static double p95ModelCpuMs() { return DRAW_CPU_SAMPLES.p95Ms(); }
@@ -283,6 +323,8 @@ public final class SeamNativeGeometryClient {
         blocksBuilt=0;
         lastFrameDrawn=0;
         lastFrameEndStone=0;
+        lastVisibleSlices=0;
+        lastCulledSlices=0;
         source="";
         target="";
         queuedRemote=null;
