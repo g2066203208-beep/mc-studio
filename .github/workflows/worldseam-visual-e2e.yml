@@ -57,7 +57,7 @@ jobs:
             xwd -root -silent | convert xwd:- -resize 600x338 -quality 48 visual-world-create.jpg
             # Open the native WorldSeam Create World editor at upper-right.
             # This UI verification runs before any world is created.
-            xdotool mousemove 1100 32 click 1
+            xdotool mousemove 640 480 click 1
             sleep 3
             xwd -root -silent | convert xwd:- -resize 800x450 -quality 65 visual-stack-editor.jpg
             if ! grep -q "WORLDSEAM_CREATE_STACK_UI_OPEN" visual-client.log; then

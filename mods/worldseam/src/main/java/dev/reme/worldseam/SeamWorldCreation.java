@@ -22,7 +22,7 @@ public final class SeamWorldCreation {
         e.addListener(Button.builder(net.minecraft.network.chat.Component.literal("WorldSeam: Stack"),
             button -> Minecraft.getInstance().setScreen(
                 new SeamStackScreen(screen,configured.getOrDefault(screen,SeamStack.defaults()))
-            )).bounds(Math.max(4,screen.width-142),4,136,20).build());
+            )).bounds(screen.width/2-96,screen.height-64,192,20).build());
     }
 
     public static void save(CreateWorldScreen screen,SeamStack stack) {
