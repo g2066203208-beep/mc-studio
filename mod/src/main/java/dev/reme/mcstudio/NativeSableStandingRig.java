@@ -78,11 +78,22 @@ public final class NativeSableStandingRig {
                 throw new IllegalStateException("Cannot access Sable actual mass tracker COM",e);
             }
         }
-        // Sable logicalPose.position() is the physical body reference/COM.
-        // Subtract the mass-tracker COM measured in plot block coordinates to
-        // obtain a world-space contact height. Critically, this also remains
-        // meaningful after removing legs changes the center of mass.
-        public double footSoleWorldY() {return position().y()-centerOfMass().y();}
+        public BlockPos plotOrigin() {
+            try {
+                Object plot=sublevel.getClass().getMethod("getPlot").invoke(sublevel);
+                return (BlockPos)plot.getClass().getMethod("getCenterBlock").invoke(plot);
+            }catch(ReflectiveOperationException e){
+                throw new IllegalStateException("Cannot read Sable physical plot anchor",e);
+            }
+        }
+        // Sable's MassTracker COM is in ABSOLUTE PLOT coordinates
+        // (e.g. y=129), not relative to the 0..2 model blocks.
+        // The pose.position is world-space COM, so convert the plot foot
+        // coordinates using the plot anchor before subtracting its COM.
+        // Do not subtract an un-transformed plot coordinate from world Y.
+        public double footSoleWorldY() {
+            return position().y()+(double)plotOrigin().getY()-centerOfMass().y();
+        }
         public double torsoBottomWorldY() {return footSoleWorldY()+2.0;}
         public void removeFeet() {
             for(int x : new int[]{0,2})for(int z : new int[]{0,2})
