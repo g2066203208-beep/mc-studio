@@ -1,5 +1,14 @@
 # REME MC Studio
 
+## 当前活世界 NPC 研发：0.5.9-dev（独立实验分支）
+
+> 项目不是只有主线 README 中的旧 0.5.4。最新独立研发分支为 `feature/npc-emergent-roads-hamlets-v059`，草稿 [PR #51](https://github.com/g2066203208-beep/mc-studio/pull/51)。**目前仍非生产版，严禁直接用在唯一正式存档。**
+
+现实已编码的 Minecraft 玩法系统：真实原版物品挖掘/拾取/36 格背包、自然 NPC 日程、行为/交往记忆、居民交通路网、OP 授权自然草径、聚落实际三家园、跨两原版仓库真小麦运输、当地敌对盗匪抢夺/目击/声望反馈。详情：[0.5.9 玩法与安全边界](docs/EMERGENT_WORLD_V059.md) / [玩家等价与 NPC 1.0 专业开发目标](docs/NPC_PLAYER_PARITY_MASTER_PLAN.md) / [Issue #41](https://github.com/g2066203208-beep/mc-studio/issues/41)。
+
+已验证的 0.5.9 功能基线：真 NeoForge GameTest **34/34**、Java Build、Windows 安装器模拟、真正进世界的客户端截图；后续无命令自主聚落建立增加到 **35/35 NeoForge GameTests**（[CI](https://github.com/g2066203208-beep/mc-studio/actions/runs/39616278984)）。更晚的 GUI 负例修复与实际整合包、200 NPC 性能、自动建筑/跨地区旅行、完整玩家同等功能仍未完结。不要把 GitHub Build = 用户本机整合包兼容。
+
+
 这是本聊天的 Minecraft 开发工作台。目标是由助手负责需求拆解、源码研究、开发、升级、性能诊断、Git 提交和测试，用户主要负责游玩与体验反馈。
 
 GitHub 是共享开发中心，桌面端与网页端通过同一仓库交接。新会话先读 [交接说明](docs/HANDOFF.md)。远程仓库：[g2066203208-beep/mc-studio](https://github.com/g2066203208-beep/mc-studio)。初始化 PR 已合入 main，[首次云端构建成功](https://github.com/g2066203208-beep/mc-studio/actions/runs/39402002769)，可在该运行页面的 Artifacts 下载 JAR 压缩包。
