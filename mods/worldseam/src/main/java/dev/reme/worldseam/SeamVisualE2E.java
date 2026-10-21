@@ -113,9 +113,11 @@ public final class SeamVisualE2E {
                 SeamClientWorldPool.nearbyChunks(),SeamNativeGeometryClient.visibleBlockCount(),
                 SeamNativeGeometryClient.lastFrameDrawn());
             int nativeStone=SeamNativeGeometryClient.countEndStone();
-            LOG.info("WORLDSEAM_E2E_END_NATURAL_STONE: {} End-stone visible surface candidates (not synthetic purpur markers)",nativeStone);
-            if(nativeStone==0)
-                LOG.error("WORLDSEAM_E2E_FAIL_END_NATURAL: End main island not visible in preview");
+            int actuallyRendered=SeamNativeGeometryClient.lastFrameEndStone();
+            LOG.info("WORLDSEAM_E2E_END_NATURAL_STONE: {} native End-stone candidates, {} actually submitted in latest pre-crossing frame",
+                nativeStone,actuallyRendered);
+            if(nativeStone==0 || actuallyRendered==0)
+                LOG.error("WORLDSEAM_E2E_FAIL_END_NATURAL: End main island still not actually visible before crossing");
         } else if (phase==7 && now-startTick>1440) {
             phase=8;
             server.execute(() -> attemptEnd(server,playerId));

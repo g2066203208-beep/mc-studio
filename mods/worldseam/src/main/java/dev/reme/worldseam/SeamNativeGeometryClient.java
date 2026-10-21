@@ -43,6 +43,7 @@ public final class SeamNativeGeometryClient {
     private static int targetBoundary;
     private static int blocksBuilt;
     private static int lastFrameDrawn;
+    private static int lastFrameEndStone;
     private static long lastArrivalTick;
 
     private SeamNativeGeometryClient() {}
@@ -133,6 +134,7 @@ public final class SeamNativeGeometryClient {
         if (event.getStage()!=RenderLevelStageEvent.Stage.AFTER_BLOCK_ENTITIES)
             return;
         lastFrameDrawn=0;
+        lastFrameEndStone=0;
         Minecraft mc=Minecraft.getInstance();
         if (mc.level==null || !mc.level.dimension().location().toString().equals(source)) {
             if (!source.isEmpty()) reset();
@@ -170,6 +172,7 @@ public final class SeamNativeGeometryClient {
             );
             pose.popPose();
             lastFrameDrawn++;
+            if (c.state().is(Blocks.END_STONE))lastFrameEndStone++;
             if (lastFrameDrawn>=MAX_DRAW) break outer;
         }
         if (lastFrameDrawn>0) buffers.endBatch();
@@ -181,6 +184,7 @@ public final class SeamNativeGeometryClient {
             if(cell.state().is(Blocks.END_STONE))count++;
         return count;
     }
+    public static int lastFrameEndStone() { return lastFrameEndStone; }
     public static int visibleBlockCount() { return blocksBuilt; }
     public static int lastFrameDrawn() { return lastFrameDrawn; }
     public static int columnCount() { return columns.size(); }
@@ -190,6 +194,7 @@ public final class SeamNativeGeometryClient {
         columns.clear();
         blocksBuilt=0;
         lastFrameDrawn=0;
+        lastFrameEndStone=0;
         source="";
         target="";
         lastArrivalTick=0;
