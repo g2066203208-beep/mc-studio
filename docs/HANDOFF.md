@@ -172,3 +172,13 @@ Push CI `39518033958` SUCCESS，PR CI `39518039426` SUCCESS。Artifact `12310085
 - 修复源提交 `12e42ccab2f874f9ae8c41373614535202242fc8`：守卫检查 40 tick，保留正在运行的导航，原巡逻点不可走时按至多 4 方位×3 距离的固定预算寻找安全地点，不加载未加载的区块；测试舞台与其他并行 GameTest 垂直分离，并要求实际**水平移动**。
 - **已核验**：NeoForge GameTest [39572991788](https://github.com/g2066203208-beep/mc-studio/actions/runs/39572991788) **SUCCESS、16/16 required passed**，日志 `All 16 required tests passed :)`；[Build 39572991773](https://github.com/g2066203208-beep/mc-studio/actions/runs/39572991773) **SUCCESS**；Windows 安装器测试 [39572991713](https://github.com/g2066203208-beep/mc-studio/actions/runs/39572991713) **SUCCESS**。
 - 未完成：用户 HMCL 所在实例验收、多人实际场景卡路恢复、长时间 TPS、PR #34 3D Skin Layers/EyeMod 自定义 NPC 渲染器适配，以及用户指定的自绘像素 64×64 基础+外套双层皮肤替换旧下载贴图。PR 保留草稿，不能声称这些已完成。
+
+
+## 2026-10-21 玩家等价行动方向：PlayerActionBridge 原型
+
+- 用户纠偏：NPC 应复用玩家本身能力（真实物品、库存、挖掘、战斗、搭建、交互），而不是继续手写 Mob 直接更改方块的行为。仍可保留 `PathfinderMob` 作为导航与客户端实体，因为 `FakePlayer` 是服务端交互代理，不是可直接替代的玩家客户端实体。
+- 研究 https://github.com/Goodbird-git/PlayerEngine (LGPL-3.0，1.21.1 NeoForge 有发布版本；阅读 `LivingEntityInteractionManager` / `LivingEntityInventory`、接口架构) 和 NeoForge `FakePlayerFactory` / `ItemStack.useOn`。**只参考能力分离架构，未复制源代码也未将第三方库添加为运行时依赖**。NeoForge issue #1487 提醒 per-NPC FakePlayer 会有 PlayerAdvancements 监听生命周期问题，因此调用 `stopListening()`，且在本实验只允许管理员授权的建造事务；后续需要真正长跑/卸载内存监测。
+- PR #37、代码源提交 `9a6fd5003e1f71b2224a9ad658a7b0292fe18b7a`，新增 `PlayerActionBridge`，基于 ServerLevel 的假玩家进行实际玩家物品使用。旧 `SafeBuilder` 的直接 `setBlock` 替换为 `ItemStack.useOn(UseOnContext)`，要求已加载区块、合法支持面、NPC 在交互距离内、拥有对应真实材料、物品已真正减少，放置目标实际匹配。失败时保留 NPC 背包。
+- 游戏测试新增一项，确保未授权不能放置、正确材料真实放置并消耗一次、重复/错误材料拒绝。新 `runGameTestServer` [39574791216](https://github.com/g2066203208-beep/mc-studio/actions/runs/39574791216) **17/17 required passed**；[Build 39574791189](https://github.com/g2066203208-beep/mc-studio/actions/runs/39574791189) **success**；Windows 安装器 [39574791312](https://github.com/g2066203208-beep/mc-studio/actions/runs/39574791312) **success**。客户端截图 [39574786212](https://github.com/g2066203208-beep/mc-studio/actions/runs/39574786212) 仅为独立 Xvfb 功能拍照回归，必须查看图像才可声称实际展示新建造步骤（脚本不会直接展示建造）。
+- **未实现/验证**：玩家完整挖掘进度、工具耐久消耗、多种 mod 工作方块、合成界面、玩家背包等价、网络玩家身份、区域保护模组适配、长跑 FakePlayer 内存、真实动态双层 NPC 皮肤。没有完整玩家等价能力，不要标记整个项目完成。
+- 本分支基于 `fix/npc-guard-patrol-v056`，与 PR #34 视觉依赖测试是并行开发，仍需安全合流和游戏内完整组合测试。

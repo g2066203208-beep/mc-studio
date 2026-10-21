@@ -9,6 +9,7 @@ import dev.reme.mcstudio.npc.life.Commission;
 import dev.reme.mcstudio.npc.life.CivicContracts;
 import dev.reme.mcstudio.npc.life.CivicSocial;
 import dev.reme.mcstudio.npc.life.SocietyRules;
+import dev.reme.mcstudio.npc.life.PlayerActionBridge;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.item.Items;
@@ -404,4 +405,47 @@ public final class CivicGameTests {
             throw new AssertionError("Command-selected skin not persisted");
         helper.succeed();
     }
+    @GameTest(template = "empty", timeoutTicks = 100)
+    public static void player_item_pipeline_places_a_real_npc_owned_block(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        // Raised standalone platform: avoid touching the other concurrent tests.
+        BlockPos target = helper.absolutePos(new BlockPos(4, 9, 4));
+        level.setBlock(target.below(), Blocks.STONE.defaultBlockState(), 3);
+        level.setBlock(target, Blocks.AIR.defaultBlockState(), 3);
+        PlayerNpcEntity npc = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (npc == null) throw new AssertionError("NPC missing");
+        npc.moveTo(target.getX() + 2.5, target.getY(),
+            target.getZ() + 0.5, 0, 0);
+        npc.setMode(PlayerNpcEntity.Mode.STAY);
+        npc.setHomePos(target);
+        npc.setWorkPos(target);
+        npc.backpack().setItem(0, new ItemStack(Items.COBBLESTONE, 2));
+        if (!level.addFreshEntity(npc)) throw new AssertionError("Cannot add NPC");
+
+        if (PlayerActionBridge.placeOwnedBlock(npc, level, target, 0, Blocks.COBBLESTONE))
+            throw new AssertionError("Unarmed NPC could modify blocks");
+        if (!level.getBlockState(target).isAir() ||
+            npc.backpack().getItem(0).getCount() != 2)
+            throw new AssertionError("Denied build changed world or consumed materials");
+
+        npc.setBuildEnabled(true);
+        if (!PlayerActionBridge.placeOwnedBlock(npc, level, target, 0, Blocks.COBBLESTONE))
+            throw new AssertionError("Real BlockItem interaction failed to place block");
+        if (!level.getBlockState(target).is(Blocks.COBBLESTONE)
+            || npc.backpack().getItem(0).getCount() != 1)
+            throw new AssertionError("Vanilla placement did not conserve NPC material");
+
+        if (PlayerActionBridge.placeOwnedBlock(npc, level, target, 0, Blocks.COBBLESTONE)
+            || npc.backpack().getItem(0).getCount() != 1)
+            throw new AssertionError("Placed block twice into occupied target");
+        BlockPos second = target.north();
+        level.setBlock(second.below(), Blocks.STONE.defaultBlockState(), 3);
+        level.setBlock(second, Blocks.AIR.defaultBlockState(), 3);
+        if (PlayerActionBridge.placeOwnedBlock(npc, level, second, 0, Blocks.OAK_PLANKS)
+            || npc.backpack().getItem(0).getCount() != 1
+            || !level.getBlockState(second).isAir())
+            throw new AssertionError("Wrong item type bypassed BlockItem inventory");
+        helper.succeed();
+    }
+
 }
