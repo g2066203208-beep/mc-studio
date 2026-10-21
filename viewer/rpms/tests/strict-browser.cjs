@@ -45,7 +45,7 @@ try{
  await page.screenshot({path:path.join(__dirname,'strict-automatic-models.png'),fullPage:true});
 
  const status=await page.evaluate(()=>window.__STRICT_API__.getResult());
- assert.equal(status.summary.blocks,4);
+ assert.equal(status.summary.blocks,5);
  assert.equal(status.summary.links,3);
  assert.equal(status.rpms['2,1,1'],-16);
  await page.locator('[data-mode="inspect"]').click();
