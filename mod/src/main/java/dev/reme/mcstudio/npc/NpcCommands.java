@@ -72,6 +72,7 @@ public final class NpcCommands {
             .then(Commands.literal("live").executes(ctx -> changeMode(ctx.getSource(), PlayerNpcEntity.Mode.LIVE)))
             .then(Commands.literal("farmer").executes(ctx -> profession(ctx.getSource(), PlayerNpcEntity.Profession.FARMER)))
             .then(Commands.literal("baker").executes(ctx -> profession(ctx.getSource(), PlayerNpcEntity.Profession.BAKER)))
+            .then(Commands.literal("shopkeeper").executes(ctx -> profession(ctx.getSource(), PlayerNpcEntity.Profession.SHOPKEEPER)))
             .then(Commands.literal("resident").executes(ctx -> profession(ctx.getSource(), PlayerNpcEntity.Profession.RESIDENT)))
             .then(Commands.literal("scout").executes(ctx -> profession(ctx.getSource(), PlayerNpcEntity.Profession.SCOUT)))
             .then(Commands.literal("courier").executes(ctx -> profession(ctx.getSource(), PlayerNpcEntity.Profession.COURIER)))
