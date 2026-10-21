@@ -170,6 +170,16 @@ public final class SeamNativeGeometryClient {
             return;
         }
         if (columns.isEmpty() || event.getPoseStack()==null) return;
+        // Bound the visual mesh to the client's CURRENT chunk ring; columns
+        // from an old center are NOT still visible after window movement.
+        int playerCx=Math.floorDiv(mc.player.blockPosition().getX(),16);
+        int playerCz=Math.floorDiv(mc.player.blockPosition().getZ(),16);
+        columns.entrySet().removeIf(e -> {
+            long p=e.getKey();
+            return Math.abs((int)(p>>32)-playerCx)>2 ||
+                Math.abs((int)p-playerCz)>2;
+        });
+        if (columns.isEmpty())return;
         PoseStack pose=event.getPoseStack();
         Vec3 camera=event.getCamera().getPosition();
         MultiBufferSource.BufferSource buffers=mc.renderBuffers().bufferSource();

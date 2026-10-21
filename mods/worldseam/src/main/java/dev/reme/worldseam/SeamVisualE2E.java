@@ -33,6 +33,9 @@ public final class SeamVisualE2E {
     private static UUID playerId;
     private static boolean previewLogged;
     private static boolean endPreviewLogged;
+    private static boolean dualStableChecked;
+    private static long stableFetches = -1;
+    private static long stablePackets = -1;
 
     private SeamVisualE2E() {}
 
@@ -61,6 +64,33 @@ public final class SeamVisualE2E {
                 SeamClientWorldPool.nearbyChunks(),
                 SeamNativeGeometryClient.visibleBlockCount(),
                 SeamNativeGeometryClient.lastFrameDrawn(),mc.player.getY());
+            server.execute(() -> {
+                ServerPlayer player=server.getPlayerList().getPlayer(playerId);
+                if(player==null)return;
+                var stats=SeamChunkSender.stats(player);
+                stableFetches=stats.fetches();
+                stablePackets=stats.packets();
+                LOG.info("WORLDSEAM_E2E_DUAL_PREWARM: ticket={}, resident5x5={}, alreadySent={}, fetches={}, ticketsMoved={}, packets={}",
+                    stats.ticketActive(),stats.resident(),stats.transmitted(),
+                    stats.fetches(),stats.ticketMoves(),stats.packets());
+                if(!stats.ticketActive() || stats.resident()<25
+                    || stats.transmitted()<25)
+                    LOG.error("WORLDSEAM_E2E_FAIL_DUAL_PREWARM: second world is not resident in all 5x5 chunks");
+            });
+        } else if (phase==1 && !dualStableChecked && now-startTick>520) {
+            dualStableChecked=true;
+            server.execute(() -> {
+                ServerPlayer p=server.getPlayerList().getPlayer(playerId);
+                if(p==null)return;
+                var stats=SeamChunkSender.stats(p);
+                LOG.info("WORLDSEAM_E2E_DUAL_STABLE: ticket={}, resident5x5={}, transmitted={}, fetches={} (was {}), packets={} (was {})",
+                    stats.ticketActive(),stats.resident(),stats.transmitted(),
+                    stats.fetches(),stableFetches,stats.packets(),stablePackets);
+                if(!stats.ticketActive() || stats.resident()<25 ||
+                    stats.fetches()!=stableFetches ||
+                    stats.packets()!=stablePackets)
+                    LOG.error("WORLDSEAM_E2E_FAIL_DUAL_STABLE: target dimension is unnecessarily re-fetching or re-sending chunks");
+            });
         } else if (phase==1 && now-startTick>620) {
             phase=2;
             LOG.info("WORLDSEAM_E2E_CHECK: client native packets={}, 3x3={}, geometry={}, drawn={}",

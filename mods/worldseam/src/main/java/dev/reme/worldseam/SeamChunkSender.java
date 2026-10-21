@@ -164,6 +164,17 @@ public final class SeamChunkSender {
                 session.packetsSent,session.chunkFetches,session.ticketChanges);
     }
 
+    public record StreamStats(boolean ticketActive,int resident,int transmitted,
+                              long fetches,long ticketMoves,long packets) {}
+
+    public static StreamStats stats(ServerPlayer player) {
+        Session session=sessions.get(player.getUUID());
+        if(session==null)return new StreamStats(false,0,0,0,0,0);
+        return new StreamStats(session.ticketLevel!=null,
+            currentTargetLoaded(player),session.lastSent.size(),
+            session.chunkFetches,session.ticketChanges,session.packetsSent);
+    }
+
     public static int activeTickets() {
         int count=0;
         for(Session session:sessions.values())
