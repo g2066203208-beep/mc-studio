@@ -179,7 +179,7 @@ public final class SeamServer {
         if (tick - lastCross.getOrDefault(entity.getUUID(), Long.MIN_VALUE / 2)
             < COOLDOWN_TICKS) return;
         for (SeamGraph.Link link : SeamGraph.from(source.dimension().location().toString())) {
-            double sourceMinY = source.getMinBuildHeight();
+            int sourceMinY = source.getMinBuildHeight();
             int sourceTopY = SeamBounds.top(source);
             // Target-aware plan is evaluated below once target level exists.
             ServerLevel target = server.getLevel(dimensionKey(link.target()));
