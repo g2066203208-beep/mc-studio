@@ -9,7 +9,7 @@ import net.minecraft.world.phys.Vec3;
  */
 public final class ClimbMotion {
     private static final double MAX_GRAB_REACH = 2.90;
-    private static final double MAX_REGRIP_JUMP = 1.36;
+    private static final int ROOF_TRANSITION_TIMEOUT = 23;
     private ClimbMotion() {}
 
     public static void tick(Player player, ClimbState s) {
@@ -17,6 +17,7 @@ public final class ClimbMotion {
         if (s.faceSwitchCooldown > 0) s.faceSwitchCooldown--;
         if (s.wallJumpCooldown > 0) s.wallJumpCooldown--;
         if (s.airborneRegrabTicks > 0) s.airborneRegrabTicks--;
+        if (s.roofEntryTicks > 0) s.roofEntryTicks--;
         if (player.isPassenger() || player.isSpectator() || !player.isAlive()
                 || player.getAbilities().flying) {
             s.peakHeld = false; s.release(); return;
@@ -86,10 +87,64 @@ public final class ClimbMotion {
                 ? ClimbSurfaceMath.platformDelta(s.lastLeft, contact.point(), true)
                 : Vec3.ZERO;
         float heading = s.grabYaw;
-        Vec3 input = ClimbSurfaceMath.direction(normal, heading, s.forward, s.strafe);
+        Vec3 input = ClimbSurfaceMath.ceiling(normal)
+                ? ClimbSurfaceMath.cameraRelativeRoof(normal, player.getYRot(), s.forward, s.strafe)
+                : ClimbSurfaceMath.direction(normal, heading, s.forward, s.strafe);
         boolean moving = input.lengthSqr() > 0.0001;
 
-        if (moving) {
+        // Two-stage transfer: DON'T lie about being on a roof just because a
+        // long ray from the old wall happened to intersect its underside.
+        // Keep a real wall anchor while moving the eyes/torso under that roof.
+        if (s.pendingRoof != null) {
+            GripAnchor.Contact roof = s.pendingRoof.resolve(player.level());
+            if (roof == null || !ClimbSurfaceMath.ceiling(roof.normal())
+                    || ++s.roofTransitionTicks > ROOF_TRANSITION_TIMEOUT
+                    || player.getEyePosition().distanceTo(roof.point()) > MAX_GRAB_REACH) {
+                s.pendingRoof = null;
+                s.roofTransitionTicks = 0;
+            } else if (ClimbSurfaceMath.roofEntryReady(
+                    player.getEyePosition(), roof.point(), roof.normal())) {
+                s.left = s.pendingRoof;
+                s.pendingRoof = null;
+                s.roofTransitionTicks = 0;
+                s.roofEntryTicks = 11;
+                s.roofEntryOutward = new Vec3(normal.x, 0, normal.z).normalize();
+                s.faceSwitchCooldown = 8;
+                contact = roof;
+                normal = roof.normal().normalize();
+                // Body does not snap; camera-relative motion becomes available
+                // on this same tick. The entry assist only handles facing *into*
+                // the just-departed wall until the player turns toward free roof.
+                input = roofEntryControl(player, s, normal);
+            } else {
+                Vec3 approach = ClimbSurfaceMath.roofEntryVelocity(
+                        player.getEyePosition(), roof.point(), roof.normal());
+                // Retain only the SAME Sable anchor's bounded platform motion.
+                approach = ClimbSurfaceMath.clamp(approach.add(platformDelta), .24);
+                if (!player.level().noCollision(player, player.getBoundingBox().move(approach)))
+                    approach = Vec3.ZERO;
+                player.setDeltaMovement(approach);
+                player.fallDistance = 0;
+                player.hurtMarked = true;
+                s.commandedVertical = approach.y;
+                s.poseAction = 8; // visible transitional wall -> ceiling hand reach
+                s.peakPhase += .08f;
+                s.contactPoint = contact.point();
+                s.contactNormal = normal;
+                s.lastLeft = contact.point();
+                s.lastResolvedAnchor = oldAnchor;
+                s.hasContact = true;
+                return;
+            }
+        }
+        if (ClimbSurfaceMath.ceiling(normal)) {
+            input = roofEntryControl(player, s, normal);
+            s.grabYaw = ClimbSurfaceMath.approachYaw(s.grabYaw,
+                    roofBodyTargetYaw(player, s), 19f);
+        }
+        moving = input.lengthSqr() > 0.0001;
+
+        if (moving && s.pendingRoof == null) {
             // Switching between surface families requires a ray against the
             // NEW face. A ray pointing only toward the old wall never detects
             // the ceiling underside or a side wall.
@@ -105,14 +160,27 @@ public final class ClimbMotion {
                         && next.point().distanceTo(contact.point()) <= 1.74
                         && player.getEyePosition().distanceTo(next.point()) <= MAX_GRAB_REACH
                         && next.normal().normalize().dot(normal) >= -0.14) {
-                    s.left = probe;
-                    contact = next;
-                    normal = next.normal().normalize();
-                    if (faceTransition) s.faceSwitchCooldown = 4;
-                    s.grabYaw = ClimbSurfaceMath.facingYaw(normal, heading);
-                    // CRITICAL: never add the new anchor-point displacement
-                    // as Sable structure velocity or accumulated acceleration.
-                    input = ClimbSurfaceMath.direction(normal, s.grabYaw, s.forward, s.strafe);
+                    Vec3 candidateNormal = next.normal().normalize();
+                    // The ceiling animation and movement must not switch until
+                    // the player physically reaches the new handhold.
+                    if (!ClimbSurfaceMath.ceiling(normal) && ClimbSurfaceMath.ceiling(candidateNormal)) {
+                        if (SurfaceProbe.nearFaceEdge(oldAnchor)) {
+                            s.pendingRoof = probe;
+                            s.roofTransitionTicks = 0;
+                            s.poseAction = 8;
+                        }
+                    } else {
+                        // Roof -> wall and ordinary same-face regrips remain
+                        // bounded by the contact-distance, no new acceleration.
+                        s.left = probe;
+                        contact = next;
+                        normal = candidateNormal;
+                        if (faceTransition) s.faceSwitchCooldown = 4;
+                        s.grabYaw = ClimbSurfaceMath.facingYaw(normal, heading);
+                        input = ClimbSurfaceMath.ceiling(normal)
+                                ? roofEntryControl(player, s, normal)
+                                : ClimbSurfaceMath.direction(normal, s.grabYaw, s.forward, s.strafe);
+                    }
                 }
             }
         }
@@ -170,7 +238,9 @@ public final class ClimbMotion {
         s.commandedVertical = velocity.y;
         player.fallDistance = 0;
         player.hurtMarked = true;
-        if (ClimbSurfaceMath.ceiling(normal))
+        if (s.pendingRoof != null)
+            s.poseAction = 8;
+        else if (ClimbSurfaceMath.ceiling(normal))
             s.poseAction = !moving ? (byte)4 : Math.abs(s.forward) >= Math.abs(s.strafe)
                     ? (byte)5 : (byte)6;
         else
@@ -178,6 +248,41 @@ public final class ClimbMotion {
                     ? (byte)1 : (byte)2;
         if (moving) s.peakPhase += (float)Math.min(0.35,
                 ClimbSurfaceMath.tangent(velocity, normal).length()*1.55);
+    }
+
+    /** After first entering a roof, W must move AWAY from the departure wall,
+     * not into it when the camera still faces the wall. Once the camera turns
+     * into free space, normal first-person camera-relative controls take over.
+     */
+    private static Vec3 roofEntryControl(Player player, ClimbState state, Vec3 normal) {
+        Vec3 intent = ClimbSurfaceMath.cameraRelativeRoof(
+                normal, player.getYRot(), state.forward, state.strafe);
+        if (state.roofEntryTicks > 0 && state.forward > 0 && state.roofEntryOutward.lengthSqr() > .25) {
+            Vec3 look = player.getLookAngle();
+            Vec3 flatLook = new Vec3(look.x, 0, look.z);
+            if (flatLook.lengthSqr() > .01
+                    && flatLook.normalize().dot(state.roofEntryOutward) < -.3) {
+                Vec3 escape = ClimbSurfaceMath.tangent(state.roofEntryOutward, normal).normalize();
+                Vec3 sideways = ClimbSurfaceMath.cameraRelativeRoof(normal,
+                        player.getYRot(), 0, state.strafe);
+                return ClimbSurfaceMath.clamp(
+                        escape.scale(state.forward).add(sideways), 1);
+            }
+        }
+        return intent;
+    }
+
+    private static float roofBodyTargetYaw(Player player, ClimbState state) {
+        if (state.roofEntryTicks > 0 && state.forward > 0
+                && state.roofEntryOutward.lengthSqr() > .25) {
+            Vec3 look = player.getLookAngle();
+            Vec3 flat = new Vec3(look.x,0,look.z);
+            if (flat.lengthSqr() > .01
+                    && flat.normalize().dot(state.roofEntryOutward) < -.3)
+                return (float)Math.toDegrees(
+                        Math.atan2(-state.roofEntryOutward.x, state.roofEntryOutward.z));
+        }
+        return player.getYRot();
     }
 
     /** Backward-compatible pure helper used by the original GameTests. */

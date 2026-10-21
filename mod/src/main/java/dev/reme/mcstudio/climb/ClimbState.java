@@ -41,6 +41,12 @@ public final class ClimbState {
     public double commandedVertical;
     /** Prevent contact-family flip-flopping at corners. */
     public int faceSwitchCooldown;
+    /** A roof is a pending handhold until the body/eye actually reach beneath it. */
+    @Nullable public GripAnchor pendingRoof;
+    public int roofTransitionTicks;
+    /** Small roof-entry escape so W cannot push the climber back into the old wall. */
+    public int roofEntryTicks;
+    public Vec3 roofEntryOutward = Vec3.ZERO;
     public float forward, strafe;
     @Nullable public GripAnchor left;
     @Nullable public GripAnchor right;
@@ -65,6 +71,10 @@ public final class ClimbState {
         hasContact = false;
         commandedVertical = 0;
         faceSwitchCooldown = 0;
+        pendingRoof = null;
+        roofTransitionTicks = 0;
+        roofEntryTicks = 0;
+        roofEntryOutward = Vec3.ZERO;
         lastRight = Vec3.ZERO;
         lungeRequested = false;
         jumpRequested = false;

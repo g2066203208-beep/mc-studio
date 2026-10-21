@@ -53,6 +53,7 @@ public final class PeakAnimationController {
     private static final int CEILING_HANG = 4;
     private static final int CEILING_CRAWL = 5;
     private static final int CEILING_TRAVERSE = 6;
+    private static final int ROOF_ENTRY = 8;
     private static boolean warnedMissing;
 
     private static final class Playback {
@@ -105,7 +106,7 @@ public final class PeakAnimationController {
                     playback.contact = playback.contact.lerp(state.contactPoint(), 0.28);
                 }
             } else playback.contactReady = false;
-            int desired = state == null ? NONE : Math.min(CEILING_TRAVERSE, Math.max(HANG, state.action()));
+            int desired = state == null ? NONE : Math.min(ROOF_ENTRY, Math.max(HANG, state.action()));
             if (playback.speed != null && state != null && state.normal().lengthSqr() > .5) {
                 // Link animation cadence to ACTUAL contact-plane movement, not camera.
                 double travel = ClimbSurfaceMath.tangent(client.getDeltaMovement(),
@@ -116,7 +117,7 @@ public final class PeakAnimationController {
                 playback.speed.speed += (wantedSpeed - playback.speed.speed)*.22f;
             }
 
-            if (desired == NONE && playback.mode >= HANG && playback.mode <= CEILING_TRAVERSE) {
+            if (desired == NONE && playback.mode >= HANG && playback.mode <= ROOF_ENTRY) {
                 swap(layer, RELEASE);
                 playback.mode = RELEASE;
                 playback.releaseUntil = client.tickCount + 9;
@@ -189,6 +190,7 @@ public final class PeakAnimationController {
             case CEILING_HANG -> "peak_ceiling_hang";
             case CEILING_CRAWL -> "peak_ceiling_crawl";
             case CEILING_TRAVERSE -> "peak_ceiling_traverse";
+            case ROOF_ENTRY -> "peak_wall_to_ceiling";
             case RELEASE -> "peak_release";
             default -> "peak_hang";
         };
