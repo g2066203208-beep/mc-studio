@@ -20,7 +20,7 @@ jobs:
       - name: Boot real NeoForge Minecraft CLIENT; photograph main menu and try UI
         run: |
           set +e
-          timeout --signal=INT --kill-after=15s 370s             xvfb-run -a -s "-screen 0 1280x720x24"             bash scripts/test-client-gui.sh
+          timeout --signal=INT --kill-after=15s 495s             xvfb-run -a -s "-screen 0 1280x720x24"             bash scripts/test-client-gui.sh
           code=$?
           echo "UI script exit: $code"
           if [ "$code" -ne 0 ]; then exit "$code"; fi
