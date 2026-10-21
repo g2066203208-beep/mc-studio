@@ -373,4 +373,26 @@ public final class CivicGameTests {
         });
     }
 
+    @GameTest(template = "empty", timeoutTicks = 100)
+    public static void real_player_skin_command_changes_owned_npc(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos origin = helper.absolutePos(new BlockPos(2, 1, 2));
+        var player = FakePlayerFactory.getMinecraft(level);
+        player.moveTo(origin.getX()+0.5, origin.getY(), origin.getZ()+0.5, 0, 0);
+        PlayerNpcEntity npc = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (npc == null) throw new AssertionError("No NPC type");
+        npc.moveTo(origin.getX()+1.5, origin.getY(), origin.getZ()+0.5, 0, 0);
+        npc.setOwner(player);
+        npc.setSkinId(0);
+        if (!level.addFreshEntity(npc)) throw new AssertionError("No NPC entity");
+        level.getServer().getCommands().performPrefixedCommand(
+            player.createCommandSourceStack().withPermission(4), "npc skin 4");
+        if (npc.skinId()!=4) throw new AssertionError(
+            "The REAL /npc skin 4 dispatcher failed to mutate owned NPC synchronized skin");
+        CompoundTag save = new CompoundTag();
+        npc.addAdditionalSaveData(save);
+        if (save.getInt("NpcSkinId") != 4)
+            throw new AssertionError("Command-selected skin not persisted");
+        helper.succeed();
+    }
 }

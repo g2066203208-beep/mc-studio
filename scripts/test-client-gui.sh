@@ -85,6 +85,18 @@ xdotool type --clearmodifiers --delay 75 '/npc info'
 xdotool key Return
 sleep 3
 import -window root client-gui-six-status.png
+xdotool key --clearmodifiers t
+sleep 1
+xdotool type --clearmodifiers --delay 75 '/npc skins'
+xdotool key Return
+sleep 2
+import -window root client-gui-skin-list.png
+xdotool key --clearmodifiers t
+sleep 1
+xdotool type --clearmodifiers --delay 75 '/npc skin 3'
+xdotool key Return
+sleep 7
+import -window root client-gui-skin-changed.png
 # Observe day/night transition on the same real NPCs, without assuming
 # that this proves POI/bed/farming systems are finished.
 xdotool key --clearmodifiers t
