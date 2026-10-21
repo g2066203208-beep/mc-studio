@@ -84,7 +84,7 @@ public final class ClimbSurfaceMath {
     public static Vec3 wallJumpVelocity(Vec3 look, Vec3 surfaceNormal) {
         Vec3 n = new Vec3(surfaceNormal.x, 0, surfaceNormal.z).normalize();
         if (n.lengthSqr() < .5) return Vec3.ZERO;
-        Vec3 aim = look.lengthSqr() > 1.0e-7 ? look.normalize() : Vec3.UP;
+        Vec3 aim = look.lengthSqr() > 1.0e-7 ? look.normalize() : new Vec3(0, 1, 0);
         Vec3 lateral = tangent(aim, n);
         // Retain actual aiming across the wall and up/down, with a small safe
         // wall-away kick if the camera points into the wall.

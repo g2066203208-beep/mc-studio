@@ -251,6 +251,54 @@ public final class ClimbGameTests {
         helper.succeed();
     }
 
+    @GameTest(template="climb_test", timeoutTicks=80)
+    public static void aimedSpaceJumpReleasesWallAndRegrabsLater(GameTestHelper helper) {
+        BlockPos wall = new BlockPos(3,3,5);
+        helper.setBlock(wall, Blocks.STONE);
+        Player player = helper.makeMockPlayer(GameType.CREATIVE);
+        BlockPos origin = helper.absolutePos(new BlockPos(3,2,3));
+        player.moveTo(origin.getX()+.5,origin.getY(),origin.getZ()+.5,0,-20);
+        ClimbState.remove(player);
+        ClimbRuntime.accept(player,1,-1,true,false,0,0);
+        ClimbState state = ClimbState.of(player);
+        helper.assertTrue(state.gripping(), "RMB must attach before a wall dyno");
+        ClimbRuntime.accept(player,2,-1,true,false,true,0,0);
+        helper.assertTrue(state.jumpRequested,"SPACE rising edge must be delivered");
+        ClimbMotion.tick(player,state);
+        helper.assertTrue(!state.gripping() && state.peakHeld,
+                "Wall jump must release the wall, not release the held RMB intent");
+        helper.assertTrue(state.airborneRegrabTicks>0 && state.wallJumpCooldown>0,
+                "Jump must start an anti-magnetic regrab delay and cooldown");
+        helper.assertTrue(player.getDeltaMovement().z<-.12
+                        && player.getDeltaMovement().y>.12,
+                "Dyno should propel player AWAY from wall and into aimed upwards arc");
+        ClimbRuntime.accept(player,3,-1,true,false,true,0,0);
+        helper.assertTrue(!state.gripping() && !state.jumpRequested,
+                "Held SPACE and RMB must not retrigger jump or recapture departure wall");
+        ClimbRuntime.accept(player,4,-1,false,false,false,0,0);
+        ClimbState.remove(player);
+        helper.setBlock(wall,Blocks.AIR);
+        helper.succeed();
+    }
+
+    @GameTest(template="climb_test", timeoutTicks=80)
+    public static void wallJumpMathCannotEnterWall(GameTestHelper helper) {
+        Vec3 normal = new Vec3(0,0,-1);
+        for (Vec3 look : new Vec3[]{
+                new Vec3(0,-1,1), new Vec3(0,0,1),
+                new Vec3(1,.5,-1),new Vec3(-1,.9,-1)}) {
+            Vec3 impulse = ClimbSurfaceMath.wallJumpVelocity(look,normal);
+            helper.assertTrue(impulse.dot(normal) >= .22,
+                    "Jump aimed into wall must still launch safely outward");
+            helper.assertTrue(impulse.length() <= .54 + 1e-6,
+                    "Wall jump velocity bypassed authoritative speed cap");
+        }
+        helper.assertTrue(ClimbSurfaceMath.wallJumpVelocity(
+                new Vec3(1,.4,0),normal).x>.1,
+                "Looking sideways must aim the wall jump towards that side");
+        helper.succeed();
+    }
+
     private static void assertFace(GameTestHelper helper, Player mock, BlockPos origin,
                                    BlockPos surface, float yaw,float pitch) {
         helper.setBlock(surface,Blocks.STONE);
