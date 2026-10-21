@@ -1,4 +1,4 @@
-package dev.reme.mcstudio.seam;
+package dev.reme.worldseam;
 
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
@@ -12,7 +12,7 @@ import net.minecraft.resources.ResourceLocation;
 public record SeamSectionPayload(SeamSectionCache.Frame frame)
     implements CustomPacketPayload {
     public static final Type<SeamSectionPayload> TYPE = new Type<>(
-        ResourceLocation.fromNamespaceAndPath("reme_studio", "remote_section")
+        ResourceLocation.fromNamespaceAndPath("worldseam", "remote_section")
     );
     public static final StreamCodec<RegistryFriendlyByteBuf, SeamSectionPayload> CODEC =
         StreamCodec.of((buf, payload) -> {
