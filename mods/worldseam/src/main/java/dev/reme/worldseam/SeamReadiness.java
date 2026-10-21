@@ -40,14 +40,27 @@ public final class SeamReadiness {
             return;
         var targetLevel = player.server.getLevel(SeamServer.dimensionKey(message.target()));
         if (targetLevel == null) return;
-        int cx = Math.floorDiv(player.blockPosition().getX(),16);
-        int cz = Math.floorDiv(player.blockPosition().getZ(),16);
-        for (int dx = -1; dx <= 1; dx++) {
-            for (int dz = -1; dz <= 1; dz++) {
-                if (!targetLevel.hasChunk(cx+dx,cz+dz)) return;
-            }
-        }
+        // CRITICAL: Do NOT require all nine target SERVER chunks to remain
+        // loaded. They have already been transmitted and decoded into the
+        // CLIENT's independent chunk cache. A destination with no players
+        // naturally unloads its server chunks between the one-per-second
+        // packets, so the old 3x3 hasChunk gate prevented EVERY crossing.
+        // The single arrival chunk is loaded authoritatively during actual
+        // SeamServer crossing, and arrival collision/border checks still run.
+        if (message.loadedChunks() < REQUIRED_CHUNKS) return;
+        boolean nearLinkedBorder = SeamGraph.from(message.source()).stream()
+            .anyMatch(link -> link.target().equals(message.target())
+                && link.near(player.getY(),player.serverLevel().getMinBuildHeight(),
+                    SeamBounds.top(player.serverLevel()),64));
+        if (!nearLinkedBorder) return;
+        long tick=player.server.overworld().getGameTime();
+        boolean newAcknowledgement=!isReady(player.getUUID(),
+            message.source(),message.target(),tick);
         accept(player.getUUID(),message.source(),message.target(),
-            message.loadedChunks(),player.server.overworld().getGameTime());
+            message.loadedChunks(),tick);
+        if (newAcknowledgement)
+            com.mojang.logging.LogUtils.getLogger().info(
+                "WorldSeam READY ACK accepted {} -> {} (client {} native chunks)",
+                message.source(),message.target(),message.loadedChunks());
     }
 }

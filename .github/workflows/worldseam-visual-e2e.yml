@@ -67,6 +67,10 @@ jobs:
             sleep 38
             xwd -root -silent | convert xwd:- -resize 600x338 -quality 48 visual-crossing.jpg
             montage visual-in-world.jpg visual-near-seam.jpg visual-crossing.jpg visual-world-create.jpg -tile 2x2 -geometry +0+0 -quality 48 visual-sequence.jpg
+            echo WORLDSEAM_GUI_JPEG_BEGIN
+            base64 -w 0 visual-sequence.jpg
+            echo
+            echo WORLDSEAM_GUI_JPEG_END
             if ! grep -q "WorldSeam standalone mod loaded" visual-client.log; then
               echo "Mod never loaded in graphical client!"
               exit 1
@@ -82,10 +86,6 @@ jobs:
             fi
             echo "WorldSeam integrated E2E verified server and client dimension handoff"
 
-            echo WORLDSEAM_GUI_JPEG_BEGIN
-            base64 -w 0 visual-sequence.jpg
-            echo
-            echo WORLDSEAM_GUI_JPEG_END
             if grep -E "Mixin apply failed|InvalidMixinException|Exception during client tick|NoSuchMethodError" visual-client.log; then
               echo "WorldSeam failed in GUI client"
               exit 1
