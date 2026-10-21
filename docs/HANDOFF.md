@@ -96,3 +96,11 @@ Push CI `39518033958` SUCCESS，PR CI `39518039426` SUCCESS。Artifact `12310085
 - 玩家指令：`/npc law` / `/npc news` / `/npc commission WHEAT 3 2` / `/npc job` / `/npc accept` / `/npc deliver` / `/npc canceljob`。
 - 自动测试：`scripts/living-tests/CivicSpec.java` 独立断言加入 `scripts/test-living-planner.sh`；Minecraft 真机型 `CivicGameTests.java` + `data/reme_studio/structure/empty.nbt`，.github/workflows/civic-gametest.yml 云端运行 GameTestServer。
 - 看 `docs/CIVIC_V04.md` 验收清单；真实 GameTest、客户端和整合包的结果请以 Actions 证据判定，严禁擅自标记成功。
+
+
+## 2026-10-21 Civic v0.4 交付
+
+- 单独 draft PR #14：`feature/living-world-civic-v04`，base=`feature/living-world-society-v03`。源提交 `4c1f6d3503a79f86e1820f2fe334e33292af1d3e`，后续文档提交不改变 JAR Java 类。
+- 最终 Mod JAR 111428 bytes，SHA-256 9fffdd8a99db74671f64bcc518d306ab64244a5dc4e475e9c16b33716200529e。Actions 39520744762 push 和 39520751645 PR BUILD SUCCESS。
+- 真 NeoForge 游戏测试服务器：39520461688 的 4/4 required GameTests 均通过；最新 4c1 的相同测试运行结果需查 39520744874，不能在其完成之前声称最终版本四项均通过。
+- 特性：NPC 自主求粮并以自己绿宝石悬赏、当地事件证据/见证人/弱可信传闻、商店拒售、守卫法律警示、性格、可实际完成且资金守恒的委托和对话播报（不会真正说语音）。仍需手工实机世界体验、客户端与整合包测试。

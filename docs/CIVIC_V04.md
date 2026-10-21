@@ -46,3 +46,14 @@
 - MineColonies, https://github.com/ldtteam/minecolonies —— 生产、职业、社会分工。
 - NeoForge 1.21.1 GameTest, https://docs.neoforged.net/docs/1.21.1/misc/gametest/ —— 用真实测试服务器而非只靠 Java 编译。
 - 上述 Minecraft 项目已有 GPL-3.0 许可证，当前仓库是独立实现，不复制源代码、图片或任何受许可证约束的素材。
+
+
+## 本轮额外的自动化与实测证据
+
+- 没有足够食物（饥饿小于 35）、没有面包/胡萝卜/马铃薯而背包有真实绿宝石的居民，每 600 游戏刻低频尝试发布收 2 个面包的委托；赏金 2 枚（同理心高则 3 枚），立即锁定真实绿宝石。不是自动生成钱。
+- 高好奇心、体力充沛的普通居民下午会自主进行有限范围已加载区域探索。居民交谈时根据目击/传闻、犯罪声望、饥饿与发布的委托产生不同的文字表达。
+- 现有犯罪目击者只对本区域非敌对受害者建立公共警情；攻击敌对派系不自动被其对手定罪。仍不是复杂的司法或正当防卫系统。
+- Java 21 + NeoForge 编译通过：源代码提交 `4c1f6d3503a79f86e1820f2fe334e33292af1d3e`，push [39520744762](https://github.com/g2066203208-beep/mc-studio/actions/runs/39520744762) SUCCESS，PR [39520751645](https://github.com/g2066203208-beep/mc-studio/actions/runs/39520751645) SUCCESS，JAR artifact ID 12310983491。
+- 本机工具从 ZIP 提取 `reme_studio-0.4.0-dev.jar`：大小 111428 bytes，SHA-256 `9fffdd8a99db74671f64bcc518d306ab64244a5dc4e475e9c16b33716200529e`，包含全部 Civic 与 GameTest 类及 `META-INF/neoforge.mods.toml`。
+- [真实 NeoForge 游戏服务器 GameTest 39520461688](https://github.com/g2066203208-beep/mc-studio/actions/runs/39520461688) **4/4 PASS**：实体生成、存档恢复、传闻去重/限地区、真实绿宝石保管和取消退款。**该 GameTest 测试运行基于提交 25f07143，之后对自动发布委托和对话的增量代码仍需核对新提交的 GameTest。**
+- 不要把 GameTest 测试的四个场景等同于完成了人工实机客户端、长期 NPC 生活、国家法律或 222-mod 整合包验收。

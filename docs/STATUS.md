@@ -107,3 +107,12 @@ Gradle 报告使用了将来不兼容 Gradle 10 的弃用功能；当前固定 W
 - 源代码已经加入目击、有限口口传闻、个人法律声望、性格细分、委托资金托管与交付、NBT 以及 NeoForge GameTest 测试类。
 - 原本 v0.3 的纯源码构建成功 **不能**说明新系统实测通过。详见 `docs/CIVIC_V04.md`，跟踪新分支 `feature/living-world-civic-v04`。
 - GameTest server 独立 workflow 要求真实服务器级别测试，这一项如失败必须记录失败原因，不得写成成功。
+
+
+## Civic v0.4 CI 与 JAR 证据
+
+- 源代码提交 `4c1f6d3503a79f86e1820f2fe334e33292af1d3e`，push Actions 39520744762 / PR Actions 39520751645 成功，包含 Java 单测、NeoForge 编译及上传 JAR。
+- GameTest 39520461688：**4 required tests PASSED**（见游戏服务端实际日志）。这些 GameTest 是服务端注册生成、NBT 保存往返、区域传闻交换/限跳/去重、委托预扣资金和退款，不是手工游玩全流程。
+- artifact 12310983491：`reme_studio-0.4.0-dev.jar` 111428 bytes，SHA-256 9fffdd8a99db74671f64bcc518d306ab64244a5dc4e475e9c16b33716200529e。
+- 最近增量：NPC 会自行悬赏求粮，性格控制社交/自发探索，玩家能通过对话听到 NPC 所掌握的消息。
+- **没有客户端实机、专用服多玩家手工操作、222-mod 整合包或长时间性能测试结果。**
