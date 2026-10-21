@@ -40,6 +40,7 @@ public final class SeamStackScreen extends Screen {
     private Button up,down,connectUp,connectDown;
     private int panelX,panelY,panelW,panelH,leftX,leftW,rightX,rightW;
     private int listY,rowH,rowsVisible;
+    private boolean compact;
     private String error="";
 
     public SeamStackScreen(CreateWorldScreen parent,SeamStack saved) {
@@ -89,9 +90,12 @@ public final class SeamStackScreen extends Screen {
         leftW=(int)((panelW-42)*0.44);
         rightX=leftX+leftW+14;
         rightW=panelX+panelW-14-rightX;
-        listY=panelY+61;
-        rowH=35;
-        rowsVisible=panelH>=370?5:4;
+        // Default MC GUI scale can make a 720px-tall window only ~240
+        // GUI units high. Never lay out as though it were 720 units tall.
+        compact=panelH<310;
+        listY=panelY+(compact?38:61);
+        rowH=compact?26:35;
+        rowsVisible=compact?3:(panelH>=370?5:4);
     }
 
     private Button button(String name,int x,int y,int w,int h,Runnable action) {
@@ -112,21 +116,25 @@ public final class SeamStackScreen extends Screen {
             if(index>=entries.size())break;
             final int layer=index;
             button((index+1)+". "+label(entries.get(index).id()),
-                leftX+6,listY+row*rowH,leftW-12,21,()->select(layer));
+                leftX+6,listY+row*rowH,leftW-12,compact?18:21,()->select(layer));
         }
 
-        int toolsY=listY+rowsVisible*rowH+3;
-        button("◀ 上一页",leftX+6,toolsY,(leftW-18)/2,20,()->page(-1));
-        button("下一页 ▶",leftX+12+(leftW-18)/2,toolsY,(leftW-18)/2,20,()->page(1));
-        int chooserY=toolsY+40;
-        button("◀",leftX+6,chooserY,30,20,()->browse(-1));
-        button("▶",leftX+leftW-36,chooserY,30,20,()->browse(1));
-        button("＋ 添加维度",leftX+6,chooserY+25,leftW-74,21,this::addDimension);
-        button("删除",leftX+leftW-62,chooserY+25,56,21,this::removeDimension);
+        int toolsY=listY+Math.min(rowsVisible,entries.size())*rowH+3;
+        button("◀ 上页",leftX+6,toolsY,(leftW-18)/2,compact?17:20,()->page(-1));
+        button("下页 ▶",leftX+12+(leftW-18)/2,toolsY,(leftW-18)/2,compact?17:20,()->page(1));
+        int chooserY=toolsY+(compact?24:40);
+        button("◀",leftX+6,chooserY,30,compact?17:20,()->browse(-1));
+        button("▶",leftX+leftW-36,chooserY,30,compact?17:20,()->browse(1));
+        button("＋ 添加维度",leftX+6,chooserY+(compact?21:25),
+            leftW-74,compact?18:21,this::addDimension);
+        button("删除",leftX+leftW-62,chooserY+(compact?21:25),
+            56,compact?18:21,this::removeDimension);
 
         int editX=rightX+12, editW=rightW-24;
-        bottom=new EditBox(font,editX,panelY+97,editW,21,text("下边界 Y"));
-        top=new EditBox(font,editX,panelY+150,editW,21,text("上边界 Y"));
+        bottom=new EditBox(font,editX,panelY+(compact?81:97),
+            editW,compact?18:21,text("下边界 Y"));
+        top=new EditBox(font,editX,panelY+(compact?120:150),
+            editW,compact?18:21,text("上边界 Y"));
         bottom.setMaxLength(9);
         top.setMaxLength(9);
         addRenderableWidget(bottom);
@@ -134,20 +142,27 @@ public final class SeamStackScreen extends Screen {
         loadFields();
 
         int half=(editW-8)/2;
-        connectUp=button("上方：允许",editX,panelY+207,half,21,()->direction(true));
-        connectDown=button("下方：允许",editX+half+8,panelY+207,half,21,()->direction(false));
-        up=button("↑ 上移一层",editX,panelY+246,half,21,()->reorder(-1));
-        down=button("↓ 下移一层",editX+half+8,panelY+246,half,21,()->reorder(1));
-        button("恢复默认顺序",editX,panelY+278,editW,20,this::restoreDefault);
+        connectUp=button("上方：允许",editX,panelY+(compact?145:207),
+            half,compact?18:21,()->direction(true));
+        connectDown=button("下方：允许",editX+half+8,panelY+(compact?145:207),
+            half,compact?18:21,()->direction(false));
+        up=button("↑ 上移一层",editX,panelY+(compact?169:246),
+            half,compact?18:21,()->reorder(-1));
+        down=button("↓ 下移一层",editX+half+8,panelY+(compact?169:246),
+            half,compact?18:21,()->reorder(1));
+        if(!compact)
+            button("恢复默认顺序",editX,panelY+278,editW,20,this::restoreDefault);
 
-        int footer=panelY+panelH-36;
-        button("取消",panelX+14,footer,86,24,this::onClose);
-        button("循环："+(loop?"开":"关"),panelX+109,footer,100,24,()->{
+        int footer=panelY+panelH-(compact?25:36);
+        button("取消",panelX+14,footer,compact?60:86,compact?19:24,this::onClose);
+        button("循环："+(loop?"开":"关"),panelX+(compact?79:109),footer,
+            compact?73:100,compact?19:24,()->{
             if(!saveFields())return;
             loop=!loop;
             rebuild();
         });
-        button("保存维度堆叠",panelX+panelW-180,footer,166,24,this::finish);
+        button("保存堆叠",panelX+panelW-(compact?122:180),footer,
+            compact?108:166,compact?19:24,this::finish);
         updateControls();
     }
 
@@ -270,10 +285,12 @@ public final class SeamStackScreen extends Screen {
         g.fill(panelX,panelY,panelX+panelW,panelY+panelH,NAVY);
         g.fill(panelX+7,panelY+48,panelX+panelW-7,panelY+panelH-43,PANEL);
         g.fill(rightX-8,panelY+56,rightX-7,panelY+panelH-46,OUTLINE);
-        g.drawString(font,"维度堆叠",panelX+16,panelY+15,WHITE,true);
-        g.drawString(font,"从上到下排列 · 点击左侧卡片编辑连接",panelX+114,panelY+16,MUTED);
-        g.drawString(font,"世界层级",leftX+6,panelY+46,ACCENT);
-        g.drawString(font,"连接高度与方向",rightX+12,panelY+46,ACCENT);
+        g.drawString(font,"维度堆叠",panelX+12,panelY+9,WHITE,true);
+        g.drawString(font,compact?"从上到下排列":"从上到下排列 · 点击左侧卡片编辑连接",
+            panelX+(compact?85:114),panelY+10,MUTED);
+        g.drawString(font,"世界层级",leftX+6,panelY+(compact?28:46),ACCENT);
+        g.drawString(font,"连接高度与方向",rightX+12,
+            panelY+(compact?28:46),ACCENT);
 
         for(int i=0;i<rowsVisible;i++){
             int index=scroll+i;
@@ -286,33 +303,43 @@ public final class SeamStackScreen extends Screen {
             }
             String details=e.id()+"  ↑"+endpoint(e.topY())+" ↓"+endpoint(e.bottomY());
             g.drawString(font,truncate(details,leftW-18),
-                leftX+9,y+24,index==selected?0xFFF5D49E:MUTED,false);
+                leftX+9,y+(compact?19:24),
+                index==selected?0xFFF5D49E:MUTED,false);
         }
 
         var active=entries.get(selected);
-        g.drawString(font,label(active.id()),rightX+12,panelY+63,WHITE,true);
+        g.drawString(font,label(active.id()),rightX+12,
+            panelY+(compact?38:63),WHITE,true);
         g.drawString(font,truncate(active.id(),rightW-25),
-            rightX+12,panelY+76,MUTED,false);
-        g.drawString(font,"下连接面 Y（留空使用原生下界）",rightX+12,panelY+87,MUTED);
-        g.drawString(font,"上连接面 Y（留空使用原生上界）",rightX+12,panelY+140,MUTED);
-        g.drawString(font,"选择要添加的维度",leftX+6,listY+rowsVisible*rowH+29,MUTED);
+            rightX+12,panelY+(compact?50:76),MUTED,false);
+        g.drawString(font,compact?"下边界 Y（留空=默认）":
+            "下连接面 Y（留空使用原生下界）",
+            rightX+12,panelY+(compact?69:87),MUTED);
+        g.drawString(font,compact?"上边界 Y（留空=默认）":
+            "上连接面 Y（留空使用原生上界）",
+            rightX+12,panelY+(compact?108:140),MUTED);
+        int toolsTop=listY+Math.min(rowsVisible,entries.size())*rowH+3;
+        g.drawString(font,"添加维度",leftX+6,
+            toolsTop+(compact?18:29),MUTED);
         g.drawCenteredString(font,
             truncate(label(candidates.get(candidate)),leftW-78),
-            leftX+leftW/2,listY+rowsVisible*rowH+46,WHITE);
-        g.drawString(font,"连通开关",rightX+12,panelY+190,MUTED);
-        g.drawString(font,"层级排序",rightX+12,panelY+233,MUTED);
+            leftX+leftW/2,toolsTop+(compact?29:46),WHITE);
+        if(!compact) {
+            g.drawString(font,"连通开关",rightX+12,panelY+190,MUTED);
+            g.drawString(font,"层级排序",rightX+12,panelY+233,MUTED);
+        }
         if(panelH>=390) {
             g.drawString(font,"仅修改连接面，不修改世界生成高度",
                 rightX+12,panelY+308,0xFFE1B680);
             g.drawString(font,"不存在的维度会被服务器拒绝",
                 rightX+12,panelY+324,MUTED);
         }
-        if(loop)g.drawString(font,"循环连接：已开启",panelX+228,
+        if(loop && !compact)g.drawString(font,"循环连接：已开启",panelX+228,
             panelY+panelH-29,ACCENT);
         if(!error.isBlank())
             g.drawCenteredString(font,
                 truncate(error,panelW-30),
-                width/2,panelY+panelH-49,0xFFFF8989);
+                width/2,panelY+panelH-(compact?40:49),0xFFFF8989);
         super.render(g,mouseX,mouseY,delta);
     }
 }
