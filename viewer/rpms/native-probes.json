@@ -1,0 +1,66 @@
+{
+  "schema": 1,
+  "scope": "Narrow live NeoForge GameTest cases only. Does not confer acceptance of any entire Create/Aeronautics subsystem or physical boss behavior.",
+  "runtime": {
+    "minecraft": "1.21.1",
+    "neoforge": "21.1.248",
+    "create": "6.0.10",
+    "aeronautics": "1.3.2",
+    "sable": "2.0.6"
+  },
+  "evidence": {
+    "workflow_run": "https://github.com/g2066203208-beep/mc-studio/actions/runs/39599761254",
+    "result": "All 7 required game tests passed :)"
+  },
+  "cases": [
+    {
+      "id": "T01",
+      "name": "Create/Aeronautics 模组与方块注册",
+      "assertion": "NeoForge 启动真实模组，主要 Create/Simulated/Aeronautics 方块 ID 存在",
+      "status": "native_passed",
+      "test": "officialRegistriesAreLoaded"
+    },
+    {
+      "id": "T02",
+      "name": "真实马达到传动轴",
+      "assertion": "马达朝东、X 轴传动：原版 Create getSpeed()=16 RPM，接收轴=16 RPM",
+      "status": "native_passed",
+      "test": "createKineticBlockEntitiesExistAndTick"
+    },
+    {
+      "id": "T03",
+      "name": "航空学旋转轴承与万向传感器",
+      "assertion": "在运行的服务器实例化真实 BlockEntity 且经过 20 Tick；不证明已完成组装",
+      "status": "native_passed",
+      "test": "swivelBearingAndSensorRunInServer"
+    },
+    {
+      "id": "T04",
+      "name": "无线红石方块实体",
+      "assertion": "真实 Redstone Link BlockEntity 存在，并可调用原版行为；非传播测试",
+      "status": "native_passed",
+      "test": "wirelessRedstoneLinkHasNativeEntity"
+    },
+    {
+      "id": "T05",
+      "name": "无线信号传输与关闭",
+      "assertion": "Create 真实频率链路：发送15→接收15、发送0→接收0",
+      "status": "native_passed",
+      "test": "wirelessSignalActuallyPropagates"
+    },
+    {
+      "id": "T06",
+      "name": "动力轴拆断后转速停止",
+      "assertion": "三段 Create 实体动力网络：下游轴从16RPM降到0RPM",
+      "status": "native_passed",
+      "test": "kineticNetworkDisconnectionStopsShaft"
+    },
+    {
+      "id": "T07",
+      "name": "游戏运行状态导出",
+      "assertion": "从真实 Minecraft ServerLevel 导出 BlockState 朝向east和 getSpeed()=16RPM",
+      "status": "native_passed",
+      "test": "snapshotReadsRealServerBlockStates"
+    }
+  ]
+}
