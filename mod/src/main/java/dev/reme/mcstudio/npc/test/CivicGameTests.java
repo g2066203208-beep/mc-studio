@@ -341,4 +341,36 @@ public final class CivicGameTests {
         if (npc.skinId() != 0) throw new AssertionError("Negative skin id unbounded");
         helper.succeed();
     }
+
+    @GameTest(template = "empty", timeoutTicks = 195)
+    public static void guard_actually_walks_patrol_in_live_mode(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos center = helper.absolutePos(new BlockPos(10, 1, 10));
+        // A genuine traversable 21x21 stone lane; no fake navigation mock.
+        for (int dx = -10; dx <= 10; dx++) {
+            for (int dz = -10; dz <= 10; dz++) {
+                BlockPos floor = center.offset(dx, -1, dz);
+                level.setBlock(floor, Blocks.STONE.defaultBlockState(), 3);
+                level.setBlock(floor.above(), Blocks.AIR.defaultBlockState(), 3);
+                level.setBlock(floor.above(2), Blocks.AIR.defaultBlockState(), 3);
+            }
+        }
+        PlayerNpcEntity guard = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (guard == null) throw new AssertionError("guard cannot be created");
+        guard.moveTo(center.getX() + 0.5, center.getY(), center.getZ() + 0.5, 0, 0);
+        guard.setHomePos(center);
+        guard.setWorkPos(center);
+        guard.setRoamingRadius(32);
+        guard.setProfession(PlayerNpcEntity.Profession.GUARD);
+        guard.setMode(PlayerNpcEntity.Mode.LIVE);
+        if (!level.addFreshEntity(guard))
+            throw new AssertionError("guard failed to enter real server");
+        helper.runAfterDelay(150, () -> {
+            if (guard.distanceToSqr(center.getX() + 0.5, center.getY(),
+                    center.getZ() + 0.5) < 2.25)
+                helper.fail("Live guard did not move from guard post during scheduled patrol", center);
+            else helper.succeed();
+        });
+    }
+
 }
