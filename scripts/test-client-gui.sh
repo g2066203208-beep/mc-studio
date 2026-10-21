@@ -32,7 +32,13 @@ xdotool windowsize "$found" 1280 720 || true
 xdotool windowmove "$found" 0 0 || true
 sleep 12
 import -window root client-gui-menu.png
-echo "Saved REAL CLIENT visible main menu screenshot"
+echo "Saved real client first visible screen"
+# Minecraft first-run accessibility wizard blocks single-player until Continue.
+# This is the actual GUI screenshot confirmed from the prior workflow.
+xdotool mousemove --sync 640 670 click 1
+sleep 8
+import -window root client-gui-after-continue.png
+echo "Saved visible menu after first-run Continue"
 echo "Window id: $found"
 echo "Minecraft launch/render indicators:"
 grep -E 'Reloading ResourceManager|mod/reme_studio|Created.*atlas' client-gui.log | tail -n 10 || true
