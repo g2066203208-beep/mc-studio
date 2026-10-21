@@ -81,8 +81,8 @@ export function createMultibodyBoss(RAPIER,opts={}){
   return rec;
  });
  const motors=motorSpecs;
- let mode='stand',elapsed=0,steps=0,commandRPM=18,torque=1450,frequency=.76;
- let hipGain=1100,kneeGain=870,hipDamping=75,kneeDamping=63;
+ let mode='stand',elapsed=0,steps=0,commandRPM=18,torque=135,frequency=.76;
+ let hipGain=115,kneeGain=92,hipDamping=15,kneeDamping=13;
  let phase=0;
  const setMotor=({rpm,torqueLimit,stiffness,damping,period}={})=>{
   if(Number.isFinite(rpm))commandRPM=clamp(rpm,0,96);
