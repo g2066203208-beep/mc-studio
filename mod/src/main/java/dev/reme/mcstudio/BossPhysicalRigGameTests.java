@@ -69,8 +69,8 @@ public final class BossPhysicalRigGameTests {
             double torsoWorldYBefore=rig.torsoBottomWorldY();
             double footGroundGap=footSoleWorldY-groundTop;
             double fall=initialY-settled.y();
-            LOG.info("RPMS_BOSS_P0_STAND initialY={} settledY={} fall={} groundTop={} realCenterOfMass={} footSoleWorldY={} footGroundGap={} torsoBottomWorldY={} nativeVelocity={}",
-                    initialY,settled.y(),fall,groundTop,realCenter,footSoleWorldY,footGroundGap,torsoWorldYBefore,velocity);
+            LOG.info("RPMS_BOSS_P0_STAND initialY={} settledY={} fall={} groundTop={} plotOrigin={} realCenterOfMass={} footSoleWorldY={} footGroundGap={} torsoBottomWorldY={} nativeVelocity={}",
+                    initialY,settled.y(),fall,groundTop,rig.plotOrigin(),realCenter,footSoleWorldY,footGroundGap,torsoWorldYBefore,velocity);
             if(fall<0.5){helper.fail("Body did not physically fall under gravity");return;}
             if(Math.abs(footGroundGap)>0.80){
                 helper.fail("Foot-sole transformed with Sable COM does not touch ground; gap="+footGroundGap);
