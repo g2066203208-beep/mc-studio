@@ -35,9 +35,10 @@ public final class PeakSurfaceRender {
         // Keep the animated player slightly outside the face. The physical
         // contact-distance servo is responsible for primary separation.
         stack.translate(normal.x*.025, normal.y*.025, normal.z*.025);
-        // Wall body only leans gently in, with bent knees and arms in keyframes.
-        // Roof body hangs angled rather than standing vertically on the ceiling.
-        float tilt = ClimbSurfaceMath.ceiling(normal) ? 64f
+        // Roof: REAL suspended hang. The legs and torso stay mostly VERTICAL
+        // below two raised gripping hands; rotating the entire root 64 degrees
+        // made the climber lie horizontally against the ceiling.
+        float tilt = ClimbSurfaceMath.ceiling(normal) ? 0f
                 : ClimbSurfaceMath.floor(normal) ? 0f : 5.5f;
         if (tilt != 0) {
             stack.translate(0, 1.16, 0);

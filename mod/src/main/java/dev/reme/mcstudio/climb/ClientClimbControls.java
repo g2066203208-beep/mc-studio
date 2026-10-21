@@ -11,7 +11,7 @@ import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
 import net.neoforged.neoforge.network.PacketDistributor;
 import org.lwjgl.glfw.GLFW;
 
-/** PEAK: HOLD RMB near a solid face, use WASD, Shift=lunge, release LMB to fall. */
+/** HOLD RMB near a physical face; WASD move, Shift=lunge, Space=aimed wall jump. */
 @EventBusSubscriber(modid = StudioMod.MOD_ID, value = Dist.CLIENT)
 public final class ClientClimbControls {
     private static boolean grabbing;
@@ -70,8 +70,9 @@ public final class ClientClimbControls {
         float f = pressed ? (mc.options.keyUp.isDown() ? 1 : 0) - (mc.options.keyDown.isDown() ? 1 : 0) : 0;
         float s = pressed ? (mc.options.keyRight.isDown() ? 1 : 0) - (mc.options.keyLeft.isDown() ? 1 : 0) : 0;
         boolean lunge = pressed && mc.options.keyShift.isDown();
+        boolean jump = pressed && mc.options.keyJump.isDown();
         int n = ++sequence;
-        ClimbRuntime.accept(mc.player, n, -1, pressed, lunge, f, s);
-        PacketDistributor.sendToServer(new ClimbNetwork.Intent(n, -1, pressed, lunge, f, s));
+        ClimbRuntime.accept(mc.player, n, -1, pressed, lunge, jump, f, s);
+        PacketDistributor.sendToServer(new ClimbNetwork.Intent(n, -1, pressed, lunge, jump, f, s));
     }
 }

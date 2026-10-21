@@ -173,7 +173,7 @@ public final class PeakAnimationController {
         boolean firstPersonRoof = roof && client == Minecraft.getInstance().player
                 && Minecraft.getInstance().options.getCameraType().isFirstPerson();
         float modelSide = isLeft ? 1f : -1f;
-        float wide = firstPersonRoof ? 5.8f : roof ? 1.3f : 0f;
+        float wide = firstPersonRoof ? 3.4f : roof ? .25f : 0f;
         Vec3f rotation = new Vec3f(-.085f*vertical, .10f*lateral,
                 -.065f*(float)armSide*lateral);
         Vec3f offset = new Vec3f(.67f*lateral + modelSide*wide,

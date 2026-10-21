@@ -78,6 +78,23 @@ public final class ClimbSurfaceMath {
         return travel.lengthSqr() > .001 && b.dot(travel.normalize()) < -.18;
     }
 
+    /** Momentum for a deliberate wall dyno: look angle steers to the next hold,
+     * but there is ALWAYS an outward normal component, never a push into solids.
+     * Bounded before physics integration; no teleport / no noClip. */
+    public static Vec3 wallJumpVelocity(Vec3 look, Vec3 surfaceNormal) {
+        Vec3 n = new Vec3(surfaceNormal.x, 0, surfaceNormal.z).normalize();
+        if (n.lengthSqr() < .5) return Vec3.ZERO;
+        Vec3 aim = look.lengthSqr() > 1.0e-7 ? look.normalize() : Vec3.UP;
+        Vec3 lateral = tangent(aim, n);
+        // Retain actual aiming across the wall and up/down, with a small safe
+        // wall-away kick if the camera points into the wall.
+        double rise = Math.max(.12, Math.min(.39, .22 + aim.y * .24));
+        Vec3 horizontal = new Vec3(lateral.x, 0, lateral.z);
+        Vec3 impulse = n.scale(.24).add(clamp(horizontal, .32))
+                .add(0, rise, 0);
+        return clamp(impulse, .54);
+    }
+
     /** Never add normal-facing camera velocity to the next frame's motor impulse. */
     public static Vec3 motor(Vec3 previous, Vec3 wanted, Vec3 normal) {
         Vec3 old = clamp(tangent(previous, normal), MAX_RELATIVE_SPEED);

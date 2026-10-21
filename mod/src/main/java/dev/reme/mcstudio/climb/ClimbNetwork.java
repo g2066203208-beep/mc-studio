@@ -17,8 +17,9 @@ import net.neoforged.neoforge.network.PacketDistributor;
 public final class ClimbNetwork {
     private ClimbNetwork() {}
 
-    /** Legacy record layout retained for straightforward migration: hand ignored, mode = Shift lunge. */
-    public record Intent(int sequence, int hand, boolean down, boolean mode, float forward, float strafe)
+    /** hand ignored; mode = Shift short lunge, jump = Space aimed wall dyno. */
+    public record Intent(int sequence, int hand, boolean down, boolean mode,
+                         boolean jump, float forward, float strafe)
             implements CustomPacketPayload {
         public static final Type<Intent> TYPE = new Type<>(
                 ResourceLocation.fromNamespaceAndPath(StudioMod.MOD_ID, "grip_intent"));
@@ -28,11 +29,12 @@ public final class ClimbNetwork {
                     buf.writeVarInt(p.hand());
                     buf.writeBoolean(p.down());
                     buf.writeBoolean(p.mode());
+                    buf.writeBoolean(p.jump());
                     buf.writeFloat(p.forward());
                     buf.writeFloat(p.strafe());
                 },
                 buf -> new Intent(buf.readVarInt(), buf.readVarInt(), buf.readBoolean(),
-                        buf.readBoolean(), buf.readFloat(), buf.readFloat()));
+                        buf.readBoolean(), buf.readBoolean(), buf.readFloat(), buf.readFloat()));
 
         @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
     }
@@ -65,11 +67,11 @@ public final class ClimbNetwork {
 
     @SubscribeEvent
     public static void register(RegisterPayloadHandlersEvent event) {
-        var registrar = event.registrar("4");
+        var registrar = event.registrar("5");
         registrar.playToServer(Intent.TYPE, Intent.CODEC, (packet, context) -> {
             if (!(context.player() instanceof ServerPlayer player)) return;
             ClimbRuntime.accept(player, packet.sequence(), packet.hand(), packet.down(),
-                    packet.mode(), packet.forward(), packet.strafe());
+                    packet.mode(), packet.jump(), packet.forward(), packet.strafe());
             if (!packet.down() || packet.sequence() % 5 == 0) {
                 ClimbState state = ClimbState.of(player);
                 PacketDistributor.sendToPlayer(player,

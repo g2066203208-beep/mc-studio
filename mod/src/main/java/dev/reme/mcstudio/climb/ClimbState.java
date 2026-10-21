@@ -16,6 +16,11 @@ public final class ClimbState {
     public boolean peakHeld;
     public boolean lastLungeKey;
     public boolean lungeRequested;
+    public boolean lastJumpKey;
+    public boolean jumpRequested;
+    public int wallJumpCooldown;
+    /** Prevent instant magnetic regrab of the departure wall after a jump. */
+    public int airborneRegrabTicks;
     public boolean previouslySynced;
     public int lungeCooldown;
     public float peakPhase;
@@ -40,6 +45,8 @@ public final class ClimbState {
     @Nullable public GripAnchor left;
     @Nullable public GripAnchor right;
     public Vec3 lastLeft = Vec3.ZERO;
+    /** Stable identity prevents regripping a new local point from looking like Sable ship velocity. */
+    @Nullable public GripAnchor lastResolvedAnchor;
     public Vec3 lastRight = Vec3.ZERO;
     public int sequence = -1;
     public int lastAckSequence = -1;
@@ -60,6 +67,8 @@ public final class ClimbState {
         faceSwitchCooldown = 0;
         lastRight = Vec3.ZERO;
         lungeRequested = false;
+        jumpRequested = false;
+        lastResolvedAnchor = null;
         mantleTicks = 0;
         poseAction = 0;
     }

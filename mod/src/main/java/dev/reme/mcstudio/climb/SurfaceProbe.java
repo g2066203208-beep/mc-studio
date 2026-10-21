@@ -48,20 +48,22 @@ public final class SurfaceProbe {
         Vec3 dir = movement.normalize();
         Vec3 n = old.normal().normalize();
         Vec3 eye = player.getEyePosition();
-        Vec3 predicted = old.point().add(dir.scale(.72));
+        Vec3 predicted = old.point().add(dir.scale(.78));
+        // Fan out from the camera AND the free space near the *old physical hit*.
+        // On a ceiling edge, scanning only at eye height skips the next wall;
+        // on a wall edge, the old-normal cast may never see the ceiling's underside.
         Vec3[] origins = {
-                eye,
-                eye.add(dir.scale(.28)),
-                eye.add(dir.scale(.60)),
-                // In front of the current hit point but not INSIDE the roof:
-                // useful when a wall meets a ceiling one block higher.
-                old.point().add(n.scale(.52)).add(dir.scale(.18))
+                eye, eye.add(dir.scale(.36)), eye.add(dir.scale(.72)),
+                old.point().add(n.scale(.32)).add(dir.scale(.24)),
+                old.point().add(n.scale(.48)).add(dir.scale(.72)),
+                eye.add(0,.38,0), eye.add(0,-.30,0)
         };
         Vec3[] rays = {
-                n.scale(-1),dir,
+                n.scale(-1), dir,
                 new Vec3(Math.signum(dir.x),0,0),
-                new Vec3(0,Math.signum(dir.y),0),
-                new Vec3(0,0,Math.signum(dir.z))
+                new Vec3(0, 1, 0), new Vec3(0,-1,0),
+                new Vec3(0,0,Math.signum(dir.z)),
+                dir.subtract(n.scale(dir.dot(n))).add(n.scale(-.55))
         };
         GripAnchor best = null;
         double bestScore = Double.POSITIVE_INFINITY;
@@ -73,7 +75,7 @@ public final class SurfaceProbe {
                 GripAnchor.Contact c = candidate.resolve(player.level());
                 if (c == null || !ClimbSurfaceMath.canTurn(n,c.normal(),dir)) continue;
                 double fromOld = c.point().distanceTo(old.point());
-                if (fromOld > 1.55 || player.getEyePosition().distanceTo(c.point()) > REACH) continue;
+                if (fromOld > 1.74 || player.getEyePosition().distanceTo(c.point()) > REACH + .12) continue;
                 double score = c.point().distanceToSqr(predicted) + origin.distanceToSqr(c.point())*.12;
                 if (score < bestScore) { bestScore = score; best = candidate; }
             }
@@ -116,7 +118,7 @@ public final class SurfaceProbe {
     }
 
     private static BlockHitResult cast(Level level, Player player, Vec3 from, Vec3 to) {
-        return level.clip(new ClipContext(from, to, ClipContext.Block.OUTLINE, ClipContext.Fluid.NONE, player));
+        return level.clip(new ClipContext(from, to, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, player));
     }
 
     private static boolean valid(Level level, BlockHitResult hit) {
