@@ -18,6 +18,7 @@ public final class WorldSeamMod {
         if (FMLEnvironment.dist == Dist.CLIENT) {
             SeamPreviewClient.install();
             SeamSectionClient.install();
+            SeamClientWorldPool.install();
         }
         LogUtils.getLogger().info("WorldSeam standalone mod loaded; no climbing integration");
     }

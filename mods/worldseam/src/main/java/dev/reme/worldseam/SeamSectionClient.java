@@ -47,6 +47,7 @@ public final class SeamSectionClient {
         if (!CACHE.apply(frame)) return;
         if (frame.clear()) geometry.clear();
         else if (frame.key() != null) {
+            SeamClientWorldPool.hint(frame.source(), frame.target());
             geometry.keySet().retainAll(CACHE.snapshot().keySet());
             geometry.put(frame.key(), buildSurface(frame));
         }
