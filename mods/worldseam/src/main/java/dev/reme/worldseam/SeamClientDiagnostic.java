@@ -23,9 +23,22 @@ public final class SeamClientDiagnostic {
         }
         if (closest==null || distance>96) return;
         var g=e.getGuiGraphics();
-        String info="WorldSeam | "+closest.target()+" | seam "+
-            (closest.exit()==SeamGraph.EdgeSide.TOP?"TOP":"BOTTOM")+
-            " | distance "+String.format(java.util.Locale.ROOT,"%.1f",distance);
+        // Explicit source/target labels: earlier HUD printed ONLY the
+        // target ("minecraft:the_nether"), which appeared to claim the
+        // player was already IN the Nether while still in Overworld.
+        double currentSeam=SeamGraph.boundaryY(closest.exit(),
+            mc.level.getMinBuildHeight(),
+            SeamBounds.top(dimension,mc.level.getMaxBuildHeight()));
+        int otherMin="minecraft:overworld".equals(closest.target())?-64:0;
+        int otherVanillaTop="minecraft:overworld".equals(closest.target())?320:256;
+        int otherTop=SeamBounds.top(closest.target(),otherVanillaTop);
+        double otherSeam=SeamGraph.boundaryY(closest.entry(),otherMin,otherTop);
+        String here=String.format(java.util.Locale.ROOT,
+            "WorldSeam CURRENT: %s Y=%.2f",dimension,mc.player.getY());
+        String link=String.format(java.util.Locale.ROOT,
+            "EDGE: source Y=%.0f  ->  TARGET: %s Y=%.0f (%s)",
+            currentSeam,closest.target(),otherSeam,
+            closest.exit()==SeamGraph.EdgeSide.BOTTOM?"below":"above");
         String cache="native packets: "+SeamClientWorldPool.receivedChunks()+
             " | cached 3x3: "+SeamClientWorldPool.nearbyChunks()+
             "/9 | geometry: "+SeamNativeGeometryClient.visibleBlockCount()+
@@ -33,11 +46,13 @@ public final class SeamClientDiagnostic {
         String detail=SeamClientWorldPool.remoteStatus();
         if (SeamClientWorldPool.receivedChunks()==0 && !detail.contains("FAILED"))
             detail+=" | no packets: ensure /worldseam enable";
-        g.fill(5,5,Math.max(390,Math.max(mc.font.width(cache),mc.font.width(detail))+16),
-            49,0x9A101820);
-        g.drawString(mc.font,info,10,10,0xE8E8E8,true);
-        g.drawString(mc.font,detail,10,36,0xFFAACC,true);
-        g.drawString(mc.font,cache,10,23,
+        int wide=Math.max(Math.max(mc.font.width(here),mc.font.width(link)),
+            Math.max(mc.font.width(cache),mc.font.width(detail)));
+        g.fill(5,5,Math.max(390,wide+16),62,0x9A101820);
+        g.drawString(mc.font,here,10,10,0xE8E8E8,true);
+        g.drawString(mc.font,link,10,23,0xDDDDEE,true);
+        g.drawString(mc.font,cache,10,36,
             SeamNativeGeometryClient.lastFrameDrawn()>0 ? 0x66FF99 : 0xFFDD77,true);
+        g.drawString(mc.font,detail,10,49,0xFFAACC,true);
     }
 }
