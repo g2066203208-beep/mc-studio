@@ -28,6 +28,7 @@ public final class RoadNavigator {
         if (!npc.getNavigation().isDone() && !npc.canRepath(destination, tick)) return true;
         double current = npc.blockPosition().distSqr(destination);
         if (current < 5) return false;
+        FootTrafficData traffic = FootTrafficData.get(level);
         BlockPos best = null;
         double bestScore = 0;
         BlockPos center = npc.blockPosition();
@@ -38,13 +39,18 @@ public final class RoadNavigator {
             if (!level.hasChunkAt(foot)) continue;
             if (!level.getBlockState(foot).isAir()) continue;
             BlockState floor = level.getBlockState(foot.below());
-            if (!(floor.is(Blocks.DIRT_PATH) || floor.is(Blocks.GRAVEL) ||
-                floor.is(Blocks.COBBLESTONE) || floor.is(Blocks.STONE_BRICKS) ||
-                floor.is(Blocks.MOSSY_COBBLESTONE))) continue;
+            boolean physicalRoad = floor.is(Blocks.DIRT_PATH)
+                || floor.is(Blocks.GRAVEL) || floor.is(Blocks.COBBLESTONE)
+                || floor.is(Blocks.STONE_BRICKS)
+                || floor.is(Blocks.MOSSY_COBBLESTONE);
+            int knownTraffic = traffic.visits(foot);
+            if (!physicalRoad && knownTraffic < 3) continue;
+            if (!level.getBlockState(foot.above()).isAir()) continue;
             double d = foot.distSqr(destination);
             double progress = current - d;
             if (progress <= 10) continue;
-            double score = progress - dx * dx * 0.08 - dz * dz * 0.08;
+            double score = progress - dx * dx * 0.08 - dz * dz * 0.08
+                + Math.min(knownTraffic, 20) * 0.6;
             if (score > bestScore) { bestScore = score; best = foot.immutable(); }
         }
         BlockPos waypoint = best == null ? destination : best;
