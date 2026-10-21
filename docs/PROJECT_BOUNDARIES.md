@@ -1,19 +1,24 @@
-# Minecraft 多项目隔离登记（2026-10-21）
+# Minecraft 多项目隔离登记（纠正于 2026-10-21）
 
-本文件只记录**已验证的实际位置**与职责，不能把规划目录误报为功能实现。
+## 唯一真实位置与职责
 
-| 项目 | 已确认位置 | 当前隔离状态 | 本对话权限边界 |
+| 项目 | 确认过的实际开发位置 | 当前事实 | 本会话的权限边界 |
 | --- | --- | --- | --- |
-| 无缝维度 / 垂直维度堆叠 | `projects/seamless-dimensions/`（新建独立工作区入口） | 工作区及作用域规则已建立；独立可构建 Mod 仍待开发 | **本对话唯一负责** |
-| 机械动力 × 航空学网站/联动 | 既有 `viewer/rpms/` 页面、`mod/` NeoForge 测试/探针；近期提交 #40–#46 | 现有多个功能在共用 `mod/`；未迁移 | **不修改、不测试、不发布、不冒称成果** |
-| NPC 自主行为 Mod | 在目前检查的 `mc-studio` 默认分支中尚未证实有独立项目根目录 | **未能确认已完全隔离**；需要 NPC 项目会话自行确定并登记 | **不修改、不规划其玩法、不发布** |
+| **WorldSeam（界缝）无缝维度** | `feat/worldseam-standalone` 分支中 `mods/worldseam/`，专用 `.github/workflows/worldseam*.yml` | **独立 Gradle/NeoForge 工程已存在**；`gradle.properties` 的 `mod_version=0.9.0-dev`；[PR #21](https://github.com/g2066203208-beep/mc-studio/pull/21) 当时仍开放、尚未合并 main | **唯一负责** |
+| 机械动力 × 航空学 | 当前 `main` 中 `mod/`、`viewer/rpms/` 及 `feat/rpms-*` 功能分支 | 已存在真实系统相关开发，不应与 WorldSeam 的 CI 混合 | **禁止更改** |
+| NPC 自主行为 Mod | `feature/living-world-*`、`feature/npc-*`、`feature/player-npc-v1` 等专用分支 | 存在实际分支，但尚未核实某一最终完整独立工程目录 | **禁止更改** |
 
-## 防止交叉污染
+## 修正之前的错误
 
-1. 每个项目使用独立包名、Mod ID、Gradle 工程、构建工作流与 JAR 文件名。
-2. 无缝维度项目的代码及其测试、资源、研究不得写入现有 `mod/` 或 `viewer/rpms/`。它们属于既有航空学/机械动力工作。
-3. 统一 `main` 可作为代码托管仓库，但**不同子项目不得共享运行配置、产物或通过率证据**。
-4. 无缝维度所有后续变更都要经专用分支及 PR；每次 PR 用变更文件清单确认没有改动另外两个项目。
-5. 其他项目目录是否迁移由其各自负责人处理，不在无缝维度会话里动手，以避免覆盖别人的开发。
+2026-10-21 误只检查 `main` 就声称找不到无缝维度，创建了 `projects/seamless-dimensions/` 平行占位工程。**该重复目录已撤销**。真实 WorldSeam 在 `mods/worldseam/`，不要重新初始化，不要丢弃 v0.8/0.9 开发历史。
 
-此登记只完成当前会话的隔离边界；**尚不意味着三套独立工程均已建成**。
+## 严格隔离
+
+1. 无缝维度只在现有 WorldSeam 的工程、分支、专属 CI、专属 Mod ID `worldseam` 下继续，不接触共享 `mod/` 或 `viewer/rpms/` 和 NPC 分支。
+2. 每次更改先核对 WorldSeam 分支 HEAD、PR #21 与变更清单，避免覆盖此前迭代；不要用 main 的骨架状态推断 WorldSeam 开发程度。
+3. 0.8 的堆叠编辑器和 0.9 的双维度 Chunk 驻留属于**实现记录**，不等同于可视化无缝已通过验收。
+4. 证据分开：编译、服务端 GameTest、真实 GUI 客户端、双维度区块同步、同帧视觉合成。未实测部分明确标记。
+
+## 验收缺口
+
+仍需真实双 LevelRenderer 同帧渲染、接缝裁剪/深度、天空光照/实体/流体/粒子与物理系统完整兼容；详见该分支 `mods/worldseam/docs/DUAL_WORLD_LOADING.md`。
