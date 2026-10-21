@@ -42,7 +42,11 @@ public final class PlayerLootPickup {
             Entity entity = level.getEntity(id);
             if (!(entity instanceof ItemEntity item) || !item.isAlive()
                 || item.getItem().isEmpty()) {
-                npc.forgetMiningDrop(id);
+                // Drops emitted during an entity tick may not enter the
+                // persistent entity index until a subsequent tick.
+                // Never delete a legitimate claim immediately after spawn.
+                if (level.getGameTime() - npc.miningLootStarted() > 12L)
+                    npc.forgetMiningDrop(id);
                 continue;
             }
             if (!level.hasChunkAt(item.blockPosition())) {
@@ -78,7 +82,10 @@ public final class PlayerLootPickup {
             npc.clearMiningDrops();
             return false;
         }
-        return encountered; // keep pending claims if a loaded item still exists
+        // A still-pending UUID may be waiting in the entity manager insertion
+        // queue; retain the task until it becomes visible or the grace ends.
+        return encountered || (!claims.isEmpty() &&
+            level.getGameTime() - npc.miningLootStarted() <= 12L);
     }
 
     /**
