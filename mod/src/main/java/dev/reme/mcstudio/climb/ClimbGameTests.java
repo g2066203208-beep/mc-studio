@@ -324,6 +324,81 @@ public final class ClimbGameTests {
         helper.succeed();
     }
 
+    @GameTest(template="climb_test", timeoutTicks=80)
+    public static void roofMustWaitForPhysicalBodyAlignment(GameTestHelper helper) {
+        BlockPos wall = helper.absolutePos(new BlockPos(3,3,5));
+        BlockPos ceiling = helper.absolutePos(new BlockPos(3,4,4));
+        helper.setBlock(new BlockPos(3,3,5), Blocks.STONE);
+        helper.setBlock(new BlockPos(3,4,4), Blocks.STONE);
+        Player player = helper.makeMockPlayer(GameType.CREATIVE);
+        BlockPos origin = helper.absolutePos(new BlockPos(3,2,3));
+        player.moveTo(origin.getX()+.5,origin.getY(),origin.getZ()+.5,0,0);
+        GripAnchor wallAnchor = new GripAnchor(null,wall,
+                new Vec3(wall.getX()+.5,wall.getY()+.91,wall.getZ()),
+                new Vec3(0,0,-1));
+        GripAnchor roofAnchor = new GripAnchor(null,ceiling,
+                new Vec3(ceiling.getX()+.5,ceiling.getY(),ceiling.getZ()+.5),
+                new Vec3(0,-1,0));
+        ClimbState.remove(player);
+        ClimbState s = ClimbState.of(player);
+        s.enabled=true; s.peakHeld=true; s.left=wallAnchor; s.forward=1;
+        s.grabYaw=0; s.pendingRoof=roofAnchor;
+        s.lastLeft=wallAnchor.localPoint(); s.lastResolvedAnchor=wallAnchor;
+        s.contactNormal=new Vec3(0,0,-1); s.contactPoint=wallAnchor.localPoint();
+        s.hasContact=true;
+        double initialZ=player.getZ();
+        ClimbMotion.tick(player,s);
+        helper.assertTrue(s.pendingRoof != null && s.left.equals(wallAnchor),
+                "A distant ceiling contact must remain PENDING while the body is on the wall");
+        helper.assertTrue(s.poseAction == 8 && s.contactNormal.z < -.8,
+                "Wall/roof transition should animate reach without prematurely changing surface");
+        helper.assertTrue(player.getZ() == initialZ && player.getDeltaMovement().y >= 0,
+                "Bridge may command bounded movement but never teleport or climb DOWN");
+        // Simulate vanilla travel bringing the body physically under the roof.
+        player.moveTo(origin.getX()+.5,origin.getY(),ceiling.getZ()+.46,0,0);
+        ClimbMotion.tick(player,s);
+        helper.assertTrue(s.pendingRoof == null && s.contactNormal.y < -.7,
+                "Entering roof underside should commit a REAL ceiling grip");
+        helper.assertTrue(player.getDeltaMovement().z < -.015,
+                "Roof W must not push back INTO the wall when camera still faces it");
+        player.setYRot(90);
+        ClimbMotion.tick(player,s);
+        helper.assertTrue(player.getDeltaMovement().x < -.12,
+                "Turning camera on roof must immediately steer W toward view yaw");
+        helper.assertTrue(Math.abs(s.grabYaw)>0.1,
+                "Roof body yaw must begin smoothly rotating with the camera");
+        ClimbState.remove(player);
+        helper.setBlock(new BlockPos(3,3,5),Blocks.AIR);
+        helper.setBlock(new BlockPos(3,4,4),Blocks.AIR);
+        helper.succeed();
+    }
+
+    @GameTest(template="climb_test", timeoutTicks=80)
+    public static void roofCameraSteeringAndSableTiltStayTangent(GameTestHelper helper) {
+        Vec3 roof = new Vec3(0,-1,0);
+        Vec3 forward = ClimbSurfaceMath.cameraRelativeRoof(roof,0,1,0);
+        Vec3 turned = ClimbSurfaceMath.cameraRelativeRoof(roof,90,1,0);
+        helper.assertTrue(forward.z>.95 && turned.x<-.95,
+                "Roof W is relative to current view, not old grabbed wall heading");
+        Vec3 tiltedRoof = new Vec3(.2,-.96,.2).normalize();
+        Vec3 tangent = ClimbSurfaceMath.cameraRelativeRoof(tiltedRoof,45,1,0);
+        helper.assertTrue(Math.abs(tangent.dot(tiltedRoof))<.00001,
+                "Rotated Sable roof direction must stay tangent to actual transformed normal");
+        helper.assertTrue(!ClimbSurfaceMath.roofEntryReady(new Vec3(0,2,0),
+                new Vec3(0,4,1.4),roof),
+                "A remote hand contact cannot instantly switch the whole character to ceiling");
+        helper.assertTrue(ClimbSurfaceMath.roofEntryReady(new Vec3(0,3.5,.2),
+                new Vec3(0,4,.3),roof),
+                "Physical below-roof reach should allow contact takeover");
+        Vec3 bridge=ClimbSurfaceMath.roofEntryVelocity(new Vec3(0,3.5,0),
+                new Vec3(0,4,1.2),roof);
+        helper.assertTrue(bridge.y>=0 && bridge.length()<=.17501,
+                "Roof bridge may not fall downward or accelerate past bounded speed");
+        helper.assertTrue(Math.abs(ClimbSurfaceMath.approachYaw(179,-179,18)-181)<.02,
+                "Roof body should rotate shortest path through +/- 180 yaw");
+        helper.succeed();
+    }
+
     private static void assertFace(GameTestHelper helper, Player mock, BlockPos origin,
                                    BlockPos surface, float yaw,float pitch) {
         helper.setBlock(surface,Blocks.STONE);

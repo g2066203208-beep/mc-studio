@@ -169,8 +169,12 @@ public final class ClimbMotion {
                             s.roofTransitionTicks = 0;
                             s.poseAction = 8;
                         }
-                    } else {
-                        // Roof -> wall and ordinary same-face regrips remain
+                    } else if (!ClimbSurfaceMath.ceiling(normal)
+                            || ClimbSurfaceMath.ceiling(candidateNormal)
+                            || SurfaceProbe.nearFaceEdge(oldAnchor)) {
+                        // Roof -> wall is possible ONLY near an actual roof
+                        // edge, not because a ray happened to see an old wall.
+                        // Ordinary same-face regrips remain
                         // bounded by the contact-distance, no new acceleration.
                         s.left = probe;
                         contact = next;
@@ -193,7 +197,7 @@ public final class ClimbMotion {
 
         // Mantling is a separate bounded state machine, not an upward impulse
         // that can be restarted every tick during a camera or face transition.
-        if (PeakLedgeAssist.start(player, s, contact)) {
+        if (s.pendingRoof == null && PeakLedgeAssist.start(player, s, contact)) {
             PeakLedgeAssist.tick(player, s);
             return;
         }
