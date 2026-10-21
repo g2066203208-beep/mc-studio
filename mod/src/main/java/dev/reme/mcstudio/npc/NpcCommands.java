@@ -40,7 +40,11 @@ public final class NpcCommands {
             .then(Commands.literal("radius")
                 .then(Commands.argument("blocks", IntegerArgumentType.integer(16, 128))
                     .executes(ctx -> changeRadius(ctx.getSource(),
-                        IntegerArgumentType.getInteger(ctx, "blocks")))))
+                        IntegerArgumentType.getInteger(ctx, "blocks"), false))))
+            .then(Commands.literal("adminradius").requires(source -> source.hasPermission(2))
+                .then(Commands.argument("blocks", IntegerArgumentType.integer(16, 128))
+                    .executes(ctx -> changeRadius(ctx.getSource(),
+                        IntegerArgumentType.getInteger(ctx, "blocks"), true))))
             .then(Commands.literal("live").executes(ctx -> changeMode(ctx.getSource(), PlayerNpcEntity.Mode.LIVE)))
             .then(Commands.literal("farmer").executes(ctx -> profession(ctx.getSource(), PlayerNpcEntity.Profession.FARMER)))
             .then(Commands.literal("baker").executes(ctx -> profession(ctx.getSource(), PlayerNpcEntity.Profession.BAKER)))
@@ -328,9 +332,10 @@ public final class NpcCommands {
         }
     }
 
-    private static int changeRadius(CommandSourceStack source, int radius)
+    private static int changeRadius(CommandSourceStack source, int radius, boolean admin)
         throws com.mojang.brigadier.exceptions.CommandSyntaxException {
-        PlayerNpcEntity npc = closestOwnedNpc(source.getPlayerOrException());
+        ServerPlayer player = source.getPlayerOrException();
+        PlayerNpcEntity npc = admin ? closestNpc(player) : closestOwnedNpc(player);
         if (npc == null) return 0;
         npc.setRoamingRadius(radius);
         source.sendSuccess(() -> Component.literal(npc.getName().getString()
@@ -348,7 +353,7 @@ public final class NpcCommands {
         ServerPlayer player = source.getPlayerOrException();
         PlayerNpcEntity npc = closestOwnedNpc(player);
         if (npc == null) {
-            source.sendFailure(Component.literal("No NPC owned by you within 16 blocks"));
+            source.sendFailure(Component.literal("No resident within 16 blocks"));
             return 0;
         }
         npc.setMode(mode);
@@ -475,7 +480,9 @@ public final class NpcCommands {
 
     private static int info(CommandSourceStack source) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
         ServerPlayer player = source.getPlayerOrException();
-        PlayerNpcEntity npc = closestOwnedNpc(player);
+        // Anyone may inspect the closest live resident; ownership is needed
+        // only to issue commands that actually mutate that resident.
+        PlayerNpcEntity npc = closestNpc(player);
         if (npc == null) {
             source.sendFailure(Component.literal("No NPC owned by you within 16 blocks"));
             return 0;
