@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RPMS · 真实游戏功能验收</title>
+<link rel="stylesheet" href="./strict.css">
+<style>
+body{height:auto;min-height:100vh}main{max-width:1170px;margin:auto;padding:28px 19px 70px}
+.eyebrow{font-size:12px}.statement{padding:15px 18px;border:1px solid #89664c;border-radius:8px;background:#292720;color:#f8d6aa;margin:15px 0;line-height:1.8}.rowhead{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:17px 0}.kpis>div{background:#172b38;border:1px solid #36546b;border-radius:8px;padding:18px}.kpis strong{display:block;font-size:34px;color:#ffd09d}.kpis small{display:block;color:#a8c3d2}.group{margin-top:24px;border-top:1px solid #36546b;padding-top:17px}.cases{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.case{padding:13px;border:1px solid #385167;background:#182b3a;border-radius:8px}.case b{font-size:13px;color:#e9f1f6}.case p{font-size:11px;color:#a6bcc7;margin-top:7px}.state{display:inline-block;font-size:10px;background:#3d3226;color:#f5d0a7;border:1px solid #846542;border-radius:4px;padding:2px 6px}.case .rowhead{gap:8px}.help{line-height:1.9;color:#a6becc;margin:14px 0}.help a{color:#ffc47d}.big{font-size:28px;font-weight:800;margin:6px 0}.muted{font-size:12px;color:#95aebb}@media(max-width:650px){.cases{grid-template-columns:1fr}.kpis>div{padding:12px}.kpis strong{font-size:25px}.top{height:auto;flex-wrap:wrap;padding:12px}}
+</style></head>
+<body><header class="top"><div class="logo">REME <span>/ RPMS</span></div><nav><a href="./">返回建造工作台</a><a href="./assembly.html">旧 Q12 草图</a><a href="https://github.com/g2066203208-beep/mc-studio">GitHub 项目</a></nav></header>
+<main>
+<div class="eyebrow">NATIVE MINECRAFT / ACCEPTANCE</div>
+<h1 class="big">机械动力 × 航空学 · 真正游戏功能验收</h1>
+<div class="statement"><strong>目前没有完成全功能验收。</strong>“真实 JAR 静态模型渲染通过”“NeoForge 模组编译成功”均不是传动、无线、流体、应力、重力、风、推力或物理装配成功的证明。这里始终公开未通过与未测试项目；只有原版 Mod 游戏内测试及可重复的运行记录才可以升级状态。</div>
+<div class="kpis">
+<div><strong id="n">—</strong><small>需要原版游戏验收的子系统</small></div>
+<div><strong id="passed">—</strong><small>有原版运行证据的系统</small></div>
+<div><strong id="unverified">—</strong><small>未通过完整游戏验收</small></div>
+</div>
+<p class="help">范围：Minecraft 1.21.1 / NeoForge / Create 6.0.10 / Aeronautics 1.3.2。本工作台只负责蓝图与部分静态资源；完整行为必须由安装匹配版本的 <strong>真正 Minecraft 游戏客户端与服务端</strong> 执行。风场、升力、空气阻力等还应区分基础 Mod 机制与额外安装的空气动力学扩展。</p>
+<div id="groups">正在读取验收清单…</div>
+<script type="module">
+const root=document.getElementById('groups'),byid=id=>document.getElementById(id);
+try{
+ const r=await fetch('./native-acceptance.json',{cache:'no-store'});if(!r.ok)throw Error('无法读取验收清单');
+ const report=await r.json(),cases=report.domains;
+ const passed=cases.filter(x=>x.status==='native_passed').length;
+ byid('n').textContent=cases.length;byid('passed').textContent=passed;byid('unverified').textContent=cases.length-passed;
+ root.replaceChildren();
+ for(const family of [...new Set(cases.map(x=>x.family))]){
+  const section=document.createElement('section');section.className='group';
+  const heading=document.createElement('h2');heading.textContent=family+' · 游戏内验收';section.append(heading);
+  const grid=document.createElement('div');grid.className='cases';section.append(grid);
+  for(const item of cases.filter(x=>x.family===family)){
+   const card=document.createElement('article');card.className='case';
+   const title=document.createElement('div');title.className='rowhead';
+   const name=document.createElement('b');name.textContent=item.id+' · '+item.name;
+   const status=document.createElement('span');status.className='state';status.textContent=item.status==='native_passed'?'原版 GameTest 通过':item.status==='preview_only'?'仅网页预览':'尚无原版功能证明';title.append(name,status);
+   const criterion=document.createElement('p');criterion.textContent='验收目标：'+item.criterion;
+   card.append(title,criterion);grid.append(card);
+  }
+  root.append(section);
+ }
+}catch(err){root.textContent='验收清单加载失败：'+err.message;}
+</script></main></body></html>
