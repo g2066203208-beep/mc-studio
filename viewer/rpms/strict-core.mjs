@@ -38,6 +38,10 @@ export function behavior(id){
  return {kind:'block',desc:'可用于方块布局；放置、合成、红石或特殊行为必须在 MC 原版引擎验证。',coverage:'requires-game'};
 }
 export function axisOf(b){
+ // Directional engines/bearings derive shaft orientation from the actual FACING
+ // blockstate, never from an unrelated UI axis dropdown.
+ const k=behavior(b.id).kind;
+ if((k==='source'||k==='bearing')&&DIRECTION_AXIS[b.facing])return DIRECTION_AXIS[b.facing];
  if(typeof b.axis==='string'&&'xyz'.includes(b.axis))return b.axis;
  return DIRECTION_AXIS[b.facing]||'y';
 }
