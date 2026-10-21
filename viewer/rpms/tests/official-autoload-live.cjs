@@ -29,7 +29,8 @@ const path=require('node:path'),fs=require('node:fs');
   fs.writeFileSync(path.join(__dirname,'real-cdn-autoload-result.json'),JSON.stringify(summary,null,2));
   await page.screenshot({path:path.join(__dirname,'real-cdn-autoload-desktop.png'),fullPage:true,timeout:60000});
   assert.ok(states.every(x=>x.phase==='ready'),'Official user-browser direct CDN access failed: '+JSON.stringify(summary));
-  assert.ok(models.some(x=>x.status==='authentic'),'Auto-import did not replace original preview with static Minecraft model');
+  assert.ok(models.filter(x=>x.status==='authentic').length>=4,'Auto-import did not replace original preview with original Minecraft models');
+  assert.ok(models.some(x=>x.pos==='-2,1,0'&&x.status==='authentic'),'Original Simulated swivel bearing did not load automatically');
   assert.equal(errors.length,0,errors.join('\n'));
   console.log('PASS real Chrome browser: zero-upload first-visit original Create/Aeronautics 3D model display');
  }finally{await browser.close()}
