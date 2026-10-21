@@ -1,0 +1,1312 @@
+{
+  "schema": 1,
+  "meaning": "Source-extracted static registry entries only; full actual registry and blockstates must come from user supplied version-matched JAR. No block functionality is implied.",
+  "sources": [
+    {
+      "namespace": "create",
+      "url": "https://raw.githubusercontent.com/Creators-of-Create/Create/7ff2760e4924d35d4bc2e22c4b19923f0178cd16/src/main/java/com/simibubi/create/AllBlocks.java"
+    },
+    {
+      "namespace": "simulated",
+      "url": "https://raw.githubusercontent.com/Creators-of-Aeronautics/Simulated-Project/3705df2062bebba42c3ab3d6b3dd09faa1512850/simulated/common/src/main/java/dev/simulated_team/simulated/index/SimBlocks.java"
+    }
+  ],
+  "entries": [
+    {
+      "id": "create:adjustable_chain_gearshift",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:analog_lever",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:andesite_alloy_block",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:andesite_belt_funnel",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:andesite_casing",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:andesite_door",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:andesite_encased_cogwheel",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:andesite_encased_large_cogwheel",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:andesite_encased_shaft",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:andesite_funnel",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:andesite_ladder",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:andesite_scaffolding",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:andesite_table_cloth",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:andesite_tunnel",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:basin",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:belt",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:blaze_burner",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:bound_cardboard_block",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:brass_belt_funnel",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:brass_block",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:brass_casing",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:brass_door",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:brass_encased_cogwheel",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:brass_encased_large_cogwheel",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:brass_encased_shaft",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:brass_funnel",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:brass_ladder",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:brass_scaffolding",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:brass_table_cloth",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:brass_tunnel",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:cardboard_block",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:cart_assembler",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:chain_conveyor",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:chute",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:clipboard",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:clockwork_bearing",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:clutch",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:cogwheel",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:content_observer",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:contraption_controls",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:controller_rail",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:controls",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:copper_backtank",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:copper_casing",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:copper_door",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:copper_ladder",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:copper_scaffolding",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:copper_table_cloth",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:copper_valve_handle",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:copycat_bars",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:copycat_base",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:copycat_panel",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:copycat_step",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:creative_crate",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:creative_fluid_tank",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:creative_motor",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:crushing_wheel",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:crushing_wheel_controller",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:cuckoo_clock",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:deepslate_zinc_ore",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:deployer",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:depot",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:desk_bell",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:display_board",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:display_link",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:elevator_contact",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:elevator_pulley",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:encased_chain_drive",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:encased_fan",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:encased_fluid_pipe",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:experience_block",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:factory_gauge",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:fake_track",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:fluid_pipe",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:fluid_tank",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:fluid_valve",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:flywheel",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:framed_glass_door",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:framed_glass_trapdoor",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:gantry_carriage",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:gantry_shaft",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:gearbox",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:gearshift",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:glass_fluid_pipe",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:hand_crank",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:haunted_bell",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:hose_pulley",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:industrial_iron_block",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:item_drain",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:item_hatch",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:item_vault",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:large_bogey",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:large_cogwheel",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:large_water_wheel",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:lectern_controller",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:linear_chassis",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:lit_blaze_burner",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:mechanical_arm",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:mechanical_bearing",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:mechanical_crafter",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:mechanical_drill",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:mechanical_harvester",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:mechanical_mixer",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:mechanical_piston",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:mechanical_piston_head",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:mechanical_plough",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:mechanical_press",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:mechanical_pump",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:mechanical_roller",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:mechanical_saw",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:metal_bracket",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:metal_girder",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:metal_girder_encased_shaft",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:millstone",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:minecart_anchor",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:mysterious_cuckoo_clock",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:netherite_backtank",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:nixie_tube",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:nozzle",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:package_frogport",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:packager",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:peculiar_bell",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:piston_extension_pole",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:placard",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:portable_fluid_interface",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:portable_storage_interface",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:powered_latch",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:powered_shaft",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:powered_toggle_latch",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:pulley_magnet",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:pulse_extender",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:pulse_repeater",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:pulse_timer",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:radial_chassis",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:railway_casing",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:raw_zinc_block",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:redstone_contact",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:redstone_link",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:redstone_requester",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:refined_radiance_casing",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:repackager",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:rope",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:rope_pulley",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:rose_quartz_block",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:rose_quartz_lamp",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:rose_quartz_tiles",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:rotation_speed_controller",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:sail_frame",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:schematic_table",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:schematicannon",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:secondary_linear_chassis",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:sequenced_gearshift",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:shadow_steel_casing",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:shaft",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:small_bogey",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:small_rose_quartz_tiles",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:smart_chute",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:smart_fluid_pipe",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:speedometer",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:spout",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:steam_engine",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:steam_whistle",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:steam_whistle_extension",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:sticker",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:sticky_mechanical_piston",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:stock_link",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:stock_ticker",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:stockpile_switch",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:stressometer",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:track",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:track_observer",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:track_signal",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:track_station",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:train_door",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:train_trapdoor",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:turntable",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:water_wheel",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:water_wheel_structure",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:weathered_iron_block",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:weighted_ejector",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:white_sail",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:windmill_bearing",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:wooden_bracket",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:zinc_block",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "create:zinc_ore",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "simulated:absorber",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "simulated:altitude_sensor",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "simulated:analog_transmission",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "simulated:auger_cog",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "simulated:auger_shaft",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "simulated:directional_gearshift",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "simulated:directional_linked_receiver",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "simulated:docking_connector",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "simulated:gimbal_sensor",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "simulated:laser_pointer",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "simulated:laser_sensor",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "simulated:linked_typewriter",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "simulated:merging_glue",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "simulated:modulating_linked_receiver",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "simulated:navigation_table",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "simulated:optical_sensor",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "simulated:paired_docking_connector",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "simulated:physics_assembler",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "simulated:redstone_accumulator",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "simulated:redstone_inductor",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "simulated:redstone_magnet",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "simulated:rope_connector",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "simulated:rope_winch",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "simulated:spring",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "simulated:steering_wheel",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "simulated:swivel_bearing",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "simulated:swivel_bearing_link_block",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "simulated:throttle_lever",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "simulated:torsion_spring",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "simulated:velocity_sensor",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    },
+    {
+      "id": "simulated:white_symmetric_sail",
+      "source": "registered-in-source",
+      "emulation": "UNSUPPORTED",
+      "render": "placeholder-until-local-JAR"
+    }
+  ]
+}
