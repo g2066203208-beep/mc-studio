@@ -338,7 +338,7 @@ $('jars').addEventListener('change',async e=>{
  await renderFromArchives();
 });
 $('clearJars').addEventListener('click',()=>{
- archiveGeneration++;assetArchives=[];assets.clear();jsonCache.clear();textureCache.clear();
+ archiveGeneration++;assetArchives.length=0;assets.clear();jsonCache.clear();textureCache.clear();
  for(const item of blocks)placeholder(item);
  $('assetStatus').textContent='未导入 · 仅显示方块占位结构';
  $('modelState').textContent='未导入';
