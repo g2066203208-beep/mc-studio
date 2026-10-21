@@ -5,6 +5,8 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.LightLayer;
+import net.minecraft.world.level.levelgen.Heightmap;
+import net.minecraft.world.level.block.RenderShape;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
 import net.neoforged.neoforge.network.PacketDistributor;
@@ -26,12 +28,15 @@ import java.util.UUID;
 public final class SeamPreviewSender {
     private static final int RADIUS = 6;
     private static final int DEPTH = 12;
+    private static final int HORIZON_RADIUS = 9;
+    private static final int HORIZON_DEPTH = 320;
     private static final int UPDATE_TICKS = 5;
     private static final int HEARTBEAT_TICKS = 40;
     private static final double VIEW_DISTANCE_TO_SEAM = 32.0;
 
     private record Session(String dimension, String scope,
-                           Map<SeamFrameState.Position, SeamFrameState.Visual> blocks) {}
+                           Map<SeamFrameState.Position, SeamFrameState.Visual> blocks,
+                           Map<SeamFrameState.Position, SeamFrameState.Visual> horizon) {}
     private static final Map<UUID, Session> sessions = new HashMap<>();
     private static final Map<UUID, Long> sequences = new HashMap<>();
     private static MinecraftServer lastServer;
@@ -88,11 +93,20 @@ public final class SeamPreviewSender {
             || !previous.dimension().equals(dimension);
         Map<SeamFrameState.Position, SeamFrameState.Visual> now =
             sample(source, target, selected, cx, cz);
+        // Far-field foveation: one genuine terrain surface per 19x19
+        // column, up to 320 blocks past the seam, streamed at 1 Hz.
+        // This complements near-field volume rather than generating fake land.
+        Map<SeamFrameState.Position, SeamFrameState.Visual> horizon =
+            (full || tick % 20 == 0)
+                ? sampleHorizon(source, target, selected, cx, cz)
+                : previous.horizon();
+        horizon.forEach(now::putIfAbsent);
         var changes = full
             ? SeamFrameState.complete(now)
             : SeamFrameState.difference(previous.blocks(), now);
 
-        sessions.put(id, new Session(dimension, scope, Map.copyOf(now)));
+        sessions.put(id, new Session(dimension, scope,
+            Map.copyOf(now), Map.copyOf(horizon)));
         if (changes.isEmpty() && !full && tick % HEARTBEAT_TICKS != 0) return;
         transmit(player, id, new SeamFrameState.Frame(
             dimension, scope, nextRevision(id), full, changes
@@ -142,6 +156,64 @@ public final class SeamPreviewSender {
             }
         }
         return result;
+    }
+
+    /**
+     * Adaptive distant surface LOD. Above another world's ceiling, use the
+     * populated heightmap (e.g. Overworld terrain lies ~250 blocks below its
+     * world-height seam). Looking into a world's floor, use a bounded upward
+     * search (the End's islands can start dozens of blocks above minY).
+     *
+     * No invented terrain: every point comes from an actual target block.
+     * This does NOT attempt fluid meshes, chunk occlusion, or atmospheric fog.
+     */
+    private static Map<SeamFrameState.Position, SeamFrameState.Visual> sampleHorizon(
+        ServerLevel source, ServerLevel target, SeamGraph.Link link, int cx, int cz
+    ) {
+        Map<SeamFrameState.Position, SeamFrameState.Visual> surface = new HashMap<>();
+        int sourceBound = (int) SeamGraph.boundaryY(link.exit(),
+            source.getMinBuildHeight(), source.getMaxBuildHeight());
+        int targetBound = (int) SeamGraph.boundaryY(link.entry(),
+            target.getMinBuildHeight(), target.getMaxBuildHeight());
+        BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
+        for (int x = cx - HORIZON_RADIUS; x <= cx + HORIZON_RADIUS; x++) {
+            for (int z = cz - HORIZON_RADIUS; z <= cz + HORIZON_RADIUS; z++) {
+                // Far LOD must never synchronously generate missing chunks.
+                if (!target.hasChunk(Math.floorDiv(x, 16), Math.floorDiv(z, 16))) continue;
+                int y;
+                if (link.entry() == SeamGraph.EdgeSide.TOP) {
+                    // One heightmap lookup rather than up to 320 getBlockState calls.
+                    y = Math.min(targetBound - 1,
+                        target.getHeight(Heightmap.Types.WORLD_SURFACE, x, z) - 1);
+                } else {
+                    y = target.getMinBuildHeight();
+                    int limit = Math.min(target.getMaxBuildHeight() - 1,
+                        targetBound + HORIZON_DEPTH - 1);
+                    while (y <= limit) {
+                        pos.set(x, y, z);
+                        if (!target.getBlockState(pos).isAir()) break;
+                        y++;
+                    }
+                    if (y > limit) continue;
+                }
+                int depth = link.entry() == SeamGraph.EdgeSide.TOP
+                    ? targetBound - 1 - y : y - targetBound;
+                if (depth < DEPTH || depth >= HORIZON_DEPTH
+                    || y < target.getMinBuildHeight()
+                    || y >= target.getMaxBuildHeight()) continue;
+                pos.set(x, y, z);
+                BlockState block = target.getBlockState(pos);
+                // Water/lava and empty heightmap cells cannot yet be meshed.
+                if (block.isAir() || block.getRenderShape() != RenderShape.MODEL) continue;
+                int previewY = link.exit() == SeamGraph.EdgeSide.TOP
+                    ? sourceBound + depth : sourceBound - 1 - depth;
+                int light = target.getBrightness(LightLayer.BLOCK, pos)
+                    | (target.getBrightness(LightLayer.SKY, pos) << 4);
+                surface.put(new SeamFrameState.Position(x, previewY, z),
+                    new SeamFrameState.Visual(Block.getId(block), light));
+            }
+        }
+        return surface;
     }
 
     private static long nextRevision(UUID id) {

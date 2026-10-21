@@ -24,7 +24,7 @@ public final class SeamPreviewClient {
     private static final SeamFrameState CACHE = new SeamFrameState();
     private static long lastReceivedTick = -1;
     private static final int EXPIRY_TICKS = 80;
-    private static final double MAX_RENDER_DISTANCE_SQ = 48 * 48;
+    private static final double MAX_RENDER_DISTANCE_SQ = 384 * 384;
 
     private SeamPreviewClient() {}
 
