@@ -56,3 +56,10 @@ bash scripts/build.sh
 后续直接在本聊天描述玩法、报错或想修改的 Mod。助手先读取本工作台与本机基线，尽量独立完成技术工作；只有账号授权、目标不明确或确实需要玩家体验判断时才让用户介入。
 
 当前尚未部署到正式游戏，也尚未完成真实客户端与整合包运行测试。最新构建结果见 `docs/STATUS.md`。
+
+
+## Sable Hands 双手物理攀爬（规划中）
+
+目标：参考 White Knuckle 的左右手独立抓握，保留 Minecraft 原版第一人称方块手臂，在墙壁、平地、天花板及 Sable 动态结构的真实方块表面进行攀附移动。当前仅完成规划和开源研究，尚未实现玩法、运行客户端或做游戏内测试。
+
+从 [玩法工程规格](docs/climbing/SPEC.md)、[开源项目及许可](docs/climbing/OPEN_SOURCE.md)、[测试矩阵](docs/climbing/TEST_PLAN.md)、[开发总提示词](docs/climbing/DEV_PROMPT.md) 开始。下一步是 M0：编写/验证真实表面探测器，然后再逐阶段实现运动功能。其他会话从 docs/HANDOFF.md 接手。
