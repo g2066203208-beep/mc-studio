@@ -79,12 +79,12 @@ public final class SeamRuntimeGameTests {
             new SeamStack.Entry("minecraft:overworld",-64,290,true,true),
             new SeamStack.Entry("minecraft:the_nether",null,128,true,true)
         ),false);
-        if (!SeamStack.read(preset.save()).equals(preset)) {
+        if (!SeamStackStorage.read(SeamStackStorage.save(preset)).equals(preset)) {
             helper.fail("WorldSeam NBT persistence fails to retain ordered stack/Y overrides");
             return;
         }
         try {
-            preset.validate(server);
+            SeamStackStorage.validate(preset,server);
         } catch(IllegalArgumentException ex) {
             helper.fail("WorldSeam vanilla stack runtime validation failed: "+ex.getMessage());
             return;

@@ -32,7 +32,7 @@ public final class SeamSettings extends SavedData {
         result.experimentalNoRespawn = tag.getBoolean("experimentalNoRespawn");
         if (tag.contains("stack",net.minecraft.nbt.Tag.TAG_COMPOUND)) {
             try {
-                result.stack = SeamStack.read(tag.getCompound("stack"));
+                result.stack = SeamStackStorage.read(tag.getCompound("stack"));
                 result.stackChosenByUser = true;
             } catch (IllegalArgumentException ex) {
                 com.mojang.logging.LogUtils.getLogger().error(
@@ -48,7 +48,7 @@ public final class SeamSettings extends SavedData {
     public boolean stackChosenByUser() { return stackChosenByUser; }
 
     public void setStack(SeamStack next, MinecraftServer server) {
-        next.validate(server);
+        SeamStackStorage.validate(next,server);
         if (!stack.equals(next) || !stackChosenByUser) {
             stack=next;
             stackChosenByUser=true;
@@ -94,7 +94,7 @@ public final class SeamSettings extends SavedData {
         tag.putBoolean("enabled", enabled);
         tag.putBoolean("carveNewChunks", carveNewChunks);
         tag.putBoolean("experimentalNoRespawn", experimentalNoRespawn);
-        tag.put("stack",stack.save());
+        tag.put("stack",SeamStackStorage.save(stack));
         return tag;
     }
 }

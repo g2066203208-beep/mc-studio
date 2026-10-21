@@ -1,10 +1,5 @@
 package dev.reme.worldseam;
 
-import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.ListTag;
-import net.minecraft.nbt.Tag;
-import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.level.ServerLevel;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -54,24 +49,6 @@ public record SeamStack(List<Entry> entries, boolean loop) {
         ),false);
     }
 
-    /** All actual target worlds must exist before enabling the stack. */
-    public void validate(MinecraftServer server) {
-        for(Entry e:entries) {
-            ServerLevel level=server.getLevel(
-                net.minecraft.resources.ResourceKey.create(
-                    net.minecraft.core.registries.Registries.DIMENSION,
-                    net.minecraft.resources.ResourceLocation.parse(e.id())));
-            if(level==null)throw new IllegalArgumentException(
-                "Missing dimension in this save (check mod/datapack): "+e.id());
-            int min=level.getMinBuildHeight(), max=level.getMaxBuildHeight();
-            int low=e.bottomY()!=null?e.bottomY():min;
-            int top=e.topY()!=null?e.topY():max;
-            if(low<min||top>max||low>=top)
-                throw new IllegalArgumentException(e.id()+" seam heights "+
-                    low+".."+top+" outside build range ["+min+","+max+")");
-        }
-    }
-
     public int edge(Entry e,SeamGraph.EdgeSide side,int min,int max) {
         if(side==SeamGraph.EdgeSide.BOTTOM)
             return e.bottomY()==null?min:e.bottomY();
@@ -109,35 +86,4 @@ public record SeamStack(List<Entry> entries, boolean loop) {
         return links().stream().filter(link->link.source().equals(id)).toList();
     }
 
-    public CompoundTag save() {
-        CompoundTag tag=new CompoundTag();
-        tag.putInt("schema",1);
-        tag.putBoolean("loop",loop);
-        ListTag list=new ListTag();
-        for(Entry entry:entries){
-            CompoundTag e=new CompoundTag();
-            e.putString("id",entry.id());
-            e.putBoolean("up",entry.connectsUp());
-            e.putBoolean("down",entry.connectsDown());
-            if(entry.bottomY()!=null)e.putInt("bottomY",entry.bottomY());
-            if(entry.topY()!=null)e.putInt("topY",entry.topY());
-            list.add(e);
-        }
-        tag.put("entries",list);
-        return tag;
-    }
-
-    public static SeamStack read(CompoundTag tag) {
-        List<Entry> entries=new ArrayList<>();
-        ListTag list=tag.getList("entries",Tag.TAG_COMPOUND);
-        if(list.isEmpty())throw new IllegalArgumentException("Empty saved dimension stack");
-        for(int i=0;i<list.size();i++){
-            CompoundTag e=list.getCompound(i);
-            entries.add(new Entry(e.getString("id"),
-                e.contains("bottomY",Tag.TAG_INT)?e.getInt("bottomY"):null,
-                e.contains("topY",Tag.TAG_INT)?e.getInt("topY"):null,
-                e.getBoolean("up"),e.getBoolean("down")));
-        }
-        return new SeamStack(entries,tag.getBoolean("loop"));
-    }
 }
