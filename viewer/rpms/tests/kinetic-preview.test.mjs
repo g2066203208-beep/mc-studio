@@ -36,6 +36,14 @@ clutch.powered=true;
 assert.equal(rotationRatio(motor,clutch),0,'powered clutch disconnects from Create kinetic network');
 assert.equal(previewStress([motor,clutch,beyond]).rpms['2,1,0'],undefined);
 assert.equal(axisOf(motor),'x');
+assert.equal(axisOf(b('create:mechanical_press',[2,1,0],'y',{facing:'east'})),'x',
+ 'Create press input axis must derive from horizontal facing');
+assert.equal(rotationRatio(shaft,b('create:mechanical_mixer',[2,1,0],'x')),0,
+ 'original mixer HAS NO external shaft input; must not fake power');
+const drill=b('create:mechanical_drill',[2,1,0],'x',{facing:'east'});
+assert.equal(rotationRatio(shaft,drill),1,'Create drill receives input on back face');
+const drillWrong=b('create:mechanical_drill',[2,1,0],'x',{facing:'west'});
+assert.equal(rotationRatio(shaft,drillWrong),0,'Create drill refuses input on working head face');
 const overloadSeparate=previewStress([motor,b('create:mechanical_press',[9,1,9])],{capacityScale:.0001});
 assert.equal(overloadSeparate.summary.overstressed,0,'unconnected load cannot stall an unrelated motor');
 assert.equal(overloadSeparate.rpms['0,1,0'],16);
