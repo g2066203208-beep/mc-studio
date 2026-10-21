@@ -7,7 +7,7 @@
 - **Mod ID：`worldseam`**
 - Java 包：`dev.reme.worldseam`
 - 独立 Gradle 工程：`mods/worldseam/`
-- 构建产物：`mods/worldseam/build/libs/worldseam-0.8.0-dev.jar`
+- 构建产物：`mods/worldseam/build/libs/worldseam-0.9.2-dev.jar`
 - 依赖：Minecraft 与 NeoForge；**不依赖 PEAK 攀爬，也不依赖 Immersive Portals**。
 
 ## 为什么和 PEAK 完全独立
@@ -90,3 +90,12 @@ v0.5 的 teleportTo 仍引发原版 ClientboundRespawnPacket/加载界面。本�
 以前长期没有新的区块包时，原生几何缓存会在 2400 tick 后清空，即使目标 `ClientLevel` 仍然驻留。本次移除了这种流量驱动的过期逻辑；生命周期跟随真实次级世界、当前源/目标维度及退出/转维清理。
 
 **尚未完成**：独立第二 `LevelRenderer` 在同帧中的帧缓冲合成、遮挡/深度/流体/粒子及远端实体模拟。几何代理的 3500 模型/帧预算仍可能在复杂环境下影响 FPS。这次修复只解决可复现的 CPU 重建尖峰和静止预览错误过期，不代表视觉完全无缝。CI 真实 GUI 截图与重建性能指标必须独立核对。
+
+
+## v0.9.2-dev — 真客户端禁用清理和协议同步
+
+修复 v0.9.1 长驻留远端渲染缓存在服务器关闭 WorldSeam 后仍可能滞留的问题。之前的堆叠网络同步只依据 `stackRevision`，管理员执行 `/worldseam disable` 不改变维度堆叠版本，客户端收不到禁用信息。现在协议快照加入 `enabled` 状态，使用 `SeamSyncStamp(revision, enabled)` 去重；关闭时立即清空次级 `ClientLevel`、`LevelRenderer`、原生几何重建任务、稀疏代理和远端区块段缓存。延迟抵达的旧区块包会因为客户端状态 OFF 被忽略；离线玩家的同步 ledger 被清理。网络协议由 3 升级为 4，必须客户端与服务端使用同一版本。
+
+真实 NeoForge 单人 GUI 的 E2E 在双向穿越、末地预览后，会从服务端禁用 Mod 并明确要求 `WORLDSEAM_E2E_PASS_DISABLE_CLEARED`，否则截图工作流不得绿灯。纯 Java JUnit 测试验证启停切换即使堆叠修订号不变也会更换同步标记。
+
+**还未完成**：真正双世界同帧透明/深度合成、远端实体/流体/天空、Sable 兼容及持续 FPS 帧时间测量。
