@@ -1,0 +1,11 @@
+{
+  "mod.worldseam.name": "界缝 · 维度堆叠",
+  "gui.worldseam.stack": "维度堆叠设置",
+  "gui.worldseam.under": "向下连接",
+  "gui.worldseam.over": "向上连接",
+  "gui.worldseam.end": "末地",
+  "gui.worldseam.nether": "下界",
+  "gui.worldseam.overworld": "主世界",
+  "gui.worldseam.save": "保存维度堆叠",
+  "gui.worldseam.cancel": "取消"
+}

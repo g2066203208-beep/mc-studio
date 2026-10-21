@@ -19,7 +19,7 @@ public final class SeamWorldCreation {
 
     private static void onScreenInit(ScreenEvent.Init.Post e) {
         if (!(e.getScreen() instanceof CreateWorldScreen screen))return;
-        e.addListener(Button.builder(net.minecraft.network.chat.Component.literal("WorldSeam: Stack"),
+        e.addListener(Button.builder(net.minecraft.network.chat.Component.literal("维度堆叠设置"),
             button -> Minecraft.getInstance().setScreen(
                 new SeamStackScreen(screen,configured.getOrDefault(screen,SeamStack.defaults()))
             )).bounds(screen.width/2-96,screen.height-64,192,20).build());

@@ -135,7 +135,7 @@ public final class SeamStackScreen extends Screen {
 
         int footer=panelY+panelH-36;
         button("取消",panelX+14,footer,86,24,this::onClose);
-        button("循环：关",panelX+109,footer,100,24,()->{
+        button("循环："+(loop?"开":"关"),panelX+109,footer,100,24,()->{
             if(!saveFields())return;
             loop=!loop;
             rebuild();
@@ -294,10 +294,12 @@ public final class SeamStackScreen extends Screen {
             leftX+leftW/2,listY+rowsVisible*rowH+46,WHITE);
         g.drawString(font,"连通开关",rightX+12,panelY+190,MUTED);
         g.drawString(font,"层级排序",rightX+12,panelY+233,MUTED);
-        g.drawString(font,"仅修改连接面，不修改原版世界生成高度",
-            rightX+12,panelY+308,0xFFE1B680);
-        g.drawString(font,"若维度不存在，服务器会拒绝启用堆叠",
-            rightX+12,panelY+324,MUTED);
+        if(panelH>=390) {
+            g.drawString(font,"仅修改连接面，不修改世界生成高度",
+                rightX+12,panelY+308,0xFFE1B680);
+            g.drawString(font,"不存在的维度会被服务器拒绝",
+                rightX+12,panelY+324,MUTED);
+        }
         if(loop)g.drawString(font,"循环连接：已开启",panelX+228,
             panelY+panelH-29,ACCENT);
         if(!error.isBlank())
