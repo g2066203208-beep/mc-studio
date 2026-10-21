@@ -28,4 +28,5 @@ jobs:
       - name: Syntax-check design validator
         run: python3 -m py_compile projects/physical-machinery/validate_design.py
       - name: Scope note
-        run: echo "DESIGN-ONLY CI: this does not mean the physical robot can stand or walk."
+        run: |
+          echo "DESIGN-ONLY CI: this does not mean the physical robot can stand or walk."
