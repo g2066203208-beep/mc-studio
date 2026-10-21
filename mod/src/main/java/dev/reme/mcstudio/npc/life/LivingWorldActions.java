@@ -110,14 +110,15 @@ public final class LivingWorldActions {
         List<Monster> threats = level.getEntitiesOfClass(Monster.class,
             npc.getBoundingBox().inflate(11.0), m -> m.isAlive() && npc.hasLineOfSight(m));
         if (threats.isEmpty() && npc.isAfraid(level.getGameTime())) {
-            var attacker = level.getPlayerByUUID(npc.recentAggressor());
+            var attacker = npc.recentAggressor() == null ? null :
+                level.getEntity(npc.recentAggressor());
             if (attacker != null && npc.distanceToSqr(attacker) < 256) {
                 double dx = npc.getX() - attacker.getX();
                 double dz = npc.getZ() - attacker.getZ();
                 double length = Math.max(Math.sqrt(dx * dx + dz * dz), 0.01);
                 npc.getNavigation().moveTo(npc.getX() + dx / length * 12.0,
                     npc.getY(), npc.getZ() + dz / length * 12.0, 1.25);
-                npc.setAction("escaping an attacking player");
+                npc.setAction("escaping a witnessed attacker or caravan robber");
             }
             return;
         }
