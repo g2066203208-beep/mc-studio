@@ -1,0 +1,374 @@
+{
+  "schemaVersion": 1,
+  "doc": "RPMS-Q12 candidate design: NOT a runnable assembly",
+  "status": "DESIGN_ONLY",
+  "target": {
+    "minecraft": "1.21.1",
+    "neoForge": "21.1.248",
+    "sable": "2.0.6",
+    "aeronautics": "UNVERIFIED_RELEASE"
+  },
+  "coordinateSystem": {
+    "bodyForward": "+Z",
+    "bodyRight": "+X",
+    "worldUp": "+Y",
+    "angle": "radians in software; degree limits in this design config",
+    "length": "minecraft block",
+    "force": "SABLE_ENGINE_UNITS_UNCALIBRATED"
+  },
+  "prototype": {
+    "name": "RPMS-Q12",
+    "enabledActuatedJoints": 12,
+    "rigidBodies": 13,
+    "legCount": 4,
+    "stanceMode": "QUASISTATIC_WAVE_CRAWL",
+    "manualPoseTeleportForbidden": true
+  },
+  "physicalCalibration": {
+    "massTotal": null,
+    "gravityEngineUnits": null,
+    "frictionCoefficient": null,
+    "physicsStepSeconds": null,
+    "status": "NOT_MEASURED"
+  },
+  "segments": [
+    {
+      "id": "BODY",
+      "parent": null,
+      "kind": "root",
+      "runtimeSubLevelUuid": null
+    },
+    {
+      "id": "LF_HIP_CARRIER",
+      "parent": "BODY",
+      "kind": "hip_carrier",
+      "runtimeSubLevelUuid": null
+    },
+    {
+      "id": "LF_UPPER",
+      "parent": "LF_HIP_CARRIER",
+      "kind": "upper_leg",
+      "runtimeSubLevelUuid": null
+    },
+    {
+      "id": "LF_LOWER_FOOT",
+      "parent": "LF_UPPER",
+      "kind": "lower_foot",
+      "runtimeSubLevelUuid": null
+    },
+    {
+      "id": "RF_HIP_CARRIER",
+      "parent": "BODY",
+      "kind": "hip_carrier",
+      "runtimeSubLevelUuid": null
+    },
+    {
+      "id": "RF_UPPER",
+      "parent": "RF_HIP_CARRIER",
+      "kind": "upper_leg",
+      "runtimeSubLevelUuid": null
+    },
+    {
+      "id": "RF_LOWER_FOOT",
+      "parent": "RF_UPPER",
+      "kind": "lower_foot",
+      "runtimeSubLevelUuid": null
+    },
+    {
+      "id": "LR_HIP_CARRIER",
+      "parent": "BODY",
+      "kind": "hip_carrier",
+      "runtimeSubLevelUuid": null
+    },
+    {
+      "id": "LR_UPPER",
+      "parent": "LR_HIP_CARRIER",
+      "kind": "upper_leg",
+      "runtimeSubLevelUuid": null
+    },
+    {
+      "id": "LR_LOWER_FOOT",
+      "parent": "LR_UPPER",
+      "kind": "lower_foot",
+      "runtimeSubLevelUuid": null
+    },
+    {
+      "id": "RR_HIP_CARRIER",
+      "parent": "BODY",
+      "kind": "hip_carrier",
+      "runtimeSubLevelUuid": null
+    },
+    {
+      "id": "RR_UPPER",
+      "parent": "RR_HIP_CARRIER",
+      "kind": "upper_leg",
+      "runtimeSubLevelUuid": null
+    },
+    {
+      "id": "RR_LOWER_FOOT",
+      "parent": "RR_UPPER",
+      "kind": "lower_foot",
+      "runtimeSubLevelUuid": null
+    }
+  ],
+  "joints": [
+    {
+      "id": "LF.HAA",
+      "parentSegment": "BODY",
+      "childSegment": "LF_HIP_CARRIER",
+      "type": "ROTARY",
+      "axisParentLocal": [
+        0,
+        0,
+        1
+      ],
+      "minDeg": -25,
+      "maxDeg": 25,
+      "drive": "REQUIRES_PHYSICAL_SERVO",
+      "measuredTorqueMax": null,
+      "measuredSpeedMax": null,
+      "jointZeroCalibration": null,
+      "physicalConstraintUuid": null,
+      "validationState": "NOT_MEASURED"
+    },
+    {
+      "id": "LF.HFE",
+      "parentSegment": "LF_HIP_CARRIER",
+      "childSegment": "LF_UPPER",
+      "type": "ROTARY",
+      "axisParentLocal": [
+        1,
+        0,
+        0
+      ],
+      "minDeg": -50,
+      "maxDeg": 60,
+      "drive": "REQUIRES_PHYSICAL_SERVO",
+      "measuredTorqueMax": null,
+      "measuredSpeedMax": null,
+      "jointZeroCalibration": null,
+      "physicalConstraintUuid": null,
+      "validationState": "NOT_MEASURED"
+    },
+    {
+      "id": "LF.KFE",
+      "parentSegment": "LF_UPPER",
+      "childSegment": "LF_LOWER_FOOT",
+      "type": "ROTARY",
+      "axisParentLocal": [
+        1,
+        0,
+        0
+      ],
+      "minDeg": 10,
+      "maxDeg": 135,
+      "drive": "REQUIRES_PHYSICAL_SERVO",
+      "measuredTorqueMax": null,
+      "measuredSpeedMax": null,
+      "jointZeroCalibration": null,
+      "physicalConstraintUuid": null,
+      "validationState": "NOT_MEASURED"
+    },
+    {
+      "id": "RF.HAA",
+      "parentSegment": "BODY",
+      "childSegment": "RF_HIP_CARRIER",
+      "type": "ROTARY",
+      "axisParentLocal": [
+        0,
+        0,
+        1
+      ],
+      "minDeg": -25,
+      "maxDeg": 25,
+      "drive": "REQUIRES_PHYSICAL_SERVO",
+      "measuredTorqueMax": null,
+      "measuredSpeedMax": null,
+      "jointZeroCalibration": null,
+      "physicalConstraintUuid": null,
+      "validationState": "NOT_MEASURED"
+    },
+    {
+      "id": "RF.HFE",
+      "parentSegment": "RF_HIP_CARRIER",
+      "childSegment": "RF_UPPER",
+      "type": "ROTARY",
+      "axisParentLocal": [
+        1,
+        0,
+        0
+      ],
+      "minDeg": -50,
+      "maxDeg": 60,
+      "drive": "REQUIRES_PHYSICAL_SERVO",
+      "measuredTorqueMax": null,
+      "measuredSpeedMax": null,
+      "jointZeroCalibration": null,
+      "physicalConstraintUuid": null,
+      "validationState": "NOT_MEASURED"
+    },
+    {
+      "id": "RF.KFE",
+      "parentSegment": "RF_UPPER",
+      "childSegment": "RF_LOWER_FOOT",
+      "type": "ROTARY",
+      "axisParentLocal": [
+        1,
+        0,
+        0
+      ],
+      "minDeg": 10,
+      "maxDeg": 135,
+      "drive": "REQUIRES_PHYSICAL_SERVO",
+      "measuredTorqueMax": null,
+      "measuredSpeedMax": null,
+      "jointZeroCalibration": null,
+      "physicalConstraintUuid": null,
+      "validationState": "NOT_MEASURED"
+    },
+    {
+      "id": "LR.HAA",
+      "parentSegment": "BODY",
+      "childSegment": "LR_HIP_CARRIER",
+      "type": "ROTARY",
+      "axisParentLocal": [
+        0,
+        0,
+        1
+      ],
+      "minDeg": -25,
+      "maxDeg": 25,
+      "drive": "REQUIRES_PHYSICAL_SERVO",
+      "measuredTorqueMax": null,
+      "measuredSpeedMax": null,
+      "jointZeroCalibration": null,
+      "physicalConstraintUuid": null,
+      "validationState": "NOT_MEASURED"
+    },
+    {
+      "id": "LR.HFE",
+      "parentSegment": "LR_HIP_CARRIER",
+      "childSegment": "LR_UPPER",
+      "type": "ROTARY",
+      "axisParentLocal": [
+        1,
+        0,
+        0
+      ],
+      "minDeg": -50,
+      "maxDeg": 60,
+      "drive": "REQUIRES_PHYSICAL_SERVO",
+      "measuredTorqueMax": null,
+      "measuredSpeedMax": null,
+      "jointZeroCalibration": null,
+      "physicalConstraintUuid": null,
+      "validationState": "NOT_MEASURED"
+    },
+    {
+      "id": "LR.KFE",
+      "parentSegment": "LR_UPPER",
+      "childSegment": "LR_LOWER_FOOT",
+      "type": "ROTARY",
+      "axisParentLocal": [
+        1,
+        0,
+        0
+      ],
+      "minDeg": 10,
+      "maxDeg": 135,
+      "drive": "REQUIRES_PHYSICAL_SERVO",
+      "measuredTorqueMax": null,
+      "measuredSpeedMax": null,
+      "jointZeroCalibration": null,
+      "physicalConstraintUuid": null,
+      "validationState": "NOT_MEASURED"
+    },
+    {
+      "id": "RR.HAA",
+      "parentSegment": "BODY",
+      "childSegment": "RR_HIP_CARRIER",
+      "type": "ROTARY",
+      "axisParentLocal": [
+        0,
+        0,
+        1
+      ],
+      "minDeg": -25,
+      "maxDeg": 25,
+      "drive": "REQUIRES_PHYSICAL_SERVO",
+      "measuredTorqueMax": null,
+      "measuredSpeedMax": null,
+      "jointZeroCalibration": null,
+      "physicalConstraintUuid": null,
+      "validationState": "NOT_MEASURED"
+    },
+    {
+      "id": "RR.HFE",
+      "parentSegment": "RR_HIP_CARRIER",
+      "childSegment": "RR_UPPER",
+      "type": "ROTARY",
+      "axisParentLocal": [
+        1,
+        0,
+        0
+      ],
+      "minDeg": -50,
+      "maxDeg": 60,
+      "drive": "REQUIRES_PHYSICAL_SERVO",
+      "measuredTorqueMax": null,
+      "measuredSpeedMax": null,
+      "jointZeroCalibration": null,
+      "physicalConstraintUuid": null,
+      "validationState": "NOT_MEASURED"
+    },
+    {
+      "id": "RR.KFE",
+      "parentSegment": "RR_UPPER",
+      "childSegment": "RR_LOWER_FOOT",
+      "type": "ROTARY",
+      "axisParentLocal": [
+        1,
+        0,
+        0
+      ],
+      "minDeg": 10,
+      "maxDeg": 135,
+      "drive": "REQUIRES_PHYSICAL_SERVO",
+      "measuredTorqueMax": null,
+      "measuredSpeedMax": null,
+      "jointZeroCalibration": null,
+      "physicalConstraintUuid": null,
+      "validationState": "NOT_MEASURED"
+    }
+  ],
+  "feet": [
+    {
+      "id": "LF.FOOT",
+      "segmentId": "LF_LOWER_FOOT",
+      "contactSource": "REQUIRES_CALIBRATION",
+      "contactPadBlock": "rpms:foot_contact_pad",
+      "isActuated": false
+    },
+    {
+      "id": "RF.FOOT",
+      "segmentId": "RF_LOWER_FOOT",
+      "contactSource": "REQUIRES_CALIBRATION",
+      "contactPadBlock": "rpms:foot_contact_pad",
+      "isActuated": false
+    },
+    {
+      "id": "LR.FOOT",
+      "segmentId": "LR_LOWER_FOOT",
+      "contactSource": "REQUIRES_CALIBRATION",
+      "contactPadBlock": "rpms:foot_contact_pad",
+      "isActuated": false
+    },
+    {
+      "id": "RR.FOOT",
+      "segmentId": "RR_LOWER_FOOT",
+      "contactSource": "REQUIRES_CALIBRATION",
+      "contactPadBlock": "rpms:foot_contact_pad",
+      "isActuated": false
+    }
+  ]
+}
