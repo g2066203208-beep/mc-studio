@@ -3,7 +3,6 @@ package dev.reme.worldseam;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import java.util.ArrayList;
@@ -22,8 +21,9 @@ public record SeamStack(List<Entry> entries, boolean loop) {
     public record Entry(String id, Integer bottomY, Integer topY,
                         boolean connectsUp, boolean connectsDown) {
         public Entry {
-            ResourceLocation parsed=ResourceLocation.tryParse(id);
-            if(parsed==null || !id.equals(parsed.toString()))
+            // Pure JVM validation: JUnit cannot load Minecraft ResourceLocation
+            // without the NeoForge launch environment.
+            if(id==null || !id.matches("[a-z0-9_.-]+:[a-z0-9_./-]+"))
                 throw new IllegalArgumentException("Invalid dimension ID: "+id);
             if(bottomY!=null && (bottomY < -4096 || bottomY>4096))
                 throw new IllegalArgumentException("bottomY outside safety limit");
@@ -60,7 +60,7 @@ public record SeamStack(List<Entry> entries, boolean loop) {
             ServerLevel level=server.getLevel(
                 net.minecraft.resources.ResourceKey.create(
                     net.minecraft.core.registries.Registries.DIMENSION,
-                    ResourceLocation.parse(e.id())));
+                    net.minecraft.resources.ResourceLocation.parse(e.id())));
             if(level==null)throw new IllegalArgumentException(
                 "Missing dimension in this save (check mod/datapack): "+e.id());
             int min=level.getMinBuildHeight(), max=level.getMaxBuildHeight();
