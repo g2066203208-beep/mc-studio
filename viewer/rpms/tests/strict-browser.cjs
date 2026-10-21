@@ -28,6 +28,7 @@ try{
  await page.locator('[data-mode="place"]').click();
  const box=await page.locator('#view').boundingBox();
  await page.mouse.click(box.x+box.width/2,box.y+box.height/2);
+ console.log('Placement diagnostics:',await page.evaluate(()=>({count:window.__STRICT_API__.getState().length,status:document.getElementById('canvasStatus').textContent,mode:document.querySelector('[data-mode].active')?.dataset.mode,hit:window.__STRICT_DEBUG__})));
  assert.equal(await page.locator('#blocksNum').textContent(),'1','click-to-place MC block must work');
  await page.mouse.click(box.x+box.width/2,box.y+box.height/2,{button:'right'});
  assert.equal(await page.locator('#blocksNum').textContent(),'0','right-click-to-break MC block must work');
