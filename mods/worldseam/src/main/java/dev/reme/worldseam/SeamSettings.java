@@ -9,6 +9,7 @@ import net.minecraft.world.level.saveddata.SavedData;
 public final class SeamSettings extends SavedData {
     private boolean enabled;
     private boolean carveNewChunks;
+    private boolean crossSeamExplosions;
     private boolean experimentalNoRespawn;
     private SeamStack stack = SeamStack.defaults();
     private boolean stackChosenByUser;
@@ -29,6 +30,7 @@ public final class SeamSettings extends SavedData {
         SeamSettings result = new SeamSettings();
         result.enabled = tag.getBoolean("enabled");
         result.carveNewChunks = tag.getBoolean("carveNewChunks");
+        result.crossSeamExplosions = tag.getBoolean("crossSeamExplosions");
         result.experimentalNoRespawn = tag.getBoolean("experimentalNoRespawn");
         if (tag.contains("stack",net.minecraft.nbt.Tag.TAG_COMPOUND)) {
             try {
@@ -62,6 +64,14 @@ public final class SeamSettings extends SavedData {
     }
 
     public boolean carveNewChunks() { return carveNewChunks; }
+    public boolean crossSeamExplosions() { return crossSeamExplosions; }
+
+    public void setCrossSeamExplosions(boolean next) {
+        if (crossSeamExplosions != next) {
+            crossSeamExplosions = next;
+            setDirty();
+        }
+    }
     public boolean experimentalNoRespawn() { return experimentalNoRespawn; }
 
     public void setExperimentalNoRespawn(boolean v) {
@@ -93,6 +103,7 @@ public final class SeamSettings extends SavedData {
     public CompoundTag save(CompoundTag tag, HolderLookup.Provider registries) {
         tag.putBoolean("enabled", enabled);
         tag.putBoolean("carveNewChunks", carveNewChunks);
+        tag.putBoolean("crossSeamExplosions", crossSeamExplosions);
         tag.putBoolean("experimentalNoRespawn", experimentalNoRespawn);
         tag.put("stack",SeamStackStorage.save(stack));
         return tag;
