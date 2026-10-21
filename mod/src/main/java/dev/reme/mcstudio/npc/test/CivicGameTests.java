@@ -14,6 +14,7 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.entity.MobSpawnType;
 import dev.reme.mcstudio.npc.life.MovementPolicy;
 import dev.reme.mcstudio.npc.life.DailyRoaming;
+import dev.reme.mcstudio.npc.life.NaturalResidentSpawn;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -146,6 +147,25 @@ public final class CivicGameTests {
             !DailyRoaming.inRange(after, anchor.offset(30, 0, 20)) ||
             DailyRoaming.inRange(after, anchor.offset(60, 0, 0)))
             throw new AssertionError("saved roaming territory not restored correctly");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 100)
+    public static void local_spawn_cap_prevents_overpopulation(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos base = helper.absolutePos(new BlockPos(2, 1, 2));
+        if (NaturalResidentSpawn.atCapacity(level, base))
+            throw new AssertionError("test area already populated");
+        for (int i = 0; i < NaturalResidentSpawn.MAX_WITHIN_72_BLOCKS; i++) {
+            PlayerNpcEntity resident = NpcRegistry.PLAYER_NPC.get().create(level);
+            if (resident == null) throw new AssertionError("entity type missing");
+            resident.moveTo(base.getX() + i + 0.5, base.getY(),
+                base.getZ() + 0.5, 0, 0);
+            if (!level.addFreshEntity(resident))
+                throw new AssertionError("failed adding test resident");
+        }
+        if (!NaturalResidentSpawn.atCapacity(level, base))
+            throw new AssertionError("natural spawn population cap not enforced");
         helper.succeed();
     }
 

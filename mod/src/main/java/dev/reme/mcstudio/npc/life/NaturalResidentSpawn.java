@@ -19,6 +19,12 @@ public final class NaturalResidentSpawn {
     public static final int MAX_WITHIN_72_BLOCKS = 4;
     private NaturalResidentSpawn() {}
 
+    public static boolean atCapacity(ServerLevel level, BlockPos position) {
+        return level.getEntitiesOfClass(PlayerNpcEntity.class,
+            new AABB(position).inflate(72.0),
+            PlayerNpcEntity::isAlive).size() >= MAX_WITHIN_72_BLOCKS;
+    }
+
     public static void register(RegisterSpawnPlacementsEvent event) {
         event.register(NpcRegistry.PLAYER_NPC.get(),
             SpawnPlacementTypes.ON_GROUND,
@@ -35,10 +41,7 @@ public final class NaturalResidentSpawn {
                 var soil = world.getBlockState(position.below());
                 if (!(soil.is(Blocks.GRASS_BLOCK) || soil.is(Blocks.DIRT_PATH) ||
                     soil.is(Blocks.PODZOL) || soil.is(Blocks.COARSE_DIRT))) return false;
-                if (level.getEntitiesOfClass(PlayerNpcEntity.class,
-                    new AABB(position).inflate(72.0),
-                    PlayerNpcEntity::isAlive).size() >= MAX_WITHIN_72_BLOCKS)
-                    return false;
+                if (atCapacity(level, position)) return false;
                 return true;
             },
             RegisterSpawnPlacementsEvent.Operation.REPLACE
