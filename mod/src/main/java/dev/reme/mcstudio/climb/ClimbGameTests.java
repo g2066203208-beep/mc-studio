@@ -399,6 +399,8 @@ public final class ClimbGameTests {
                 "Roof bridge may not fall downward or accelerate past bounded speed");
         helper.assertTrue(Math.abs(ClimbSurfaceMath.approachYaw(179,-179,18)-181)<.02,
                 "Roof body should rotate shortest path through +/- 180 yaw");
+        helper.assertTrue(ClimbSurfaceMath.approachYaw(0,180,19) > 18,
+                "Exactly +180 must choose stable positive direction, not reverse to -19");
         helper.succeed();
     }
 
