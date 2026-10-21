@@ -2,6 +2,8 @@ package dev.reme.worldseam;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.chunk.ChunkAccess;
 import net.neoforged.neoforge.event.level.ChunkEvent;
@@ -19,6 +21,39 @@ import net.neoforged.neoforge.event.level.ChunkEvent;
  */
 public final class SeamTerrain {
     private SeamTerrain() {}
+
+    /**
+     * EXPLICIT destructive test-world repair of one existing 16x16 column,
+     * synchronously on server thread with vanilla block change/light updates.
+     * Called only from the admin-only /worldseam setup-test command.
+     */
+    public static int openTestColumn(MinecraftServer server, int x, int z) {
+        int changed = 0;
+        for (var key : java.util.List.of(Level.OVERWORLD, Level.NETHER)) {
+            ServerLevel world = server.getLevel(key);
+            if (world == null) continue;
+            var range = SeamBounds.newChunkCarveRange(
+                world.dimension().location().toString(), world.getMinBuildHeight()
+            );
+            if (range == null) continue;
+            int cx = Math.floorDiv(x,16);
+            int cz = Math.floorDiv(z,16);
+            world.getChunk(cx,cz); // exactly one column per dimension
+            BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
+            int baseX = cx << 4;
+            int baseZ = cz << 4;
+            for (int y=range.minY(); y<=range.maxY(); y++) {
+                for (int dz=0;dz<16;dz++) for(int dx=0;dx<16;dx++) {
+                    pos.set(baseX+dx,y,baseZ+dz);
+                    if (world.getBlockState(pos).is(Blocks.BEDROCK)) {
+                        if (world.setBlock(pos, Blocks.AIR.defaultBlockState(), 3))
+                            changed++;
+                    }
+                }
+            }
+        }
+        return changed;
+    }
 
     public static void onChunkLoad(ChunkEvent.Load event) {
         if (!event.isNewChunk() || !(event.getLevel() instanceof ServerLevel level))

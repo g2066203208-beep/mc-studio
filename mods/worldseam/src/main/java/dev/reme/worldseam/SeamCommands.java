@@ -22,6 +22,9 @@ public final class SeamCommands {
                 .then(Commands.literal("disable")
                     .requires(src -> src.hasPermission(2))
                     .executes(ctx -> toggle(ctx, false)))
+                .then(Commands.literal("setup-test")
+                    .requires(src -> src.hasPermission(4))
+                    .executes(SeamCommands::setupTest))
                 .then(Commands.literal("smooth")
                     .requires(src -> src.hasPermission(2))
                     .then(Commands.literal("enable").executes(ctx -> smooth(ctx,true)))
@@ -31,6 +34,24 @@ public final class SeamCommands {
                     .then(Commands.literal("enable").executes(ctx -> terrain(ctx,true)))
                     .then(Commands.literal("disable").executes(ctx -> terrain(ctx,false))))
                 .then(Commands.literal("probe").executes(SeamCommands::probe)));
+    }
+
+    private static int setupTest(CommandContext<CommandSourceStack> ctx) {
+        var src = ctx.getSource();
+        var cfg = SeamSettings.get(src.getServer());
+        cfg.setEnabled(true); // also arms the no-respawn path
+        cfg.setExperimentalNoRespawn(true);
+        cfg.setCarveNewChunks(true);
+        int x = net.minecraft.util.Mth.floor(src.getPosition().x());
+        int z = net.minecraft.util.Mth.floor(src.getPosition().z());
+        int changed = SeamTerrain.openTestColumn(src.getServer(), x, z);
+        src.sendSuccess(() -> Component.literal(
+            "WorldSeam TEST SETUP: native no-respawn ON, future seam terrain ON."
+            + " Opened 1 existing chunk column at X=" + x + " Z=" + z
+            + " in Overworld/Nether; bedrock blocks removed=" + changed
+            + ". THIS IS PERMANENT. Use ONLY in a disposable test world."
+        ), true);
+        return 1;
     }
 
     private static int status(CommandContext<CommandSourceStack> ctx) {
