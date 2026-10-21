@@ -50,6 +50,11 @@ public final class SocietyActions {
     }
 
     private static boolean courier(PlayerNpcEntity npc, ServerLevel level) {
+        // A configured two-depot caravan takes precedence over the legacy
+        // one-chest farmer exchange. It moves actual wheat inventory that
+        // hostile raiders may steal while the courier is travelling.
+        if (CaravanRoutes.configured(npc))
+            return CaravanRoutes.tick(npc, level);
         if (npc.supplyPos() == null) return false;
         if (npc.backpack().countItem(net.minecraft.world.item.Items.WHEAT) > 0)
             return SupplyLogistics.deposit(npc, level);
