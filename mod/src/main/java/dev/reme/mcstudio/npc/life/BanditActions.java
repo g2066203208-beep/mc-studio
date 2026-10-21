@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.UUID;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.item.Items;
 
 /**
@@ -51,30 +52,22 @@ public final class BanditActions {
         int available = courier.backpack().countItem(Items.WHEAT);
         int offer = Math.min(2, available);
         ItemStack goods = new ItemStack(Items.WHEAT, offer);
-        if (!raider.backpack().canAddItem(goods)) return false;
-
-        // The original courier bag is the single source of truth.
-        // Insert only if the entire amount fits; rollback is not needed as
-        // no world mutation occurs until the receiver accepts it.
-        ItemStack rejected = raider.backpack().addItem(goods.copy());
-        if (!rejected.isEmpty()) return false;
+        // Simulate BOTH inventories and commit only when complete: addItem()
+        // can partially insert before returning leftovers.
+        SimpleContainer raiderTrial = copy(raider.backpack());
+        SimpleContainer courierTrial = copy(courier.backpack());
+        if (!raiderTrial.addItem(goods.copy()).isEmpty()) return false;
         int remaining = offer;
-        for (int i = 0; i < courier.backpack().getContainerSize() && remaining > 0; i++) {
-            ItemStack stack = courier.backpack().getItem(i);
+        for (int i = 0; i < courierTrial.getContainerSize() && remaining > 0; i++) {
+            ItemStack stack = courierTrial.getItem(i);
             if (!stack.is(Items.WHEAT)) continue;
             int taken = Math.min(stack.getCount(), remaining);
             stack.shrink(taken);
             remaining -= taken;
         }
-        if (remaining != 0) {
-            // Defensive invariant: candidate inventory unexpectedly changed.
-            // This is server-thread-only; should be impossible, but don't
-            // silently create items if another mod mutates the bag mid-action.
-            raider.backpack().removeItemType(Items.WHEAT, offer);
-            return false;
-        }
-        courier.backpack().setChanged();
-        raider.backpack().setChanged();
+        if (remaining != 0) return false;
+        commit(raider.backpack(), raiderTrial);
+        commit(courier.backpack(), courierTrial);
         raider.postponeRaid(tick + 400L);
         courier.witnessedBanditTheft(raider, tick);
         UUID incident = UUID.randomUUID();
@@ -94,4 +87,17 @@ public final class BanditActions {
         raider.setAction("stole " + offer + " real wheat from caravan; witnesses remember");
         return true;
     }
+    private static SimpleContainer copy(SimpleContainer source) {
+        SimpleContainer target = new SimpleContainer(source.getContainerSize());
+        for (int i = 0; i < source.getContainerSize(); i++)
+            target.setItem(i, source.getItem(i).copy());
+        return target;
+    }
+
+    private static void commit(SimpleContainer target, SimpleContainer source) {
+        for (int i = 0; i < target.getContainerSize(); i++)
+            target.setItem(i, source.getItem(i).copy());
+        target.setChanged();
+    }
+
 }
