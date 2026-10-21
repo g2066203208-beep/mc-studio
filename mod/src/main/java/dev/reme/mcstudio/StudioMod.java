@@ -12,6 +12,7 @@ public final class StudioMod {
     public StudioMod() {
         // Native observer/export; never substitutes for the source Mod's physics.
         NeoForge.EVENT_BUS.addListener(NativeSnapshotCommand::register);
+        NeoForge.EVENT_BUS.addListener(NativeBossRigCommand::register);
         LogUtils.getLogger().info("REME MC Studio native snapshot command registered");
     }
 }
