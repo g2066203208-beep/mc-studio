@@ -18,6 +18,18 @@ public final class LivingPlannerSpec {
             .intent() == LivingPlanner.Intent.WORK, "resume work after threat");
         expect(brain.choose(new LivingPlanner.Context(3000, false, false, false, 5, 90, 85, true))
             .intent() == LivingPlanner.Intent.EAT, "hunger must override scheduled work");
+        expect(brain.choose(new LivingPlanner.Context(1500, false, false, false, 72, 90, 85, true))
+            .intent() == LivingPlanner.Intent.EAT,
+            "breakfast should interrupt work when resident has appetite");
+        expect(brain.choose(new LivingPlanner.Context(6000, false, false, false, 72, 90, 85, true))
+            .intent() == LivingPlanner.Intent.EAT,
+            "midday lunch should interrupt work");
+        expect(brain.choose(new LivingPlanner.Context(11500, false, false, false, 72, 90, 85, true))
+            .intent() == LivingPlanner.Intent.EAT,
+            "supper should preempt aimless leisure/social talk");
+        expect(brain.choose(new LivingPlanner.Context(3000, false, false, false, 90, 90, 85, true))
+            .intent() == LivingPlanner.Intent.WORK,
+            "a satiated citizen should not keep eating after mealtimes");
         expect(brain.choose(new LivingPlanner.Context(3000, true, true, false, 95, 95, 95, true))
             .intent() == LivingPlanner.Intent.SEEK_SHELTER, "rain must interrupt outdoor work");
         expect(brain.choose(new LivingPlanner.Context(17000, false, false, false, 90, 60, 90, true))
@@ -39,6 +51,6 @@ public final class LivingPlannerSpec {
         expect(memory.trust(alice) <= 100, "trust must stay bounded");
         expect(memory.recentEvents().get(0).worldTick() == 352,
             "oldest event must be evicted deterministically");
-        System.out.println("LivingPlannerSpec: 11 assertions passed");
+        System.out.println("LivingPlannerSpec: 15 assertions passed");
     }
 }
