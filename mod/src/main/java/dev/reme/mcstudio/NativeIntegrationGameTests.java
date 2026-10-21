@@ -1,6 +1,7 @@
 package dev.reme.mcstudio;
 
 import java.lang.reflect.Method;
+import java.util.Collection;
 import net.minecraft.core.Direction;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.level.block.state.BlockState;
@@ -9,6 +10,8 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.properties.BooleanProperty;
@@ -163,7 +166,15 @@ public final class NativeIntegrationGameTests {
         helper.assertBlockPresent(link, receiverPos);
         helper.runAfterDelay(25, () -> {
             BlockEntity sender = helper.getLevel().getBlockEntity(helper.absolutePos(senderPos));
-            if (sender == null) throw new AssertionError("Native Redstone transmitter entity missing");
+            BlockEntity receiver = helper.getLevel().getBlockEntity(helper.absolutePos(receiverPos));
+            if (sender == null || receiver == null) throw new AssertionError("Native Redstone Link entity missing");
+            // Real Create links are paired with two actual item frequencies;
+            // the empty initial pair is NOT a reliable functional test.
+            nativeSetWirelessFrequency(sender, true, new ItemStack(Items.REDSTONE));
+            nativeSetWirelessFrequency(sender, false, new ItemStack(Items.IRON_INGOT));
+            nativeSetWirelessFrequency(receiver, true, new ItemStack(Items.REDSTONE));
+            nativeSetWirelessFrequency(receiver, false, new ItemStack(Items.IRON_INGOT));
+            LOG.info("RPMS_NATIVE_LINK_MODES tx={} rx={}", nativeLinkState(sender), nativeLinkState(receiver));
             nativeTransmit(sender, 15);
             helper.runAfterDelay(5, () -> {
                 BlockEntity receiver = helper.getLevel().getBlockEntity(helper.absolutePos(receiverPos));
@@ -216,6 +227,43 @@ public final class NativeIntegrationGameTests {
                 helper.succeed();
             });
         });
+    }
+
+    private static Object nativeLink(Object blockEntity) {
+        try {
+            // SmartBlockEntity's public behaviour list allows us to use the
+            // official LinkBehaviour without statically depending on Create.
+            Object all = blockEntity.getClass().getMethod("getAllBehaviours").invoke(blockEntity);
+            if (all instanceof Collection<?> behaviours) {
+                for (Object b : behaviours) {
+                    if (b.getClass().getSimpleName().equals("LinkBehaviour")) return b;
+                }
+            }
+            throw new AssertionError("Official Create LinkBehaviour was not initialized");
+        } catch (ReflectiveOperationException | SecurityException e) {
+            throw new AssertionError("Could not inspect native Create wireless behaviours", e);
+        }
+    }
+
+    private static void nativeSetWirelessFrequency(Object be, boolean first, ItemStack stack) {
+        Object link = nativeLink(be);
+        try {
+            link.getClass().getMethod("setFrequency", boolean.class, ItemStack.class).invoke(link, first, stack);
+        } catch (ReflectiveOperationException | SecurityException e) {
+            throw new AssertionError("Cannot configure native Create wireless link frequency", e);
+        }
+    }
+
+    private static String nativeLinkState(Object be) {
+        Object link = nativeLink(be);
+        try {
+            Object listening = link.getClass().getMethod("isListening").invoke(link);
+            Object alive = link.getClass().getMethod("isAlive").invoke(link);
+            Object key = link.getClass().getMethod("getNetworkKey").invoke(link);
+            return "listening=" + listening + ",alive=" + alive + ",frequency=" + key;
+        } catch (ReflectiveOperationException | SecurityException e) {
+            return "unreadable:" + e.getClass().getSimpleName();
+        }
     }
 
     private static void nativeTransmit(Object sender, int strength) {
