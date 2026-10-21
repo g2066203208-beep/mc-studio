@@ -46,3 +46,5 @@ GitHub 是整个 Minecraft 工作室的开发中心。代码、需求、研究�
 - V2 增量流、自然光照、近场体积和远场高度图代理开发于相同 PR #18；渲染独立，未依赖 Immersive Portals。以最新 Actions 结果为准。注意：`sampleHorizon` 仅用已加载区块，未加载地形无法预览。详见 `docs/NATIVE_SEAM.md`。
 
 - 自研 v0.4.0-dev 增量缓存、光照、远景 LOD 与客户端遮挡缓存版本，详见 `docs/NATIVE_SEAM_ARCHITECTURE.md`。PR #18 最新 CI 为验收基线；客户端运行、无黑屏换维均未验证。
+
+- 2026-10-21 v0.5.0-dev：`SeamSectionCodec/Cache/Payload/Sender/Client` 添加区块段同步、调色板压缩与分域缓存，旧 Preview 仅作近/远场 LOD。实体用 EntityTickEvent.Post。Nether 顶部真实接缝Y=128。只有 `/reme seam terrain enable` + `/reme seam enable` 且新区块，才可能修改生成区块的基岩；修改不可自动逆转。注意旧存档保护，后续任务必须客户端实测并开发完整GPU区块渲染与避免原版 Respawn 画面重建。

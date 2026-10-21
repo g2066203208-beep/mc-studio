@@ -67,3 +67,8 @@ bash scripts/build.sh
 ## Native Seam v0.4.0-dev · 自研跨维度引擎
 
 新代码：`mod/src/main/java/dev/reme/mcstudio/seam/`，见 [自研引擎架构](docs/NATIVE_SEAM_ARCHITECTURE.md) 与 [当前源码 PR #18](https://github.com/g2066203208-beep/mc-studio/pull/18)。不依赖 Immersive Portals。目前是带自然光照、增量网络与远景高度图的实验性视觉代理，尚不是完整无加载的无缝世界。存档默认关闭，测试时输入 `/reme seam enable`。
+
+
+### Native Seam v0.5.0-dev：底层区块段阶段
+
+持续在 [PR #18](https://github.com/g2066203208-beep/mc-studio/pull/18) 自研开发 Minecraft 1.21.1 跨维度世界。已新增 16³ Paletted Section 同步/缓存、真实地狱Y128边界和单独受控的新地形接缝。参见 [详细实现与验证状态](docs/NATIVE_SEAM.md)。目前实验性跨维度视觉代理**并不等于完整无缝渲染**。
