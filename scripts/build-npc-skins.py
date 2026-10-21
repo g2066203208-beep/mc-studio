@@ -54,16 +54,26 @@ def recolor_outfit(image, style):
                 if skin_like:
                     continue
                 if style == 1:
-                    if s < .10 or v < .14: continue
-                    # Dye cloth: green to blue, brown to teal, dark suit to warm brown.
-                    if "green" in CURRENT:
-                        new_h = 0.59
+                    # Keep white shirt, shirt cuffs and exposed skin untouched.
+                    if "trader" in CURRENT:
+                        if s < .10 and v > .56:
+                            continue
+                        # Transform near-black formal jacket into a textured
+                        # warm-brown wool suit, with a visible (not black) shade.
+                        if v < .56:
+                            new_h, new_s = .085, .52
+                            new_v = min(.48, max(.23, v * 1.27 + .16))
+                            rr,gg,bb=colorsys.hsv_to_rgb(new_h,new_s,new_v)
+                            px[x,y]=(round(rr*255),round(gg*255),round(bb*255),a)
+                    elif "farmer" in CURRENT:
+                        # Only re-dye saturated green shirt pixels, never hands.
+                        if .16 < h < .47 and s > .20 and v > .16:
+                            rr,gg,bb=colorsys.hsv_to_rgb(.59,max(.4,s),v)
+                            px[x,y]=(round(rr*255),round(gg*255),round(bb*255),a)
                     elif "explorer" in CURRENT:
-                        new_h = 0.48
-                    else:
-                        new_h = 0.07
-                    rr,gg,bb=colorsys.hsv_to_rgb(new_h, max(.25,min(.7,s)), v)
-                    px[x,y]=(round(rr*255),round(gg*255),round(bb*255),a)
+                        if s < .10 or v < .14: continue
+                        rr,gg,bb=colorsys.hsv_to_rgb(.48,max(.25,min(.7,s)),v)
+                        px[x,y]=(round(rr*255),round(gg*255),round(bb*255),a)
     return out
 
 def validate_png(path):
