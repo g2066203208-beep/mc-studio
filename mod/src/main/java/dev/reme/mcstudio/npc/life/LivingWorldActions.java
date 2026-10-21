@@ -33,6 +33,9 @@ public final class LivingWorldActions {
         // dimension SavedData persists crowd footsteps; physical wear is
         // separately operator-authorized and defaults OFF.
         EmergentFootpaths.observe(npc, level, tick);
+        // Founding new local hamlets is a world event, not a player command:
+        // farmers, bakers, guards and other real households count equally.
+        EmergentSettlements.observe(npc, level, tick);
         if (MovementPolicy.due(tick, npc.getId(), 200)) {
             npc.changeNeeds(-2, npc.intent() == LivingPlanner.Intent.SLEEP ? 12 : -3,
                 npc.intent() == LivingPlanner.Intent.SOCIALIZE ? 2 : -3);
