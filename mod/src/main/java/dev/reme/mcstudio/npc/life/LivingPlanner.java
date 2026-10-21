@@ -60,7 +60,14 @@ public final class LivingPlanner {
         boolean leisureHours = clock >= 9000L && clock < 12500L;
 
         int rest = (asleepHours ? 68 : 5) + (100 - c.energy()) / 2;
-        int food = 6 + (100 - c.hunger()) * 4 / 5;
+        // Minecraft time 0 = 06:00, 6000 = midday, 12000 = dusk.
+        // Breakfast/lunch/supper are meaningful routine windows but NEVER
+        // compel a full NPC to eat (and never override imminent danger).
+        boolean mealtime = (clock >= 900 && clock < 2100)
+            || (clock >= 5200 && clock < 6500)
+            || (clock >= 11000 && clock < 12200);
+        int food = 6 + (100 - c.hunger()) * 4 / 5
+            + (mealtime && c.hunger() < 85 ? 65 : 0);
         int work = c.hasJobAndWorkplace() && workHours
             ? 48 + personality.diligence() / 6 : -100;
         int talk = (leisureHours ? 36 : 2) + (100 - c.socialNeed()) / 2
@@ -75,7 +82,8 @@ public final class LivingPlanner {
         int[] values = {rest, food, work, talk, shelter, 3};
         String[] reasons = {
             asleepHours ? "night routine or fatigue" : "fatigue",
-            "hungry", "work shift", "social need or leisure time",
+            mealtime ? "breakfast/lunch/supper or hunger" : "hungry",
+            "work shift", "social need or leisure time",
             "rain and exposure", "no urgent need"
         };
 
