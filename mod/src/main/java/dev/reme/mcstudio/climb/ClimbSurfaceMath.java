@@ -78,6 +78,43 @@ public final class ClimbSurfaceMath {
         return travel.lengthSqr() > .001 && b.dot(travel.normalize()) < -.18;
     }
 
+    /** Roof W follows CURRENT camera yaw, not the remembered wall grab direction. */
+    public static Vec3 cameraRelativeRoof(Vec3 normal, float cameraYaw,
+                                           float forward, float strafe) {
+        return direction(normal, cameraYaw, forward, strafe);
+    }
+
+    /** True only when the CAMERA is really beneath the new roof hand contact.
+     * Before this physical clearance is met, do not update contact normal or pose. */
+    public static boolean roofEntryReady(Vec3 eye, Vec3 roofPoint, Vec3 roofNormal) {
+        if (!ceiling(roofNormal)) return false;
+        Vec3 n = roofNormal.normalize();
+        Vec3 lateral = tangent(roofPoint.subtract(eye), n);
+        double gap = signedGap(eye, roofPoint, n);
+        return lateral.lengthSqr() < .58*.58 && gap >= .19 && gap <= 1.12;
+    }
+
+    /** Physically travel toward the underside while old wall grip remains valid.
+     * Never command a downward Y velocity during a wall-to-roof transfer. */
+    public static Vec3 roofEntryVelocity(Vec3 eye, Vec3 roofPoint, Vec3 roofNormal) {
+        Vec3 desiredEye = roofPoint.add(roofNormal.normalize().scale(CEILING_CAMERA_GAP));
+        Vec3 to = desiredEye.subtract(eye);
+        Vec3 horizontal = tangent(to, roofNormal);
+        horizontal = clamp(horizontal.scale(.27), .16);
+        double lift = Math.max(0, Math.min(.095, to.y*.27));
+        return clamp(new Vec3(horizontal.x, Math.max(0, horizontal.y + lift), horizontal.z), .175);
+    }
+
+    /** Smooth visual body turning through the +/-180 boundary. Movement is not delayed. */
+    public static float approachYaw(float current, float desired, float maxStep) {
+        float delta = net.minecraft.util.Mth.wrapDegrees(desired - current);
+        // Minecraft wraps EXACT +180 to -180. Without this tie-break the
+        // climber begins turning left, then cancels that motion when the
+        // camera swings right toward the roof's free side on the next tick.
+        if (Math.abs(delta + 180f) < .0001f) delta = 180f;
+        return current + net.minecraft.util.Mth.clamp(delta, -maxStep, maxStep);
+    }
+
     /** Jump direction is computed by the exact same pure helper used in JUnit. */
     public static Vec3 wallJumpVelocity(Vec3 look, Vec3 surfaceNormal) {
         double[] v = WallJumpMath.velocity(look.x, look.y, look.z,
