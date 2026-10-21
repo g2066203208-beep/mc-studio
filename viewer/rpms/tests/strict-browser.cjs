@@ -48,6 +48,47 @@ try{
  assert.equal(status.summary.blocks,5);
  assert.equal(status.summary.links,3);
  assert.equal(status.rpms['2,1,1'],-16);
+ // User-facing live rotational preview: both primary gears must physically
+ // advance in the Three.js render loop; Simulated bearing stays unassembled.
+ await page.waitForTimeout(350);
+ const movement=await page.evaluate(()=>window.__STRICT_API__.getAnimationState());
+ assert.ok(movement.filter(x=>x.hasRotor&&Math.abs(x.phase)>0.01).length>=3,
+   'shaft/gears/motor must ACTUALLY rotate in the canvas, not just output RPM text: '+JSON.stringify(movement));
+ assert.equal(movement.find(x=>x.id==='simulated:swivel_bearing').hasRotor,false,'do not fake Sable bearing assembly');
+ const before=await page.evaluate(()=>window.__STRICT_API__.getPreview());
+ assert.equal(before.summary.capacity,16384*16,'Create official stress capacity default');
+ assert.equal(before.summary.impact,0);
+ await page.evaluate(()=>{
+  const api=window.__STRICT_API__;
+  api.place({id:'create:mechanical_press',pos:[3,1,0],axis:'x',facing:'east'},{ignoreSupport:true});
+  const input=document.querySelector('#capacityScale');input.value='0.0001';input.dispatchEvent(new Event('input',{bubbles:true}));
+ });
+ const overload=await page.evaluate(()=>window.__STRICT_API__.getPreview());
+ assert.equal(overload.summary.overstressed,1,'stress controls must stall overloaded network');
+ assert.equal(overload.rpms['1,1,0'],0,'shaft must stop under simulated SU overload');
+ assert.equal(await page.locator('#stressUtil').getAttribute('data-overloaded'),'true');
+ await page.screenshot({path:path.join(__dirname,'strict-stress-overload.png'),fullPage:true});
+ await page.evaluate(()=>{
+  const slider=document.querySelector('#capacityScale');slider.value='1';slider.dispatchEvent(new Event('input',{bubbles:true}));
+ });
+ assert.equal(await page.evaluate(()=>window.__STRICT_API__.getPreview().summary.overstressed),0,'network must recover after adjusting capacity');
+ // Test real UI button on a Create clutch: off=no power interruption,
+ // on=disconnect downstream shaft; this is a clearly labelled preview.
+ await page.evaluate(()=>{
+  const api=window.__STRICT_API__;api.reset();
+  api.place({id:'create:creative_motor',pos:[0,1,0],facing:'east',axis:'x',rpm:16});
+  api.place({id:'create:clutch',pos:[1,1,0],axis:'x',powered:false});
+  api.place({id:'create:shaft',pos:[2,1,0],axis:'x'});
+ });
+ assert.equal(await page.evaluate(()=>window.__STRICT_API__.getPreview().rpms['2,1,0']),16);
+ await page.locator('#toggleRedstone').click();
+ assert.equal(await page.evaluate(()=>window.__STRICT_API__.getPreview().rpms['2,1,0']),undefined,
+   'powered clutch must stop the downstream shaft');
+ await page.locator('#toggleRedstone').click();
+ assert.equal(await page.evaluate(()=>window.__STRICT_API__.getPreview().rpms['2,1,0']),16,
+   'disabling the redstone clutch must restore the downstream shaft');
+ // Restore the original source-audited demo used by legacy browser checks.
+ await page.locator('#example').click();
  await page.locator('[data-mode="inspect"]').click();
  assert.ok(await page.locator('[data-mode="inspect"]').evaluate(e=>e.classList.contains('active')));
  await page.locator('[data-view="top"]').click();
