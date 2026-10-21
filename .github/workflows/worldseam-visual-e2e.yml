@@ -172,15 +172,15 @@ jobs:
             cp "mods/worldseam/$name" "$dest/$name"
           done
           {
-            printf '# WorldSeam actual NeoForge client evidence\\n\\n'
-            printf 'GitHub Actions: https://github.com/%s/actions/runs/%s\\n\\n' "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID"
-            printf 'Source commit: %s\\n\\n' "$GITHUB_SHA"
-            printf 'Captured on: %s UTC\\n\\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-            printf 'Screenshots: raw real Minecraft via Xvfb/XWD; **not** composited artist mockups.\\n\\n'
-            printf 'The E2E checks native handoff and client state. It does **not** certify pixel-perfect seamless frame composition or FPS.\\n\\n'
-            printf '\`\`\`text\\n'
+            printf '# WorldSeam actual NeoForge client evidence\n\n'
+            printf 'GitHub Actions: https://github.com/%s/actions/runs/%s\n\n' "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID"
+            printf 'Source commit: %s\n\n' "$GITHUB_SHA"
+            printf 'Captured on: %s UTC\n\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            printf 'Screenshots: raw real Minecraft via Xvfb/XWD; **not** composited artist mockups.\n\n'
+            printf 'The E2E checks native handoff and client state. It does **not** certify pixel-perfect seamless frame composition or FPS.\n\n'
+            printf 'Minecraft E2E log markers:\n'
             grep -E 'WORLDSEAM_E2E_(PASS|DUAL_|SECOND_WORLD_LIVE_BLOCK|END_NATURAL|PREVIEW_WINDOW)' mods/worldseam/visual-client.log | tail -n 70 || true
-            printf '\`\`\`\\n'
+            printf '\n'
           } > "$dest/summary.md"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
