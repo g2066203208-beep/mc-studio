@@ -61,8 +61,19 @@ public final class PlayerLootPickup {
                     npc.forgetMiningDrop(id);
                     continue;
                 }
-                RoadNavigator.moveToward(npc, level, item.blockPosition(), 0.95);
-                npc.setAction("walking to this NPC's real mined drop");
+                // RoadNavigator intentionally stops when block distance <5,
+                // but ItemEntity pickup needs <=1.5 blocks in actual entity
+                // geometry. Finish the last meters with vanilla navigation
+                // toward the item entity's precise position.
+                if (npc.distanceToSqr(item) <= 16.0) {
+                    if (npc.getNavigation().isDone()
+                        || npc.canRepath(item.blockPosition(), level.getGameTime()))
+                        npc.getNavigation().moveTo(item.getX(), item.getY(),
+                            item.getZ(), 0.98);
+                } else {
+                    RoadNavigator.moveToward(npc, level, item.blockPosition(), 0.95);
+                }
+                npc.setAction("walking into actual pickup range of mined item");
                 return true;
             }
             if (item.hasPickUpDelay()) {
