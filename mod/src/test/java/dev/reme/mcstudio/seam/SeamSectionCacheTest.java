@@ -39,6 +39,21 @@ class SeamSectionCacheTest {
         assertEquals(0, cache.size());
     }
 
+    @Test void heartbeatsRefreshOnlyMatchingScope() {
+        var cache = new SeamSectionCache();
+        cache.apply(packet("nether", 1, 0, 5));
+        assertTrue(cache.apply(new SeamSectionCache.Frame(
+            "minecraft:overworld", "minecraft:the_nether", "nether",
+            2, false, null, 0, 0, null
+        )));
+        assertEquals(1, cache.size());
+        assertFalse(cache.apply(new SeamSectionCache.Frame(
+            "minecraft:overworld", "minecraft:the_end", "wrong",
+            3, false, null, 0, 0, null
+        )));
+        assertEquals(2, cache.lastRevision());
+    }
+
     @Test void memoryNeverExceedsFixedSectionBudget() {
         var cache=new SeamSectionCache();
         for (int i=0; i<100; i++) assertTrue(cache.apply(packet("same", i+1, i, 1)));

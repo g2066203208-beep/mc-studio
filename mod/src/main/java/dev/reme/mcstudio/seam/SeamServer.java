@@ -90,6 +90,7 @@ public final class SeamServer {
                 // Force destination chunk before teleport. Does not edit blocks,
                 // portals, chunk generator, or the player's inventory.
                 target.getChunkAt(arrival);
+                if (!SeamArrival.hasClearance(target, arrival, player)) break;
                 boolean success = player.teleportTo(target, player.getX(), nextY, player.getZ(),
                     Set.of(), player.getYRot(), player.getXRot());
                 if (success) {
@@ -145,6 +146,7 @@ public final class SeamServer {
             BlockPos dest = BlockPos.containing(entity.getX(), y, entity.getZ());
             if (!target.getWorldBorder().isWithinBounds(dest)) return;
             target.getChunkAt(dest);
+            if (!SeamArrival.hasClearance(target, dest, entity)) return;
             Vec3 motion = entity.getDeltaMovement();
             float fall = entity.fallDistance;
             Entity moved = entity.changeDimension(new DimensionTransition(

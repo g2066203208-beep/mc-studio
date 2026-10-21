@@ -20,8 +20,8 @@ public final class SeamSectionCache {
             Objects.requireNonNull(source);
             Objects.requireNonNull(target);
             Objects.requireNonNull(scope);
-            if (!clear && (key == null || content == null))
-                throw new IllegalArgumentException("Section update requires key and palette data");
+            if (!clear && ((key == null) != (content == null)))
+                throw new IllegalArgumentException("Section key/content must both exist or both be null");
         }
     }
     public record Entry(int sourceBoundary, int targetBoundary,
@@ -41,6 +41,12 @@ public final class SeamSectionCache {
             source = frame.source();
             target = frame.target();
             scope = "";
+        } else if (frame.key() == null) {
+            // A heartbeat renews freshness without recompiling any models.
+            // Heartbeats cannot switch the active dimension or viewport.
+            if (!source.equals(frame.source()) ||
+                !target.equals(frame.target()) || !scope.equals(frame.scope()))
+                return false;
         } else {
             if (!source.equals(frame.source()) ||
                 !target.equals(frame.target()) ||

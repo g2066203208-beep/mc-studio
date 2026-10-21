@@ -46,7 +46,7 @@ public final class SeamSectionClient {
         var frame = payload.frame();
         if (!CACHE.apply(frame)) return;
         if (frame.clear()) geometry.clear();
-        else {
+        else if (frame.key() != null) {
             geometry.keySet().retainAll(CACHE.snapshot().keySet());
             geometry.put(frame.key(), buildSurface(frame));
         }

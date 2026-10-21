@@ -23,6 +23,8 @@ public record SeamSectionPayload(SeamSectionCache.Frame frame)
             buf.writeVarLong(f.revision());
             buf.writeBoolean(f.clear());
             if (f.clear()) return;
+            buf.writeBoolean(f.key() == null);
+            if (f.key() == null) return; // heartbeat only
             buf.writeInt(f.key().chunkX());
             buf.writeInt(f.key().sectionY());
             buf.writeInt(f.key().chunkZ());
@@ -44,6 +46,11 @@ public record SeamSectionPayload(SeamSectionCache.Frame frame)
             if (clear) return new SeamSectionPayload(new SeamSectionCache.Frame(
                 source, target, scope, revision, true, null, 0, 0, null
             ));
+            if (buf.readBoolean()) return new SeamSectionPayload(
+                new SeamSectionCache.Frame(
+                    source, target, scope, revision, false, null, 0, 0, null
+                )
+            );
             var key = new SeamSectionCache.Key(
                 buf.readInt(), buf.readInt(), buf.readInt()
             );

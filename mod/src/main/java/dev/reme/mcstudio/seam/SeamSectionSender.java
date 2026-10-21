@@ -35,6 +35,7 @@ public final class SeamSectionSender {
         long revision = 0;
         int cursor = 0;
         boolean active = false;
+        long lastPacketTick = 0;
         final Map<SeamSectionCache.Key, SeamSectionCodec.Encoded> sent =
             new LinkedHashMap<>();
     }
@@ -84,6 +85,14 @@ public final class SeamSectionSender {
             s.cursor = 0;
         }
         s.active = true;
+        // No-block-change updates must not make the client cache expire.
+        if (!s.sent.isEmpty() && gameTick - s.lastPacketTick >= 40) {
+            send(player, new SeamSectionCache.Frame(
+                sourceName, selected.target(), scope, ++s.revision,
+                false, null, 0, 0, null
+            ));
+            s.lastPacketTick = gameTick;
+        }
 
         int sourceBoundary = (int) SeamGraph.boundaryY(selected.exit(),
             source.getMinBuildHeight(), source.getMaxBuildHeight());
@@ -117,6 +126,7 @@ public final class SeamSectionSender {
             sourceName, selected.target(), scope,
             ++s.revision, false, key, sourceBoundary, targetBoundary, encoded
         ));
+        s.lastPacketTick = gameTick;
     }
 
     private static SeamSectionCodec.Encoded encode(ServerLevel target,
