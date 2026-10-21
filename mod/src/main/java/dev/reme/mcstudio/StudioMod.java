@@ -23,6 +23,7 @@ public final class StudioMod {
         }
         NeoForge.EVENT_BUS.addListener(SeamCommands::register);
         NeoForge.EVENT_BUS.addListener(SeamServer::tick);
+        NeoForge.EVENT_BUS.addListener(SeamServer::entityTick);
         LogUtils.getLogger().info("REME Native Seam server core registered (disabled per world by default)");
     }
 }

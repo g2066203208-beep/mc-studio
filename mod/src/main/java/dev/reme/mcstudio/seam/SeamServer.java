@@ -11,15 +11,13 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.level.portal.DimensionTransition;
-import java.util.ArrayList;
-import java.util.List;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
+import net.neoforged.neoforge.event.tick.EntityTickEvent;
 import org.slf4j.Logger;
 
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -35,6 +33,7 @@ public final class SeamServer {
     private static final int COOLDOWN_TICKS = 12;
     private static final Map<UUID, Long> lastCross = new HashMap<>();
     private static MinecraftServer lastServer;
+    private static boolean seamEnabled;
 
     private SeamServer() {}
 
@@ -49,6 +48,7 @@ public final class SeamServer {
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
             SeamPreviewSender.tick(server, player, tick, enabled);
         }
+        seamEnabled = enabled;
         if (!enabled) return;
         // Only one teleport per player per tick. All operations on server thread.
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
@@ -99,84 +99,61 @@ public final class SeamServer {
                 break;
             }
         }
-        if (tick % 4 == 0) {
-            tickNonPlayerEntities(server, tick);
-        }
-        // Remove entries for stale UUID entries.
+
         if (tick % 1200 == 0) {
-            Set<UUID> online = new HashSet<>();
-            server.getPlayerList().getPlayers().forEach(p -> online.add(p.getUUID()));
-            for (ServerLevel level : server.getAllLevels()) {
-                for (Entity e : level.getAllEntities()) online.add(e.getUUID());
-            }
-            lastCross.keySet().retainAll(online);
-            SeamPreviewSender.prune(
-                server.getPlayerList().getPlayers().stream()
-                    .map(Entity::getUUID).collect(java.util.stream.Collectors.toSet())
-            );
+            var online = server.getPlayerList().getPlayers().stream()
+                .map(Entity::getUUID).collect(java.util.stream.Collectors.toSet());
+            SeamPreviewSender.prune(online);
+            // Per-entity cooldowns only need to survive a short period;
+            // no global getAllEntities scan is needed for eviction.
+            lastCross.entrySet().removeIf(e -> tick - e.getValue() > 2400);
         }
     }
 
 
     /**
-     * Relocate unmounted mobs, dropped items and projectiles without copying
-     * entity data by hand. Server still owns all lifecycle synchronization.
-     *
-     * Complex vehicle/passenger trees and boss mechanics are deliberately
-     * excluded until multi-entity atomic transfers are implemented.
+     * Event-driven transfer, not an O(all-world-entities) global scan.
+     * The event runs on the logical server after an entity's own update.
+     * Mounted entity trees remain excluded until an atomic migration exists.
      */
-    private static void tickNonPlayerEntities(MinecraftServer server, long tick) {
-        List<Entity> candidates = new ArrayList<>();
-        for (ServerLevel level : server.getAllLevels()) {
-            if (SeamGraph.from(level.dimension().location().toString()).isEmpty()) continue;
-            for (Entity entity : level.getAllEntities()) {
-                if (entity instanceof ServerPlayer || !entity.isAlive()
-                    || entity.isPassenger() || entity.isVehicle()
-                    || entity.getType() == EntityType.ENDER_DRAGON) {
-                    continue;
-                }
-                if (tick - lastCross.getOrDefault(entity.getUUID(), Long.MIN_VALUE / 2)
-                    < COOLDOWN_TICKS) continue;
-                for (SeamGraph.Link link : SeamGraph.from(level.dimension().location().toString())) {
-                    if (link.crossed(entity.getY(), level.getMinBuildHeight(),
-                        level.getMaxBuildHeight())) {
-                        candidates.add(entity);
-                        break;
-                    }
-                }
-            }
-        }
+    public static void entityTick(EntityTickEvent.Post event) {
+        if (!seamEnabled || !(event.getEntity().level() instanceof ServerLevel source)) return;
+        Entity entity = event.getEntity();
+        if (entity instanceof ServerPlayer || !entity.isAlive()
+            || entity.isPassenger() || entity.isVehicle()
+            || entity.getType() == EntityType.ENDER_DRAGON) return;
+        MinecraftServer server = source.getServer();
+        if (server == null || server != lastServer) return;
 
-        // Copy first: changeDimension removes an entity from the old level.
-        for (Entity entity : candidates) {
-            if (!(entity.level() instanceof ServerLevel source) || entity.isRemoved()) continue;
-            for (SeamGraph.Link link : SeamGraph.from(source.dimension().location().toString())) {
-                if (!link.crossed(entity.getY(), source.getMinBuildHeight(),
-                    source.getMaxBuildHeight())) continue;
-                ServerLevel target = server.getLevel(dimensionKey(link.target()));
-                if (target == null || !entity.canChangeDimensions(source, target)) break;
-                double sourceBoundary = SeamGraph.boundaryY(link.exit(),
-                    source.getMinBuildHeight(), source.getMaxBuildHeight());
-                double targetBoundary = SeamGraph.boundaryY(link.entry(),
-                    target.getMinBuildHeight(), target.getMaxBuildHeight());
-                double y = link.targetY(entity.getY(), sourceBoundary, targetBoundary);
-                BlockPos dest = BlockPos.containing(entity.getX(), y, entity.getZ());
-                if (!target.getWorldBorder().isWithinBounds(dest)) break;
-                target.getChunkAt(dest);
-                Vec3 motion = entity.getDeltaMovement();
-                float fall = entity.fallDistance;
-                Entity moved = entity.changeDimension(new DimensionTransition(
-                    target, new Vec3(entity.getX(), y, entity.getZ()),
-                    motion, entity.getYRot(), entity.getXRot(),
-                    false, DimensionTransition.DO_NOTHING
-                ));
-                if (moved != null) {
-                    moved.setDeltaMovement(motion);
-                    moved.fallDistance = fall;
-                    lastCross.put(moved.getUUID(), tick);
-                }
-                break;
+        long tick = server.overworld().getGameTime();
+        if (tick - lastCross.getOrDefault(entity.getUUID(), Long.MIN_VALUE / 2)
+            < COOLDOWN_TICKS) return;
+        for (SeamGraph.Link link : SeamGraph.from(source.dimension().location().toString())) {
+            if (!link.crossed(entity.getY(), source.getMinBuildHeight(),
+                source.getMaxBuildHeight())) continue;
+            ServerLevel target = server.getLevel(dimensionKey(link.target()));
+            if (target == null || !entity.canChangeDimensions(source, target)) return;
+            double sourceBoundary = SeamGraph.boundaryY(link.exit(),
+                source.getMinBuildHeight(), source.getMaxBuildHeight());
+            double targetBoundary = SeamGraph.boundaryY(link.entry(),
+                target.getMinBuildHeight(), target.getMaxBuildHeight());
+            double y = link.targetY(entity.getY(), sourceBoundary, targetBoundary);
+            BlockPos dest = BlockPos.containing(entity.getX(), y, entity.getZ());
+            if (!target.getWorldBorder().isWithinBounds(dest)) return;
+            target.getChunkAt(dest);
+            Vec3 motion = entity.getDeltaMovement();
+            float fall = entity.fallDistance;
+            Entity moved = entity.changeDimension(new DimensionTransition(
+                target, new Vec3(entity.getX(), y, entity.getZ()),
+                motion, entity.getYRot(), entity.getXRot(),
+                false, DimensionTransition.DO_NOTHING
+            ));
+            if (moved != null) {
+                moved.setDeltaMovement(motion);
+                moved.fallDistance = fall;
+                lastCross.put(moved.getUUID(), tick);
             }
+            return;
         }
     }
 
