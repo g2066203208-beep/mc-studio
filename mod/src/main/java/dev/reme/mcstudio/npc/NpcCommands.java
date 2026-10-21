@@ -39,7 +39,7 @@ public final class NpcCommands {
                 boolean ready = ctx.getSource().getServer().getCommands()
                     .getDispatcher().getRoot().getChild("npc") != null;
                 ctx.getSource().sendSuccess(() -> Component.literal(
-                    "REME NPC v0.5.2 active; /npc registered=" + ready
+                    "REME NPC v0.5.7-dev active; /npc registered=" + ready
                     + ". If /npc spawn is denied, enable cheats or operator privileges."),
                     false);
                 return 1;
@@ -47,7 +47,7 @@ public final class NpcCommands {
         event.getDispatcher().register(Commands.literal("npc")
             .executes(ctx -> {
                 ctx.getSource().sendSuccess(() -> Component.literal(
-                    "REME NPC v0.5.2: /npc info, /npc spawn (cheats required), /npc demo (cheats required)"),
+                    "REME NPC v0.5.7-dev: /npc info, /npc spawn (cheats required), /npc demo (cheats required)"),
                     false);
                 return 1;
             })
