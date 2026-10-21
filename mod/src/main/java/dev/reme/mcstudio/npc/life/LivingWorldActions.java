@@ -75,6 +75,22 @@ public final class LivingWorldActions {
         // Follow the genuine item-entity drops from this NPC's authorized
         // break, rather than treating ground loot as virtual inventory.
         if (PlayerLootPickup.tick(npc, level)) return;
+        // A real long-running caravan must OWN the movement goal between
+        // deliveries. The 80-tick SocietyActions cadence alone allowed
+        // DailyRoaming / generic WORK / SOCIALIZE to overwrite its path and
+        // left couriers stranded several blocks from the destination chest.
+        // Yield to survival and urgent threat plans instead of starving NPCs.
+        if (CaravanRoutes.configured(npc)
+            && npc.profession() == PlayerNpcEntity.Profession.COURIER
+            && !npc.isAfraid(tick) && npc.hunger() > 25 && npc.energy() > 25
+            && npc.intent() != LivingPlanner.Intent.ESCAPE
+            && npc.intent() != LivingPlanner.Intent.EAT
+            && npc.intent() != LivingPlanner.Intent.SLEEP) {
+            if (MovementPolicy.due(tick, npc.getId(), 10)
+                || npc.getNavigation().isDone())
+                CaravanRoutes.tick(npc, level);
+            return; // don't let generic roaming cancel caravan navigation
+        }
         if (SocietyActions.tick(npc, level, tick)) return;
         if (DailyRoaming.tick(npc, level, tick)) return;
         if (npc.profession() == PlayerNpcEntity.Profession.GUARD &&
