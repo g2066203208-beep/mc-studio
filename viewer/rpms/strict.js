@@ -163,9 +163,9 @@ function interaction(e,actionMode){
  if(b.id==='create:creative_motor')b.rpm=Number($('rpm').value);place(b);
 }
 let down=null;
-$('view').addEventListener('pointerdown',e=>{down={x:e.clientX,y:e.clientY,button:e.button};window.__STRICT_DEBUG__={phase:'down',point:[e.clientX,e.clientY]}});
-$('view').addEventListener('pointerup',e=>{if(!down)return;const distance=Math.hypot(e.clientX-down.x,e.clientY-down.y),button=down.button;down=null;if(distance>6){window.__STRICT_DEBUG__={phase:'drag',distance};return;}interaction(e,button===2?'erase':mode)});
-$('view').addEventListener('contextmenu',e=>e.preventDefault());
+$('viewWrap').addEventListener('pointerdown',e=>{down={x:e.clientX,y:e.clientY,button:e.button};window.__STRICT_DEBUG__={phase:'down',point:[e.clientX,e.clientY],target:e.target?.id}},true);
+$('viewWrap').addEventListener('pointerup',e=>{if(!down)return;const distance=Math.hypot(e.clientX-down.x,e.clientY-down.y),button=down.button;down=null;if(distance>6){window.__STRICT_DEBUG__={phase:'drag',distance};return;}interaction(e,button===2?'erase':mode)},true);
+$('viewWrap').addEventListener('contextmenu',e=>e.preventDefault());
 $('layer').addEventListener('input',e=>{activeLayer=Number(e.target.value);$('layerValue').textContent=activeLayer});
 for(const b of document.querySelectorAll('[data-mode]'))b.addEventListener('click',()=>setMode(b.dataset.mode));
 for(const b of document.querySelectorAll('[data-view]'))b.addEventListener('click',()=>setView(b.dataset.view));
