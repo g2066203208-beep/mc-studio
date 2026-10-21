@@ -13,6 +13,11 @@ import dev.reme.mcstudio.npc.life.PlayerActionBridge;
 import dev.reme.mcstudio.npc.life.PlayerMiningActions;
 import dev.reme.mcstudio.npc.life.PlayerLootPickup;
 import dev.reme.mcstudio.npc.life.NpcPlayerActor;
+import dev.reme.mcstudio.npc.life.FootTrafficData;
+import dev.reme.mcstudio.npc.life.EmergentFootpaths;
+import dev.reme.mcstudio.npc.life.EmergentSettlements;
+import dev.reme.mcstudio.npc.life.SettlementLedger;
+import net.minecraft.world.level.GameRules;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.level.BlockEvent;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -747,6 +752,121 @@ public final class CivicGameTests {
             || npc.backpack().countItem(Items.COBBLESTONE) != 3
             || mixed.getItem().getCount() != 17)
             throw new AssertionError("Already paid claim could collect remaining player-owned items");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 100)
+    public static void organic_foot_traffic_needs_real_repeat_walkers_and_is_persistent(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos foot = helper.absolutePos(new BlockPos(4, 9, 4));
+        FootTrafficData data = FootTrafficData.get(level);
+        boolean originalOptIn = data.physicalPathsEnabled();
+        data.setPhysicalPathsEnabled(false);
+        UUID one = UUID.randomUUID();
+        if (!data.countPassage(one, foot, 100)
+            || data.countPassage(one, foot, 101)
+            || data.visits(foot) != 1)
+            throw new AssertionError("Standing NPC duplicated traffic without a new walker");
+        for (int i = 1; i < FootTrafficData.PATH_THRESHOLD; i++)
+            if (!data.countPassage(UUID.randomUUID(), foot, 100 + i))
+                throw new AssertionError("Actual distinct residents did not add foot traffic");
+        if (data.visits(foot) != FootTrafficData.PATH_THRESHOLD)
+            throw new AssertionError("Seven real traversals should create a desire path");
+        CompoundTag saved = new CompoundTag();
+        data.save(saved, level.registryAccess());
+        FootTrafficData reloaded = FootTrafficData.load(saved, level.registryAccess());
+        if (reloaded.visits(foot) != FootTrafficData.PATH_THRESHOLD
+            || reloaded.physicalPathsEnabled() ||
+            reloaded.trackedCells() < 1)
+            throw new AssertionError("Per-dimension road memory lost its saved heatmap");
+        if (!reloaded.countPassage(one, foot, 500) || reloaded.visits(foot) != 8)
+            throw new AssertionError("Returning after the debounce must count");
+        data.setPhysicalPathsEnabled(originalOptIn);
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 100)
+    public static void crowd_created_path_uses_real_vanilla_shovel_and_terrain_opt_in(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos foot = helper.absolutePos(new BlockPos(4, 9, 4));
+        BlockPos ground = foot.below();
+        level.setBlock(ground, Blocks.GRASS_BLOCK.defaultBlockState(), 3);
+        level.setBlock(foot, Blocks.AIR.defaultBlockState(), 3);
+        level.setBlock(foot.above(), Blocks.AIR.defaultBlockState(), 3);
+        var resident = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (resident == null) throw new AssertionError("No live resident");
+        resident.moveTo(foot.getX() + 0.5, foot.getY(), foot.getZ() + 0.5, 0, 0);
+        resident.setOnGround(true);
+        resident.setMode(PlayerNpcEntity.Mode.STAY);
+        if (!level.addFreshEntity(resident)) throw new AssertionError("Resident spawn failed");
+        FootTrafficData data = FootTrafficData.get(level);
+        boolean previous = data.physicalPathsEnabled();
+        data.setPhysicalPathsEnabled(false);
+        if (EmergentFootpaths.tryWearPath(resident, level, foot)
+            || !level.getBlockState(ground).is(Blocks.GRASS_BLOCK))
+            throw new AssertionError("Road changed even when physical paths were disabled");
+        data.setPhysicalPathsEnabled(true);
+        if (!level.getGameRules().getBoolean(GameRules.RULE_MOBGRIEFING)) {
+            data.setPhysicalPathsEnabled(previous);
+            helper.fail("Test world unexpectedly disables mobGriefing", ground);
+            return;
+        }
+        if (!EmergentFootpaths.tryWearPath(resident, level, foot)
+            || !level.getBlockState(ground).is(Blocks.DIRT_PATH)) {
+            data.setPhysicalPathsEnabled(previous);
+            helper.fail("Real shovel item use did not form a dirt path on eligible grass", ground);
+            return;
+        }
+        // Never trample cultivated farm fields.
+        BlockPos farmland = foot.east(2);
+        level.setBlock(farmland.below(), Blocks.FARMLAND.defaultBlockState(), 3);
+        level.setBlock(farmland, Blocks.AIR.defaultBlockState(), 3);
+        if (EmergentFootpaths.tryWearPath(resident, level, farmland)
+            || !level.getBlockState(farmland.below()).is(Blocks.FARMLAND)) {
+            data.setPhysicalPathsEnabled(previous);
+            helper.fail("Physical desire path trampled farmland", farmland);
+            return;
+        }
+        data.setPhysicalPathsEnabled(previous);
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 100)
+    public static void organic_hamlet_requires_three_distinct_allied_homes_and_records_history(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos center = helper.absolutePos(new BlockPos(4, 9, 4));
+        PlayerNpcEntity[] residents = new PlayerNpcEntity[3];
+        for (int i = 0; i < 3; i++) {
+            PlayerNpcEntity npc = NpcRegistry.PLAYER_NPC.get().create(level);
+            if (npc == null) throw new AssertionError("NPC type unregistered");
+            BlockPos home = center.offset(i * 3, 0, 0);
+            npc.moveTo(home.getX() + 0.5, home.getY(), home.getZ() + 0.5, 0, 0);
+            npc.setIdentity(SocietyRules.civilian("organic_test"));
+            npc.setHomePos(home);
+            npc.setWorkPos(home);
+            npc.setMode(PlayerNpcEntity.Mode.LIVE);
+            if (!level.addFreshEntity(npc)) throw new AssertionError("Cannot add real household");
+            residents[i] = npc;
+        }
+        var established = EmergentSettlements.survey(level, residents[0]);
+        if (established == null || established.households() != 3
+            || !established.tier().equals("hamlet"))
+            throw new AssertionError("Three allied independent resident homes did not form a hamlet");
+        var ledger = SettlementLedger.get(level);
+        ledger.record(established.founder(), established.hub(),
+            established.households(), level.getGameTime(), established.culture());
+        if (ledger.get(established.founder()) == null)
+            throw new AssertionError("Hamlet founding not recorded");
+        CompoundTag save = new CompoundTag();
+        ledger.save(save, level.registryAccess());
+        var restored = SettlementLedger.load(save, level.registryAccess());
+        if (restored.get(established.founder()) == null
+            || restored.get(established.founder()).households() != 3)
+            throw new AssertionError("Real household founding history lost on save/reload");
+        residents[2].setIdentity(new SocietyRules.Identity(
+            SocietyRules.Nation.OUTLANDS, SocietyRules.Faction.RAIDERS, "organic_test"));
+        if (EmergentSettlements.survey(level, residents[0]) != null)
+            throw new AssertionError("Hostile raider was counted as an allied household");
         helper.succeed();
     }
 
