@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 import {behavior,canPlace,evaluate,axisOf,CORE_VERSION} from './strict-core.mjs';
+import {previewStress} from './kinetic-preview.mjs';
 import {MinecraftJarModels} from './authentic-models.mjs';
 import {createPreviewModel} from './procedural-models.mjs';
 import {loadOfficialModelArchives} from './official-autoload.mjs';
@@ -18,6 +19,8 @@ const names={
 const COLORS={create:0x96724d,simulated:0x5b9d9c,minecraft:0x8a9caf};
 let mode='place',registry=[],world=[],selectedId=null,inspected=null;
 let jarFiles=0,activeLayer=1,lastResult=null;
+let animationEnabled=true, stressCapacityScale=1, stressImpactScale=1;
+const motionPhase=new Map();let lastFrame=0;
 const jarModels=new MinecraftJarModels();
 const modelStatus=new Map();let visualEpoch=0;
 let officialAutoloadStarted=false;
@@ -36,6 +39,24 @@ const axisHelper=new THREE.AxesHelper(2);axisHelper.position.set(-7,.58,-7);scen
 const placedGroup=new THREE.Group();scene.add(placedGroup);
 const ray=new THREE.Raycaster(),pointer=new THREE.Vector2();
 const matCache=new Map();let clickable=[],selectionOutline=null;
+const nativeKineticSet=new Set(['create:shaft','create:cogwheel','create:large_cogwheel']);
+const faceVector={east:[1,0,0],west:[-1,0,0],up:[0,1,0],down:[0,-1,0],south:[0,0,1],north:[0,0,-1]};
+function angleAxis(b){const a=axisOf(b);return a==='x'?'x':a==='z'?'z':'y';}
+function isBareRotor(b){return nativeKineticSet.has(b.id);}
+function rotorFor(b){
+ const isMotor=b.id==='create:creative_motor';
+ const isSpecial=b.id==='create:clutch'||b.id==='create:gearshift'||b.id==='create:mechanical_press'||b.id==='create:mechanical_mixer';
+ if(!isMotor&&!isSpecial)return null;
+ const rotor=new THREE.Group();
+ const axis=angleAxis(b),dir=(isMotor?faceVector[b.facing]:null)||[0,0,0];
+ const metal=new THREE.MeshStandardMaterial({color:isMotor?0xcfad63:0x86bcb5,metalness:.65,roughness:.4});
+ const geometry=new THREE.CylinderGeometry(isMotor?.13:.10,isMotor?.13:.10,isMotor?.24:.4,12);
+ const mesh=new THREE.Mesh(geometry,metal);
+ if(axis==='x')mesh.rotation.z=Math.PI/2;else if(axis==='z')mesh.rotation.x=Math.PI/2;
+ rotor.add(mesh);
+ rotor.position.set(dir[0]*.50,dir[1]*.50,dir[2]*.50);
+ return rotor;
+}
 function labelFor(id){return names[id]||id.split(':')[1].replaceAll('_',' ');}
 function tagFor(id){let c=behavior(id).coverage;return c==='topology'?'旋转拓扑预检':c==='speed-preview'?'RPM 预览':c==='input-topology-only'?'输入端预检':'游戏内原版执行';}
 function glyph(id){return {shaft:'─',small:'⚙',large:'◎',source:'↻',consumer:'↓',bearing:'◉','native-only':'▧'}[behavior(id).kind]||'▦';}
@@ -124,6 +145,8 @@ function visualFor(b){
  // The visual model is available synchronously on the very first frame.
  original.add(createPreviewModel(b));ghost.visible=false;
  g.userData.ghost=ghost;g.userData.original=original;
+ g.userData.rotating=isBareRotor(b)?original:rotorFor(b);
+ if(g.userData.rotating!==original&&g.userData.rotating)g.add(g.userData.rotating);
  return g;
 }
 function renderWorld(){
@@ -176,10 +199,14 @@ function updateAssetCounter(){
  $('modelCounter').dataset.partial=String(partial);
 }
 function updateStatus(){
- const r=evaluate(world);lastResult=r;
- $('blocksNum').textContent=r.summary.blocks;$('linksNum').textContent=r.summary.links;$('poweredNum').textContent=r.summary.powered;
+ const r=previewStress(world,{capacityScale:stressCapacityScale,impactScale:stressImpactScale});lastResult=r;
+ $('blocksNum').textContent=r.summary.blocks;$('linksNum').textContent=r.summary.links;$('poweredNum').textContent=r.summary.running;
+ $('stressCapacity').textContent=Math.round(r.summary.capacity).toLocaleString('zh-CN');
+ $('stressDemand').textContent=Math.round(r.summary.impact).toLocaleString('zh-CN');
+ $('stressUtil').textContent=r.summary.capacity>0?Math.round(r.summary.impact/r.summary.capacity*100)+'%':'—';
+ $('stressUtil').dataset.overloaded=String(r.summary.overstressed>0);
  $('overall').className='diagnostic-status '+(r.errors.length?'bad':r.warnings.length?'warn':'');
- $('overall').textContent=r.errors.length?'检测到旋转冲突（不等于原版执行结果）':r.warnings.length?'部分拓扑预检完成 · 原版运行未验证':'无待检查的连接';
+ $('overall').textContent=r.summary.overstressed?'预演应力过载：整组动力已停止':r.errors.length?'动力连接冲突／超过规则限制':r.summary.running?'动力网络运转中（SU 为预演）':'无有效动力连接';
  const panel=$('diagnostics');panel.replaceChildren();
  for(const d of [...r.errors,...r.warnings].slice(0,28)){
   const row=document.createElement('div');row.className='diagnostic-item '+(r.errors.includes(d)?'error':'');
@@ -187,13 +214,13 @@ function updateStatus(){
   const detail=document.createElement('span');detail.textContent=d.detail;row.append(title,detail);panel.append(row);
  }
  if(!r.errors.length&&!r.warnings.length)panel.textContent='放置方块后分析动力连接与不支持的游戏机制。';
- $('canvasStatus').textContent=r.summary.blocks+' blocks · '+r.summary.links+' rotation links · '+r.summary.powered+' RPM-assigned';
+ $('canvasStatus').textContent=r.summary.blocks+' 方块 · '+r.summary.links+' 机械连接 · '+r.summary.running+' 正在转动 · '+(r.summary.overstressed?'预演过载':'SU 默认值预演');
 }
 function setMode(v){
  mode=v;document.querySelectorAll('[data-mode]').forEach(b=>b.classList.toggle('active',b.dataset.mode===v));
  $('worldHint').textContent={place:'点击地面放置；点击已有方块表面向外放置；右键拆除',
  inspect:'点击方块查看其 Mod ID、位置和功能覆盖状态',erase:'点击方块删除（不模拟掉落和物理坠落）',
- wrench:'点击方块模拟扳手旋转轴线（原版限制待验证）'}[v];
+ wrench:'点击方块循环有效 axis/FACING；Shift+点击反向。已配置 BlockState 需要重新选择'}[v];
 }
 function setView(v){
  const p={iso:[12,13,17],top:[0,24,.001],side:[20,10,0]}[v];if(!p)return;
@@ -228,8 +255,14 @@ function interaction(e,actionMode){
  if(actionMode==='inspect'){if(hit.target){inspected=hit.target;displayInspector(inspected);renderWorld();}return;}
  if(actionMode==='wrench'){
   const b=hit.target;if(!b)return;
-  if(!['shaft','small','large','source'].includes(behavior(b.id).kind)){notify('此方块真实扳手动作需游戏内验证');return;}
-  const axes=['x','y','z'];b.axis=axes[(axes.indexOf(axisOf(b))+1)%3];renderWorld();displayInspector(b);return;
+  const ax=['shaft','small','large','clutch'].includes(behavior(b.id).kind);
+  const facing=['source','bearing','consumer'].includes(behavior(b.id).kind);
+  if(!ax&&!facing){notify('该方块没有已实现的轴向扳手规则（避免假冒原版行为）');return;}
+  if(ax){const axes=['x','y','z'];b.axis=axes[(axes.indexOf(axisOf(b))+(e.shiftKey?2:1))%3];}
+  else {const dirs=['north','east','south','west','up','down'];b.facing=dirs[(dirs.indexOf(b.facing)+(e.shiftKey?5:1))%6];b.axis=axisOf(b);}
+  delete b.stateKey;inspected=b;renderWorld();displayInspector(b);
+  $('axis').value=axisOf(b);$('facing').value=b.facing||'north';
+  notify('已调整 '+labelFor(b.id)+' 朝向：'+(ax?b.axis:b.facing)+'（预览操作，实际扳手限制由游戏验证）');return;
  }
  if(!selectedId){notify('先在左侧选择方块');return;}
  const b={id:selectedId,pos:hit.where,axis:$('axis').value,facing:$('facing').value};
@@ -242,6 +275,20 @@ $('viewWrap').addEventListener('pointerdown',e=>{down={x:e.clientX,y:e.clientY,b
 $('viewWrap').addEventListener('pointerup',e=>{if(!down)return;const distance=Math.hypot(e.clientX-down.x,e.clientY-down.y),button=down.button;down=null;if(distance>6){window.__STRICT_DEBUG__={phase:'drag',distance};return;}interaction(e,button===2?'erase':mode)},true);
 $('viewWrap').addEventListener('contextmenu',e=>e.preventDefault());
 $('layer').addEventListener('input',e=>{activeLayer=Number(e.target.value);$('layerValue').textContent=activeLayer});
+$('animateToggle').addEventListener('change',e=>{animationEnabled=e.target.checked;});
+$('capacityScale').addEventListener('input',e=>{stressCapacityScale=Number(e.target.value);$('capacityScaleLabel').textContent=stressCapacityScale.toFixed(2)+'×';updateStatus();});
+$('impactScale').addEventListener('input',e=>{stressImpactScale=Number(e.target.value);$('impactScaleLabel').textContent=stressImpactScale.toFixed(1)+'×';updateStatus();});
+$('rpm').addEventListener('change',e=>{
+ if(inspected?.id==='create:creative_motor'){
+  inspected.rpm=Number(e.target.value);renderWorld();displayInspector(inspected);
+ }
+});
+$('toggleRedstone').addEventListener('click',()=>{
+ if(inspected?.id!=='create:clutch'){notify('先检查一台离合器以切换 powered 状态');return;}
+ inspected.powered=!inspected.powered;delete inspected.stateKey;
+ renderWorld();displayInspector(inspected);
+ notify('离合器 '+(inspected.powered?'已接收到红石，断开':'无红石，连接')+'（网页规则预演）');
+});
 for(const b of document.querySelectorAll('[data-mode]'))b.addEventListener('click',()=>setMode(b.dataset.mode));
 for(const b of document.querySelectorAll('[data-view]'))b.addEventListener('click',()=>setView(b.dataset.view));
 for(const id of ['search','namespace','coverage'])$(id).addEventListener(id==='search'?'input':'change',drawPalette);
@@ -333,14 +380,30 @@ $('jarInput').addEventListener('change',async e=>{
 });
 function resize(){const e=$('viewWrap');const w=Math.max(100,e.clientWidth),h=Math.max(100,e.clientHeight);renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();}
 new ResizeObserver(resize).observe($('viewWrap'));resize();
-function draw(){requestAnimationFrame(draw);orbit.update();renderer.render(scene,camera);}
+function draw(now=0){
+ requestAnimationFrame(draw);
+ const dt=Math.max(0,Math.min(.07,(now-lastFrame)/1000||0));lastFrame=now;
+ if(animationEnabled&&lastResult){
+  for(const group of placedGroup.children){
+   const b=group.userData.block,rotor=group.userData.rotating;if(!rotor)continue;
+   const pos=b.pos.join(','),rpm=lastResult.rpms[pos]||0;
+   if(!rpm)continue; // stopped shafts and overloaded networks remain still
+   const next=(motionPhase.get(pos)||0)+rpm*Math.PI*2/60*dt;
+   motionPhase.set(pos,next%(Math.PI*2));
+   rotor.rotation[angleAxis(b)]=next;
+  }
+ }
+ orbit.update();renderer.render(scene,camera);
+}
 async function init(){
  try{
   const r=await fetch('./registry.json',{cache:'no-store'});if(!r.ok)throw Error('registry.json HTTP '+r.status);
   const data=await r.json();if(!Array.isArray(data.entries)||data.entries.length<200)throw Error('源码方块清单缺失');
   registry=data.entries;drawPalette();renderWorld();selectBlock('create:shaft');
   window.__STRICT_API__={version:CORE_VERSION,getCatalog:()=>registry.map(o=>o.id),getState:()=>world.map(o=>({...o,pos:[...o.pos]})),
-  getResult:()=>evaluate(world),getAssetStatus:()=>[...modelStatus.entries()].map(([pos,status])=>({pos,...status})),
+  getResult:()=>evaluate(world),getPreview:()=>lastResult,
+  getAnimationState:()=>[...placedGroup.children].map(g=>({id:g.userData.block.id,pos:g.userData.block.pos.join(','),rpm:lastResult?.rpms[g.userData.block.pos.join(',')]||0,phase:motionPhase.get(g.userData.block.pos.join(','))||0,hasRotor:!!g.userData.rotating})),
+  getAssetStatus:()=>[...modelStatus.entries()].map(([pos,status])=>({pos,...status})),
   getStateOptions:id=>jarModels.stateKeys(id),getJarCount:()=>jarFiles,getDecodedArchiveCount:()=>jarModels.archives.length,
   getVisualStats:()=>{let meshes=0,groups=0;placedGroup.traverse(o=>{if(o.isMesh&&o.material!==hitMaterial&&o.visible)meshes++;if(o.isGroup)groups++;});return {meshes,groups,blocks:world.length}},
   getOfficialState:()=>[...packageState.entries()].map(([slug,status])=>({slug,...status})),
