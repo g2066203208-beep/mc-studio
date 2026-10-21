@@ -160,10 +160,16 @@ public final class NativeIntegrationGameTests {
         BlockState receiverState = link.defaultBlockState()
                 .setValue(BlockStateProperties.FACING, Direction.UP)
                 .setValue(receiving, true);
+        // Create 6.0.10's RedstoneLinkBlockEntity creates its deferred
+        // LinkBehaviour on NBT read OR when receiver/transmitter mode changes.
+        // GameTestHelper.setBlock places a new BE without NBT, so the default
+        // receiver mode never gets a LinkBehaviour unless we perform the
+        // same live mode transition as the Create wrench interaction.
         helper.setBlock(senderPos, senderState);
-        helper.setBlock(receiverPos, receiverState);
+        helper.setBlock(receiverPos, senderState);
         helper.assertBlockPresent(link, senderPos);
         helper.assertBlockPresent(link, receiverPos);
+        helper.runAfterDelay(5, () -> helper.setBlock(receiverPos, receiverState));
         helper.runAfterDelay(25, () -> {
             BlockEntity sender = helper.getLevel().getBlockEntity(helper.absolutePos(senderPos));
             BlockEntity receiver = helper.getLevel().getBlockEntity(helper.absolutePos(receiverPos));
@@ -239,7 +245,8 @@ public final class NativeIntegrationGameTests {
                     if (b.getClass().getSimpleName().equals("LinkBehaviour")) return b;
                 }
             }
-            throw new AssertionError("Official Create LinkBehaviour was not initialized");
+            throw new AssertionError("Official Create LinkBehaviour was not initialized; BE="+
+                blockEntity.getClass().getName()+" collection="+all);
         } catch (ReflectiveOperationException | SecurityException e) {
             throw new AssertionError("Could not inspect native Create wireless behaviours", e);
         }
