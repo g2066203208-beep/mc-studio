@@ -56,3 +56,18 @@
 - 进一步做到逐像素一致，应由 **真实 Minecraft 1.21.1 + 用户精确版本 Mod + 一致资源包 + 游戏内 BER** 渲染到可预览的离线截图/实时画面，不能把 Three.js 小渲染器称作客户端。
 - CI 使用项目自创的 Simulated bearing / Create shaft & motor 多部分合成 JAR 进行解析器冒烟测试，绝不包含上游原版贴图。只有通过 CI 才能合入 main。
 
+
+## 官方正式版 JAR 的真实模型端到端验收（2026-10-21）
+
+首次真实测试揭示此前未检查的关键事实：Create Aeronautics `1.3.2+mc1.21.1` 外部 JAR 并不直接包含 Simulated/Aeronautics/Offroad 的 `blockstates`；内容藏在三个 `META-INF/jarjar/*.jar` 子包中。旧解析器只解包最外层，航空学始终显示假方框。因此增加了最多两层嵌套解析、数量/单个 JAR 体积限制和资源覆盖缓存失效处理，改为从实际发布版本的资源里渲染。
+
+真实自动化使用：
+- 从 Modrinth 官方发布版 API 临时下载 `Create 6.0.10+mc1.21.1` 与 `Create Aeronautics 1.3.2+mc1.21.1`（SHA-512 校验）。
+- 从 Mojang 官方客户端下载 `Minecraft 1.21.1`（SHA-1 校验），补齐原版纹理和父模型。
+- GitHub Actions Ubuntu + Chrome/WebGL 导入三套 JAR，覆盖 23 个 Create/Simulated/Aeronautics 代表性方块；保存桌面和手机真实截图、各模型的状态 JSON。Mod JAR 与贴图**只存 CI 临时目录，不提交也不附加到公开 artifact**。
+- 最新可复现实测入口：`.github/workflows/rpms-real-release-e2e.yml`，`tests/download-official.py`，`tests/official-release-browser.cjs`。原有小型合成 fixture 也包含模拟 jarjar 子包防回归。
+- 一轮针对 23 个代表方块的官方静态模型测试结果：**17 个静态 JSON+PNG 模型可解析、6 个仅部分/近似状态可用、0 个完全缺失**（具体数字以该分支最新 Actions 运行生成的 `official-model-coverage.json` 为准）。
+- 有些原版 BlockState 需要页面 UI 尚未输入的额外属性（如 `face`, `axis_along_first`, `powered=0`）。这些方块选用**原本就存在于正式 JAR 的最接近变体**，并明确显示 `partial`，可在 UI 手工选择确切原版状态；不能冒充与游戏默认状态完全一致。
+- CI 安装临时的系统 CJK 字体用于测试截图，修复原先 CI 里中文都变成 □ 的问题。
+
+**仍未完成的项目**：需要在 NeoForge 游戏进程内对 Create 和 Sable 动态 BlockEntityRenderer、运动/粒子、Ponder、光照、姿态、贴图资源包与原版截图逐一对比；这无法用浏览器解析 JAR 静态资源证明完成。浏览器的 `authentic` 仅指**静态模型资源解码成功**，不等于游戏内整台 Boss 的真实渲染和物理已验证。
