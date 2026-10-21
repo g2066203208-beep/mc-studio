@@ -69,6 +69,18 @@ public final class SeamServer {
             for (SeamGraph.Link link : SeamGraph.from(dim)) {
                 int min = source.getMinBuildHeight();
                 int max = SeamBounds.top(source);
+                if (SeamSettings.get(server).experimentalNoRespawn()
+                    && tick % 40 == 0
+                    && link.near(player.getY(), min, max, 64)) {
+                    boolean warmed = SeamReadiness.isReady(player.getUUID(),
+                        dim, link.target(), tick);
+                    player.displayClientMessage(
+                        net.minecraft.network.chat.Component.literal(
+                            warmed ? "WorldSeam: remote native world READY"
+                                   : "WorldSeam: preloading target chunks... (stay near seam)"
+                        ), true
+                    );
+                }
                 if (!link.crossed(player.getY(), min, max)) {
                     continue;
                 }
