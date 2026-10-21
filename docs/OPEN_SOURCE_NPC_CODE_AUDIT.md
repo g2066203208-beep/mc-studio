@@ -47,3 +47,9 @@
 ## 验证状态
 
 v0.5.3 需要实际 GitHub Actions Build 和 NeoForge GameTest 成功后才能标记；GameTest 不等于用户的 HMCL 实机。
+
+## v0.5.3 真实完成验证（2026-10-21）
+- 源码提交：`ddef80b99663c5fdd4ef9f996aa385877e4c59f3`。Build [39542185445](https://github.com/g2066203208-beep/mc-studio/actions/runs/39542185445) SUCCESS。
+- 真 NeoForge GameTest [39542185523](https://github.com/g2066203208-beep/mc-studio/actions/runs/39542185523) SUCCESS；日志 `All 12 required tests passed :)`。新回归针对 CHUNK_GENERATION 自然居民出生及身份/NBT。
+- 产物 GitHub artifact ID `12319922214`；解包确认 JAR `reme_studio-0.5.3-dev.jar` 大小 127188 bytes，SHA-256 `ee837d2b02f9d7baf65d8e13b646323ad04d97904e3a39fbfc17916a6b012ab9`。核验 `META-INF/neoforge.mods.toml` (modid reme_studio; v0.5.3-dev; NeoForge min 21.1.248) 和 `javap` 显示 finalizeSpawn 实际调用 `NaturalResidentSpawn.allowedNaturalReason`。
+- 仍 **不是** 用户 HMCL 启动成功；用户截图 /npc 根命令未知，尚需 Mod 加载日志或选中版本的 mods 列表才能准确定位。

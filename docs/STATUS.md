@@ -147,3 +147,11 @@ Gradle 报告使用了将来不兼容 Gradle 10 的弃用功能；当前固定 W
 - NeoForge Java 测试与编译 SUCCESS [39537393137](https://github.com/g2066203208-beep/mc-studio/actions/runs/39537393137)；真实 GameTest 服务器 10/10 通过 [39537399622](https://github.com/g2066203208-beep/mc-studio/actions/runs/39537399622)，包括服务器实体实际移动、真实命令产生六实体、生物群系 spawn 表。
 - **客户端启动尝试** [39537393170](https://github.com/g2066203208-beep/mc-studio/actions/runs/39537393170)：Xvfb Render thread 加载 mod/reme_studio 资源无筛查 fatal，180 秒主动退出。不等于 HMCL 和整合包可用，更不代表真正进世界验证所有行动。
 - v0.5.1 JAR 124714 字节，sha256 aa61ce2e079b08e395cddbc4e54fc7213a7a51c37483e03dbc8b3f518dd1ac88，GitHub artifact 12317652189；保持 draft。
+
+
+## Living World v0.5.3 实际开源源码对照和修复
+- 2026-10-21 查看 Millénaire、Kithkyn、MCA Reborn、MineColonies 的 Java 实现与 source-level 思路，详见 `docs/OPEN_SOURCE_NPC_CODE_AUDIT.md`。
+- 检测到 v0.5.1 和 v0.5.2 出生初始化漏洞：spawn placement 接受 CHUNK_GENERATION，但实体 finalizeSpawn 对该原因不初始化个人信息，已统一初始化；局部已加载人口上限两个自然原因均进行检查。
+- 源码编译 [39542185445](https://github.com/g2066203208-beep/mc-studio/actions/runs/39542185445) SUCCESS、12 项 NeoForge GameTests [39542185523](https://github.com/g2066203208-beep/mc-studio/actions/runs/39542185523) SUCCESS。
+- SHA256 `ee837d2b02f9d7baf65d8e13b646323ad04d97904e3a39fbfc17916a6b012ab9`、127188 字节、GitHub artifact 12319922214。
+- **用户真实 HMCL 模组加载故障未被确认修复。** `/npc` 根命令未知说明当前游戏会话没有此命令；建议基于实际 HMCL Mod 管理列表/日志判断，而不是继续大量增加玩法代码。
