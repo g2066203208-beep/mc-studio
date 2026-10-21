@@ -29,6 +29,10 @@ public final class LivingWorldActions {
     public static void tick(PlayerNpcEntity npc, ServerLevel level) {
         if (npc.mode() != PlayerNpcEntity.Mode.LIVE) return;
         long tick = level.getGameTime();
+        // Record only actual transit, never stationary NPC ticks. Bounded per-
+        // dimension SavedData persists crowd footsteps; physical wear is
+        // separately operator-authorized and defaults OFF.
+        EmergentFootpaths.observe(npc, level, tick);
         if (MovementPolicy.due(tick, npc.getId(), 200)) {
             npc.changeNeeds(-2, npc.intent() == LivingPlanner.Intent.SLEEP ? 12 : -3,
                 npc.intent() == LivingPlanner.Intent.SOCIALIZE ? 2 : -3);
