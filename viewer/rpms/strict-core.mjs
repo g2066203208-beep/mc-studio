@@ -54,7 +54,7 @@ function kind(b){return behavior(b.id).kind;}
 function hasShaft(b,along,towards=null){
  const k=kind(b),a=axisOf(b);
  if(k==='shaft'||k==='small'||k==='large')return along===a;
- if(k==='source')return along===a&&(!towards||b.facing===towards); // Create CreativeMotorBlock.hasShaftTowards is directional
+ if(k==='source')return along===a&&(!towards||!DIRECTION_AXIS[b.facing]||b.facing===towards); // Create CreativeMotorBlock.hasShaftTowards is directional; legacy blueprints without facing use their axis
  if(k==='clutch')return along===a && !(b.powered===true || b.state?.powered==='true');
  if(k==='bearing')return along===a; // assembly remains unverified
  if(k==='consumer')return along===a; // conservative topology indicator only
