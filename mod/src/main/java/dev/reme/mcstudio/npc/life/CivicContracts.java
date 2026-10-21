@@ -96,10 +96,14 @@ public final class CivicContracts {
         Commission job = npc.commission();
         if (job == null || job.state() == Commission.State.COMPLETED ||
             job.state() == Commission.State.CANCELLED) return false;
-        if (!npc.backpack().canAddItem(new ItemStack(Items.EMERALD, job.emeraldReward())))
-            return false;
-        if (!npc.backpack().addItem(new ItemStack(Items.EMERALD,
+        SimpleContainer trial = new SimpleContainer(npc.backpack().getContainerSize());
+        for (int i = 0; i < trial.getContainerSize(); i++)
+            trial.setItem(i, npc.backpack().getItem(i).copy());
+        if (!trial.addItem(new ItemStack(Items.EMERALD,
             job.emeraldReward())).isEmpty()) return false;
+        for (int i = 0; i < trial.getContainerSize(); i++)
+            npc.backpack().setItem(i, trial.getItem(i).copy());
+        npc.backpack().setChanged();
         job.cancel();
         return true;
     }

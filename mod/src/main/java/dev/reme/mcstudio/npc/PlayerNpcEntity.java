@@ -277,11 +277,12 @@ public class PlayerNpcEntity extends PathfinderMob {
         }
         if (!hasBread || !snapshot.addItem(new ItemStack(Items.EMERALD)).isEmpty())
             return false;
-        ItemStack loaf = new ItemStack(Items.BREAD);
-        if (!customer.getInventory().add(loaf)) return false;
+        int freeSlot = customer.getInventory().getFreeSlot();
+        if (freeSlot < 0) return false;
         for (int i = 0; i < 36; i++) backpack.setItem(i, snapshot.getItem(i).copy());
         backpack.setChanged();
         payment.shrink(1);
+        customer.getInventory().setItem(freeSlot, new ItemStack(Items.BREAD));
         memory.witness(level().getGameTime(), customer.getUUID(),
             ResidentMemory.Kind.GIFT, blockPosition().toShortString());
         journey.succeeded(LifeJourney.Achievement.BARTER);
