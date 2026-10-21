@@ -19,7 +19,7 @@ import java.util.List;
 public final class ShipRepairGameTests {
     private ShipRepairGameTests() {}
 
-    @GameTest(template="shiprepair:empty", timeoutTicks=100)
+    @GameTest(template="empty", timeoutTicks=100)
     public static void recordsAndRepairsActualMovingSublevel(GameTestHelper helper) {
         var level=helper.getLevel();
         BlockPos origin=helper.absolutePos(new BlockPos(2,1,2));
@@ -77,7 +77,7 @@ public final class ShipRepairGameTests {
         });
     }
 
-    @GameTest(template="shiprepair:empty", timeoutTicks=40)
+    @GameTest(template="empty", timeoutTicks=40)
     public static void refusesGlobalWorldRestore(GameTestHelper helper) {
         var world=helper.getLevel();
         var pos=helper.absolutePos(new BlockPos(2,1,2));
