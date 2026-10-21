@@ -11,6 +11,11 @@ import dev.reme.mcstudio.npc.life.CivicSocial;
 import dev.reme.mcstudio.npc.life.SocietyRules;
 import dev.reme.mcstudio.npc.life.PlayerActionBridge;
 import dev.reme.mcstudio.npc.life.PlayerMiningActions;
+import dev.reme.mcstudio.npc.life.NpcPlayerActor;
+import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.neoforge.event.level.BlockEvent;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.phys.AABB;
@@ -550,6 +555,59 @@ public final class CivicGameTests {
         reload.addAdditionalSaveData(empty);
         if (empty.contains("NpcMiningTarget"))
             throw new AssertionError("Cancelled mining orders must not persist");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 185)
+    public static void mining_respects_real_neoforge_protection_break_cancel(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos pos = helper.absolutePos(new BlockPos(4, 9, 4));
+        BlockPos stand = pos.east(2);
+        for (int x = -1; x <= 4; x++) for (int z = -2; z <= 2; z++) {
+            BlockPos ground = pos.offset(x, -1, z);
+            level.setBlock(ground, Blocks.STONE.defaultBlockState(), 3);
+            level.setBlock(ground.above(), Blocks.AIR.defaultBlockState(), 3);
+            level.setBlock(ground.above(2), Blocks.AIR.defaultBlockState(), 3);
+        }
+        level.setBlock(pos, Blocks.STONE.defaultBlockState(), 3);
+        PlayerNpcEntity npc = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (npc == null) throw new AssertionError("Missing protected mining NPC");
+        npc.moveTo(stand.getX() + 0.5, stand.getY(), stand.getZ() + 0.5, 0, 0);
+        npc.setHomePos(stand);
+        npc.setWorkPos(stand);
+        npc.setMode(PlayerNpcEntity.Mode.LIVE);
+        npc.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.IRON_PICKAXE));
+        npc.setMiningTarget(pos);
+        if (!level.addFreshEntity(npc)) throw new AssertionError("Protected NPC not added");
+        AtomicBoolean observed = new AtomicBoolean(false);
+        Consumer<BlockEvent.BreakEvent> veto = event -> {
+            if (event.getPos().equals(pos) && event.getPlayer().getUUID().equals(npc.getUUID())) {
+                observed.set(true);
+                event.setCanceled(true);
+            }
+        };
+        NeoForge.EVENT_BUS.addListener(veto);
+        helper.runAfterDelay(140, () -> {
+            NeoForge.EVENT_BUS.unregister(veto);
+            if (!observed.get())
+                helper.fail("FakePlayer bypassed actual NeoForge BlockEvent.BreakEvent", pos);
+            else if (!level.getBlockState(pos).is(Blocks.STONE))
+                helper.fail("Protection cancellation ignored: stone was destroyed", pos);
+            else if (npc.getMainHandItem().getDamageValue() != 0 || npc.miningTarget() != null)
+                helper.fail("Canceled mining consumed tool or retried a denied order", pos);
+            else helper.succeed();
+        });
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 100)
+    public static void player_action_context_reuses_one_fake_player_per_npc(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        PlayerNpcEntity npc = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (npc == null) throw new AssertionError("Missing NPC");
+        var before = NpcPlayerActor.forNpc(npc, level);
+        var after = NpcPlayerActor.forNpc(npc, level);
+        if (before != after || !before.getUUID().equals(npc.getUUID()))
+            throw new AssertionError("Player actions created inconsistent FakePlayer identities");
         helper.succeed();
     }
 
