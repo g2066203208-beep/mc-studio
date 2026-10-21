@@ -45,6 +45,7 @@ public final class SeamServer {
         long tick = server.overworld().getGameTime();
         // Only one teleport per player per tick. All operations on server thread.
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            SeamPreviewSender.tick(server, player, tick);
             if (!player.isAlive() || player.isPassenger() || player.isVehicle()
                 || player.isSleeping() || player.isSpectator()) {
                 continue;
