@@ -25,6 +25,12 @@ try{
  await page.screenshot({path:path.join(__dirname,'strict-desktop.png'),fullPage:true});
  await page.locator('#resetScene').click();
  assert.equal(await page.locator('#blocksNum').textContent(),'0');
+ await page.locator('[data-mode="place"]').click();
+ const box=await page.locator('#view').boundingBox();
+ await page.mouse.click(box.x+box.width/2,box.y+box.height/2);
+ assert.equal(await page.locator('#blocksNum').textContent(),'1','click-to-place MC block must work');
+ await page.mouse.click(box.x+box.width/2,box.y+box.height/2,{button:'right'});
+ assert.equal(await page.locator('#blocksNum').textContent(),'0','right-click-to-break MC block must work');
  await page.locator('#search').fill('swivel_bearing');
  assert.ok(await page.locator('#paletteItems [data-id="simulated:swivel_bearing"]').count()===1);
  await page.locator('#search').fill('');
