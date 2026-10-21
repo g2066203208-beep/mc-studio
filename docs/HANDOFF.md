@@ -38,3 +38,11 @@ GitHub 是整个 Minecraft 工作室的开发中心。代码、需求、研究�
 - Skill 和网格检查不是已经创建原创摩托车 OBJ，也不表示 Minecraft、Sable 或公开网页版已通过真实游戏测试；下一位助手在用户要求做摩托车时按 Skill 创建并提供真正可旋转检视的新模型。
 - 已有真实 3D 源码 `viewer/index.html`，主要针对 Mustang；如果要预览自己制作的摩托车需扩展支持任意 OBJ+PNG。
 - 操作门槛：审查来源许可后使用原创资产；执行自动化测试，再审阅 CI 和 PR。
+
+
+## 2026-10-21：真实航空学拼装恐龙 Boss 可行性审查
+
+- 用户明确坚持真正游戏内方块拼成的物理恐龙、真实关节/轴承/动力和 AI；不是大实体模型也不是假动画。
+- 可行性审查见 docs/bosses/AERONAUTICS_BOSS_FEASIBILITY.md：Create Aeronautics 1.3.2 + Sable 2.0.6、Gadgets & Gizmos 伺服轴承、Transmission & Linkage 液压/万向节、CC/Avionics 可选控制。
+- 优先真实单腿三关节承重闭环 GameTest，再四足多子空间步态；必须自研 Brain、平衡控制、足底接触、目标视野、物理碰撞伤害和 Boss 结构完整度。
+- 本分支只有文档规划，还没有构建/游戏内测试 Boss 实体或方块；不能说已经实现了恐龙 Boss。
