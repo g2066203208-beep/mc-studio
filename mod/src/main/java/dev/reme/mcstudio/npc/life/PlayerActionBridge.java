@@ -1,8 +1,6 @@
 package dev.reme.mcstudio.npc.life;
 
-import com.mojang.authlib.GameProfile;
 import dev.reme.mcstudio.npc.PlayerNpcEntity;
-import java.util.Locale;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
@@ -16,7 +14,6 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.common.util.FakePlayer;
-import net.neoforged.neoforge.common.util.FakePlayerFactory;
 
 /**
  * Adapter for server-authoritative player-like NPC actions.
@@ -62,11 +59,7 @@ public final class PlayerActionBridge {
 
         // Identity is stable across actions. FakePlayerFactory scopes players
         // to ServerLevel and disposes its cache on level unload.
-        String shortId = npc.getUUID().toString().substring(0, 8).toUpperCase(Locale.ROOT);
-        FakePlayer actor = FakePlayerFactory.get(level,
-            new GameProfile(npc.getUUID(), "REME_" + shortId));
-        actor.getAdvancements().stopListening();
-        actor.moveTo(npc.getX(), npc.getY(), npc.getZ(), npc.getYRot(), npc.getXRot());
+        FakePlayer actor = NpcPlayerActor.forNpc(npc, level);
         ItemStack oldHand = actor.getItemInHand(InteractionHand.MAIN_HAND).copy();
 
         try {
