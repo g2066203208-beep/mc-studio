@@ -1,0 +1,49 @@
+name: RPMS Authentic Aeronautics Block Viewer
+on:
+  push:
+    paths:
+      - 'viewer/rpms/**'
+      - '.github/workflows/rpms-authentic-blocks-check.yml'
+  pull_request:
+    paths:
+      - 'viewer/rpms/**'
+      - '.github/workflows/rpms-authentic-blocks-check.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax and asset license boundary
+        run: |
+          node --check viewer/rpms/blocks.js
+          node --check viewer/rpms/tests/blocks-smoke.cjs
+          python3 - <<'PY'
+          import json,pathlib
+          d=json.loads(pathlib.Path('viewer/rpms/quad12.design.json').read_text())
+          assert len(d['segments'])==13 and len(d['joints'])==12
+          assert 'All Rights Reserved' in pathlib.Path('viewer/rpms/BLOCK_ASSEMBLY.md').read_text()
+          assert not list(pathlib.Path('viewer/rpms').rglob('*.png')), 'Do not redistribute copyrighted mod textures'
+          PY
+      - name: Generate synthetic JAR and install browser testing
+        run: |
+          python3 viewer/rpms/tests/create-fixture.py
+          npm install --prefix /tmp/rpms-auth-test --no-save --no-audit --no-fund playwright-core@1.56.1
+      - name: Chrome WebGL and block JAR parsing
+        env:
+          NODE_PATH: /tmp/rpms-auth-test/node_modules
+        run: |
+          python3 -m http.server 8033 --directory viewer >/tmp/rpms-http.log 2>&1 &
+          node viewer/rpms/tests/blocks-smoke.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rpms-aero-blocks-desktop-mobile
+          path: viewer/rpms/tests/aero-blocks-*.png
+          if-no-files-found: ignore

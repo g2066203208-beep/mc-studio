@@ -1,0 +1,44 @@
+const assert=require('node:assert/strict');
+const {chromium}=require('playwright-core');
+const path=require('path');
+(async()=>{
+const browser=await chromium.launch({channel:'chrome',headless:true,args:['--no-sandbox','--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader','--enable-webgl','--disable-dev-shm-usage']});
+try{
+const page=await browser.newPage({viewport:{width:1500,height:900}});
+const errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='warning'||m.type()==='error')console.log('browser console:',m.text())});
+const r=await page.goto('http://127.0.0.1:8033/rpms/',{waitUntil:'domcontentloaded'});
+assert.equal(r.status(),200);
+await page.waitForFunction(()=>window.__AERO_READY__===true||window.__AERO_ERROR__,null,{timeout:50000});
+assert.equal(await page.evaluate(()=>window.__AERO_ERROR__||null),null);
+const d=await page.evaluate(()=>({n:window.__AERO_API__.blockCount,joints:window.__AERO_API__.joints,ids:window.__AERO_API__.ids,loaded:window.__AERO_API__.getLoadedModels()}));
+assert.equal(d.joints.length,12);assert.ok(d.n>=80);assert.equal(d.loaded,0);
+assert.ok(d.ids.includes('simulated:swivel_bearing'));
+assert.ok(d.ids.includes('simulated:physics_assembler'));
+assert.ok(d.ids.includes('simulated:gimbal_sensor'));
+console.log('Authentic registry IDs in block-grid assembly:',d);
+await page.locator('[data-mode="gait"]').click();
+assert.equal(await page.evaluate(()=>window.__AERO_API__.getMode()),'gait');
+await page.locator('[data-mode="explode"]').click();
+assert.equal(await page.evaluate(()=>window.__AERO_API__.getMode()),'explode');
+await page.locator('[data-joint="RR.KFE"]').click();
+await page.locator('[data-view="front"]').click();
+await page.locator('#jars').setInputFiles(path.join(__dirname,'fixture-simulated.jar'));
+await page.waitForFunction(()=>window.__AERO_ASSET_COUNT__!==undefined,null,{timeout:50000});
+const count=await page.evaluate(()=>window.__AERO_API__.getLoadedModels());
+console.log('JAR import detail:',await page.locator('#assetStatus').textContent(), 'model state:',await page.locator('#modelState').textContent());
+assert.ok(count>=12,'JAR block model parser did not render swivel bearings: '+count);
+console.log('Actual JAR block model geometry loaded:',count);
+await page.screenshot({path:path.join(__dirname,'aero-blocks-desktop.png'),fullPage:true});
+await page.locator('#clearJars').click();
+assert.equal(await page.evaluate(()=>window.__AERO_API__.getLoadedModels()),0);
+const mobile=await browser.newPage({viewport:{width:390,height:820},isMobile:true});
+await mobile.goto('http://127.0.0.1:8033/rpms/',{waitUntil:'domcontentloaded'});
+await mobile.waitForFunction(()=>window.__AERO_READY__===true||window.__AERO_ERROR__,null,{timeout:50000});
+assert.equal(await mobile.evaluate(()=>window.__AERO_ERROR__||null),null);
+await mobile.screenshot({path:path.join(__dirname,'aero-blocks-mobile.png')});
+assert.ok((await mobile.evaluate(()=>document.documentElement.scrollWidth-window.innerWidth))<15,'Mobile overflow');
+await mobile.close();
+assert.equal(errors.length,0,'JavaScript errors: '+errors.join(' | '));
+console.log('PASS: Chrome Three.js world, 12 bearing IDs, JAR model import, mobile');
+}finally{await browser.close();}
+})().catch(err=>{console.error(err.stack||err);process.exit(1)});
