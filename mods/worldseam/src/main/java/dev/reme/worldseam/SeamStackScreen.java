@@ -1,5 +1,6 @@
 package dev.reme.worldseam;
 
+import com.mojang.logging.LogUtils;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
@@ -7,222 +8,302 @@ import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.worldselection.CreateWorldScreen;
 import net.minecraft.network.chat.Component;
+
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
- * Ordered multi-dimension editor. Uses actual world-creation datapack dimension
- * registry so modded LevelStems are discoverable, not hard-coded vanilla IDs.
- * Blank top/bottom means the loaded dimension's native build boundary.
- * Changes are applied only when the actual Create World button is pressed.
+ * WorldSeam 创建世界 · 中文维度堆叠工作台。
+ *
+ * Left: visible TOP -> BOTTOM world layers with direct selection.
+ * Right: selected layer's exact physical seam coordinates and travel rules.
+ * All geometry/layout is computed from the actual GUI-scaled resolution.
+ *
+ * This edits connection planes, NOT DimensionType min_y/height.
  */
 public final class SeamStackScreen extends Screen {
+    private static final int NAVY=0xEE101A2A;
+    private static final int PANEL=0xE8223042;
+    private static final int OUTLINE=0xFF52687D;
+    private static final int ACCENT=0xFF73C6BD;
+    private static final int WHITE=0xFFF0F5F9;
+    private static final int MUTED=0xFFAFBECA;
+
     private final CreateWorldScreen parent;
     private final List<SeamStack.Entry> entries=new ArrayList<>();
     private final List<String> candidates;
-    private int selected;
-    private int candidate;
+    private int selected=0, scroll=0, candidate=0;
     private boolean loop;
-    private EditBox bottom;
-    private EditBox top;
-    private Button up;
-    private Button down;
+    private EditBox bottom,top;
+    private Button up,down,connectUp,connectDown;
+    private int panelX,panelY,panelW,panelH,leftX,leftW,rightX,rightW;
+    private int listY,rowH,rowsVisible;
     private String error="";
 
-    public SeamStackScreen(CreateWorldScreen parent,SeamStack existing) {
-        super(Component.literal("WorldSeam Dimension Stack"));
+    public SeamStackScreen(CreateWorldScreen parent,SeamStack saved) {
+        super(Component.literal("WorldSeam · 维度堆叠"));
         this.parent=parent;
-        this.entries.addAll(existing.entries());
-        this.loop=existing.loop();
-        var found=new HashSet<String>();
-        // LevelStem keys from the world's actual loaded datapack registry.
-        // This includes registered dimensions from compatible mods/datapacks.
+        this.entries.addAll(saved.entries());
+        this.loop=saved.loop();
+        Set<String> ids=new HashSet<>();
         parent.getUiState().getSettings().datapackDimensions().keySet()
-            .forEach(key -> found.add(key.toString()));
-        found.add("minecraft:overworld");
-        found.add("minecraft:the_nether");
-        found.add("minecraft:the_end");
-        var ordered=new ArrayList<>(found);
-        ordered.sort(String::compareTo);
-        this.candidates=List.copyOf(ordered);
+            .forEach(key -> ids.add(key.toString()));
+        ids.add("minecraft:overworld");
+        ids.add("minecraft:the_nether");
+        ids.add("minecraft:the_end");
+        var available=new ArrayList<>(ids);
+        available.sort(String::compareTo);
+        this.candidates=List.copyOf(available);
+        candidate=Math.max(0,candidates.indexOf("minecraft:overworld"));
     }
 
-    // A single row origin MUST be used for both widgets and their labels.
-    // Previous render() used a different y offset, causing all labels to
-    // overlap controls in real 1280x720 NeoForge screenshot.
-    private int layoutTop() { return Math.max(35,height/2-130); }
+    private static Component text(String value) { return Component.literal(value); }
+    private static String label(String dimension) {
+        return switch(dimension) {
+            case "minecraft:overworld" -> "主世界";
+            case "minecraft:the_nether" -> "下界";
+            case "minecraft:the_end" -> "末地";
+            default -> dimension.substring(dimension.indexOf(':')+1);
+        };
+    }
+
+    private static String endpoint(Integer value) {
+        return value==null?"原生边界":value.toString();
+    }
+
+    private void layout() {
+        panelW=Math.min(width-18,760);
+        panelH=Math.min(height-14,416);
+        panelX=(width-panelW)/2;
+        panelY=(height-panelH)/2;
+        leftX=panelX+14;
+        leftW=(int)((panelW-42)*0.44);
+        rightX=leftX+leftW+14;
+        rightW=panelX+panelW-14-rightX;
+        listY=panelY+61;
+        rowH=35;
+        rowsVisible=panelH>=370?5:4;
+    }
+
+    private Button button(String name,int x,int y,int w,int h,Runnable action) {
+        return addRenderableWidget(Button.builder(text(name),b->action.run())
+            .bounds(x,y,Math.max(28,w),h).build());
+    }
 
     @Override protected void init() {
-        com.mojang.logging.LogUtils.getLogger().info(
-            "WORLDSEAM_CREATE_STACK_UI_OPEN: {} available dimensions, {} configured layers",
-            candidates.size(),entries.size());
-        int c=width/2, y=layoutTop();
-        addRenderableWidget(Button.builder(Component.literal("Prev"),
-            b -> moveSelection(-1)).bounds(c-145,y,65,20).build());
-        addRenderableWidget(Button.builder(Component.literal("Next"),
-            b -> moveSelection(1)).bounds(c+80,y,65,20).build());
-        up=addRenderableWidget(Button.builder(Component.literal("Move UP"),
-            b -> reorder(-1)).bounds(c-145,y+25,90,20).build());
-        down=addRenderableWidget(Button.builder(Component.literal("Move DOWN"),
-            b -> reorder(1)).bounds(c+55,y+25,90,20).build());
+        layout();
+        LogUtils.getLogger().info(
+            "WORLDSEAM_CREATE_STACK_UI_OPEN: {} available dimensions, {} layers, gui={}x{}",
+            candidates.size(),entries.size(),width,height);
 
-        bottom=new EditBox(font,c-139,y+76,125,20,
-            Component.literal("Bottom seam Y"));
-        top=new EditBox(font,c+14,y+76,125,20,
-            Component.literal("Top seam Y"));
+        // Direct clickable world layer cards (only visible entries).
+        scroll=Math.max(0,Math.min(scroll,Math.max(0,entries.size()-rowsVisible)));
+        for(int row=0;row<rowsVisible;row++){
+            int index=scroll+row;
+            if(index>=entries.size())break;
+            final int layer=index;
+            button((index+1)+". "+label(entries.get(index).id()),
+                leftX+6,listY+row*rowH,leftW-12,21,()->select(layer));
+        }
+
+        int toolsY=listY+rowsVisible*rowH+3;
+        button("◀ 上一页",leftX+6,toolsY,(leftW-18)/2,20,()->page(-1));
+        button("下一页 ▶",leftX+12+(leftW-18)/2,toolsY,(leftW-18)/2,20,()->page(1));
+        int chooserY=toolsY+40;
+        button("◀",leftX+6,chooserY,30,20,()->browse(-1));
+        button("▶",leftX+leftW-36,chooserY,30,20,()->browse(1));
+        button("＋ 添加维度",leftX+6,chooserY+25,leftW-74,21,this::addDimension);
+        button("删除",leftX+leftW-62,chooserY+25,56,21,this::removeDimension);
+
+        int editX=rightX+12, editW=rightW-24;
+        bottom=new EditBox(font,editX,panelY+97,editW,21,text("下边界 Y"));
+        top=new EditBox(font,editX,panelY+150,editW,21,text("上边界 Y"));
         bottom.setMaxLength(9);
         top.setMaxLength(9);
         addRenderableWidget(bottom);
         addRenderableWidget(top);
         loadFields();
 
-        addRenderableWidget(Button.builder(Component.literal("Toggle UP"),
-            b -> changeDirection(true)).bounds(c-145,y+105,90,20).build());
-        addRenderableWidget(Button.builder(Component.literal("Toggle DOWN"),
-            b -> changeDirection(false)).bounds(c+55,y+105,90,20).build());
+        int half=(editW-8)/2;
+        connectUp=button("上方：允许",editX,panelY+207,half,21,()->direction(true));
+        connectDown=button("下方：允许",editX+half+8,panelY+207,half,21,()->direction(false));
+        up=button("↑ 上移一层",editX,panelY+246,half,21,()->reorder(-1));
+        down=button("↓ 下移一层",editX+half+8,panelY+246,half,21,()->reorder(1));
+        button("恢复默认顺序",editX,panelY+278,editW,20,this::restoreDefault);
 
-        addRenderableWidget(Button.builder(Component.literal("< Dim"),
-            b -> browse(-1)).bounds(c-145,y+147,67,20).build());
-        addRenderableWidget(Button.builder(Component.literal("Dim >"),
-            b -> browse(1)).bounds(c+78,y+147,67,20).build());
-        addRenderableWidget(Button.builder(Component.literal("Add"),
-            b -> addDimension()).bounds(c-70,y+173,64,20).build());
-        addRenderableWidget(Button.builder(Component.literal("Remove"),
-            b -> removeDimension()).bounds(c+6,y+173,72,20).build());
-        addRenderableWidget(Button.builder(Component.literal("Loop: "+(loop?"ON":"OFF")),
-            b -> {
-                loop=!loop;
-                b.setMessage(Component.literal("Loop: "+(loop?"ON":"OFF")));
-            }).bounds(c-145,y+199,90,20).build());
-        addRenderableWidget(Button.builder(Component.literal("Save stack"),
-            b -> finish()).bounds(c+48,y+199,97,20).build());
+        int footer=panelY+panelH-36;
+        button("取消",panelX+14,footer,86,24,this::onClose);
+        button("循环：关",panelX+109,footer,100,24,()->{
+            if(!saveFields())return;
+            loop=!loop;
+            rebuild();
+        });
+        button("保存维度堆叠",panelX+panelW-180,footer,166,24,this::finish);
         updateControls();
     }
 
+    private void rebuild() { Minecraft.getInstance().setScreen(this); }
+    private void keepVisible() {
+        if(selected<scroll)scroll=selected;
+        if(selected>=scroll+rowsVisible)scroll=selected-rowsVisible+1;
+    }
     private void updateControls() {
         if(up!=null)up.active=selected>0;
         if(down!=null)down.active=selected<entries.size()-1;
+        var e=entries.get(selected);
+        if(connectUp!=null)connectUp.setMessage(text("向上："+(e.connectsUp()?"连通":"断开")));
+        if(connectDown!=null)connectDown.setMessage(text("向下："+(e.connectsDown()?"连通":"断开")));
     }
-
     private void loadFields() {
-        if(entries.isEmpty())return;
-        SeamStack.Entry e=entries.get(selected);
+        var e=entries.get(selected);
         bottom.setValue(e.bottomY()==null?"":e.bottomY().toString());
         top.setValue(e.topY()==null?"":e.topY().toString());
     }
-
-    private Integer parseField(String value) {
-        if(value.trim().isEmpty())return null;
-        return Integer.valueOf(value.trim());
+    private static Integer parseHeight(String value) {
+        return value.isBlank()?null:Integer.valueOf(value.trim());
     }
-
     private boolean saveFields() {
+        if(bottom==null||top==null)return true;
         try {
             var old=entries.get(selected);
-            entries.set(selected,new SeamStack.Entry(old.id(),
-                parseField(bottom.getValue()),parseField(top.getValue()),
+            entries.set(selected,new SeamStack.Entry(
+                old.id(),parseHeight(bottom.getValue()),parseHeight(top.getValue()),
                 old.connectsUp(),old.connectsDown()));
             error="";
             return true;
         } catch (IllegalArgumentException ex) {
-            error="Invalid height: "+ex.getMessage();
+            error="高度输入无效："+ex.getMessage();
             return false;
         }
     }
-
-    private void moveSelection(int delta) {
+    private void select(int index) {
+        if(index==selected)return;
         if(!saveFields())return;
-        selected=Math.floorMod(selected+delta,entries.size());
-        loadFields();
-        updateControls();
+        selected=index;
+        rebuild();
     }
-
-    private void reorder(int direction) {
+    private void page(int dir) {
         if(!saveFields())return;
-        int next=selected+direction;
+        scroll=Math.max(0,Math.min(scroll+dir*rowsVisible,
+            Math.max(0,entries.size()-rowsVisible)));
+        rebuild();
+    }
+    private void browse(int offset) {
+        if(!saveFields())return;
+        candidate=Math.floorMod(candidate+offset,candidates.size());
+    }
+    private void reorder(int offset) {
+        if(!saveFields())return;
+        int next=selected+offset;
         if(next<0||next>=entries.size())return;
-        var item=entries.remove(selected);
-        entries.add(next,item);
+        var e=entries.remove(selected);
+        entries.add(next,e);
         selected=next;
-        updateControls();
+        keepVisible();
+        rebuild();
     }
-
-    private void changeDirection(boolean upwards) {
+    private void direction(boolean upDirection) {
         if(!saveFields())return;
         var e=entries.get(selected);
         entries.set(selected,new SeamStack.Entry(e.id(),e.bottomY(),e.topY(),
-            upwards?!e.connectsUp():e.connectsUp(),
-            upwards?e.connectsDown():!e.connectsDown()));
+            upDirection?!e.connectsUp():e.connectsUp(),
+            upDirection?e.connectsDown():!e.connectsDown()));
+        updateControls();
     }
-
-    private void browse(int delta) {
-        if(candidates.isEmpty())return;
-        candidate=Math.floorMod(candidate+delta,candidates.size());
-    }
-
     private void addDimension() {
         if(!saveFields())return;
         String id=candidates.get(candidate);
-        if(entries.stream().anyMatch(e->e.id().equals(id))){
-            error="This dimension is already in stack";return;
+        if(entries.stream().anyMatch(x->x.id().equals(id))) {
+            error="该维度已在堆叠中";return;
         }
-        if(entries.size()>=SeamStack.MAX_ENTRIES){
-            error="Maximum "+SeamStack.MAX_ENTRIES+" dimensions";return;
+        if(entries.size()>=SeamStack.MAX_ENTRIES) {
+            error="最多支持 "+SeamStack.MAX_ENTRIES+" 层";return;
         }
         entries.add(new SeamStack.Entry(id,null,null,true,true));
         selected=entries.size()-1;
-        loadFields();
-        updateControls();
-        error="";
+        keepVisible();
+        rebuild();
     }
-
     private void removeDimension() {
-        if(entries.size()==1){error="At least one dimension is required";return;}
+        if(entries.size()==1) {error="至少保留一个维度";return;}
         entries.remove(selected);
         selected=Math.min(selected,entries.size()-1);
-        loadFields();
-        updateControls();
-        error="";
+        keepVisible();
+        rebuild();
     }
-
+    private void restoreDefault() {
+        entries.clear();
+        entries.addAll(SeamStack.defaults().entries());
+        loop=false;
+        scroll=selected=0;
+        rebuild();
+    }
     private void finish() {
         if(!saveFields())return;
         try {
-            SeamStack plan=new SeamStack(List.copyOf(entries),loop);
-            SeamWorldCreation.save(parent,plan);
+            SeamStack next=new SeamStack(List.copyOf(entries),loop);
+            SeamWorldCreation.save(parent,next);
+            LogUtils.getLogger().info(
+                "WORLDSEAM_STACK_EDITOR_SAVED: layers={}, order={}",
+                next.entries().size(),next.entries().stream().map(SeamStack.Entry::id).toList());
             Minecraft.getInstance().setScreen(parent);
-        } catch(IllegalArgumentException ex) {
-            error=ex.getMessage();
+        } catch (IllegalArgumentException ex) {
+            error="无法保存："+ex.getMessage();
         }
     }
-
     @Override public void onClose() {
-        // Cancel does not modify creation preset.
         Minecraft.getInstance().setScreen(parent);
     }
 
     @Override public void render(GuiGraphics g,int mouseX,int mouseY,float delta) {
         renderBackground(g,mouseX,mouseY,delta);
-        super.render(g,mouseX,mouseY,delta);
-        int c=width/2,y=layoutTop();
-        g.drawCenteredString(font,"WORLDSEAM  /  TOP  ->  BOTTOM",c,10,0xE6D7FF);
-        if(!entries.isEmpty()){
-            var e=entries.get(selected);
-            g.drawCenteredString(font,
-                "Layer "+(selected+1)+"/"+entries.size()+": "+e.id(),
-                c,y-15,0xFFFFFF);
-            g.drawCenteredString(font,
-                "Connect UP: "+e.connectsUp()+"  |  DOWN: "+e.connectsDown(),
-                c,y+49,0xAADDFF);
+        layout();
+        g.fill(panelX,panelY,panelX+panelW,panelY+panelH,NAVY);
+        g.fill(panelX+7,panelY+48,panelX+panelW-7,panelY+panelH-43,PANEL);
+        g.fill(rightX-8,panelY+56,rightX-7,panelY+panelH-46,OUTLINE);
+        g.drawString(font,"维度堆叠",panelX+16,panelY+15,WHITE,true);
+        g.drawString(font,"从上到下排列 · 点击左侧卡片编辑连接",panelX+114,panelY+16,MUTED);
+        g.drawString(font,"世界层级",leftX+6,panelY+46,ACCENT);
+        g.drawString(font,"连接高度与方向",rightX+12,panelY+46,ACCENT);
+
+        for(int i=0;i<rowsVisible;i++){
+            int index=scroll+i;
+            if(index>=entries.size())break;
+            int y=listY+i*rowH;
+            var e=entries.get(index);
+            if(index==selected) {
+                g.fill(leftX+3,y-2,leftX+leftW-3,y+rowH-2,0x663E9B93);
+                g.fill(leftX+3,y-2,leftX+5,y+rowH-2,ACCENT);
+            }
+            String details=e.id()+"  ↑"+endpoint(e.topY())+" ↓"+endpoint(e.bottomY());
+            g.drawString(font,font.substrByWidth(details,leftW-18),
+                leftX+9,y+24,index==selected?0xFFF5D49E:MUTED,false);
         }
-        g.drawString(font,"Bottom Y (blank=default)",c-142,y+64,0xCCCCCC);
-        g.drawString(font,"Top Y (blank=default)",c+13,y+64,0xCCCCCC);
-        g.drawCenteredString(font,"Available dimension: "+candidates.get(candidate),
-            c,y+133,0xAEE9A0);
+
+        var active=entries.get(selected);
+        g.drawString(font,label(active.id()),rightX+12,panelY+63,WHITE,true);
+        g.drawString(font,font.substrByWidth(active.id(),rightW-25),
+            rightX+12,panelY+76,MUTED,false);
+        g.drawString(font,"下连接面 Y（留空使用原生下界）",rightX+12,panelY+87,MUTED);
+        g.drawString(font,"上连接面 Y（留空使用原生上界）",rightX+12,panelY+140,MUTED);
+        g.drawString(font,"选择要添加的维度",leftX+6,listY+rowsVisible*rowH+29,MUTED);
         g.drawCenteredString(font,
-            "Mods/datapacks: dimensions must exist in this world's registry",
-            c,Math.min(height-12,y+230),0x999999);
-        if(!error.isEmpty())g.drawCenteredString(font,error,c,Math.min(height-1,y+242),0xFF7777);
+            font.substrByWidth(label(candidates.get(candidate)),leftW-78),
+            leftX+leftW/2,listY+rowsVisible*rowH+46,WHITE);
+        g.drawString(font,"连通开关",rightX+12,panelY+190,MUTED);
+        g.drawString(font,"层级排序",rightX+12,panelY+233,MUTED);
+        g.drawString(font,"仅修改连接面，不修改原版世界生成高度",
+            rightX+12,panelY+308,0xFFE1B680);
+        g.drawString(font,"若维度不存在，服务器会拒绝启用堆叠",
+            rightX+12,panelY+324,MUTED);
+        if(loop)g.drawString(font,"循环连接：已开启",panelX+228,
+            panelY+panelH-29,ACCENT);
+        if(!error.isBlank())
+            g.drawCenteredString(font,
+                font.substrByWidth(error,panelW-30),
+                width/2,panelY+panelH-49,0xFFFF8989);
+        super.render(g,mouseX,mouseY,delta);
     }
 }
