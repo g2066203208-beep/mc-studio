@@ -19,6 +19,20 @@ jobs:
         run: bash scripts/test-living-planner.sh
       - name: Build
         run: bash scripts/build.sh
+      - name: Verify installer source and mod metadata
+        run: python3 scripts/test-installer.py mod/build/libs/reme_studio-0.5.4-dev.jar
+      - name: Package Windows HMCL one-click installer
+        run: |
+          mkdir -p dist/REME-NPC-HMCL-v0.5.4
+          cp mod/build/libs/reme_studio-0.5.4-dev.jar dist/REME-NPC-HMCL-v0.5.4/
+          cp packaging/Install-REME-NPC.cmd packaging/Install-REME-NPC.ps1 dist/REME-NPC-HMCL-v0.5.4/
+          cp docs/NPC_HMCL_ACCEPTANCE.md dist/REME-NPC-HMCL-v0.5.4/README.txt
+          (cd dist/REME-NPC-HMCL-v0.5.4 && zip -q -9 ../REME-NPC-HMCL-v0.5.4-installer.zip ./*)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installer-v054
+          path: dist/REME-NPC-HMCL-v0.5.4-installer.zip
+          if-no-files-found: error
       - uses: actions/upload-artifact@v4
         with:
           name: reme-studio-${{ github.sha }}
