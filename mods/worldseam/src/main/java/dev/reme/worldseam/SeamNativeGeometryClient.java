@@ -9,6 +9,7 @@ import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.block.RenderShape;
 import net.minecraft.world.level.LightLayer;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.phys.AABB;
@@ -174,6 +175,12 @@ public final class SeamNativeGeometryClient {
         if (lastFrameDrawn>0) buffers.endBatch();
     }
 
+    public static int countEndStone() {
+        int count=0;
+        for(var section:columns.values()) for(Cell cell:section)
+            if(cell.state().is(Blocks.END_STONE))count++;
+        return count;
+    }
     public static int visibleBlockCount() { return blocksBuilt; }
     public static int lastFrameDrawn() { return lastFrameDrawn; }
     public static int columnCount() { return columns.size(); }

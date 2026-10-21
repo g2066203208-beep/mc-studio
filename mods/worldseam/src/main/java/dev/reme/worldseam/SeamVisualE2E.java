@@ -112,6 +112,10 @@ public final class SeamVisualE2E {
                 mc.level.dimension().location(),mc.player.getY(),
                 SeamClientWorldPool.nearbyChunks(),SeamNativeGeometryClient.visibleBlockCount(),
                 SeamNativeGeometryClient.lastFrameDrawn());
+            int nativeStone=SeamNativeGeometryClient.countEndStone();
+            LOG.info("WORLDSEAM_E2E_END_NATURAL_STONE: {} End-stone visible surface candidates (not synthetic purpur markers)",nativeStone);
+            if(nativeStone==0)
+                LOG.error("WORLDSEAM_E2E_FAIL_END_NATURAL: End main island not visible in preview");
         } else if (phase==7 && now-startTick>1440) {
             phase=8;
             server.execute(() -> attemptEnd(server,playerId));
@@ -134,8 +138,12 @@ public final class SeamVisualE2E {
         if(p==null || p.serverLevel().dimension()!=Level.OVERWORLD)return;
         p.getAbilities().flying=true;
         p.onUpdateAbilities();
-        p.connection.teleport(p.getX(),317.0,p.getZ(),0,-90);
-        LOG.info("WORLDSEAM_E2E_END_STAGE: player Y317, looking UP at Overworld TOP Y320 with real End markers above");
+        // A truthful natural-terrain visual test: End's main island is
+        // around 0,0, and its surface is much higher than the Y=0 plane.
+        // The old screenshots used a tiny artificial marker near random
+        // Overworld spawn, proving only proxy models, not End terrain.
+        p.connection.teleport(0.5,317.0,0.5,0,-90);
+        LOG.info("WORLDSEAM_E2E_END_STAGE: player X0 Z0 Y317, looking UP at actual End main island through Overworld TOP Y320");
     }
 
     private static void attemptEnd(MinecraftServer server,UUID id) {
