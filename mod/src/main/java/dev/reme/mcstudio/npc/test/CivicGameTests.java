@@ -21,6 +21,7 @@ import dev.reme.mcstudio.npc.life.EmergentFootpaths;
 import dev.reme.mcstudio.npc.life.EmergentSettlements;
 import dev.reme.mcstudio.npc.life.BanditActions;
 import dev.reme.mcstudio.npc.life.PublicSafety;
+import dev.reme.mcstudio.npc.life.ShopCounter;
 import dev.reme.mcstudio.npc.life.CaravanRoutes;
 import net.minecraft.world.level.block.entity.ChestBlockEntity;
 import dev.reme.mcstudio.npc.life.SettlementLedger;
@@ -1382,6 +1383,60 @@ public final class CivicGameTests {
             throw new AssertionError("Guard detained suspect without an actual validated jail");
         if (level.getServer().getPlayerList().getPlayer(suspect.getUUID()) != null)
             throw new AssertionError("Criminal NPC incorrectly treated as logged-in human");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 100)
+    public static void staffed_convenience_shop_sells_only_real_food_and_keeps_real_emerald(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos pos = helper.absolutePos(new BlockPos(4, 9, 4));
+        PlayerNpcEntity clerk = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (clerk == null) throw new AssertionError("Shopkeeper registry missing");
+        clerk.moveTo(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5, 0, 0);
+        clerk.setProfession(PlayerNpcEntity.Profession.SHOPKEEPER);
+        clerk.setMode(PlayerNpcEntity.Mode.LIVE);
+        clerk.backpack().addItem(new ItemStack(Items.BREAD, 2));
+        if (!level.addFreshEntity(clerk)) throw new AssertionError("Real clerk not spawned");
+        var buyer = FakePlayerFactory.getMinecraft(level);
+        buyer.moveTo(pos.getX() + 1.5, pos.getY(), pos.getZ() + 0.5, 0, 0);
+        buyer.getInventory().clearContent();
+        buyer.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.EMERALD, 1));
+        if (!ShopCounter.purchase(clerk, buyer, buyer.getMainHandItem())
+            || clerk.backpack().countItem(Items.BREAD) != 1
+            || clerk.backpack().countItem(Items.EMERALD) != 1
+            || buyer.getInventory().countItem(Items.BREAD) != 1
+            || buyer.getInventory().countItem(Items.EMERALD) != 0)
+            throw new AssertionError("Shop duplicated stock/emerald or failed actual transaction");
+        // A customer with no emerald cannot mint food.
+        if (ShopCounter.purchase(clerk, buyer, buyer.getMainHandItem())
+            || clerk.backpack().countItem(Items.BREAD) != 1)
+            throw new AssertionError("Shop granted free food without genuine currency");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 100)
+    public static void full_cash_drawer_prevents_shop_transaction_without_loss(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos pos = helper.absolutePos(new BlockPos(4, 9, 4));
+        PlayerNpcEntity clerk = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (clerk == null) throw new AssertionError("No shop NPC");
+        clerk.moveTo(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5, 0, 0);
+        clerk.setProfession(PlayerNpcEntity.Profession.SHOPKEEPER);
+        clerk.setMode(PlayerNpcEntity.Mode.LIVE);
+        clerk.backpack().setItem(0, new ItemStack(Items.BREAD, 2));
+        for (int i = 1; i < clerk.backpack().getContainerSize(); i++)
+            clerk.backpack().setItem(i, new ItemStack(Items.DIRT, 64));
+        if (!level.addFreshEntity(clerk)) throw new AssertionError("Cannot spawn actual storekeeper");
+        var buyer = FakePlayerFactory.getMinecraft(level);
+        buyer.getInventory().clearContent();
+        buyer.moveTo(pos.getX() + 1.5, pos.getY(), pos.getZ() + 0.5, 0, 0);
+        buyer.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.EMERALD, 1));
+        if (ShopCounter.purchase(clerk, buyer, buyer.getMainHandItem())
+            || clerk.backpack().countItem(Items.BREAD) != 2
+            || clerk.backpack().countItem(Items.EMERALD) != 0
+            || buyer.getInventory().countItem(Items.EMERALD) != 1
+            || buyer.getInventory().countItem(Items.BREAD) != 0)
+            throw new AssertionError("Shop lost or duplicated items despite a full real payment drawer");
         helper.succeed();
     }
 
