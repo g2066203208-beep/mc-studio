@@ -17,3 +17,13 @@ This patch responds to an actual user's screenshot: `/npc spawn` is red from **c
 - Original fix v0.5.1 had 10/10 GameTests and GUI boot resource log but did not prove actual user's HMCL instance installed or loaded it.
 - This patch adds a login chat message for visibility and is still **not proof of in-game client gameplay on user's PC**.
 - Reference: NeoForge `RegisterCommandsEvent` fires on `NeoForge.EVENT_BUS`; MineColonies has a `@SubscribeEvent onCommandsRegister` handler. We follow the same event family, but add explicit diagnostics rather than claiming other projects' code is ours.
+
+## Verified CI / user status (2026-10-21)
+
+- The user's uploaded screenshot shows the **root** slash command is unknown/incomplete at the first character. This is evidence of missing command registration in that running profile, **not evidence that NPC pathfinding failed**. We cannot remotely see the user's active HMCL mods folder, so exact cause remains undetermined.
+- The distributed v0.5.1 JAR was inspected locally: a valid ZIP JAR with `META-INF/neoforge.mods.toml` (modId `reme_studio`, version 0.5.1-dev), compiled `StudioMod` and `NpcCommands`; NeoForge dependency requires 21.1.248+.
+- v0.5.2 source `b7942080143f3ce7b02e8b857c5340853323b1e6`: pass [CI Build 39539464195](https://github.com/g2066203208-beep/mc-studio/actions/runs/39539464195); pass [GameTest 39539498111](https://github.com/g2066203208-beep/mc-studio/actions/runs/39539498111) **11/11** (logged `/npc registered=true` on no-cheats diagnostic).
+- Follow-up workflow-only `82bf974a318ccab9cf8a24a4b958024344fd01b2`: [Build 39539710056](https://github.com/g2066203208-beep/mc-studio/actions/runs/39539710056) SUCCESS; [Server GameTest 39539710127](https://github.com/g2066203208-beep/mc-studio/actions/runs/39539710127) **11/11** PASS.
+- Uploaded artifact `12318707103`: extracted and verified `reme_studio-0.5.2-dev.jar`, 126796 bytes, SHA-256 `48d17f2b798d07d31e461d5d7e5771cd5026d7d651ea345ef3a0506693ae065e`; includes mod descriptor and diagnostic code. It is NOT an installation proof for user's PC.
+- [Client virtual display run 39539704680](https://github.com/g2066203208-beep/mc-studio/actions/runs/39539704680) requested; check outcome and logs before calling client boot successful. Even if it passes, the harness does not interact with a survival world or read user's instance folder.
+- Exact next input required for the user's failure: an **HMCL selected-version Mod Management screenshot showing REME MC Studio or not**, or the active selected game's `logs/latest.log`. Cannot diagnose exact folder/missing jar solely from slash error.
