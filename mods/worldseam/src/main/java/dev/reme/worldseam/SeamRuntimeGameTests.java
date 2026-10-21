@@ -135,8 +135,8 @@ public final class SeamRuntimeGameTests {
         var remoteWitness=new net.minecraft.core.BlockPos(x,127,z);
         var remoteAir=new net.minecraft.core.BlockPos(x,128,z);
         try {
-            // The explosion handler refuses to wake 9 unloaded target chunks
-            // on its own; a real prewarmed target needs to be present.
+            // The explosion bridge NEVER force-loads destination chunks.
+            // Both destination windows must be prewarmed for real block damage.
             for(int dx=-1;dx<=1;dx++)for(int dz=-1;dz<=1;dz++)
                 nether.getChunk(cx+dx,cz+dz);
             over.setBlock(sourceRoof,
@@ -162,6 +162,29 @@ public final class SeamRuntimeGameTests {
             }
             com.mojang.logging.LogUtils.getLogger().info(
                 "WORLDSEAM_CROSS_BLAST_PASS: Overworld floor TNT equivalent destroyed the Nether roof witness");
+            // Reverse direction on the REAL second ServerLevel: a Nether
+            // roof blast destroys a block belonging to the Overworld floor.
+            // Keep both 3x3 windows fully loaded inside the disposable test.
+            for(int dx=-1;dx<=1;dx++)for(int dz=-1;dz<=1;dz++)
+                over.getChunk(cx+dx,cz+dz);
+            var reverseWitness=sourceRoof.offset(1,0,0);
+            for(int dx=-2;dx<=2;dx++)for(int dz=-2;dz<=2;dz++) {
+                nether.setBlock(remoteWitness.offset(dx,0,dz),
+                    net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(),3);
+                over.setBlock(sourceRoof.offset(dx,0,dz),
+                    net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(),3);
+            }
+            over.setBlock(reverseWitness,
+                net.minecraft.world.level.block.Blocks.GLASS.defaultBlockState(),3);
+            nether.explode(null,x+0.5,127.5,z+0.5,4.0f,
+                net.minecraft.world.level.Level.ExplosionInteraction.TNT);
+            if(!over.getBlockState(reverseWitness).isAir()) {
+                helper.fail("Reverse Nether roof blast did not destroy real Overworld floor glass");
+                return;
+            }
+            com.mojang.logging.LogUtils.getLogger().info(
+                "WORLDSEAM_CROSS_BLAST_PASS_REVERSE: Nether roof blast destroyed Overworld glass");
+
         } finally {
             options.setCrossSeamExplosions(false);
             options.setEnabled(false);
