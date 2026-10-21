@@ -130,6 +130,13 @@ public final class NativeSnapshotCommand {
                             if(value!=null)nativeState.addProperty(method,value);
                         }
                         block.add("nativeRuntime",nativeState);
+                        // Existing RPMS layout tools understand 'rpm' for the
+                        // creative motor. Populate it only from actual live
+                        // Create data, never a browser-side guess.
+                        if(id.toString().equals("create:creative_motor")){
+                            Number observed=readOptionalNumber(be,"getSpeed");
+                            if(observed!=null)block.addProperty("rpm",observed);
+                        }
                     }
                     blocks.add(block);
                 }
