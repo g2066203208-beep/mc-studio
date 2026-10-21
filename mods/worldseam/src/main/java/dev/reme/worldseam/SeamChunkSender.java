@@ -7,6 +7,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.level.TicketType;
 import net.minecraft.world.level.ChunkPos;
+import net.minecraft.core.BlockPos;
 import net.neoforged.neoforge.network.PacketDistributor;
 
 import java.util.Comparator;
@@ -32,6 +33,7 @@ public final class SeamChunkSender {
     private static final org.slf4j.Logger LOG=LogUtils.getLogger();
     private static final int INTERVAL=10;
     private static final int REFRESH_TICKS=1200;
+    private static final int DIRTY_COOLDOWN=20;
     private static final int WINDOW_RADIUS=2;
     private static final int TICKET_DISTANCE=3;
     private static final double RADIUS_FROM_EDGE=96;
@@ -60,6 +62,8 @@ public final class SeamChunkSender {
         long chunkFetches;
         long packetsSent;
         final Map<Long,Long> lastSent=new HashMap<>();
+        final Set<Long> dirty=new HashSet<>();
+        long changeResends;
 
         void release() {
             if(ticketLevel!=null && ticketCenter!=null)
@@ -84,12 +88,14 @@ public final class SeamChunkSender {
                 return Math.abs(cx-center.x)>WINDOW_RADIUS ||
                     Math.abs(cz-center.z)>WINDOW_RADIUS;
             });
+            dirty.retainAll(lastSent.keySet());
         }
 
         void reset() {
             release();
             scope="";
             lastSent.clear();
+            dirty.clear();
         }
     }
 
@@ -143,7 +149,9 @@ public final class SeamChunkSender {
             int testX=centerX+OFFSETS[i][0],testZ=centerZ+OFFSETS[i][1];
             long candidate=((long)testX<<32)|(testZ&0xffffffffL);
             long sentAt=session.lastSent.getOrDefault(candidate,Long.MIN_VALUE/2);
-            if(tick-sentAt<REFRESH_TICKS)continue;
+            boolean changed=session.dirty.contains(candidate)
+                && tick-sentAt>=DIRTY_COOLDOWN;
+            if(tick-sentAt<REFRESH_TICKS && !changed)continue;
             slot=i;
             cx=testX;
             cz=testZ;
@@ -165,6 +173,7 @@ public final class SeamChunkSender {
             new SeamChunkPayload(sourceId,selected.target(),cx,cz,
                 vanilla.getChunkData(),vanilla.getLightData()));
         session.lastSent.put(key,tick);
+        if(session.dirty.remove(key))session.changeResends++;
         session.packetsSent++;
         if(slot==8 || slot==24)
             LOG.info("WorldSeam dual-world target={} center={},{} cached-window={}/25 sent={} forcedFetches={} ticketMoves={}",
@@ -173,14 +182,31 @@ public final class SeamChunkSender {
     }
 
     public record StreamStats(boolean ticketActive,int resident,int transmitted,
-                              long fetches,long ticketMoves,long packets) {}
+                              long fetches,long ticketMoves,long packets,long liveUpdates) {}
 
     public static StreamStats stats(ServerPlayer player) {
         Session session=sessions.get(player.getUUID());
-        if(session==null)return new StreamStats(false,0,0,0,0,0);
+        if(session==null)return new StreamStats(false,0,0,0,0,0,0);
         return new StreamStats(session.ticketLevel!=null,
             currentTargetLoaded(player),session.lastSent.size(),
-            session.chunkFetches,session.ticketChanges,session.packetsSent);
+            session.chunkFetches,session.ticketChanges,session.packetsSent,session.changeResends);
+    }
+
+    /**
+     * Called by a ServerLevel post-update Mixin. Only the pinned remote
+     * 5x5 window is invalidated; changes elsewhere create ZERO packets.
+     * Chunk+light snapshot is resent at most once/20 ticks per changed chunk,
+     * including dynamic block and block-entity state from native packet.
+     */
+    public static void markBlockChanged(ServerLevel level,BlockPos pos) {
+        int x=Math.floorDiv(pos.getX(),16),z=Math.floorDiv(pos.getZ(),16);
+        long key=((long)x<<32)|(z&0xffffffffL);
+        for(Session s:sessions.values()) {
+            if(s.ticketLevel!=level || s.ticketCenter==null)continue;
+            if(Math.abs(s.ticketCenter.x-x)>WINDOW_RADIUS ||
+               Math.abs(s.ticketCenter.z-z)>WINDOW_RADIUS)continue;
+            if(s.lastSent.containsKey(key))s.dirty.add(key);
+        }
     }
 
     public static int activeTickets() {
