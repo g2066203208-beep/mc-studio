@@ -4,6 +4,7 @@ import dev.reme.mcstudio.StudioMod;
 import dev.reme.mcstudio.npc.NpcRegistry;
 import dev.reme.mcstudio.npc.PlayerNpcEntity;
 import dev.reme.mcstudio.npc.NpcPose;
+import dev.reme.mcstudio.npc.player.RealNpcServerPlayer;
 import dev.reme.mcstudio.npc.NpcPoseSelection;
 import dev.reme.mcstudio.npc.life.CivicMind;
 import dev.reme.mcstudio.npc.life.CharacterProfile;
@@ -1191,6 +1192,77 @@ public final class CivicGameTests {
             || NpcPoseSelection.classify(false, false, false, false, false, false)
                 != NpcPose.IDLE)
             throw new AssertionError("Humanlike NPC visual pose action ordering regressed");
+        helper.succeed();
+    }
+
+    /**
+     * Architecture safety probe: a FakePlayer is a ServerPlayer subclass,
+     * but the currently rendered resident is NOT a player. This test must
+     * remain truthful until we replace the resident with a networked
+     * ServerPlayer, rather than mark a proxy actor as full player parity.
+     */
+    @GameTest(template = "empty", timeoutTicks = 100)
+    public static void full_player_mod_parity_requires_real_networked_player_entity(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        PlayerNpcEntity npc = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (npc == null) throw new AssertionError("NPC entity registry missing");
+        BlockPos foot = helper.absolutePos(new BlockPos(4, 9, 4));
+        npc.moveTo(foot.getX() + 0.5, foot.getY(), foot.getZ() + 0.5, 0, 0);
+        if (!level.addFreshEntity(npc)) throw new AssertionError("Resident failed to spawn");
+        var actor = NpcPlayerActor.forNpc(npc, level);
+        if (!(actor instanceof net.minecraft.server.level.ServerPlayer))
+            throw new AssertionError("NPC action bridge lost server player event identity");
+        if (net.minecraft.world.entity.player.Player.class.isInstance(npc))
+            throw new AssertionError("Architecture probe is obsolete; document real player migration");
+        if (!actor.getUUID().equals(npc.getUUID()))
+            throw new AssertionError("Bridge action player differs from NPC identity");
+        if (level.getServer().getPlayerList().getPlayer(npc.getUUID()) != null)
+            throw new AssertionError("Unsafe UUID collision: proxy and registered player coexist");
+        if (level.getEntity(npc.getUUID()) != npc)
+            throw new AssertionError("A fake player replaced the living NPC in world entity index");
+        // A successful GameTest confirms the CURRENT compatibility gap:
+        // the visual entity is a Mob, while only its momentary world-action
+        // delegate passes ServerPlayer instanceof checks. It is not 1:1.
+        helper.succeed();
+    }
+
+    /**
+     * The target architecture's first isolated construction test.
+     * This is NOT player-login/client-render validation. It proves that a
+     * real ServerPlayer subclass can hold the actual vanilla hunger/inventory
+     * and has a distinct safe identity before migrating a legacy living Mob.
+     */
+    @GameTest(template = "empty", timeoutTicks = 100)
+    public static void true_server_player_npc_prototype_has_vanilla_player_inventory_and_no_uuid_collision(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        PlayerNpcEntity oldMob = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (oldMob == null) throw new AssertionError("Legacy resident missing");
+        oldMob.moveTo(helper.absolutePos(new BlockPos(4, 9, 4)).getCenter().x,
+            helper.absolutePos(new BlockPos(4, 9, 4)).getY(),
+            helper.absolutePos(new BlockPos(4, 9, 4)).getCenter().z, 0, 0);
+        if (!level.addFreshEntity(oldMob))
+            throw new AssertionError("Cannot create old world resident");
+        RealNpcServerPlayer player =
+            RealNpcServerPlayer.detachedForGameTest(level, oldMob.getUUID());
+        if (!(player instanceof net.minecraft.server.level.ServerPlayer)
+            || !net.minecraft.world.entity.player.Player.class.isInstance(player))
+            throw new AssertionError("Prototype does not really inherit vanilla Player");
+        if (player.getUUID().equals(oldMob.getUUID())
+            || !player.originalResidentId().equals(oldMob.getUUID())
+            || level.getEntity(oldMob.getUUID()) != oldMob)
+            throw new AssertionError("Prototype overwrote a live old NPC's UUID");
+        player.getInventory().add(new ItemStack(Items.WHEAT, 5));
+        player.getFoodData().setFoodLevel(14);
+        if (player.getInventory().countItem(Items.WHEAT) != 5
+            || oldMob.backpack().countItem(Items.WHEAT) != 0
+            || player.getFoodData().getFoodLevel() != 14)
+            throw new AssertionError("Vanilla real player inventory/hunger not independent");
+        if (level.getServer().getPlayerList().getPlayer(player.getUUID()) != null)
+            throw new AssertionError("Detached prototype improperly registered as connected Player");
+        // The final migration test will need to replace this last assertion:
+        // successful real PlayerList registration, remote player rendering,
+        // player events, persistence, teardown. Currently NOT implemented.
+        player.getInventory().clearContent();
         helper.succeed();
     }
 
