@@ -42,7 +42,7 @@ export function axisOf(b){
  // Directional engines/bearings derive shaft orientation from the actual FACING
  // blockstate, never from an unrelated UI axis dropdown.
  const k=behavior(b.id).kind;
- if((k==='source'||k==='bearing')&&DIRECTION_AXIS[b.facing])return DIRECTION_AXIS[b.facing];
+ if((k==='source'||k==='bearing'||b.id==='create:mechanical_press'||b.id==='create:mechanical_drill'||b.id==='create:mechanical_saw')&&DIRECTION_AXIS[b.facing])return DIRECTION_AXIS[b.facing];
  if(typeof b.axis==='string'&&'xyz'.includes(b.axis))return b.axis;
  return DIRECTION_AXIS[b.facing]||'y';
 }
@@ -57,7 +57,14 @@ function hasShaft(b,along,towards=null){
  if(k==='source')return along===a&&(!towards||!DIRECTION_AXIS[b.facing]||b.facing===towards); // Create CreativeMotorBlock.hasShaftTowards is directional; legacy blueprints without facing use their axis
  if(k==='clutch')return along===a && !(b.powered===true || b.state?.powered==='true');
  if(k==='bearing')return along===a; // assembly remains unverified
- if(k==='consumer')return along===a; // conservative topology indicator only
+ if(k==='consumer'){
+  if(b.id==='create:mechanical_mixer')return false; // original mixer hasShaftTowards() returns false; powered via meshing cogwheel
+  if(b.id==='create:mechanical_drill' && DIRECTION_AXIS[b.facing]){
+   const opposite={east:'west',west:'east',north:'south',south:'north',up:'down',down:'up'};
+   return along===a&&(!towards||towards===opposite[b.facing]);
+  }
+  return along===a;
+ } // currently supported consumer shafts only; native Create still authoritative
  return false;
 }
 // Returns multiplicative directed rotation speed link, or 0 when the source rule doesn't establish a link.
