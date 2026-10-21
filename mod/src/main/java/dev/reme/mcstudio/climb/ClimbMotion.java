@@ -144,7 +144,7 @@ public final class ClimbMotion {
         }
         moving = input.lengthSqr() > 0.0001;
 
-        if (moving && s.pendingRoof == null) {
+        if (moving && s.pendingRoof == null && s.roofEntryTicks != 11) {
             // Switching between surface families requires a ray against the
             // NEW face. A ray pointing only toward the old wall never detects
             // the ceiling underside or a side wall.
@@ -180,7 +180,10 @@ public final class ClimbMotion {
                         contact = next;
                         normal = candidateNormal;
                         if (faceTransition) s.faceSwitchCooldown = 4;
-                        s.grabYaw = ClimbSurfaceMath.facingYaw(normal, heading);
+                        // Already on a roof? Preserve the continuously
+                        // interpolated camera yaw, never restore old wall yaw.
+                        if (!ClimbSurfaceMath.ceiling(normal))
+                            s.grabYaw = ClimbSurfaceMath.facingYaw(normal, heading);
                         input = ClimbSurfaceMath.ceiling(normal)
                                 ? roofEntryControl(player, s, normal)
                                 : ClimbSurfaceMath.direction(normal, s.grabYaw, s.forward, s.strafe);
