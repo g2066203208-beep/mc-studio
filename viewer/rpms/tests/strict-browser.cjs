@@ -55,9 +55,9 @@ try{
  assert.ok(movement.filter(x=>x.hasRotor&&Math.abs(x.phase)>0.01).length>=3,
    'shaft/gears/motor must ACTUALLY rotate in the canvas, not just output RPM text: '+JSON.stringify(movement));
  assert.equal(movement.find(x=>x.id==='simulated:swivel_bearing').hasRotor,false,'do not fake Sable bearing assembly');
- const before=await page.evaluate(()=>window.__STRICT_API__.getPreview());
- assert.equal(before.summary.capacity,16384*16,'Create official stress capacity default');
- assert.equal(before.summary.impact,0);
+ const stressInitial=await page.evaluate(()=>window.__STRICT_API__.getPreview());
+ assert.equal(stressInitial.summary.capacity,16384*16,'Create official stress capacity default');
+ assert.equal(stressInitial.summary.impact,0);
  await page.evaluate(()=>{
   const api=window.__STRICT_API__;
   api.place({id:'create:mechanical_press',pos:[3,1,0],axis:'x',facing:'east'},{ignoreSupport:true});
