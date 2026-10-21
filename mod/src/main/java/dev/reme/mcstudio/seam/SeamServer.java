@@ -47,6 +47,7 @@ public final class SeamServer {
         long tick = server.overworld().getGameTime();
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
             SeamPreviewSender.tick(server, player, tick, enabled);
+            SeamSectionSender.tick(server, player, tick, enabled);
         }
         seamEnabled = enabled;
         if (!enabled) return;
@@ -104,6 +105,7 @@ public final class SeamServer {
             var online = server.getPlayerList().getPlayers().stream()
                 .map(Entity::getUUID).collect(java.util.stream.Collectors.toSet());
             SeamPreviewSender.prune(online);
+            SeamSectionSender.prune(online);
             // Per-entity cooldowns only need to survive a short period;
             // no global getAllEntities scan is needed for eviction.
             lastCross.entrySet().removeIf(e -> tick - e.getValue() > 2400);

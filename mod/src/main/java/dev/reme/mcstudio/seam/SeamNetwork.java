@@ -10,11 +10,17 @@ public final class SeamNetwork {
     private SeamNetwork() {}
 
     public static void register(RegisterPayloadHandlersEvent event) {
-        event.registrar("2").playToClient(
+        event.registrar("3").playToClient(
             SeamPreviewPayload.TYPE,
             SeamPreviewPayload.CODEC,
             (message, context) ->
                 context.enqueueWork(() -> SeamPreviewClient.accept(message))
+        );
+        event.registrar("3").playToClient(
+            SeamSectionPayload.TYPE,
+            SeamSectionPayload.CODEC,
+            (message, context) ->
+                context.enqueueWork(() -> SeamSectionClient.accept(message))
         );
     }
 }

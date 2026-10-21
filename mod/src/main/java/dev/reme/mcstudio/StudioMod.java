@@ -7,6 +7,7 @@ import net.neoforged.api.distmarker.Dist;
 import net.neoforged.fml.loading.FMLEnvironment;
 import dev.reme.mcstudio.seam.SeamNetwork;
 import dev.reme.mcstudio.seam.SeamPreviewClient;
+import dev.reme.mcstudio.seam.SeamSectionClient;
 import net.neoforged.neoforge.common.NeoForge;
 import dev.reme.mcstudio.seam.SeamCommands;
 import dev.reme.mcstudio.seam.SeamServer;
@@ -20,6 +21,7 @@ public final class StudioMod {
         modBus.addListener(SeamNetwork::register);
         if (FMLEnvironment.dist == Dist.CLIENT) {
             SeamPreviewClient.install();
+            SeamSectionClient.install();
         }
         NeoForge.EVENT_BUS.addListener(SeamCommands::register);
         NeoForge.EVENT_BUS.addListener(SeamServer::tick);
