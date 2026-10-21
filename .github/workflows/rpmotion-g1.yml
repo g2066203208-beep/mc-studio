@@ -12,7 +12,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: rpmotion-${ github.head_ref || github.ref_name }
+  group: rpmotion-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 jobs:
   real-aero:
@@ -32,7 +32,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: rpmotion-g1-logs-${ github.sha }
+          name: rpmotion-g1-logs-${{ github.sha }}
           path: |
             mods/rpmotion/run/logs/*.log
             mods/rpmotion/run-gameTestServer/logs/*.log
@@ -41,6 +41,6 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: success()
         with:
-          name: rpmotion-system-only-${ github.sha }
+          name: rpmotion-system-only-${{ github.sha }}
           path: mods/rpmotion/build/libs/rpmotion-*.jar
           if-no-files-found: error
