@@ -54,4 +54,24 @@ class SeamCrossingTest {
             120,119,0.2,0,128,-64);
         assertFalse(no.crossing());
     }
+    @Test void netherFloorIntoEndTopHasValidEarlyLanding() {
+        var link=SeamStack.defaults().from("minecraft:the_nether").stream()
+            .filter(l->l.exit()==SeamGraph.EdgeSide.BOTTOM).findFirst().orElseThrow();
+        var d=SeamCrossing.evaluate(link,
+            0.30,0.45,-0.2,0,128,256);
+        assertTrue(d.crossing());
+        assertTrue(d.early());
+        assertEquals(255.875,d.arrivalY(),1e-5);
+    }
+
+    @Test void endTopIntoNetherFloorHasValidEarlyLanding() {
+        var link=SeamStack.defaults().from("minecraft:the_end").stream()
+            .filter(l->l.exit()==SeamGraph.EdgeSide.TOP).findFirst().orElseThrow();
+        var d=SeamCrossing.evaluate(link,
+            255.75,255.60,0.2,0,256,0);
+        assertTrue(d.crossing());
+        assertTrue(d.early());
+        assertEquals(0.125,d.arrivalY(),1e-5);
+    }
+
 }
