@@ -28,6 +28,7 @@ jobs:
           mkdir -p mod/runtime-mods
           cp "${{ runner.temp }}/rpms-official-mods/create-1.21.1.jar" mod/runtime-mods/create-1.21.1.jar
           cp "${{ runner.temp }}/rpms-official-mods/aeronautics-1.21.1.jar" mod/runtime-mods/aeronautics-1.21.1.jar
+          cp "${{ runner.temp }}/rpms-official-mods/sable-1.21.1.jar" mod/runtime-mods/sable-1.21.1.jar
       - name: Native NeoForge 1.21.1 GameTest server with REAL mods
         working-directory: mod
         env:
