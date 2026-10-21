@@ -460,7 +460,8 @@ function init(){
   addBlock:(x,y,z,id)=>edit(x,y,z,id),removeBlock:(x,y,z)=>edit(x,y,z,null),
   exportWorld:data,importWorld:restore,refreshModels:refreshWorld,enter:resume,
   inspect:()=>({hovered,placeAt}),
-  probeOriginalModel:async(id,state)=>{const obj=await assets.buildShape(id,state||defaults[id]||{});let n=0;if(obj)obj.traverse(m=>{if(m.isMesh)n++;});return {renderable:!!obj,meshes:n};}
+  probeOriginalModel:async(id,state)=>{const obj=await assets.buildShape(id,state||defaults[id]||{});let n=0;if(obj)obj.traverse(m=>{if(m.isMesh)n++;});return {renderable:!!obj,meshes:n};},
+  traceAsset:async(id,state)=>{const st=state||defaults[id]||{};const bs=await assets.json(id,'blockstates');const variants=await assets.variants(id,st);const m=variants[0]?.model?await assets.model(variants[0].model):null;return {hasBlockstate:!!bs,model:variants[0]?.model||null,modelElements:m?.elements?.length||0,textures:m?.textures||{},archiveNames:assets.archives.map(a=>a.name),hasOriginalNamespace:[...assets.catalog].some(x=>x.startsWith('simulated:'))};}
  };
  notice('AeroWorld已准备好，点击进入并搭建原版航空学方块。',8);
  requestAnimationFrame(render);

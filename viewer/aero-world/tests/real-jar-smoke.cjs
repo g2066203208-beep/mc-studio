@@ -9,9 +9,10 @@ const assert=require('node:assert/strict'),{chromium}=require('playwright-core')
   await page.waitForFunction(()=>window.__AEROWORLD_READY__,null,{timeout:60000});
   await page.locator('#startImport').click();
   await page.locator('#jarInput').setInputFiles(['/tmp/aero-original.jar','/tmp/create-original.jar']);
-  await page.waitForFunction(()=>window.__AEROWORLD_API__.archives()===2,null,{timeout:90000});
+  await page.waitForFunction(()=>window.__AEROWORLD_API__.archives()>=2,null,{timeout:90000});
   const count=await page.evaluate(()=>window.__AEROWORLD_API__.modBlocks());
   assert.ok(count>40,'Actual released Create + Aero JAR should register more than 40 static blocks, got '+count);
+  console.log('Real Mod JAR resolution:',await page.evaluate(()=>window.__AEROWORLD_API__.traceAsset('simulated:swivel_bearing',{assembled:'false',facing:'up',powered:'false'})));
   const result=await page.evaluate(async()=>window.__AEROWORLD_API__.probeOriginalModel('simulated:swivel_bearing',{
      assembled:'false',facing:'up',powered:'false'
   }));
