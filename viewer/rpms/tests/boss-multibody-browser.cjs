@@ -73,7 +73,7 @@ const {chromium}=require('playwright-core');
   assert.equal(await site.evaluate(()=>window.__BOSS_API__.snapshot().mode),'relax');
   await site.locator('#restart').click();
   assert.equal(await site.evaluate(()=>window.__BOSS_API__.snapshot().joints),12);
-  await site.locator('#motorTorque').fill('0');
+  await site.locator('#motorTorque').evaluate(el=>{el.value='0';el.dispatchEvent(new Event('input',{bubbles:true}));});
   assert.equal(await site.evaluate(()=>window.__BOSS_API__.snapshot().torqueLimit),0);
   assert.equal(pageErrors.length,0,'Hosted robot threw an error: '+pageErrors.join('\n'));
   console.log('PASS ARTICULATED HOSTED BOSS: 13 rendered dynamic rigid-bodies, Create machinery, twelve physical powered joints and breakable limbs');
