@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Original synthetic JAR for parser testing; NO copied Mod art."""
-import json,pathlib,struct,zlib,zipfile
+import io,json,pathlib,struct,zlib,zipfile
 out=pathlib.Path(__file__).with_name('fixture-simulated.jar')
 def chunk(tag,body):
     return struct.pack('>I',len(body))+tag+body+struct.pack('>I',zlib.crc32(tag+body)&0xffffffff)
@@ -38,4 +38,16 @@ with zipfile.ZipFile(out,'w',zipfile.ZIP_DEFLATED) as z:
     z.writestr('assets/create/models/block/motor_cap.json',json.dumps({
         'parent':'minecraft:block/cube_all',
         'textures':{'all':'create:block/fixture_metal'}}))
+# Simulate official Aeronautics packaging: the outer JAR has only
+# META-INF/jarjar/SIMULATED.jar, while blockstates/models/textures live inside.
+child=io.BytesIO()
+with zipfile.ZipFile(child,'w',zipfile.ZIP_DEFLATED) as nested:
+    nested.writestr('assets/simulated/blockstates/physics_assembler.json',json.dumps({
+        'variants':{'face=ceiling,facing=north':{'model':'simulated:block/physics_assembler'}}}))
+    nested.writestr('assets/simulated/models/block/physics_assembler.json',json.dumps({
+        'parent':'minecraft:block/cube_all',
+        'textures':{'all':'simulated:block/fixture_assembler'}}))
+    nested.writestr('assets/simulated/textures/block/fixture_assembler.png',png())
+with zipfile.ZipFile(out,'a',zipfile.ZIP_DEFLATED) as archive:
+    archive.writestr('META-INF/jarjar/dev.simulated_team.simulated.test-neoforge-1.21.1.jar',child.getvalue())
 print(out, out.stat().st_size)
