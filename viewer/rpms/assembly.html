@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RPMS · Q12 旧方块方案（未通过游戏验证）</title>
+<meta name="description" content="由 Minecraft Create Aeronautics 真实方块 ID 构成的四足机装配预览。可从用户本地 Mod JAR 解析原版方块网格与贴图。">
+<link rel="stylesheet" href="./blocks.css">
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/"}}</script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js" defer></script>
+</head><body>
+<div class="shell">
+<header><a href="../index.html" class="brand">REME<span> / AERO ASSEMBLY</span></a><div class="breadcrumb">MC STUDIO <span>→</span> PHYSICAL MACHINERY <span>→</span> Q12</div><a class="head-link" href="./concept.html">旧版自制模型（概念） ↗</a></header>
+<aside class="left">
+  <div class="overline">LEGACY / UNVERIFIED Q12</div><h1>真实方块<br><em>机械装配台</em></h1>
+  <p class="dim">以航空学真实注册方块为基础，展示分段刚体、轴承位置、传动和传感器布局。不再用自制装饰轴承冒充 Mod 方块。</p>
+  <div class="flag"><span class="dot"></span><b>方块装配预览</b><span>非游戏物理运行</span></div>
+  <section><h2>① 原版方块资源</h2>
+    <div class="info">网页不打包航空学受版权保护的模型与贴图。导入你自己的航空学 JAR 后，从里面读取真正的 <code>blockstates / models / textures</code>。</div>
+    <label class="upload" for="jars"><span>⬆</span> 导入航空学 / Create JAR 文件</label><input type="file" id="jars" accept=".jar,.zip" multiple hidden>
+    <div id="assetStatus" class="mini-status">未导入 · 以醒目的方块占位结构显示</div>
+    <button id="clearJars" class="thin">清除本地 Mod 资源</button>
+    <p class="fine">资源仅在浏览器本地解压、渲染，不上传服务器。优先选择同版本航空学（Simulated）JAR；如需完整贴图可再导入 Create 的 JAR。</p>
+  </section>
+  <section><h2>② 装配显示</h2>
+    <div class="btn-grid"><button data-mode="assembly" class="active">整机装配</button><button data-mode="explode">分段查看</button><button data-mode="gait">关节运动</button><button data-mode="inspect">静止检查</button></div>
+    <label class="check"><input type="checkbox" id="showLabels" checked> 显示部件与方块 ID</label>
+    <label class="check"><input type="checkbox" id="showGrid" checked> 地面网格</label>
+    <label class="check"><input type="checkbox" id="showAxes" checked> 实际关节轴线位置</label>
+    <div class="field"><span>运动速度</span><b id="speedLabel">1.0×</b></div><input type="range" id="speed" min=".2" max="2" step=".1" value="1">
+    <div class="buttons"><button id="pause">Ⅱ 暂停</button><button id="reset">↺ 归零</button></div>
+  </section>
+  <section><h2>③ 施工蓝图</h2>
+    <div class="stats"><div><strong id="pieceCount">—</strong><small>方块位置</small></div><div><strong>12</strong><small>轴承/关节</small></div><div><strong>13</strong><small>刚体段</small></div></div>
+    <button class="export" id="export">导出逐块装配清单（JSON） ↧</button>
+    <div class="info warn">这是<strong>可审核的预装配方案</strong>，还不是能直接粘贴运行的 Sable 飞船结构。轴承的组装顺序、胶合范围、供能连通性和多刚体负载仍需游戏内验证。</div>
+  </section>
+  <a class="source" href="https://github.com/Creators-of-Aeronautics/Simulated-Project" target="_blank" rel="noopener">航空学官方方块与模型源码 ↗</a>
+</aside>
+<main class="stage" id="stage"><canvas id="canvas" aria-label="从实际 Aeronautics 方块 ID 构成的交互式三维机械装配视图"></canvas>
+ <div id="blockLabels" class="block-label-layer" aria-hidden="false"></div>
+ <div class="upper"><div><div class="overline">BLOCK ASSEMBLY BLUEPRINT / Q12</div><h2>MINECRAFT × AERONAUTICS</h2><p>方块位置与身份真实登记 · 原版模型仅从本地 JAR 加载</p></div><div class="views"><button data-view="iso" class="active">3/4</button><button data-view="side">侧</button><button data-view="front">前</button><button data-view="top">顶</button></div></div>
+ <div class="bottom"><div>拖动旋转 · 滚轮缩放 · 点击方块查看身份<br>橙色关节 = <code>simulated:swivel_bearing</code></div><div id="runtime" class="runtime">初始化 Three.js …</div></div>
+ <div id="loading" class="loading">正在构建真实方块装配清单 …</div>
+</main>
+<aside class="right">
+  <div class="overline">BLOCK INSPECTOR</div><h2>逐块核查</h2>
+  <div id="selection" class="chosen"><span>点击模型中的任意方块</span></div>
+  <section><h3>真实航空学组件</h3><div id="catalog"></div></section>
+  <section><h3>四足关节树</h3><div id="joints" class="joints"></div></section>
+  <section><h3>测试及缺失功能</h3>
+    <div class="diag"><span>方块 ID / 分区</span><b class="ok">已定义</b></div>
+    <div class="diag"><span>原版 JAR 模型/贴图</span><b id="modelState" class="wait">未导入</b></div>
+    <div class="diag"><span>真实装配连通</span><b class="wait">待游戏检验</b></div>
+    <div class="diag"><span>Sable 物理载重</span><b class="wait">未验证</b></div>
+    <div class="diag"><span>四足独立站立</span><b class="wait">未实现</b></div>
+  </section>
+  <p class="footer-note">来源与状态真实标记：这是原版方块 ID 对应的装配概念；装入原版 JAR 才使用其真实纹理和模型。没有把网页动画伪称航空学内的真实物理步行。</p>
+</aside>
+</div><script type="module" src="./blocks.js"></script></body></html>
