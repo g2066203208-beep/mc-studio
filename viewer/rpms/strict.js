@@ -82,7 +82,19 @@ function displayInspector(item){
   const warning=document.createElement('p');warning.style.color='#ffd18d';warning.textContent='当前仅核对机械轴线，未创建 Sable 刚体约束。';box.append(warning);
  }
  if(item.id==='create:creative_motor'){
-  const p=document.createElement('p');p.textContent='预览设置：'+(item.rpm??16)+' RPM（非游戏实测）';box.append(p);
+  const p=document.createElement('p');
+  p.textContent=item.nativeRuntime?.getSpeed!==undefined
+   ?'真实 MC 服务器快照转速：'+item.nativeRuntime.getSpeed+' RPM'
+   :'预览设置：'+(item.rpm??16)+' RPM（非游戏实测）';
+  box.append(p);
+ }
+ if(item.nativeRuntime){
+  const p=document.createElement('p');
+  p.className='model-state';
+  p.textContent='来自原版服务器：'+(item.nativeRuntime.blockEntity||'原版方块')+
+   '，实时采样于导出时刻；不是网页物理模拟。'+
+   (item.nativeRuntime.getReceivedSignal!==undefined?' 无线信号 '+item.nativeRuntime.getReceivedSignal:'');
+  box.append(p);
  }
  const model=modelStatus.get(item.pos.join(','));
  const row=document.createElement('p');
