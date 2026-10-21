@@ -133,6 +133,17 @@ public final class SeamClientWorldPool {
                 )
             );
             applyLight(message.chunkX(), message.chunkZ(), message.lighting());
+            // The alternate world has a DIFFERENT renderer. Updating its
+            // ClientChunkCache alone never queues a GPU mesh rebuild.
+            // Notify it for every vertical native chunk section.
+            if (remoteRenderer != null) {
+                int first = Math.floorDiv(remote.getMinBuildHeight(), 16);
+                int last = Math.floorDiv(remote.getMaxBuildHeight() - 1, 16);
+                for (int sy = first; sy <= last; sy++)
+                    remoteRenderer.setSectionDirtyWithNeighbors(
+                        message.chunkX(), sy, message.chunkZ()
+                    );
+            }
             maybeReportReady(mc);
         } catch (RuntimeException problem) {
             LOG.warn("WorldSeam rejected redirected remote chunk {},{} in {}",
@@ -262,7 +273,11 @@ public final class SeamClientWorldPool {
         Minecraft mc = Minecraft.getInstance();
         if (mc.level == null || (!source.isEmpty() &&
             !mc.level.dimension().location().toString().equals(source))) clear();
-        else maybeReportReady(mc);
+        else {
+            maybeReportReady(mc);
+            if (remoteRenderer != null && remoteRenderer != mc.levelRenderer)
+                remoteRenderer.tick();
+        }
     }
 
     public static void clear() {
