@@ -57,6 +57,7 @@ public final class SeamChunkSender {
 
     private static final class Session {
         String scope="";
+        SeamGraph.Link selectedLink;
         ServerLevel ticketLevel;
         ChunkPos ticketCenter;
         long ticketChanges;
@@ -95,6 +96,7 @@ public final class SeamChunkSender {
         void reset() {
             release();
             scope="";
+            selectedLink=null;
             lastSent.clear();
             dirty.clear();
         }
@@ -149,6 +151,7 @@ public final class SeamChunkSender {
             session.reset();
             session.scope=scope;
         }
+        session.selectedLink=selected;
         int centerX=Math.floorDiv(player.blockPosition().getX(),16);
         int centerZ=Math.floorDiv(player.blockPosition().getZ(),16);
         session.updateTicket(target,new ChunkPos(centerX,centerZ));
@@ -213,6 +216,12 @@ public final class SeamChunkSender {
                Math.abs(s.ticketCenter.z-z)>WINDOW_RADIUS)continue;
             if(s.lastSent.containsKey(key))s.dirty.add(key);
         }
+    }
+
+    /** The one authoritative selected adjacent dimension for all streams. */
+    public static SeamGraph.Link activeLink(ServerPlayer player) {
+        Session s=sessions.get(player.getUUID());
+        return s==null?null:s.selectedLink;
     }
 
     public static int activeTickets() {
