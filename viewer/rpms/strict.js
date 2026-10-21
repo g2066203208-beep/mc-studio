@@ -304,6 +304,13 @@ $('layer').addEventListener('input',e=>{activeLayer=Number(e.target.value);$('la
 $('animateToggle').addEventListener('change',e=>{animationEnabled=e.target.checked;});
 $('capacityScale').addEventListener('input',e=>{stressCapacityScale=Number(e.target.value);$('capacityScaleLabel').textContent=stressCapacityScale<.01?stressCapacityScale.toPrecision(3)+'×':stressCapacityScale.toFixed(2)+'×';updateStatus();});
 $('impactScale').addEventListener('input',e=>{stressImpactScale=Number(e.target.value);$('impactScaleLabel').textContent=stressImpactScale.toFixed(1)+'×';updateStatus();});
+$('stressScenario').addEventListener('click',()=>{
+ stressCapacityScale=stressCapacityScale<.01?1:.0001;
+ $('capacityScale').value=String(stressCapacityScale);
+ $('capacityScaleLabel').textContent=stressCapacityScale<.01?stressCapacityScale.toPrecision(3)+'×':'1.00×';
+ updateStatus();
+ notify(stressCapacityScale<.01?'已临时降低容量，查看有负载的动力网络是否过载（非真实配置）':'恢复 Create 默认容量倍率');
+});
 $('rpm').addEventListener('change',e=>{
  if(inspected?.id==='create:creative_motor'){
   inspected.rpm=Number(e.target.value);renderWorld();displayInspector(inspected);
