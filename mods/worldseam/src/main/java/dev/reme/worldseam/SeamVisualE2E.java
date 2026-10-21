@@ -66,11 +66,12 @@ public final class SeamVisualE2E {
             server.execute(() -> prepare(server,playerId));
         } else if (phase==1 && !previewLogged && now-startTick>290) {
             previewLogged=true;
-            LOG.info("WORLDSEAM_E2E_PREVIEW_WINDOW: client dim={}, received={}, cached3x3={}, surface geometry={}, drawn={}, camera near floor Y={}",
+            LOG.info("WORLDSEAM_E2E_PREVIEW_WINDOW: client dim={}, received={}, cached3x3={}, surface geometry={}, drawn={}, camera near floor Y={}, nativeModelCpuP95Ms={}",
                 mc.level.dimension().location(),SeamClientWorldPool.receivedChunks(),
                 SeamClientWorldPool.nearbyChunks(),
                 SeamNativeGeometryClient.visibleBlockCount(),
-                SeamNativeGeometryClient.lastFrameDrawn(),mc.player.getY());
+                SeamNativeGeometryClient.lastFrameDrawn(),mc.player.getY(),
+                String.format(java.util.Locale.ROOT,"%.3f",SeamNativeGeometryClient.p95ModelCpuMs()));
             server.execute(() -> {
                 ServerPlayer player=server.getPlayerList().getPlayer(playerId);
                 if(player==null)return;
