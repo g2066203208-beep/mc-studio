@@ -44,13 +44,14 @@ public final class SeamServer {
             lastServer = server;
             lastCross.clear();
         }
-        if (!SeamSettings.get(server).enabled()) {
-            return;
-        }
+        boolean enabled = SeamSettings.get(server).enabled();
         long tick = server.overworld().getGameTime();
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            SeamPreviewSender.tick(server, player, tick, enabled);
+        }
+        if (!enabled) return;
         // Only one teleport per player per tick. All operations on server thread.
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-            SeamPreviewSender.tick(server, player, tick);
             if (!player.isAlive() || player.isPassenger() || player.isVehicle()
                 || player.isSleeping() || player.isSpectator()) {
                 continue;
@@ -109,6 +110,10 @@ public final class SeamServer {
                 for (Entity e : level.getAllEntities()) online.add(e.getUUID());
             }
             lastCross.keySet().retainAll(online);
+            SeamPreviewSender.prune(
+                server.getPlayerList().getPlayers().stream()
+                    .map(Entity::getUUID).collect(java.util.stream.Collectors.toSet())
+            );
         }
     }
 
