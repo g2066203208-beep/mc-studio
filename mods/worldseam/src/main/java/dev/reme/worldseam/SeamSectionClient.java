@@ -43,6 +43,7 @@ public final class SeamSectionClient {
     }
 
     public static void accept(SeamSectionPayload payload) {
+        if (!SeamStackClient.enabled()) return;
         var frame = payload.frame();
         if (!CACHE.apply(frame)) return;
         if (frame.clear()) geometry.clear();
@@ -123,7 +124,7 @@ public final class SeamSectionClient {
         if (rendered>0) buffers.endBatch();
     }
 
-    private static void clear() {
+    public static void clear() {
         CACHE.reset();
         geometry.clear();
         lastReceive=-1;
