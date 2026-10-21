@@ -11,6 +11,7 @@ import dev.reme.mcstudio.npc.life.MovementPolicy;
 import dev.reme.mcstudio.npc.life.NaturalResidentSpawn;
 import dev.reme.mcstudio.npc.life.CivicMind;
 import dev.reme.mcstudio.npc.life.CivicSocial;
+import dev.reme.mcstudio.npc.life.ShopCounter;
 import dev.reme.mcstudio.npc.life.CivicPersistence;
 import dev.reme.mcstudio.npc.life.Commission;
 import dev.reme.mcstudio.npc.life.CharacterProfile;
@@ -74,7 +75,7 @@ public class PlayerNpcEntity extends PathfinderMob {
     }
 
     public enum Mode { LIVE, FOLLOW, STAY, WANDER, GUARD }
-    public enum Profession { FARMER, BAKER, RESIDENT, GUARD, SCOUT, COURIER, BUILDER }
+    public enum Profession { FARMER, BAKER, RESIDENT, GUARD, SCOUT, COURIER, BUILDER, SHOPKEEPER }
 
     private final SimpleContainer backpack = new SimpleContainer(36) {
         @Override public boolean stillValid(Player player) {
@@ -537,6 +538,16 @@ public class PlayerNpcEntity extends PathfinderMob {
         }
         if (sellBread(player, held)) {
             player.displayClientMessage(Component.literal("Bought real bread for one emerald"), false);
+            return InteractionResult.CONSUME;
+        }
+        if (profession == Profession.SHOPKEEPER && held.is(Items.EMERALD)) {
+            if (ShopCounter.purchase(this, player, held)) {
+                player.displayClientMessage(Component.literal(
+                    "Shop: paid one emerald; received stocked food item"), false);
+            } else {
+                player.displayClientMessage(Component.literal(
+                    "Shop unavailable: empty stock, inventory full, refusal or too far"), false);
+            }
             return InteractionResult.CONSUME;
         }
         if (!isOwnedBy(player)) {
