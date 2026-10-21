@@ -23,7 +23,7 @@ function Read-RemodId([string]$File) {
     } finally { $z.Dispose() }
   } catch { return "" }
 }
-function Resolve-OfficialModrinth([string]$Project, [string]$Release) {
+function Resolve-OfficialModrinth([string]$Project, [string]$Release, [string]$Filename) {
   $base = "https://api.modrinth.com/v2/project/$Project/version"
   $arg = "?loaders=%5B%22neoforge%22%5D&game_versions=%5B%221.21.1%22%5D"
   $all = @(Invoke-RestMethod -Uri ($base + $arg) -Headers @{ "User-Agent" = "REME-NPC-cosmetics-installer/1.0" })
@@ -36,11 +36,10 @@ function Resolve-OfficialModrinth([string]$Project, [string]$Release) {
   if (@($v.dependencies | Where-Object { $_.dependency_type -eq "required" }).Count -gt 0) {
     throw "$Project requires extra dependencies. Refusing incomplete installation."
   }
-  $files = @($v.files | Where-Object { $_.filename -match '\.jar$' })
-  $primary = @($files | Where-Object { $_.primary })
-  if ($primary.Count -eq 1) { $f = $primary[0] }
-  elseif ($files.Count -eq 1) { $f = $files[0] }
-  else { throw "Ambiguous artifacts for $Project" }
+  # Exact official filenames from the passing Linux Modrinth installation.
+  $files = @($v.files | Where-Object { $_.filename -eq $Filename })
+  if ($files.Count -ne 1) { throw "Missing expected official artifact $Filename for $Project" }
+  $f = $files[0]
   if (([uri]$f.url).Scheme -ne "https" -or
       ([uri]$f.url).Host -notin @("cdn.modrinth.com", "cdn-raw.modrinth.com", "github.com", "objects.githubusercontent.com")) {
     throw "Unsafe file origin: $($f.url)"
@@ -48,8 +47,8 @@ function Resolve-OfficialModrinth([string]$Project, [string]$Release) {
   if ($f.filename.Contains("/") -or $f.filename.Contains("\")) { throw "Unsafe filename" }
   return $f
 }
-function Download-Verified([string]$Project, [string]$Release, [string]$ExpectedId, [string]$Temp) {
-  $f = Resolve-OfficialModrinth $Project $Release
+function Download-Verified([string]$Project, [string]$Release, [string]$ExpectedId, [string]$Filename, [string]$Temp) {
+  $f = Resolve-OfficialModrinth $Project $Release $Filename
   $dst = Join-Path $Temp $f.filename
   Invoke-WebRequest -Uri $f.url -OutFile $dst -UseBasicParsing
   if ($null -ne $f.size -and (Get-Item -LiteralPath $dst).Length -ne [long]$f.size) {
@@ -93,8 +92,8 @@ New-Item -ItemType Directory -Path $tmp | Out-Null
 try {
   # Download and verify BOTH before changing any installed game files.
   $downloaded = @(
-    (Download-Verified "3dskinlayers" "1.11.4" "skinlayers3d" $tmp),
-    (Download-Verified "eye-mod" "1.1.0" "eyemod" $tmp)
+    (Download-Verified "3dskinlayers" "1.11.4" "skinlayers3d" "skinlayers3d-neoforge-1.11.4-mc1.21.1.jar" $tmp),
+    (Download-Verified "eye-mod" "1.1.0" "eyemod" "neoforge_1.21.1_eyemod_1.1.0.jar" $tmp)
   )
   $old = @(Get-ChildItem -LiteralPath $mods -File -Filter "*.jar" |
     Where-Object { (Read-RemodId $_.FullName) -in @("skinlayers3d", "eyemod") })
