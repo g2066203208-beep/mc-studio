@@ -29,8 +29,8 @@ public final class StudioMod {
         boolean commandsAvailable = server != null &&
             server.getCommands().getDispatcher().getRoot().getChild("npc") != null;
         String status = commandsAvailable
-            ? "REME NPC v0.5.2 loaded; /npc registered. Use /npc spawn (cheats enabled)."
-            : "REME NPC v0.5.2 loaded, but /npc command MISSING. Send logs/latest.log.";
+            ? "REME NPC v0.5.7-dev loaded; /npc registered. Use /npc spawn (cheats enabled)."
+            : "REME NPC v0.5.7-dev loaded, but /npc command MISSING. Send logs/latest.log.";
         player.sendSystemMessage(Component.literal(status));
         if (!commandsAvailable)
             LogUtils.getLogger().error("REME NPC: COMMAND REGISTRATION MISSING despite Mod loaded");
