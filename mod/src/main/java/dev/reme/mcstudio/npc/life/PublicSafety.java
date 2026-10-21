@@ -1,7 +1,6 @@
 package dev.reme.mcstudio.npc.life;
 
 import dev.reme.mcstudio.npc.PlayerNpcEntity;
-import java.util.Comparator;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -105,6 +104,9 @@ public final class PublicSafety {
             guard.clearPoliceCase();
             return false;
         }
+        // A previous vanilla guard melee goal must NEVER attack a person
+        // while a nonlethal arrest mission is active, even between scans.
+        guard.setTarget(null);
         // Not even a navigation attempt unless a human OP designated a
         // physical cell with walkable floor beside real iron bars.
         BlockPos jail = guard.policeJail();
