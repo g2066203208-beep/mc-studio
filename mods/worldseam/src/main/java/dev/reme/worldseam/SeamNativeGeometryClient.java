@@ -112,6 +112,13 @@ public final class SeamNativeGeometryClient {
             int y=descending?targetBoundary-1-depth:targetBoundary+depth;
             if(y<remote.getMinBuildHeight()||y>=remote.getMaxBuildHeight())continue;
             var section=chunk.getSection(chunk.getSectionIndex(y));
+            // In End voids and large caves, most entire 16^3 sections
+            // are air. Skip the rest of an empty section as a unit instead
+            // of performing 256 air-state lookups for each of its Y layers.
+            if(section.hasOnlyAir()) {
+                depth+=descending?(y & 15):(15-(y & 15));
+                continue;
+            }
             for(int z=0;z<16;z++)for(int x=0;x<16;x++) {
                 BlockState state=section.getBlockState(x,y&15,z);
                 if(state.isAir() || state.getRenderShape()!=RenderShape.MODEL)continue;
