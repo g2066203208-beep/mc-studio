@@ -16,6 +16,7 @@ import dev.reme.mcstudio.npc.life.NpcPlayerActor;
 import dev.reme.mcstudio.npc.life.FootTrafficData;
 import dev.reme.mcstudio.npc.life.EmergentFootpaths;
 import dev.reme.mcstudio.npc.life.EmergentSettlements;
+import dev.reme.mcstudio.npc.life.BanditActions;
 import dev.reme.mcstudio.npc.life.SettlementLedger;
 import net.minecraft.world.level.GameRules;
 import net.neoforged.neoforge.common.NeoForge;
@@ -867,6 +868,87 @@ public final class CivicGameTests {
             SocietyRules.Nation.OUTLANDS, SocietyRules.Faction.RAIDERS, "organic_test"));
         if (EmergentSettlements.survey(level, residents[0]) != null)
             throw new AssertionError("Hostile raider was counted as an allied household");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 100)
+    public static void hostile_raider_steals_only_real_caravan_goods_and_creates_evidence(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos pos = helper.absolutePos(new BlockPos(5, 9, 5));
+        PlayerNpcEntity courier = NpcRegistry.PLAYER_NPC.get().create(level);
+        PlayerNpcEntity raider = NpcRegistry.PLAYER_NPC.get().create(level);
+        PlayerNpcEntity witness = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (courier == null || raider == null || witness == null)
+            throw new AssertionError("NPC registry missing");
+        for (int i = 0; i < 3; i++) {
+            BlockPos ground = pos.offset(i, -1, 0);
+            level.setBlock(ground, Blocks.STONE.defaultBlockState(), 3);
+            level.setBlock(ground.above(), Blocks.AIR.defaultBlockState(), 3);
+            level.setBlock(ground.above(2), Blocks.AIR.defaultBlockState(), 3);
+        }
+        courier.moveTo(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5, 0, 0);
+        raider.moveTo(pos.getX() + 1.5, pos.getY(), pos.getZ() + 0.5, 0, 0);
+        witness.moveTo(pos.getX() + 2.5, pos.getY(), pos.getZ() + 0.5, 0, 0);
+        courier.setIdentity(SocietyRules.civilian("caravan_case"));
+        witness.setIdentity(SocietyRules.civilian("caravan_case"));
+        raider.setIdentity(new SocietyRules.Identity(
+            SocietyRules.Nation.OUTLANDS, SocietyRules.Faction.RAIDERS, "caravan_case"));
+        courier.setProfession(PlayerNpcEntity.Profession.COURIER);
+        courier.setMode(PlayerNpcEntity.Mode.STAY);
+        raider.setMode(PlayerNpcEntity.Mode.LIVE);
+        witness.setMode(PlayerNpcEntity.Mode.STAY);
+        raider.setHomePos(pos);
+        courier.backpack().addItem(new ItemStack(Items.WHEAT, 5));
+        if (!level.addFreshEntity(courier) || !level.addFreshEntity(raider)
+            || !level.addFreshEntity(witness)) throw new AssertionError("NPC add failed");
+        long now = level.getGameTime();
+        if (!BanditActions.tick(raider, level, now))
+            throw new AssertionError("Real nearby hostile caravan robbery did not happen");
+        if (courier.backpack().countItem(Items.WHEAT) != 3
+            || raider.backpack().countItem(Items.WHEAT) != 2
+            || courier.civic().reputation(raider.getUUID()) >= 0
+            || !courier.isAfraid(now)
+            || witness.civic().reputation(raider.getUUID()) >= 0)
+            throw new AssertionError("Theft duplicated wheat or failed local witness evidence");
+        if (BanditActions.tick(raider, level, now + 1)
+            || courier.backpack().countItem(Items.WHEAT) != 3
+            || raider.backpack().countItem(Items.WHEAT) != 2)
+            throw new AssertionError("Raider stole a second time before cooldown");
+        CompoundTag tag = new CompoundTag();
+        raider.addAdditionalSaveData(tag);
+        PlayerNpcEntity reloaded = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (reloaded == null) throw new AssertionError("No raider reload");
+        reloaded.readAdditionalSaveData(tag);
+        if (reloaded.nextRaidTick() != raider.nextRaidTick())
+            throw new AssertionError("Raider cooldown was lost when world saves");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 100)
+    public static void full_raider_backpack_cannot_steal_courier_wheat(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos pos = helper.absolutePos(new BlockPos(5, 9, 5));
+        PlayerNpcEntity courier = NpcRegistry.PLAYER_NPC.get().create(level);
+        PlayerNpcEntity raider = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (courier == null || raider == null) throw new AssertionError("Missing NPCs");
+        courier.moveTo(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5, 0, 0);
+        raider.moveTo(pos.getX() + 1.5, pos.getY(), pos.getZ() + 0.5, 0, 0);
+        courier.setProfession(PlayerNpcEntity.Profession.COURIER);
+        courier.setIdentity(SocietyRules.civilian("raid_supply"));
+        raider.setIdentity(new SocietyRules.Identity(
+            SocietyRules.Nation.OUTLANDS, SocietyRules.Faction.RAIDERS, "raid_supply"));
+        raider.setHomePos(pos);
+        raider.setMode(PlayerNpcEntity.Mode.LIVE);
+        courier.setMode(PlayerNpcEntity.Mode.STAY);
+        courier.backpack().addItem(new ItemStack(Items.WHEAT, 3));
+        for (int i = 0; i < raider.backpack().getContainerSize(); i++)
+            raider.backpack().setItem(i, new ItemStack(Items.DIRT, 64));
+        if (!level.addFreshEntity(raider) || !level.addFreshEntity(courier))
+            throw new AssertionError("Cannot spawn raider and courier");
+        if (BanditActions.tick(raider, level, level.getGameTime())
+            || courier.backpack().countItem(Items.WHEAT) != 3
+            || raider.backpack().countItem(Items.WHEAT) != 0)
+            throw new AssertionError("No room in raider inventory but wheat was duplicated/lost");
         helper.succeed();
     }
 
