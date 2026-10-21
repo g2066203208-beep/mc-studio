@@ -77,8 +77,8 @@ try{
  await page.evaluate(()=>{
   const api=window.__STRICT_API__;api.reset();
   api.place({id:'create:creative_motor',pos:[0,1,0],facing:'east',axis:'x',rpm:16});
-  api.place({id:'create:clutch',pos:[1,1,0],axis:'x',powered:false});
   api.place({id:'create:shaft',pos:[2,1,0],axis:'x'});
+  api.place({id:'create:clutch',pos:[1,1,0],axis:'x',powered:false});
  });
  assert.equal(await page.evaluate(()=>window.__STRICT_API__.getPreview().rpms['2,1,0']),16);
  await page.locator('#toggleRedstone').click();
