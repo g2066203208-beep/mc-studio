@@ -147,7 +147,7 @@ sleep 3
 # regardless of random world seed, mountain/cliff or initial spawn elevation.
 xdotool key --clearmodifiers t
 sleep 1
-xdotool type --clearmodifiers --delay 35 '/fill ~-2 ~-1 ~-2 ~4 ~-1 ~4 minecraft:stone'
+xdotool type --clearmodifiers --delay 35 '/fill ~-2 ~-1 ~-8 ~4 ~-1 ~4 minecraft:stone'
 xdotool key Return
 sleep 3
 xdotool key --clearmodifiers t
@@ -177,9 +177,24 @@ xdotool type --clearmodifiers --delay 50 '/tp @s ~ ~ ~ -90 30'
 xdotool key Return
 sleep 2
 import -window root client-gui-mine-prepared.png
+# Physical players auto-pick up dropped cobblestone inside their radius.
+# This would steal the NPC's exact UUID-claimed drop and make the GUI test
+# seed-dependent. Leave real NPC near the ore, but move human Dev six blocks
+# away on the *already prepared* disposable solid test platform BEFORE mining.
 xdotool key --clearmodifiers t
 sleep 1
-xdotool type --clearmodifiers --delay 50 '/npc mine ~2 ~ ~'
+xdotool type --clearmodifiers --delay 35 '/clear @s minecraft:cobblestone'
+xdotool key Return
+sleep 1
+xdotool key --clearmodifiers t
+sleep 1
+xdotool type --clearmodifiers --delay 35 '/tp @s ~ ~ ~-6 -90 30'
+xdotool key Return
+sleep 2
+import -window root client-gui-human-away-before-mining.png
+xdotool key --clearmodifiers t
+sleep 1
+xdotool type --clearmodifiers --delay 50 '/npc mine ~2 ~ ~6'
 xdotool key Return
 sleep 2
 import -window root client-gui-mining-progress.png
@@ -188,7 +203,7 @@ import -window root client-gui-mining-finished.png
 # Query the actual integrated server's block state, not a screenshot guess.
 xdotool key --clearmodifiers t
 sleep 1
-xdotool type --clearmodifiers --delay 35 '/execute if block ~2 ~ ~ minecraft:air run say REME_MINING_CONFIRMED_AIR'
+xdotool type --clearmodifiers --delay 35 '/execute if block ~2 ~ ~6 minecraft:air run say REME_MINING_CONFIRMED_AIR'
 xdotool key Return
 sleep 2
 import -window root client-gui-mining-block-confirmed.png
@@ -214,6 +229,12 @@ xdotool type --clearmodifiers --delay 22 '/execute if data entity @e[type=reme_s
 xdotool key Return
 sleep 2
 import -window root client-gui-loot-verified.png
+xdotool key --clearmodifiers t
+sleep 1
+xdotool type --clearmodifiers --delay 24 '/execute unless data entity @s Inventory[{id:"minecraft:cobblestone"}] run say REME_PLAYER_EMPTY_AFTER_NPC_PICKUP'
+xdotool key Return
+sleep 2
+import -window root client-gui-player-did-not-steal.png
 xdotool key --clearmodifiers t
 sleep 1
 xdotool type --clearmodifiers --delay 50 '/npc info'
@@ -244,7 +265,10 @@ fi
 if ! grep -q 'REME_NPC_LOOT_IN_BACKPACK' run/logs/latest.log; then
   echo "Minecraft did not confirm actual cobblestone in NPC saved backpack"; exit 1
 fi
-echo "PASS: integrated Minecraft confirmed mined stone -> air and cobblestone inside NPC persistent backpack"
+if ! grep -q 'REME_PLAYER_EMPTY_AFTER_NPC_PICKUP' run/logs/latest.log; then
+  echo "Real human player unexpectedly collected NPC's mined drop"; exit 1
+fi
+echo "PASS: integrated Minecraft verified NPC got mined cobblestone and actual player did not steal it"
 
 echo "Window id: $found"
 echo "Minecraft launch/render indicators:"
