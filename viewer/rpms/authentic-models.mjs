@@ -171,14 +171,22 @@ export class MinecraftJarModels {
   if(item.stateKey!==undefined&&item.stateKey!==''&&Object.hasOwn(variants,item.stateKey))
    return {parts:[choice(variants[item.stateKey])],matched:item.stateKey,exact:true};
   const candidates=Object.entries(variants).map(([key,value])=>{
-   const p=parseKey(key);
-   const all=Object.entries(p).every(([k,v])=>props[k]===v);
-   return {key,value,score:all?Object.keys(p).length:-1};
-  }).filter(e=>e.score>=0).sort((a,b)=>b.score-a.score);
-  let found=candidates[0];
-  if(!found&&Object.hasOwn(variants,''))found={key:'',value:variants[''],score:0};
+   const pairs=Object.entries(parseKey(key));
+   let matches=0,mismatches=0,unknown=0;
+   for(const [k,v] of pairs){
+    if(props[k]===undefined)unknown++;
+    else if(String(props[k])===v)matches++;
+    else mismatches++;
+   }
+   // First choose an exact state if possible. Otherwise select the closest
+   // genuine JAR variant and label it PARTIAL, never an invented fake mesh.
+   return {key,value,matches,mismatches,unknown,
+    score:matches*10-mismatches*100-unknown};
+  }).sort((a,b)=>b.score-a.score||a.key.localeCompare(b.key));
+  const found=candidates[0];
   if(!found)return {parts:[],matched:null,exact:false};
-  return {parts:[choice(found.value)],matched:found.key,exact:true};
+  return {parts:[choice(found.value)],matched:found.key,
+   exact:found.mismatches===0&&found.unknown===0};
  }
  async create(item){
   const data=await this.json(item.id,'blockstates');
@@ -228,8 +236,12 @@ export class MinecraftJarModels {
    root.add(layer);
   }
   if(!meshes)return {status:'unsupported',reason:unsupported?'该方块使用自定义模型加载器 / 动态渲染或缺少依赖资源':'模型缺少 PNG 贴图/方块材质',group:null};
-  const partial=unsupported>0||missingTextures>0;
-  return {status:partial?'partial':'authentic',reason:partial?'部分模型/贴图不支持（不会伪称完全还原）':'已读取本地原始 JSON 元素与 PNG 贴图',
+  const fallback=!!Object.keys(data.variants||{}).length&&!stateResult.exact;
+  const partial=unsupported>0||missingTextures>0||fallback;
+  const reason=fallback
+   ?'完整 BlockState 尚未提供；显示正式 JAR 的接近变体 '+stateResult.matched+'，需在下方原版状态列表选择'
+   :partial?'部分静态模型/贴图缺失，动态原版渲染另行检查':'已读取 JAR 原始静态 JSON 元素与 PNG 贴图';
+  return {status:partial?'partial':'authentic',reason,
     group:root,matched:stateResult.matched,meshes,missingTextures,unsupported};
  }
  async render(item){
