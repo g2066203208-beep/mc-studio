@@ -9,8 +9,8 @@
     "sable": "2.0.6"
   },
   "evidence": {
-    "workflow_run": "https://github.com/g2066203208-beep/mc-studio/actions/runs/39599761254",
-    "result": "All 7 required game tests passed :)"
+    "workflow_run": "https://github.com/g2066203208-beep/mc-studio/actions/runs/39600539478",
+    "result": "All 8 required game tests passed :)"
   },
   "cases": [
     {
@@ -61,6 +61,13 @@
       "assertion": "从真实 Minecraft ServerLevel 导出 BlockState 朝向east和 getSpeed()=16RPM",
       "status": "native_passed",
       "test": "snapshotReadsRealServerBlockStates"
+    },
+    {
+      "id": "T08",
+      "name": "Sable Rapier 引擎与维度物理参数",
+      "assertion": "真实 GameTestServer 读取 Rapier 管线、重力(0,-11,0)、全局阻力≈0.09、未暂停；未验证刚体受力位移",
+      "status": "native_passed",
+      "test": "sablePhysicsConfigIsReadFromNativeRuntime"
     }
   ]
 }
