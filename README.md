@@ -63,3 +63,7 @@ bash scripts/build.sh
 - **结构检查**：`python3 skills/immersive-vehicles-modeling/scripts/inspect_obj.py MODEL.obj --texture ATLAS.png --definition VEHICLE.json --json`。
 - **单测**：`python3 -m unittest discover -s skills/immersive-vehicles-modeling/tests -v`。
 - **真实 3D 参照**：[`viewer/index.html`](viewer/index.html)；来源研究还可见 `research/immersive-vehicles/`。没有游戏实际体验前不宣称可驾驶。
+
+## 世界底层逻辑：WorldStack（第一阶段）
+
+垂直世界连通模块已在 `feat/worldstack-immersive-portals` 开发；参见 [docs/WORLDSTACK.md](docs/WORLDSTACK.md)。单人测试世界在安装匹配 NeoForge 1.21.1 的 Immersive Portals 后，使用 `/reme worldstack setup` 显式建立 **末地（上）—主世界—下界（下）**，用 `/reme worldstack status` 验证；不自动覆盖原有传送门和旧区块基岩。正式游戏内实测结果以分支 CI 与交接记录为准。

@@ -107,6 +107,10 @@ neoForge {
     }
 }
 
+tasks.withType(Test).configureEach {
+    useJUnitPlatform()
+}
+
 // Sets up a dependency configuration called 'localRuntime'.
 // This configuration should be used instead of 'runtimeOnly' to declare
 // a dependency that will be present for runtime testing but that is
@@ -116,6 +120,9 @@ configurations {
 }
 
 dependencies {
+    // Pure topology unit tests; the production bridge has no compile-time IP dependency.
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.11.4'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
     // Example optional mod dependency with JEI
     // The JEI API is declared for compile time use, while the full JEI artifact is used at runtime
     // compileOnly "mezz.jei:jei-${mc_version}-common-api:${jei_version}"

@@ -38,3 +38,12 @@ GitHub 是整个 Minecraft 工作室的开发中心。代码、需求、研究�
 - Skill 和网格检查不是已经创建原创摩托车 OBJ，也不表示 Minecraft、Sable 或公开网页版已通过真实游戏测试；下一位助手在用户要求做摩托车时按 Skill 创建并提供真正可旋转检视的新模型。
 - 已有真实 3D 源码 `viewer/index.html`，主要针对 Mustang；如果要预览自己制作的摩托车需扩展支持任意 OBJ+PNG。
 - 操作门槛：审查来源许可后使用原创资产；执行自动化测试，再审阅 CI 和 PR。
+
+## 2026-10-21 · WorldStack 工作分支
+
+- 分支：`feat/worldstack-immersive-portals`；目标 PR 合入前不可将其写成 main 已完成功能。
+- 入口：`docs/WORLDSTACK.md`；实现 `WorldStackLayout`、`WorldStackBridge`、`WorldStackCommands`。
+- `/reme worldstack setup` 管理员显式启用，不自动修改既有世界；`status` 查看连接数量；使用上游维度堆叠逻辑，不复制上游代码。
+- 拓扑：末地（顶）→ 主世界（中）→ 下界（底），1:1 X/Z，四个双向门户面，无重力翻转。
+- 提交后请根据 Actions 检查编译与 JUnit；客户端、服务端、整合包实测仍需真实游戏环境，不能用云端 BUILD 代替。
+- 已知限制：老区块基岩未改写；存在其他全局传送门会被保护性拒绝；跨维度载具、Sable 物理尚未实测。
