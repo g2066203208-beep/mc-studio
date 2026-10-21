@@ -11,7 +11,7 @@ import java.util.List;
 public record SeamStackSyncPayload(SeamStack stack,long revision,
                                    List<DimensionTypeRef> types)
     implements CustomPacketPayload {
-    public record DimensionTypeRef(String dimension,String type) {}
+    public record DimensionTypeRef(String dimension,String type,int minY,int maxY) {}
     public static final Type<SeamStackSyncPayload> TYPE=new Type<>(
         ResourceLocation.fromNamespaceAndPath("worldseam","stack_sync"));
     public static final StreamCodec<RegistryFriendlyByteBuf,SeamStackSyncPayload> CODEC=
@@ -32,6 +32,8 @@ public record SeamStackSyncPayload(SeamStack stack,long revision,
             for(DimensionTypeRef t:p.types()){
                 buf.writeUtf(t.dimension(),128);
                 buf.writeUtf(t.type(),128);
+                buf.writeInt(t.minY());
+                buf.writeInt(t.maxY());
             }
         },buf->{
             long revision=buf.readVarLong();
@@ -52,7 +54,7 @@ public record SeamStackSyncPayload(SeamStack stack,long revision,
                 throw new IllegalArgumentException("Invalid dimension types "+size);
             var types=new ArrayList<DimensionTypeRef>();
             for(int i=0;i<size;i++)
-                types.add(new DimensionTypeRef(buf.readUtf(128),buf.readUtf(128)));
+                types.add(new DimensionTypeRef(buf.readUtf(128),buf.readUtf(128),buf.readInt(),buf.readInt()));
             return new SeamStackSyncPayload(new SeamStack(entries,loop),
                 revision,List.copyOf(types));
         });

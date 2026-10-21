@@ -9,7 +9,7 @@ import java.util.Map;
 /** Client-only authoritative snapshot, cleared at logout. */
 public final class SeamStackClient {
     private static SeamStack stack=SeamStack.defaults();
-    private static Map<String,String> types=Map.of();
+    private static Map<String,SeamStackSyncPayload.DimensionTypeRef> types=Map.of();
     private static long revision=-1;
     private SeamStackClient() {}
 
@@ -23,8 +23,8 @@ public final class SeamStackClient {
         if(payload.revision()<revision)return;
         stack=payload.stack();
         revision=payload.revision();
-        var refs=new HashMap<String,String>();
-        for(var t:payload.types())refs.put(t.dimension(),t.type());
+        var refs=new HashMap<String,SeamStackSyncPayload.DimensionTypeRef>();
+        for(var t:payload.types())refs.put(t.dimension(),t);
         types=Map.copyOf(refs);
     }
 
@@ -33,7 +33,16 @@ public final class SeamStackClient {
         return stack.boundary(id,side,min,max);
     }
     public static String dimensionType(String dimension) {
-        return types.getOrDefault(dimension,dimension);
+        var data=types.get(dimension);
+        return data==null?dimension:data.type();
+    }
+    public static int minY(String dim) {
+        var found=types.get(dim);
+        return found!=null?found.minY():("minecraft:overworld".equals(dim)?-64:0);
+    }
+    public static int maxY(String dim) {
+        var found=types.get(dim);
+        return found!=null?found.maxY():("minecraft:overworld".equals(dim)?320:256);
     }
     public static void reset() {
         stack=SeamStack.defaults();

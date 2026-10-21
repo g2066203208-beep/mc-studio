@@ -28,8 +28,8 @@ public final class SeamClientDiagnostic {
         // player was already IN the Nether while still in Overworld.
         double currentSeam=SeamStackClient.boundary(dimension,closest.exit(),
             mc.level.getMinBuildHeight(),mc.level.getMaxBuildHeight());
-        int otherMin="minecraft:overworld".equals(closest.target())?-64:0;
-        int otherVanillaTop="minecraft:overworld".equals(closest.target())?320:256;
+        int otherMin=SeamStackClient.minY(closest.target());
+        int otherVanillaTop=SeamStackClient.maxY(closest.target());
         int otherTop=SeamStackClient.boundary(closest.target(),SeamGraph.EdgeSide.TOP,
             otherMin,otherVanillaTop);
         double otherSeam=SeamStackClient.boundary(closest.target(),closest.entry(),otherMin,otherVanillaTop);

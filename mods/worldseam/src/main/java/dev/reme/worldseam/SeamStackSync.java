@@ -29,7 +29,8 @@ public final class SeamStackSync {
                 // DimensionType registry key can differ from Level ID.
                 var key=level.dimensionTypeRegistration().unwrapKey();
                 list.add(new SeamStackSyncPayload.DimensionTypeRef(e.id(),
-                    key.map(k->k.location().toString()).orElse(e.id())));
+                    key.map(k->k.location().toString()).orElse(e.id()),
+                    level.getMinBuildHeight(),level.getMaxBuildHeight()));
             }
         }
         PacketDistributor.sendToPlayer(player,
