@@ -15,6 +15,11 @@
 ## 严格的技术边界
 这是可以逐格检查 Mod ID 和 BlockState 的拟议装配设计，不是已通过 Sable/GameTest 的可运行机器 schem。尚未测关节轴承连接是否成立、实际动力齿轮连通、胶合、负载和稳定行走。局部 13 段/12 关节的 Three.js 示意摆动不等于真实物理。可下载 JSON 清单进行工程审查，不能直接导入正式存档当做可运行模型。
 
+## 2026-10-21 网页维护
+- 3D 场景中的轴承及关键航空学控制方块现在显示跟随位置移动的标签；“显示部件与方块 ID”开关真正控制标签层，而不再只改变右侧文字透明度。
+- 修复本地 JAR 模型对无命名空间父模型 `block/cube_all` 的处理：按照 Minecraft 命名空间语义解析为 `minecraft:block/cube_all`，在未导入 Minecraft 客户端 JAR 时仅使用自制立方体几何，不包含官方贴图。
+- 冒烟测试的合成模型改为使用这种父模型继承，并检查标签开关。动态 BER 与其他复杂父模型仍需要单独覆盖。
+
 ## 运行与测试
 测试脚本使用自己生成的合成 fixture-simulated.jar 验证网页的 JAR 解析能力，**不复制任何官方原版资产**。原版大型 BlockEntity 动态渲染组件、复杂 multipart、特殊模型 UV 等尚无法在普通静态模型渲染器完全还原。
 实现文件 index.html, blocks.js, blocks.css；独立 Chrome 测试 .github/workflows/rpms-authentic-blocks-check.yml。
