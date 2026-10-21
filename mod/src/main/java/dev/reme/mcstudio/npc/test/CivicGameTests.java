@@ -1099,4 +1099,49 @@ public final class CivicGameTests {
         helper.succeed();
     }
 
+    @GameTest(template = "empty", timeoutTicks = 350)
+    public static void actual_different_professions_found_hamlet_without_player_command(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos origin = helper.absolutePos(new BlockPos(4, 9, 4));
+        PlayerNpcEntity[] households = new PlayerNpcEntity[3];
+        PlayerNpcEntity.Profession[] jobs = {
+            PlayerNpcEntity.Profession.FARMER,
+            PlayerNpcEntity.Profession.BAKER,
+            PlayerNpcEntity.Profession.COURIER
+        };
+        for (int x = -2; x <= 10; x++) for (int z = -3; z <= 3; z++) {
+            BlockPos ground = origin.offset(x, -1, z);
+            level.setBlock(ground, Blocks.STONE.defaultBlockState(), 3);
+            level.setBlock(ground.above(), Blocks.AIR.defaultBlockState(), 3);
+            level.setBlock(ground.above(2), Blocks.AIR.defaultBlockState(), 3);
+        }
+        for (int n = 0; n < 3; n++) {
+            PlayerNpcEntity npc = NpcRegistry.PLAYER_NPC.get().create(level);
+            if (npc == null) throw new AssertionError("Missing actual resident entity");
+            BlockPos home = origin.east(n * 3);
+            npc.moveTo(home.getX() + 0.5, home.getY(), home.getZ() + 0.5, 0, 0);
+            npc.setHomePos(home);
+            npc.setWorkPos(home);
+            npc.setProfession(jobs[n]);
+            npc.setIdentity(SocietyRules.civilian("self_founded"));
+            npc.setMode(PlayerNpcEntity.Mode.LIVE);
+            if (!level.addFreshEntity(npc)) throw new AssertionError("Could not spawn citizen");
+            households[n] = npc;
+        }
+        // No /npc settlement command and no direct observe() call here:
+        // only their regular actual server tick may establish the chronicle.
+        var census = EmergentSettlements.survey(level, households[0]);
+        if (census == null || census.households() != 3)
+            throw new AssertionError("Three autonomous homes did not exist");
+        var foundingId = census.founder();
+        if (SettlementLedger.get(level).get(foundingId) != null)
+            throw new AssertionError("Hamlet was registered before residents lived their first day");
+        helper.runAfterDelay(275, () -> {
+            var chronicle = SettlementLedger.get(level).get(foundingId);
+            if (chronicle == null || chronicle.households() < 3)
+                helper.fail("Three independent LIVE occupations never autonomously registered their settlement", origin);
+            else helper.succeed();
+        });
+    }
+
 }
