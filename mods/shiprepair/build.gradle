@@ -9,6 +9,10 @@ base { archivesName=mod_id }
 java.toolchain.languageVersion=JavaLanguageVersion.of(21)
 repositories {
     exclusiveContent {
+        forRepository { maven { url='https://maven.ryanhcode.dev/releases' } }
+        filter { includeGroup('dev.ryanhcode.sable-companion') }
+    }
+    exclusiveContent {
         forRepository { maven { url='https://api.modrinth.com/maven' } }
         filter { includeGroup('maven.modrinth') }
     }
@@ -32,6 +36,8 @@ neoForge {
 }
 configurations { runtimeClasspath.extendsFrom localRuntime }
 dependencies {
+    // Sable's SubLevel implements classes from its separately published companion API.
+    compileOnly('dev.ryanhcode.sable-companion:sable-companion-common-1.21.1:1.6.0')
     compileOnly('maven.modrinth:T9PomCSv:fg9dTRz9') { transitive=false }
     localRuntime('maven.modrinth:T9PomCSv:fg9dTRz9') { transitive=false }
     testImplementation 'org.junit.jupiter:junit-jupiter:5.11.4'

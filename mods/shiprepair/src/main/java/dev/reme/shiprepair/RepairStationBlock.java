@@ -1,5 +1,6 @@
 package dev.reme.shiprepair;
 
+import com.mojang.serialization.MapCodec;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
@@ -12,6 +13,8 @@ import net.minecraft.world.phys.BlockHitResult;
 import org.jetbrains.annotations.Nullable;
 
 public final class RepairStationBlock extends BaseEntityBlock {
+    public static final MapCodec<RepairStationBlock> CODEC=simpleCodec(RepairStationBlock::new);
+    @Override protected MapCodec<? extends BaseEntityBlock> codec() { return CODEC; }
     public RepairStationBlock(Properties p) { super(p); }
     @Override public RenderShape getRenderShape(BlockState s) { return RenderShape.MODEL; }
     @Override public @Nullable BlockEntity newBlockEntity(BlockPos pos,BlockState s) {
