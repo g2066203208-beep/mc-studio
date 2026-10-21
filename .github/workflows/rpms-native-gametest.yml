@@ -1,0 +1,51 @@
+name: RPMS Native Create + Aeronautics GameTest Server
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'mod/**'
+      - 'viewer/rpms/tests/download-official.py'
+      - '.github/workflows/rpms-native-gametest.yml'
+  pull_request:
+    paths:
+      - 'mod/**'
+      - '.github/workflows/rpms-native-gametest.yml'
+permissions:
+  contents: read
+jobs:
+  native-game:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Download official NeoForge Create and Aeronautics distributions
+        run: |
+          python3 viewer/rpms/tests/download-official.py
+          mkdir -p mod/runtime-mods
+          cp "${{ runner.temp }}/rpms-official-mods/create-1.21.1.jar" mod/runtime-mods/create-1.21.1.jar
+          cp "${{ runner.temp }}/rpms-official-mods/aeronautics-1.21.1.jar" mod/runtime-mods/aeronautics-1.21.1.jar
+      - name: Native NeoForge 1.21.1 GameTest server with REAL mods
+        working-directory: mod
+        env:
+          GRADLE_OPTS: -Xmx2g
+        run: |
+          bash ./gradlew runGameTestServer -PrpmsNativeRuntime --no-daemon --stacktrace --console=plain 2>&1 | tee native-gametest.log
+          grep -q 'RPMS_NATIVE_PASS officialRegistriesAreLoaded' native-gametest.log
+          grep -q 'RPMS_NATIVE_PASS createKineticBlockEntitiesExistAndTick' native-gametest.log
+          grep -q 'RPMS_NATIVE_PASS swivelBearingAndSensorRunInServer' native-gametest.log
+          grep -q 'RPMS_NATIVE_PASS wirelessRedstoneLinkHasNativeEntity' native-gametest.log
+      - name: Upload native run logs and Minecraft result only; no mod assets
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rpms-native-gametest-logs
+          path: |
+            mod/native-gametest.log
+            mod/run/logs/latest.log
+            mod/run/crash-reports/*.txt
+          if-no-files-found: ignore
+          retention-days: 7
