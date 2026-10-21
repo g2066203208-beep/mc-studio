@@ -51,7 +51,33 @@ def _clean_jsonc(s: str) -> str:
         else:
             out.append(ch)
             pos += 1
-    return re.sub(r",(?=\s*[}\]])", "", "".join(out))
+    cleaned = "".join(out)
+    # Strip trailing commas by a second lexical pass; not within JSON strings.
+    result = []
+    quoted = False
+    escaped = False
+    for i, ch in enumerate(cleaned):
+        if quoted:
+            result.append(ch)
+            if escaped:
+                escaped = False
+            elif ch == "\\\\":
+                escaped = True
+            elif ch == '"':
+                quoted = False
+            continue
+        if ch == '"':
+            quoted = True
+            result.append(ch)
+        elif ch == ",":
+            following = i + 1
+            while following < len(cleaned) and cleaned[following].isspace():
+                following += 1
+            if following >= len(cleaned) or cleaned[following] not in "}]":
+                result.append(ch)
+        else:
+            result.append(ch)
+    return "".join(result)
 
 
 def parse_obj(src: str) -> dict:
@@ -207,7 +233,7 @@ def png_dimensions(path: Path) -> tuple[int, int]:
     if len(h) < 24 or h[:8] != b"\x89PNG\r\n\x1a\n" or h[12:16] != b"IHDR":
         raise ValueError("not a valid PNG IHDR header")
     w, hgt = struct.unpack(">II", h[16:24])
-    if not 0 < w < 100000 and 0 < hgt < 100000:
+    if not (0 < w < 100000 and 0 < hgt < 100000):
         raise ValueError("invalid PNG width/height")
     return w, hgt
 

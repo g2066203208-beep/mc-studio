@@ -10,15 +10,15 @@
 
 ## 已有在线真实 3D 工具
 
-- 源码：\`viewer/index.html\`，Three.js \`OBJLoader\` + \`OrbitControls\`。
+- 源码：`viewer/index.html`，Three.js `OBJLoader` + `OrbitControls`。
 - 页面：https://g2066203208-beep.github.io/mc-studio/ （实际可用性须每次检查）。
 - 功能：原作者 GitHub OBJ、在线读取 V29 发布 JAR、导入本地 JAR、UV 贴图、零件选择/隐藏、网格、截图。
 - **限制**：当前页面初始只支持 Mustang；未提供“上传任意 OBJ”通用模型输入。后续建新摩托车应扩展通用 OBJ+PNG 导入功能，别谎称已经支持；模型构建阶段可用 Blockbench/Blender 等已验证的本地 3D 软件交互检查。
-- **限制**：没有自动装配真实 MTS \`parts\`（轮胎、发动机、座椅等）。空缺要明确说明并补装配视图后才评判“整辆车”。
+- **限制**：没有自动装配真实 MTS `parts`（轮胎、发动机、座椅等）。空缺要明确说明并补装配视图后才评判“整辆车”。
 
 ## 评审可复制记录模板
 
-\`\`\`markdown
+```markdown
 ### <model_id> @ <commit/version>
 来源 / 许可:
 车型目的与剪影:
@@ -29,12 +29,12 @@ Inspect OBJ 结果: 顶点 / 面 / 对象 / UV / errors / warnings:
 兼容性: MTS版本 / NeoForge / Minecraft / Sable:
 问题和复现步骤:
 结论: M0 / M1 / M2 / M3 / M4；禁止无证据标绿
-\`\`\`
+```
 
 ## 常见失败及纠正
 
 - “已经截图”却不是可交互网格：退回 M1/2，要求 .obj 或实际 3D 浏览器。
-- 从目录 \`textures/item\` 读取 32×32 库存图：纠正为车辆对应 atlas。
+- 从目录 `textures/item` 读取 32×32 库存图：纠正为车辆对应 atlas。
 - 轮子没出现就认定模型坏了：先查看 MTS 的轮子安装点与独立配件资源。
 - 启动页面 404 就宣称部署成功：查看 GitHub Pages workflow、浏览器 JS 错误和最终站点响应。
 - 看起来方方正正但不像车：删减无意义方盒，重做车架比例与主要曲面折线。
