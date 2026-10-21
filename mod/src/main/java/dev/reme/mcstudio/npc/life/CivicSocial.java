@@ -21,6 +21,7 @@ public final class CivicSocial {
             victim.getBoundingBox().inflate(12.0),
             npc -> npc != victim && npc.isAlive() &&
                 npc.identity().region().equals(victim.identity().region()) &&
+                !npc.hostileTo(victim) &&
                 npc.hasLineOfSight(attacker))) {
             witness.civic().witness(incident, attacker.getUUID(), victim.getUUID(),
                 CivicMind.Kind.ASSAULT, now);

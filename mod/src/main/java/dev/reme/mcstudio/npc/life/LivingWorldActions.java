@@ -49,6 +49,19 @@ public final class LivingWorldActions {
         }
         if (npc.profession() == PlayerNpcEntity.Profession.GUARD)
             CivicSocial.guardLaw(npc, level, tick);
+        // NPCs can ask for essentials themselves. The reward is funded from
+        // their existing emeralds, never created by the task system.
+        if (tick % 600 == Math.floorMod(npc.getId(), 600) &&
+            npc.hunger() < 35 &&
+            npc.backpack().countItem(Items.BREAD) == 0 &&
+            npc.backpack().countItem(Items.CARROT) == 0 &&
+            npc.backpack().countItem(Items.POTATO) == 0 &&
+            (npc.commission() == null ||
+             npc.commission().state() == Commission.State.COMPLETED ||
+             npc.commission().state() == Commission.State.CANCELLED)) {
+            CivicContracts.post(npc, Commission.Goods.BREAD, 2,
+                npc.character().empathy() >= 75 ? 3 : 2);
+        }
         if (SocietyActions.tick(npc, level, tick)) return;
         if (npc.profession() == PlayerNpcEntity.Profession.GUARD &&
             npc.getTarget() != null && npc.getTarget().isAlive() &&
