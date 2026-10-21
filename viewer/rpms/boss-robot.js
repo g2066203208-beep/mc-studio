@@ -167,7 +167,7 @@ function createRig(){
   linkVisual(shin,engine.lowerLength,l.id,'lower');
   visualBodies.push({body:l.upper,mesh:thigh},{body:l.lower,mesh:shin});
  }
- engine.setMotor({rpm:Number($('motorRPM').value),torqueLimit:Number($('motorTorque').value)});
+ engine.setMotor({rpm:Number($('motorRPM').value),torqueLimit:Number($('motorTorque').value),ratio:Number($('gearRatio').value)});
  engine.setMode('stand');
  paused=false;accum=0;last=0;
  $('pause').textContent='暂停物理';
@@ -217,11 +217,21 @@ for(const mode of ['stand','march','walk','relax'])$(mode).addEventListener('cli
  }[mode]);
 });
 $('motorRPM').addEventListener('input',e=>{
- const rpm=Number(e.target.value);$('rpmLabel').textContent=rpm+' RPM';engine?.setMotor({rpm});
+ const rpm=Number(e.target.value);$('rpmLabel').textContent=rpm+' RPM';engine?.setMotor({rpm});updateRatioLabel();
 });
 $('motorTorque').addEventListener('input',e=>{
  const torque=Number(e.target.value);$('torqueLabel').textContent=torque+' N·m';engine?.setMotor({torqueLimit:torque});
 });
+function updateRatioLabel(){
+ const ratio=Number($('gearRatio').value);
+ const rpm=Number($('motorRPM').value);
+ $('ratioLabel').textContent=ratio+':1 · 输出 '+(rpm/ratio).toFixed(1)+' RPM';
+}
+$('gearRatio').addEventListener('change',e=>{
+ engine?.setMotor({ratio:Number(e.target.value)});
+ updateRatioLabel();syncVisual();
+});
+
 function removeLeg(id){
  if(!engine)return false;
  const ok=engine.removeLeg(id);
@@ -278,11 +288,17 @@ function animate(now=0){
   while(accum>=DT&&cycles<5){engine.advance(1);accum-=DT;cycles++;}
   if(cycles)syncVisual();
  }
- if(engine)for(const {group,axis} of spinning){
-  // These are visible kinetic decorations only; physical articulation uses
-  // independently applied finite torques to the joint bodies in Rapier.
-  const a=engine.snapshot().steps*DT*(engine.snapshot().motorRPM||0)*2*Math.PI/60;
-  group.rotation[axis]=a;
+ if(engine){
+  const operating=engine.snapshot();
+  for(const {group,axis} of spinning){
+   // Small/large gear speed visibly differs; the actual joint force is
+   // applied by the genuine Rapier angular-impulse actuator, not visuals.
+   const isLarge=group.children.some(c=>c.userData?.id==='create:large_cogwheel');
+   const big=group.position.x===0;
+   const factor=big?.5:1,sign=big?1:-1;
+   const a=operating.steps*DT*operating.motorRPM*2*Math.PI/60*factor*sign;
+   group.rotation[axis]=a;
+  }
  }
  orbit.update();
  renderer.render(scene,camera);
