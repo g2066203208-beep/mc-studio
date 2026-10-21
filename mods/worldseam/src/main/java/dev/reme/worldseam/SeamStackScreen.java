@@ -69,6 +69,13 @@ public final class SeamStackScreen extends Screen {
         };
     }
 
+    private String truncate(String value,int pixels) {
+        String text=value;
+        while(text.length()>2 && font.width(text)>pixels)
+            text=text.substring(0,text.length()-2)+"…";
+        return text;
+    }
+
     private static String endpoint(Integer value) {
         return value==null?"原生边界":value.toString();
     }
@@ -278,19 +285,19 @@ public final class SeamStackScreen extends Screen {
                 g.fill(leftX+3,y-2,leftX+5,y+rowH-2,ACCENT);
             }
             String details=e.id()+"  ↑"+endpoint(e.topY())+" ↓"+endpoint(e.bottomY());
-            g.drawString(font,font.substrByWidth(details,leftW-18),
+            g.drawString(font,truncate(details,leftW-18),
                 leftX+9,y+24,index==selected?0xFFF5D49E:MUTED,false);
         }
 
         var active=entries.get(selected);
         g.drawString(font,label(active.id()),rightX+12,panelY+63,WHITE,true);
-        g.drawString(font,font.substrByWidth(active.id(),rightW-25),
+        g.drawString(font,truncate(active.id(),rightW-25),
             rightX+12,panelY+76,MUTED,false);
         g.drawString(font,"下连接面 Y（留空使用原生下界）",rightX+12,panelY+87,MUTED);
         g.drawString(font,"上连接面 Y（留空使用原生上界）",rightX+12,panelY+140,MUTED);
         g.drawString(font,"选择要添加的维度",leftX+6,listY+rowsVisible*rowH+29,MUTED);
         g.drawCenteredString(font,
-            font.substrByWidth(label(candidates.get(candidate)),leftW-78),
+            truncate(label(candidates.get(candidate)),leftW-78),
             leftX+leftW/2,listY+rowsVisible*rowH+46,WHITE);
         g.drawString(font,"连通开关",rightX+12,panelY+190,MUTED);
         g.drawString(font,"层级排序",rightX+12,panelY+233,MUTED);
@@ -304,7 +311,7 @@ public final class SeamStackScreen extends Screen {
             panelY+panelH-29,ACCENT);
         if(!error.isBlank())
             g.drawCenteredString(font,
-                font.substrByWidth(error,panelW-30),
+                truncate(error,panelW-30),
                 width/2,panelY+panelH-49,0xFFFF8989);
         super.render(g,mouseX,mouseY,delta);
     }
