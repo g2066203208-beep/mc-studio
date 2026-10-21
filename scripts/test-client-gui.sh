@@ -85,6 +85,28 @@ xdotool type --clearmodifiers --delay 75 '/npc info'
 xdotool key Return
 sleep 3
 import -window root client-gui-six-status.png
+# New v0.5.9 world-level evidence: exactly the real six resident homes
+# form a recognized three-home hamlet without pre-generated buildings.
+xdotool key --clearmodifiers t
+sleep 1
+xdotool type --clearmodifiers --delay 55 '/npc settlement'
+xdotool key Return
+sleep 3
+import -window root client-gui-organic-hamlet.png
+xdotool key --clearmodifiers t
+sleep 1
+xdotool type --clearmodifiers --delay 55 '/npc trails'
+xdotool key Return
+sleep 3
+import -window root client-gui-traffic-status.png
+# Turn world-changing ambient trail formation on only in this disposable
+# test world; it remains OFF by default for real player saves.
+xdotool key --clearmodifiers t
+sleep 1
+xdotool type --clearmodifiers --delay 55 '/npc trails on'
+xdotool key Return
+sleep 3
+import -window root client-gui-trails-enabled.png
 xdotool key --clearmodifiers t
 sleep 1
 xdotool type --clearmodifiers --delay 75 '/npc skins'
