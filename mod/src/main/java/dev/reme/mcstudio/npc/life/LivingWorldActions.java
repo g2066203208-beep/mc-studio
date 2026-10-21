@@ -29,6 +29,11 @@ public final class LivingWorldActions {
     public static void tick(PlayerNpcEntity npc, ServerLevel level) {
         if (npc.mode() != PlayerNpcEntity.Mode.LIVE) return;
         long tick = level.getGameTime();
+        // Prisoners cannot carry on stealing/working after a real close-range
+        // guard arrest; detention is physical navigation plus timed release.
+        if (PublicSafety.tickPrisoner(npc, level, tick)) return;
+        // Guard response owns movement before roaming/ordinary patrol.
+        if (PublicSafety.tickGuard(npc, level, tick)) return;
         // Record only actual transit, never stationary NPC ticks. Bounded per-
         // dimension SavedData persists crowd footsteps; physical wear is
         // separately operator-authorized and defaults OFF.
