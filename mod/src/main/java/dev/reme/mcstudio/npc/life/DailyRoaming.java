@@ -34,7 +34,7 @@ public final class DailyRoaming {
         }
 
         if (!MovementPolicy.due(tick, npc.getId(), 160)) return false;
-        if (npc.getNavigation().isInProgress() || npc.energy() < 26) return false;
+        if (!npc.getNavigation().isDone() || npc.energy() < 26) return false;
         if (npc.intent() != LivingPlanner.Intent.IDLE &&
             npc.intent() != LivingPlanner.Intent.SOCIALIZE) return false;
 
@@ -52,7 +52,7 @@ public final class DailyRoaming {
             // A cheap loaded-chunk walkable target test. Navigation validates
             // actual reachability; never transform terrain or load chunks.
             BlockState floor = level.getBlockState(target.below());
-            if (!floor.isCollisionShapeFullBlock(level, target.below()) ||
+            if (!floor.isSolid() ||
                 !level.getBlockState(target).isAir() ||
                 !level.getBlockState(target.above()).isAir()) continue;
             boolean moved = RoadNavigator.moveToward(npc, level, target, 0.80);

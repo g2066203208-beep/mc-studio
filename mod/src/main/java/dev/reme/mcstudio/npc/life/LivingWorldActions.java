@@ -8,6 +8,8 @@ import dev.reme.mcstudio.npc.life.SupplyLogistics;
 import dev.reme.mcstudio.npc.life.RoadNavigator;
 import dev.reme.mcstudio.npc.life.LifeJourney;
 import dev.reme.mcstudio.npc.life.SafeBuilder;
+import dev.reme.mcstudio.npc.life.MovementPolicy;
+import dev.reme.mcstudio.npc.life.DailyRoaming;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.SimpleContainer;
@@ -27,11 +29,11 @@ public final class LivingWorldActions {
     public static void tick(PlayerNpcEntity npc, ServerLevel level) {
         if (npc.mode() != PlayerNpcEntity.Mode.LIVE) return;
         long tick = level.getGameTime();
-        if (tick % 200 == Math.floorMod(npc.getId(), 200)) {
+        if (MovementPolicy.due(tick, npc.getId(), 200)) {
             npc.changeNeeds(-2, npc.intent() == LivingPlanner.Intent.SLEEP ? 12 : -3,
                 npc.intent() == LivingPlanner.Intent.SOCIALIZE ? 2 : -3);
         }
-        if (tick % 40 == Math.floorMod(npc.getId(), 40)) {
+        if (MovementPolicy.due(tick, npc.getId(), 80)) {
             boolean exposed = level.canSeeSky(npc.blockPosition());
             boolean danger = npc.isAfraid(tick) ||
                 (npc.profession() != PlayerNpcEntity.Profession.GUARD &&
@@ -39,7 +41,7 @@ public final class LivingWorldActions {
                     npc.getBoundingBox().inflate(10.0),
                     m -> m.isAlive() && npc.hasLineOfSight(m)).isEmpty());
             npc.setDecision(npc.planner().choose(new LivingPlanner.Context(
-                level.getDayTime(), level.isRaining(), exposed, danger,
+                level.getDayTime() + npc.dailyShiftTicks(), level.isRaining(), exposed, danger,
                 npc.hunger(), npc.energy(),
                 Math.max(0, npc.socialNeed() -
                     (npc.character().empathy() > 75 ? 15 : 0)),
@@ -63,10 +65,11 @@ public final class LivingWorldActions {
                 npc.character().empathy() >= 75 ? 3 : 2);
         }
         if (SocietyActions.tick(npc, level, tick)) return;
+        if (DailyRoaming.tick(npc, level, tick)) return;
         if (npc.profession() == PlayerNpcEntity.Profession.GUARD &&
             npc.getTarget() != null && npc.getTarget().isAlive() &&
             !npc.isAfraid(tick)) return;
-        if (tick % 20 != Math.floorMod(npc.getId(), 20)) return;
+        if (!MovementPolicy.due(tick, npc.getId(), 40)) return;
         switch (npc.intent()) {
             case ESCAPE -> escape(npc, level);
             case EAT -> eat(npc);
@@ -154,7 +157,7 @@ public final class LivingWorldActions {
             return;
         }
         if (npc.profession() != PlayerNpcEntity.Profession.FARMER) return;
-        if (tick % 100 != Math.floorMod(npc.getId(), 100)) return;
+        if (!MovementPolicy.due(tick, npc.getId(), 200)) return;
         if (npc.supplyPos() != null && npc.backpack().countItem(Items.WHEAT) >= 12
             && SupplyLogistics.deposit(npc, level)) return;
         BlockPos anchor = npc.workPos();
@@ -164,8 +167,14 @@ public final class LivingWorldActions {
             return;
         }
 
-        BlockPos candidate = null;
-        double best = Double.MAX_VALUE;
+        BlockPos candidate = npc.cachedCropTarget();
+        if (candidate != null && (!level.hasChunkAt(candidate) ||
+            !(level.getBlockState(candidate).getBlock() instanceof CropBlock crop) ||
+            !crop.isMaxAge(level.getBlockState(candidate))))
+            candidate = null;
+        double best = candidate == null ? Double.MAX_VALUE :
+            npc.blockPosition().distSqr(candidate);
+        if (candidate == null)
         for (BlockPos p : BlockPos.betweenClosed(anchor.offset(-6, -2, -6),
                 anchor.offset(6, 2, 6))) {
             if (!level.hasChunkAt(p)) continue;
@@ -178,6 +187,7 @@ public final class LivingWorldActions {
                 candidate = p.immutable();
             }
         }
+        npc.setCachedCropTarget(candidate);
         if (candidate == null) {
             npc.setAction("waiting for real crops to ripen");
             return;
@@ -188,6 +198,7 @@ public final class LivingWorldActions {
             return;
         }
         harvest(npc, level, candidate);
+        npc.setCachedCropTarget(null);
     }
 
     private static Item seedFor(Block crop) {
@@ -338,10 +349,15 @@ public final class LivingWorldActions {
                 && !npc.hostileTo(other) &&
                 npc.memory().trust(other.getUUID()) > -20);
         if (neighbors.isEmpty()) {
-            returnHome(npc, "looking for company");
+            // Bounded daily roaming handles searching for company in daytime.
+            npc.setAction("looking around the neighborhood for company");
             return;
         }
-        PlayerNpcEntity other = neighbors.stream().min(Comparator.comparingDouble(npc::distanceToSqr)).orElseThrow();
+        PlayerNpcEntity other = neighbors.stream()
+            .filter(person -> npc.escortLeader() != null ||
+                DailyRoaming.inRange(npc, person.blockPosition()))
+            .min(Comparator.comparingDouble(npc::distanceToSqr)).orElse(null);
+        if (other == null) return;
         if (npc.distanceToSqr(other) > 8) {
             RoadNavigator.moveToward(npc, level, other.blockPosition(), 0.90);
             npc.setAction("going to meet " + other.getName().getString());

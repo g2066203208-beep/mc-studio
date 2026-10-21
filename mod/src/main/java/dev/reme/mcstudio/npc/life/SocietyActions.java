@@ -17,7 +17,7 @@ public final class SocietyActions {
 
     public static boolean tick(PlayerNpcEntity npc, ServerLevel level, long tick) {
         if (npc.mode() != PlayerNpcEntity.Mode.LIVE) return false;
-        if (tick % 40 != Math.floorMod(npc.getId(), 40)) return false;
+        if (!MovementPolicy.due(tick, npc.getId(), 80)) return false;
         return switch (npc.profession()) {
             case GUARD -> guard(npc, level, tick);
             case SCOUT -> scout(npc, level, tick);
@@ -132,7 +132,11 @@ public final class SocietyActions {
             BlockPos candidate = scout.blockPosition().offset(
                 scout.getRandom().nextInt(25) - 12, 0,
                 scout.getRandom().nextInt(25) - 12);
-            if (!level.hasChunkAt(candidate)) return true;
+            if (!level.hasChunkAt(candidate) ||
+                !DailyRoaming.inRange(scout, candidate)) {
+                scout.setExploreTarget(scout.homePos());
+                return true;
+            }
             scout.setExploreTarget(candidate);
             destination = candidate;
         }
