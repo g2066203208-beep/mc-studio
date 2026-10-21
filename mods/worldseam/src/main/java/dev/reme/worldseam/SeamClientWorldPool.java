@@ -183,6 +183,11 @@ public final class SeamClientWorldPool {
         if (remote == null || mc.level == null || mc.player == null) return;
         if (remote.getChunkSource().getLoadedChunksCount()
             < SeamReadiness.REQUIRED_CHUNKS) return;
+        int cx = Math.floorDiv(mc.player.blockPosition().getX(), 16);
+        int cz = Math.floorDiv(mc.player.blockPosition().getZ(), 16);
+        for (int dx = -1; dx <= 1; dx++)
+            for (int dz = -1; dz <= 1; dz++)
+                if (!remote.getChunkSource().hasChunk(cx+dx,cz+dz)) return;
         long tick = mc.level.getGameTime();
         if (tick - lastReadySent < 40) return;
         PacketDistributor.sendToServer(new SeamReadyPayload(

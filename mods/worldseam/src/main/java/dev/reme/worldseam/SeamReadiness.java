@@ -36,9 +36,18 @@ public final class SeamReadiness {
     public static void clear() { sessions.clear(); }
 
     public static void acceptNetwork(ServerPlayer player, SeamReadyPayload message) {
-        if (player.serverLevel().dimension().location().toString().equals(message.source())) {
-            accept(player.getUUID(),message.source(),message.target(),
-                message.loadedChunks(),player.serverLevel().getGameTime());
+        if (!player.serverLevel().dimension().location().toString().equals(message.source()))
+            return;
+        var targetLevel = player.server.getLevel(SeamServer.dimensionKey(message.target()));
+        if (targetLevel == null) return;
+        int cx = Math.floorDiv(player.blockPosition().getX(),16);
+        int cz = Math.floorDiv(player.blockPosition().getZ(),16);
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dz = -1; dz <= 1; dz++) {
+                if (!targetLevel.hasChunk(cx+dx,cz+dz)) return;
+            }
         }
+        accept(player.getUUID(),message.source(),message.target(),
+            message.loadedChunks(),player.server.overworld().getGameTime());
     }
 }
