@@ -176,13 +176,23 @@ public final class NpcCommands {
     private static int settlementInfo(CommandSourceStack source)
         throws com.mojang.brigadier.exceptions.CommandSyntaxException {
         ServerPlayer player = source.getPlayerOrException();
-        PlayerNpcEntity reference = closestNpc(player);
-        if (reference == null) {
+        // Census the actual neighborhood rather than choosing only the
+        // closest individual. An unrelated NPC spawned by /npc spawn may be
+        // nearer to the player than three allied real households.
+        var neighbors = player.serverLevel().getEntitiesOfClass(
+            PlayerNpcEntity.class, player.getBoundingBox().inflate(24),
+            resident -> resident.isAlive()
+                && resident.mode() == PlayerNpcEntity.Mode.LIVE);
+        if (neighbors.isEmpty()) {
             source.sendFailure(Component.literal(
-                "No resident within 16 blocks to census; visit a populated area"));
+                "No live resident within 24 blocks to census; visit a populated area"));
             return 0;
         }
-        var community = EmergentSettlements.survey(player.serverLevel(), reference);
+        var community = neighbors.stream()
+            .map(npc -> EmergentSettlements.survey(player.serverLevel(), npc))
+            .filter(java.util.Objects::nonNull)
+            .max(Comparator.comparingInt(EmergentSettlements.Settlement::households))
+            .orElse(null);
         if (community == null) {
             source.sendSuccess(() -> Component.literal(
                 "No organic hamlet yet. At least 3 living allied residents"
