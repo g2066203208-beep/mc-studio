@@ -66,6 +66,7 @@ public final class EmergentFootpaths {
     public static boolean tryWearPath(PlayerNpcEntity npc, ServerLevel level, BlockPos foot) {
         if (!level.getServer().isSameThread()
             || !FootTrafficData.get(level).physicalPathsEnabled()
+            || FootTrafficData.get(level).visits(foot) < FootTrafficData.PATH_THRESHOLD
             || !level.getGameRules().getBoolean(GameRules.RULE_MOBGRIEFING)
             || !npc.isAlive() || !npc.onGround()
             || npc.distanceToSqr(Vec3.atCenterOf(foot)) > 9.0
