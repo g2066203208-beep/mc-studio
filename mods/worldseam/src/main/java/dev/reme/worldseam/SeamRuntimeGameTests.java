@@ -25,6 +25,31 @@ public final class SeamRuntimeGameTests {
             helper.fail("WorldSeam requires all three vanilla dimensions");
             return;
         }
+        var over=server.getLevel(Level.OVERWORLD);
+        var nether=server.getLevel(Level.NETHER);
+        var end=server.getLevel(Level.END);
+        if (over.getMinBuildHeight()!=-64 || over.getMaxBuildHeight()!=320 ||
+            nether.getMinBuildHeight()!=0 || nether.getMaxBuildHeight()!=256 ||
+            end.getMinBuildHeight()!=0 || end.getMaxBuildHeight()!=256) {
+            helper.fail("Actual vanilla 1.21.1 dimension build height mismatch: "+
+                "Overworld ["+over.getMinBuildHeight()+","+over.getMaxBuildHeight()+"), "+
+                "Nether ["+nether.getMinBuildHeight()+","+nether.getMaxBuildHeight()+"), "+
+                "End ["+end.getMinBuildHeight()+","+end.getMaxBuildHeight()+")");
+            return;
+        }
+        var floor=SeamGraph.from("minecraft:overworld").stream()
+            .filter(link -> link.exit()==SeamGraph.EdgeSide.BOTTOM)
+            .findFirst().orElseThrow();
+        var roof=SeamGraph.from("minecraft:the_nether").stream()
+            .filter(link -> link.exit()==SeamGraph.EdgeSide.TOP)
+            .findFirst().orElseThrow();
+        double mappedDown=floor.targetY(-65,-64,128);
+        double mappedUp=roof.targetY(127,128,-64);
+        if (mappedDown!=127 || mappedUp!=-65) {
+            helper.fail("Physical seam mismatch: Overworld Y=-65 must be "+
+                "Nether Y=127, reverse mapped to Overworld Y=-65");
+            return;
+        }
         if (!SeamGraph.mutuallyConnected()) {
             helper.fail("Bidirectional seam topology is inconsistent");
             return;
