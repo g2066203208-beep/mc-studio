@@ -289,7 +289,7 @@ async function loadAuthenticShape(item) {
  meshRoot.rotation.order='YXZ';
  meshRoot.rotation.set(THREE.MathUtils.degToRad(variant.x||0),THREE.MathUtils.degToRad(variant.y||0),0);
  item.group.clear();item.group.add(meshRoot);
- meshRoot.traverse(o=>{if(o.isMesh){o.userData.item=item;meshOwners.push(o);}});
+ meshRoot.traverse(o=>{if(o.isMesh)meshOwners.push(o);}); // avoid circular userData before Three.js clone()
  item.modelLoaded=true;return true;
 }
 async function renderFromArchives(){
