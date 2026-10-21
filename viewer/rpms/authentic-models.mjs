@@ -77,6 +77,12 @@ export class MinecraftJarModels {
   const count=paths.filter(p=>/^assets\/[^/]+\/blockstates\/.+\.json$/.test(p)).length;
   this.archives.push({name:file.name||'local zip',zip,paths:new Set(paths)});
   this.jsonCache.clear();this.meshCache.clear();
+  // Layering a resource pack or Minecraft client after a Mod JAR must
+  // invalidate previously missing/overridden textures as well.
+  for(const url of this.urls)URL.revokeObjectURL(url);
+  this.urls=[];
+  for(const texture of this.textureCache.values())texture?.dispose?.();
+  this.textureCache.clear();
   this.stats.archives=this.archives.length;
   return {archive:file.name,blockstates:count,paths};
  }
