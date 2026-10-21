@@ -33,7 +33,8 @@ public final class SeamCommands {
                     .requires(src -> src.hasPermission(2))
                     .then(Commands.literal("enable").executes(ctx -> terrain(ctx,true)))
                     .then(Commands.literal("disable").executes(ctx -> terrain(ctx,false))))
-                .then(Commands.literal("probe").executes(SeamCommands::probe)));
+                .then(Commands.literal("probe").executes(SeamCommands::probe))
+                .then(Commands.literal("trace").executes(SeamCommands::trace)));
     }
 
     private static int setupTest(CommandContext<CommandSourceStack> ctx) {
@@ -97,6 +98,54 @@ public final class SeamCommands {
                 + ". Applies only to FUTURE generated chunks while Seam is enabled."
                 + " Existing world chunks are untouched; backup the test world first."
         ), true);
+        return 1;
+    }
+
+    /**
+     * Real runtime status, not just a claim that the mod is installed.
+     * Does not force-load remote chunks or edit terrain.
+     */
+    private static int trace(CommandContext<CommandSourceStack> ctx)
+        throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        var src=ctx.getSource();
+        var player=src.getPlayerOrException();
+        var level=player.serverLevel();
+        var cfg=SeamSettings.get(src.getServer());
+        String name=level.dimension().location().toString();
+        int min=level.getMinBuildHeight(),top=SeamBounds.top(level);
+        src.sendSuccess(() -> Component.literal(
+            "[WorldSeam] enabled="+cfg.enabled()+
+            ", smooth="+cfg.experimentalNoRespawn()+
+            ", carveNew="+cfg.carveNewChunks()+
+            ", dimension="+name+
+            ", y="+String.format(java.util.Locale.ROOT,"%.2f",player.getY())+
+            ", build=[%d,%d)".formatted(min,level.getMaxBuildHeight())
+        ),false);
+        for(var link:SeamGraph.from(name)) {
+            double boundary=SeamGraph.boundaryY(link.exit(),min,top);
+            double distance=Math.abs(player.getY()-boundary);
+            var dest=src.getServer().getLevel(SeamServer.dimensionKey(link.target()));
+            int chunks=0;
+            if(dest!=null) {
+                int cx=Math.floorDiv(player.blockPosition().getX(),16);
+                int cz=Math.floorDiv(player.blockPosition().getZ(),16);
+                for(int dx=-1;dx<=1;dx++)
+                    for(int dz=-1;dz<=1;dz++)
+                        if(dest.hasChunk(cx+dx,cz+dz))chunks++;
+            }
+            boolean ready=SeamReadiness.isReady(player.getUUID(),name,
+                link.target(),src.getServer().overworld().getGameTime());
+            final int loaded=chunks;
+            src.sendSuccess(() -> Component.literal(
+                "[WorldSeam] "+link.exit()+" edge Y="+boundary+
+                " -> "+link.target()+" "+link.entry()+
+                ", distance="+String.format(java.util.Locale.ROOT,"%.2f",distance)+
+                ", remote server chunks="+loaded+"/9"+
+                ", readiness="+ready+
+                ", within chunk preload radius="+(distance<=64)+
+                ", within near preview radius="+(distance<=32)
+            ),false);
+        }
         return 1;
     }
 
