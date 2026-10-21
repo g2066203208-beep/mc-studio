@@ -29,6 +29,13 @@ public final class LivingWorldActions {
     public static void tick(PlayerNpcEntity npc, ServerLevel level) {
         if (npc.mode() != PlayerNpcEntity.Mode.LIVE) return;
         long tick = level.getGameTime();
+        // Record only actual transit, never stationary NPC ticks. Bounded per-
+        // dimension SavedData persists crowd footsteps; physical wear is
+        // separately operator-authorized and defaults OFF.
+        EmergentFootpaths.observe(npc, level, tick);
+        // Founding new local hamlets is a world event, not a player command:
+        // farmers, bakers, guards and other real households count equally.
+        EmergentSettlements.observe(npc, level, tick);
         if (MovementPolicy.due(tick, npc.getId(), 200)) {
             npc.changeNeeds(-2, npc.intent() == LivingPlanner.Intent.SLEEP ? 12 : -3,
                 npc.intent() == LivingPlanner.Intent.SOCIALIZE ? 2 : -3);
@@ -71,6 +78,23 @@ public final class LivingWorldActions {
         // Follow the genuine item-entity drops from this NPC's authorized
         // break, rather than treating ground loot as virtual inventory.
         if (PlayerLootPickup.tick(npc, level)) return;
+        // A real long-running caravan must OWN the movement goal between
+        // deliveries. The 80-tick SocietyActions cadence alone allowed
+        // DailyRoaming / generic WORK / SOCIALIZE to overwrite its path and
+        // left couriers stranded several blocks from the destination chest.
+        // Yield to survival and urgent threat plans instead of starving NPCs.
+        if (CaravanRoutes.configured(npc)
+            && npc.profession() == PlayerNpcEntity.Profession.COURIER
+            && !npc.isAfraid(tick) && npc.hunger() > 25 && npc.energy() > 25
+            && npc.intent() != LivingPlanner.Intent.ESCAPE
+            && npc.intent() != LivingPlanner.Intent.EAT
+            && npc.intent() != LivingPlanner.Intent.SLEEP) {
+            // Scan inventory/depot at most twice a second; the navigation
+            // itself continues on intermediate ticks without re-planning.
+            if (MovementPolicy.due(tick, npc.getId(), 10))
+                CaravanRoutes.tick(npc, level);
+            return; // don't let generic roaming cancel caravan navigation
+        }
         if (SocietyActions.tick(npc, level, tick)) return;
         if (DailyRoaming.tick(npc, level, tick)) return;
         if (npc.profession() == PlayerNpcEntity.Profession.GUARD &&
@@ -106,14 +130,15 @@ public final class LivingWorldActions {
         List<Monster> threats = level.getEntitiesOfClass(Monster.class,
             npc.getBoundingBox().inflate(11.0), m -> m.isAlive() && npc.hasLineOfSight(m));
         if (threats.isEmpty() && npc.isAfraid(level.getGameTime())) {
-            var attacker = level.getPlayerByUUID(npc.recentAggressor());
+            var attacker = npc.recentAggressor() == null ? null :
+                level.getEntity(npc.recentAggressor());
             if (attacker != null && npc.distanceToSqr(attacker) < 256) {
                 double dx = npc.getX() - attacker.getX();
                 double dz = npc.getZ() - attacker.getZ();
                 double length = Math.max(Math.sqrt(dx * dx + dz * dz), 0.01);
                 npc.getNavigation().moveTo(npc.getX() + dx / length * 12.0,
                     npc.getY(), npc.getZ() + dz / length * 12.0, 1.25);
-                npc.setAction("escaping an attacking player");
+                npc.setAction("escaping a witnessed attacker or caravan robber");
             }
             return;
         }

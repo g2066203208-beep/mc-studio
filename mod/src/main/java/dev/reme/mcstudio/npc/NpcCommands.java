@@ -5,6 +5,9 @@ import com.mojang.brigadier.arguments.IntegerArgumentType;
 import net.minecraft.commands.arguments.coordinates.BlockPosArgument;
 import dev.reme.mcstudio.npc.life.PlayerMiningActions;
 import dev.reme.mcstudio.npc.life.DailyRoaming;
+import dev.reme.mcstudio.npc.life.FootTrafficData;
+import dev.reme.mcstudio.npc.life.EmergentSettlements;
+import dev.reme.mcstudio.npc.life.SettlementLedger;
 import dev.reme.mcstudio.npc.life.Commission;
 import dev.reme.mcstudio.npc.life.CivicContracts;
 import dev.reme.mcstudio.npc.life.CivicMind;
@@ -39,7 +42,7 @@ public final class NpcCommands {
                 boolean ready = ctx.getSource().getServer().getCommands()
                     .getDispatcher().getRoot().getChild("npc") != null;
                 ctx.getSource().sendSuccess(() -> Component.literal(
-                    "REME NPC v0.5.7-dev active; /npc registered=" + ready
+                    "REME NPC v0.5.9-dev active; /npc registered=" + ready
                     + ". If /npc spawn is denied, enable cheats or operator privileges."),
                     false);
                 return 1;
@@ -47,7 +50,7 @@ public final class NpcCommands {
         event.getDispatcher().register(Commands.literal("npc")
             .executes(ctx -> {
                 ctx.getSource().sendSuccess(() -> Component.literal(
-                    "REME NPC v0.5.7-dev: /npc info, /npc spawn (cheats required), /npc demo (cheats required)"),
+                    "REME NPC v0.5.9-dev: /npc info, /npc spawn (cheats required), /npc demo (cheats required)"),
                     false);
                 return 1;
             })
@@ -73,6 +76,14 @@ public final class NpcCommands {
             .then(Commands.literal("courier").executes(ctx -> profession(ctx.getSource(), PlayerNpcEntity.Profession.COURIER)))
             .then(Commands.literal("guardjob").executes(ctx -> profession(ctx.getSource(), PlayerNpcEntity.Profession.GUARD)))
             .then(Commands.literal("builder").executes(ctx -> profession(ctx.getSource(), PlayerNpcEntity.Profession.BUILDER)))
+            .then(Commands.literal("trails")
+                .executes(ctx -> pathInfo(ctx.getSource()))
+                .then(Commands.literal("on").requires(source -> source.hasPermission(2))
+                    .executes(ctx -> setPaths(ctx.getSource(), true)))
+                .then(Commands.literal("off").requires(source -> source.hasPermission(2))
+                    .executes(ctx -> setPaths(ctx.getSource(), false))))
+            .then(Commands.literal("settlement")
+                .executes(ctx -> settlementInfo(ctx.getSource())))
             .then(Commands.literal("mine").requires(source -> source.hasPermission(2))
                 .then(Commands.argument("target", BlockPosArgument.blockPos())
                     .executes(ctx -> authorizeMining(ctx.getSource(),
@@ -89,6 +100,14 @@ public final class NpcCommands {
             .then(Commands.literal("disband").executes(ctx -> squad(ctx.getSource(), false)))
             .then(Commands.literal("setstore").requires(source -> source.hasPermission(2))
                 .executes(ctx -> setStore(ctx.getSource())))
+            .then(Commands.literal("route")
+                .executes(ctx -> routeStatus(ctx.getSource()))
+                .then(Commands.literal("pickup").requires(source -> source.hasPermission(2))
+                    .executes(ctx -> setRouteDepot(ctx.getSource(), true)))
+                .then(Commands.literal("dropoff").requires(source -> source.hasPermission(2))
+                    .executes(ctx -> setRouteDepot(ctx.getSource(), false)))
+                .then(Commands.literal("clear").requires(source -> source.hasPermission(2))
+                    .executes(ctx -> clearRoute(ctx.getSource()))))
             .then(Commands.literal("nation").requires(source -> source.hasPermission(2))
                 .then(Commands.argument("id", StringArgumentType.word())
                     .executes(ctx -> setIdentity(ctx.getSource(), "nation",
@@ -131,6 +150,66 @@ public final class NpcCommands {
                                 StringArgumentType.getString(ctx, "goods"),
                                 IntegerArgumentType.getInteger(ctx, "count"),
                                 IntegerArgumentType.getInteger(ctx, "reward"))))))));
+    }
+
+    private static int pathInfo(CommandSourceStack source) {
+        FootTrafficData traffic = FootTrafficData.get(source.getLevel());
+        source.sendSuccess(() -> Component.literal(
+            "Desire paths: " + traffic.trackedCells() + " recorded foot tiles; "
+            + "physical path shaping " + (traffic.physicalPathsEnabled() ? "ON" : "OFF")
+            + ". Every real passing resident strengthens familiar routes."
+            + " Terrain wear requires OP /npc trails on and mobGriefing=true."), false);
+        return 1;
+    }
+
+    private static int setPaths(CommandSourceStack source, boolean enabled) {
+        FootTrafficData traffic = FootTrafficData.get(source.getLevel());
+        traffic.setPhysicalPathsEnabled(enabled);
+        source.sendSuccess(() -> Component.literal(
+            "NPC physical trail formation " + (enabled ? "ENABLED" : "DISABLED")
+            + ". Traffic still learns when off; only exposed natural grass/dirt"
+            + " may become dirt_path, after repeated visits, through real player item use."
+            + " Other-player buildings/crops are never chosen as trail surfaces."), true);
+        return 1;
+    }
+
+    private static int settlementInfo(CommandSourceStack source)
+        throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        ServerPlayer player = source.getPlayerOrException();
+        // Census the actual neighborhood rather than choosing only the
+        // closest individual. An unrelated NPC spawned by /npc spawn may be
+        // nearer to the player than three allied real households.
+        var neighbors = player.serverLevel().getEntitiesOfClass(
+            PlayerNpcEntity.class, player.getBoundingBox().inflate(24),
+            resident -> resident.isAlive()
+                && resident.mode() == PlayerNpcEntity.Mode.LIVE);
+        if (neighbors.isEmpty()) {
+            source.sendFailure(Component.literal(
+                "No live resident within 24 blocks to census; visit a populated area"));
+            return 0;
+        }
+        var community = neighbors.stream()
+            .map(npc -> EmergentSettlements.survey(player.serverLevel(), npc))
+            .filter(java.util.Objects::nonNull)
+            .max(Comparator.comparingInt(EmergentSettlements.Settlement::households))
+            .orElse(null);
+        if (community == null) {
+            source.sendSuccess(() -> Component.literal(
+                "No organic hamlet yet. At least 3 living allied residents"
+                + " with distinct nearby homes are required; an identity label"
+                + " alone does not build a village."), false);
+            return 0;
+        }
+        SettlementLedger.get(player.serverLevel()).record(
+            community.founder(), community.hub(), community.households(),
+            player.serverLevel().getGameTime(), community.culture());
+        source.sendSuccess(() -> Component.literal(
+            "Organic " + community.tier() + " | " + community.households()
+            + " real households | " + community.culture()
+            + " | meeting hub " + community.hub().toShortString()
+            + " | chronicle settlements: "
+            + SettlementLedger.get(player.serverLevel()).knownSettlements()), false);
+        return 1;
     }
 
     private static int spawn(CommandSourceStack source, String name) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
@@ -181,8 +260,11 @@ public final class NpcCommands {
                 case 4 -> PlayerNpcEntity.Profession.SCOUT;
                 default -> PlayerNpcEntity.Profession.COURIER;
             });
+            // Make the demonstration town emerge from THREE actual nearby
+            // settler homes (including the baker), not from a hardcoded
+            // village flag. Other residents retain separate affiliations.
             SocietyRules.Faction demoFaction = switch (i) {
-                case 2, 5 -> SocietyRules.Faction.MERCHANTS;
+                case 5 -> SocietyRules.Faction.MERCHANTS;
                 case 3, 4 -> SocietyRules.Faction.RANGERS;
                 default -> SocietyRules.Faction.SETTLERS;
             };
@@ -307,6 +389,59 @@ public final class NpcCommands {
         npc.setMode(PlayerNpcEntity.Mode.LIVE);
         source.sendSuccess(() -> Component.literal("Started consented 5x5 shelter build at " +
             npc.workPos().toShortString() + "; uses actual cobblestone/planks, cannot clear blocks"), true);
+        return 1;
+    }
+
+    private static int routeStatus(CommandSourceStack source)
+        throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        PlayerNpcEntity npc = closestOwnedNpc(source.getPlayerOrException());
+        if (npc == null) return 0;
+        source.sendSuccess(() -> Component.literal(
+            npc.getName().getString() + " | caravan pickup=" + npc.caravanPickup()
+            + " | dropoff=" + npc.caravanDropoff()
+            + " | cargo wheat=" + npc.backpack().countItem(Items.WHEAT)
+            + " | deliveries=" + npc.parcelsDelivered()), false);
+        return 1;
+    }
+
+    private static int setRouteDepot(CommandSourceStack source, boolean pickup)
+        throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        ServerPlayer player = source.getPlayerOrException();
+        PlayerNpcEntity npc = closestOwnedNpc(player);
+        if (npc == null) return 0;
+        HitResult hit = player.pick(6.0D, 0.0F, false);
+        if (!(hit instanceof BlockHitResult block)
+            || !(player.serverLevel().getBlockEntity(block.getBlockPos())
+                instanceof ChestBlockEntity)) {
+            source.sendFailure(Component.literal(
+                "Look directly at a loaded vanilla CHEST within six blocks"));
+            return 0;
+        }
+        BlockPos chosen = block.getBlockPos();
+        if (!DailyRoaming.inRange(npc, chosen)) {
+            source.sendFailure(Component.literal(
+                "Depot outside resident's mobility radius; assign a local site"));
+            return 0;
+        }
+        if (pickup) npc.setCaravanPickup(chosen);
+        else npc.setCaravanDropoff(chosen);
+        npc.setProfession(PlayerNpcEntity.Profession.COURIER);
+        npc.setMode(PlayerNpcEntity.Mode.LIVE);
+        source.sendSuccess(() -> Component.literal(
+            "Caravan " + (pickup ? "SOURCE" : "DESTINATION") + " authorized at "
+            + chosen.toShortString()
+            + ". Point at the other chest and assign it; only actual wheat moves."), false);
+        return 1;
+    }
+
+    private static int clearRoute(CommandSourceStack source)
+        throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        PlayerNpcEntity npc = closestOwnedNpc(source.getPlayerOrException());
+        if (npc == null) return 0;
+        npc.setCaravanPickup(null);
+        npc.setCaravanDropoff(null);
+        source.sendSuccess(() -> Component.literal(
+            "Caravan route canceled. Existing goods remain in actual NPC backpack."), false);
         return 1;
     }
 

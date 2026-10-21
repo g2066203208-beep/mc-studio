@@ -96,6 +96,8 @@ public class PlayerNpcEntity extends PathfinderMob {
     private SocietyRules.Identity identity = SocietyRules.civilian("river");
     private LifeJourney journey = new LifeJourney(LifeJourney.Goal.LIVE_PEACEFULLY);
     @Nullable private BlockPos supplyPos;
+    @Nullable private BlockPos caravanPickup;
+    @Nullable private BlockPos caravanDropoff;
     @Nullable private UUID escortLeader;
     @Nullable private BlockPos exploreTarget;
     private final Set<Long> recentChunks = new LinkedHashSet<>();
@@ -118,12 +120,14 @@ public class PlayerNpcEntity extends PathfinderMob {
     private final Map<UUID, Integer> ownedMiningDrops = new java.util.LinkedHashMap<>();
     private long miningLootExpiry = 0L;
     private long miningLootStarted = 0L;
+    @Nullable private BlockPos lastFootTrafficSample;
     private BlockPos lastNavDestination = BlockPos.ZERO;
     private long nextNavRepathTick = 0;
     private final CivicMind civic = new CivicMind();
     private CharacterProfile character = new CharacterProfile(60, 65, 60, 60);
     @Nullable private Commission commission;
     private long lastAttackReport = -10000L;
+    private long nextRaidTick = 0L;
     private boolean buildEnabled = false;
     private int buildCursor = 0;
     private long nextSocialTick = 0;
@@ -219,6 +223,14 @@ public class PlayerNpcEntity extends PathfinderMob {
     public void setSupplyPos(@Nullable BlockPos pos) {
         supplyPos = pos == null ? null : pos.immutable();
     }
+    @Nullable public BlockPos caravanPickup() { return caravanPickup; }
+    @Nullable public BlockPos caravanDropoff() { return caravanDropoff; }
+    public void setCaravanPickup(@Nullable BlockPos pos) {
+        caravanPickup = pos == null ? null : pos.immutable();
+    }
+    public void setCaravanDropoff(@Nullable BlockPos pos) {
+        caravanDropoff = pos == null ? null : pos.immutable();
+    }
     @Nullable public UUID escortLeader() { return escortLeader; }
     public int roamingRadius() { return roamingRadius; }
     public void setRoamingRadius(int next) { roamingRadius = MovementPolicy.radius(next); }
@@ -268,6 +280,18 @@ public class PlayerNpcEntity extends PathfinderMob {
         return miningProgress;
     }
     public void setCachedCropTarget(@Nullable BlockPos target) { cachedCropTarget = target; }
+    /** Checks measured foot-cell transition, not a repeated tick at a camp.
+     * Transit heatmap additionally throttles repeat visits by resident UUID.
+     */
+    public boolean hasNewFootTrafficPosition(BlockPos foot) {
+        if (lastFootTrafficSample == null) {
+            lastFootTrafficSample = foot.immutable();
+            return false; // never treat initial spawn as pedestrian passage
+        }
+        if (lastFootTrafficSample.equals(foot)) return false;
+        lastFootTrafficSample = foot.immutable();
+        return true;
+    }
     public boolean canRepath(BlockPos target, long tick) {
         if (tick >= nextNavRepathTick || !target.equals(lastNavDestination) &&
             tick + 8 >= nextNavRepathTick) {
@@ -317,6 +341,17 @@ public class PlayerNpcEntity extends PathfinderMob {
     }
     public UUID recentAggressor() { return recentAggressor; }
     public boolean isAfraid(long tick) { return recentAggressor != null && tick < afraidUntil; }
+    public long nextRaidTick() { return nextRaidTick; }
+    public void postponeRaid(long tick) { nextRaidTick = Math.max(nextRaidTick, tick); }
+    /** Non-player assault also has consequences: victim fear and personal
+     * memory. Only called after an ACTUAL transfer of existing cargo.
+     */
+    public void witnessedBanditTheft(PlayerNpcEntity raider, long tick) {
+        recentAggressor = raider.getUUID();
+        afraidUntil = Math.max(afraidUntil, tick + 240L);
+        memory.witness(tick, raider.getUUID(),
+            ResidentMemory.Kind.THEFT_WITNESSED, blockPosition().toShortString());
+    }
     public ResidentMemory memory() { return memory; }
     public int hunger() { return hunger; }
     public int energy() { return energy; }
@@ -535,6 +570,8 @@ public class PlayerNpcEntity extends PathfinderMob {
         tag.putString("NpcLifeGoal", journey.goal().name());
         tag.putInt("NpcGoalProgress", journey.progress());
         if (supplyPos != null) tag.putLong("NpcSupplyPos", supplyPos.asLong());
+        if (caravanPickup != null) tag.putLong("NpcCaravanPickup", caravanPickup.asLong());
+        if (caravanDropoff != null) tag.putLong("NpcCaravanDropoff", caravanDropoff.asLong());
         if (escortLeader != null) tag.putUUID("NpcEscortLeader", escortLeader);
         if (exploreTarget != null) tag.putLong("NpcExploreTarget", exploreTarget.asLong());
         tag.putLongArray("NpcRecentChunks", recentChunks.stream().mapToLong(Long::longValue).toArray());
@@ -542,6 +579,7 @@ public class PlayerNpcEntity extends PathfinderMob {
         tag.putInt("NpcFormationSlot", formationSlot);
         tag.putInt("NpcRoamingRadius", roamingRadius);
         tag.putInt("NpcSkinId", skinId());
+        tag.putLong("NpcNextRaidTick", nextRaidTick);
         if (miningTarget != null) tag.putLong("NpcMiningTarget", miningTarget.asLong());
         if (!ownedMiningDrops.isEmpty()) {
             ListTag claims = new ListTag();
@@ -619,6 +657,10 @@ public class PlayerNpcEntity extends PathfinderMob {
         }
         supplyPos = tag.contains("NpcSupplyPos", Tag.TAG_LONG)
             ? BlockPos.of(tag.getLong("NpcSupplyPos")) : null;
+        caravanPickup = tag.contains("NpcCaravanPickup", Tag.TAG_LONG)
+            ? BlockPos.of(tag.getLong("NpcCaravanPickup")) : null;
+        caravanDropoff = tag.contains("NpcCaravanDropoff", Tag.TAG_LONG)
+            ? BlockPos.of(tag.getLong("NpcCaravanDropoff")) : null;
         escortLeader = tag.hasUUID("NpcEscortLeader")
             ? tag.getUUID("NpcEscortLeader") : null;
         exploreTarget = tag.contains("NpcExploreTarget", Tag.TAG_LONG)
@@ -634,6 +676,7 @@ public class PlayerNpcEntity extends PathfinderMob {
         formationSlot = Math.clamp(tag.getInt("NpcFormationSlot"), 0, 15);
         miningTarget = tag.contains("NpcMiningTarget", Tag.TAG_LONG)
             ? BlockPos.of(tag.getLong("NpcMiningTarget")) : null;
+        nextRaidTick = Math.max(0L, tag.getLong("NpcNextRaidTick"));
         miningProgress = 0.0F;
         ownedMiningDrops.clear();
         miningLootExpiry = Math.max(0L, tag.getLong("NpcMiningDropExpiry"));
@@ -655,6 +698,7 @@ public class PlayerNpcEntity extends PathfinderMob {
         naturalResident = tag.getBoolean("NpcNaturallySpawned");
         dailyShiftTicks = Math.clamp(tag.getInt("NpcDailyShift"), -400, 400);
         cachedCropTarget = null;
+        lastFootTrafficSample = null;
         lastNavDestination = BlockPos.ZERO;
         nextNavRepathTick = 0;
         buildEnabled = tag.getBoolean("NpcBuildEnabled");

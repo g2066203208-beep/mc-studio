@@ -13,6 +13,14 @@ import dev.reme.mcstudio.npc.life.PlayerActionBridge;
 import dev.reme.mcstudio.npc.life.PlayerMiningActions;
 import dev.reme.mcstudio.npc.life.PlayerLootPickup;
 import dev.reme.mcstudio.npc.life.NpcPlayerActor;
+import dev.reme.mcstudio.npc.life.FootTrafficData;
+import dev.reme.mcstudio.npc.life.EmergentFootpaths;
+import dev.reme.mcstudio.npc.life.EmergentSettlements;
+import dev.reme.mcstudio.npc.life.BanditActions;
+import dev.reme.mcstudio.npc.life.CaravanRoutes;
+import net.minecraft.world.level.block.entity.ChestBlockEntity;
+import dev.reme.mcstudio.npc.life.SettlementLedger;
+import net.minecraft.world.level.GameRules;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.level.BlockEvent;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -243,6 +251,11 @@ public final class CivicGameTests {
         var player = FakePlayerFactory.getMinecraft(level);
         player.moveTo(origin.getX() + 0.5, origin.getY(),
             origin.getZ() + 0.5, 0, 0);
+        // Regression: this unrelated NPC is intentionally closer to Dev
+        // than the three allied demo settler homes. Census must find the
+        // community, not just inspect the nearest, unaffiliated resident.
+        level.getServer().getCommands().performPrefixedCommand(
+            player.createCommandSourceStack().withPermission(4), "npc spawn Solitary");
         level.getServer().getCommands().performPrefixedCommand(
             player.createCommandSourceStack().withPermission(4), "npc demo");
         int found = level.getEntitiesOfClass(PlayerNpcEntity.class,
@@ -250,6 +263,20 @@ public final class CivicGameTests {
             npc -> npc.isAlive() && npc.getCustomName() != null).size();
         if (found < 6) throw new AssertionError(
             "NPC demo claims creation without six actual named server entities");
+        var actualResidents = level.getEntitiesOfClass(PlayerNpcEntity.class,
+            new net.minecraft.world.phys.AABB(origin).inflate(16),
+            npc -> npc.isAlive() && npc.identity().faction()
+                == SocietyRules.Faction.SETTLERS);
+        boolean formed = actualResidents.stream().anyMatch(npc -> {
+            var census = EmergentSettlements.survey(level, npc);
+            return census != null && census.households() >= 3;
+        });
+        if (!formed) throw new AssertionError(
+            "Demo's distinct real settlers never actually formed a hamlet");
+        level.getServer().getCommands().performPrefixedCommand(
+            player.createCommandSourceStack().withPermission(4), "npc settlement");
+        if (SettlementLedger.get(level).knownSettlements() == 0)
+            throw new AssertionError("Nearest solitary NPC suppressed a valid community census");
         helper.succeed();
     }
 
@@ -748,6 +775,382 @@ public final class CivicGameTests {
             || mixed.getItem().getCount() != 17)
             throw new AssertionError("Already paid claim could collect remaining player-owned items");
         helper.succeed();
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 100)
+    public static void organic_foot_traffic_needs_real_repeat_walkers_and_is_persistent(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos foot = helper.absolutePos(new BlockPos(4, 9, 4));
+        FootTrafficData data = FootTrafficData.get(level);
+        boolean originalOptIn = data.physicalPathsEnabled();
+        data.setPhysicalPathsEnabled(false);
+        UUID one = UUID.randomUUID();
+        if (!data.countPassage(one, foot, 100)
+            || data.countPassage(one, foot, 101)
+            || data.visits(foot) != 1)
+            throw new AssertionError("Standing NPC duplicated traffic without a new walker");
+        for (int i = 1; i < FootTrafficData.PATH_THRESHOLD; i++)
+            if (!data.countPassage(UUID.randomUUID(), foot, 100 + i))
+                throw new AssertionError("Actual distinct residents did not add foot traffic");
+        if (data.visits(foot) != FootTrafficData.PATH_THRESHOLD)
+            throw new AssertionError("Seven real traversals should create a desire path");
+        CompoundTag saved = new CompoundTag();
+        data.save(saved, level.registryAccess());
+        FootTrafficData reloaded = FootTrafficData.load(saved, level.registryAccess());
+        if (reloaded.visits(foot) != FootTrafficData.PATH_THRESHOLD
+            || reloaded.physicalPathsEnabled() ||
+            reloaded.trackedCells() < 1)
+            throw new AssertionError("Per-dimension road memory lost its saved heatmap");
+        if (!reloaded.countPassage(one, foot, 500) || reloaded.visits(foot) != 8)
+            throw new AssertionError("Returning after the debounce must count");
+        data.setPhysicalPathsEnabled(originalOptIn);
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 100)
+    public static void crowd_created_path_uses_real_vanilla_shovel_and_terrain_opt_in(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos foot = helper.absolutePos(new BlockPos(4, 9, 4));
+        BlockPos ground = foot.below();
+        level.setBlock(ground, Blocks.GRASS_BLOCK.defaultBlockState(), 3);
+        level.setBlock(foot, Blocks.AIR.defaultBlockState(), 3);
+        level.setBlock(foot.above(), Blocks.AIR.defaultBlockState(), 3);
+        var resident = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (resident == null) throw new AssertionError("No live resident");
+        resident.moveTo(foot.getX() + 0.5, foot.getY(), foot.getZ() + 0.5, 0, 0);
+        resident.setOnGround(true);
+        resident.setMode(PlayerNpcEntity.Mode.STAY);
+        if (!level.addFreshEntity(resident)) throw new AssertionError("Resident spawn failed");
+        FootTrafficData data = FootTrafficData.get(level);
+        boolean previous = data.physicalPathsEnabled();
+        data.setPhysicalPathsEnabled(false);
+        for (int i = 0; i < FootTrafficData.PATH_THRESHOLD; i++)
+            if (!data.countPassage(UUID.randomUUID(), foot, 10L + i))
+                throw new AssertionError("Real cumulative traffic did not reach path threshold");
+        if (EmergentFootpaths.tryWearPath(resident, level, foot)
+            || !level.getBlockState(ground).is(Blocks.GRASS_BLOCK))
+            throw new AssertionError("Road changed even when physical paths were disabled");
+        data.setPhysicalPathsEnabled(true);
+        if (!level.getGameRules().getBoolean(GameRules.RULE_MOBGRIEFING)) {
+            data.setPhysicalPathsEnabled(previous);
+            helper.fail("Test world unexpectedly disables mobGriefing", ground);
+            return;
+        }
+        if (!EmergentFootpaths.tryWearPath(resident, level, foot)
+            || !level.getBlockState(ground).is(Blocks.DIRT_PATH)) {
+            data.setPhysicalPathsEnabled(previous);
+            helper.fail("Real shovel item use did not form a dirt path on eligible grass", ground);
+            return;
+        }
+        // Never trample cultivated farm fields.
+        BlockPos farmland = foot.east(2);
+        level.setBlock(farmland.below(), Blocks.FARMLAND.defaultBlockState(), 3);
+        level.setBlock(farmland, Blocks.AIR.defaultBlockState(), 3);
+        if (EmergentFootpaths.tryWearPath(resident, level, farmland)
+            || !level.getBlockState(farmland.below()).is(Blocks.FARMLAND)) {
+            data.setPhysicalPathsEnabled(previous);
+            helper.fail("Physical desire path trampled farmland", farmland);
+            return;
+        }
+        data.setPhysicalPathsEnabled(previous);
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 100)
+    public static void organic_hamlet_requires_three_distinct_allied_homes_and_records_history(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos center = helper.absolutePos(new BlockPos(4, 9, 4));
+        PlayerNpcEntity[] residents = new PlayerNpcEntity[3];
+        for (int i = 0; i < 3; i++) {
+            PlayerNpcEntity npc = NpcRegistry.PLAYER_NPC.get().create(level);
+            if (npc == null) throw new AssertionError("NPC type unregistered");
+            BlockPos home = center.offset(i * 3, 0, 0);
+            npc.moveTo(home.getX() + 0.5, home.getY(), home.getZ() + 0.5, 0, 0);
+            npc.setIdentity(SocietyRules.civilian("organic_test"));
+            npc.setHomePos(home);
+            npc.setWorkPos(home);
+            npc.setMode(PlayerNpcEntity.Mode.LIVE);
+            if (!level.addFreshEntity(npc)) throw new AssertionError("Cannot add real household");
+            residents[i] = npc;
+        }
+        var established = EmergentSettlements.survey(level, residents[0]);
+        if (established == null || established.households() != 3
+            || !established.tier().equals("hamlet"))
+            throw new AssertionError("Three allied independent resident homes did not form a hamlet");
+        var ledger = SettlementLedger.get(level);
+        ledger.record(established.founder(), established.hub(),
+            established.households(), level.getGameTime(), established.culture());
+        if (ledger.get(established.founder()) == null)
+            throw new AssertionError("Hamlet founding not recorded");
+        CompoundTag save = new CompoundTag();
+        ledger.save(save, level.registryAccess());
+        var restored = SettlementLedger.load(save, level.registryAccess());
+        if (restored.get(established.founder()) == null
+            || restored.get(established.founder()).households() != 3)
+            throw new AssertionError("Real household founding history lost on save/reload");
+        residents[2].setIdentity(new SocietyRules.Identity(
+            SocietyRules.Nation.OUTLANDS, SocietyRules.Faction.RAIDERS, "organic_test"));
+        if (EmergentSettlements.survey(level, residents[0]) != null)
+            throw new AssertionError("Hostile raider was counted as an allied household");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 100)
+    public static void hostile_raider_steals_only_real_caravan_goods_and_creates_evidence(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos pos = helper.absolutePos(new BlockPos(5, 9, 5));
+        PlayerNpcEntity courier = NpcRegistry.PLAYER_NPC.get().create(level);
+        PlayerNpcEntity raider = NpcRegistry.PLAYER_NPC.get().create(level);
+        PlayerNpcEntity witness = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (courier == null || raider == null || witness == null)
+            throw new AssertionError("NPC registry missing");
+        for (int i = 0; i < 3; i++) {
+            BlockPos ground = pos.offset(i, -1, 0);
+            level.setBlock(ground, Blocks.STONE.defaultBlockState(), 3);
+            level.setBlock(ground.above(), Blocks.AIR.defaultBlockState(), 3);
+            level.setBlock(ground.above(2), Blocks.AIR.defaultBlockState(), 3);
+        }
+        courier.moveTo(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5, 0, 0);
+        raider.moveTo(pos.getX() + 1.5, pos.getY(), pos.getZ() + 0.5, 0, 0);
+        witness.moveTo(pos.getX() + 2.5, pos.getY(), pos.getZ() + 0.5, 0, 0);
+        courier.setIdentity(SocietyRules.civilian("caravan_case"));
+        witness.setIdentity(SocietyRules.civilian("caravan_case"));
+        raider.setIdentity(new SocietyRules.Identity(
+            SocietyRules.Nation.OUTLANDS, SocietyRules.Faction.RAIDERS, "caravan_case"));
+        courier.setProfession(PlayerNpcEntity.Profession.COURIER);
+        courier.setMode(PlayerNpcEntity.Mode.STAY);
+        raider.setMode(PlayerNpcEntity.Mode.LIVE);
+        witness.setMode(PlayerNpcEntity.Mode.STAY);
+        raider.setHomePos(pos);
+        courier.backpack().addItem(new ItemStack(Items.WHEAT, 5));
+        if (!level.addFreshEntity(courier) || !level.addFreshEntity(raider)
+            || !level.addFreshEntity(witness)) throw new AssertionError("NPC add failed");
+        long now = level.getGameTime();
+        if (!BanditActions.tick(raider, level, now))
+            throw new AssertionError("Real nearby hostile caravan robbery did not happen");
+        if (courier.backpack().countItem(Items.WHEAT) != 3
+            || raider.backpack().countItem(Items.WHEAT) != 2
+            || courier.civic().reputation(raider.getUUID()) >= 0
+            || !courier.isAfraid(now)
+            || witness.civic().reputation(raider.getUUID()) >= 0)
+            throw new AssertionError("Theft duplicated wheat or failed local witness evidence");
+        if (BanditActions.tick(raider, level, now + 1)
+            || courier.backpack().countItem(Items.WHEAT) != 3
+            || raider.backpack().countItem(Items.WHEAT) != 2)
+            throw new AssertionError("Raider stole a second time before cooldown");
+        CompoundTag tag = new CompoundTag();
+        raider.addAdditionalSaveData(tag);
+        PlayerNpcEntity reloaded = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (reloaded == null) throw new AssertionError("No raider reload");
+        reloaded.readAdditionalSaveData(tag);
+        if (reloaded.nextRaidTick() != raider.nextRaidTick())
+            throw new AssertionError("Raider cooldown was lost when world saves");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 100)
+    public static void full_raider_backpack_cannot_steal_courier_wheat(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos pos = helper.absolutePos(new BlockPos(5, 9, 5));
+        PlayerNpcEntity courier = NpcRegistry.PLAYER_NPC.get().create(level);
+        PlayerNpcEntity raider = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (courier == null || raider == null) throw new AssertionError("Missing NPCs");
+        courier.moveTo(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5, 0, 0);
+        raider.moveTo(pos.getX() + 1.5, pos.getY(), pos.getZ() + 0.5, 0, 0);
+        courier.setProfession(PlayerNpcEntity.Profession.COURIER);
+        courier.setIdentity(SocietyRules.civilian("raid_supply"));
+        raider.setIdentity(new SocietyRules.Identity(
+            SocietyRules.Nation.OUTLANDS, SocietyRules.Faction.RAIDERS, "raid_supply"));
+        raider.setHomePos(pos);
+        raider.setMode(PlayerNpcEntity.Mode.LIVE);
+        courier.setMode(PlayerNpcEntity.Mode.STAY);
+        courier.backpack().addItem(new ItemStack(Items.WHEAT, 3));
+        for (int i = 0; i < raider.backpack().getContainerSize(); i++)
+            raider.backpack().setItem(i, new ItemStack(Items.DIRT, 64));
+        if (!level.addFreshEntity(raider) || !level.addFreshEntity(courier))
+            throw new AssertionError("Cannot spawn raider and courier");
+        if (BanditActions.tick(raider, level, level.getGameTime())
+            || courier.backpack().countItem(Items.WHEAT) != 3
+            || raider.backpack().countItem(Items.WHEAT) != 0)
+            throw new AssertionError("No room in raider inventory but wheat was duplicated/lost");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 100)
+    public static void terrain_protection_mod_can_cancel_emergent_path_tool_event(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos foot = helper.absolutePos(new BlockPos(4, 9, 4));
+        BlockPos ground = foot.below();
+        level.setBlock(ground, Blocks.GRASS_BLOCK.defaultBlockState(), 3);
+        level.setBlock(foot, Blocks.AIR.defaultBlockState(), 3);
+        level.setBlock(foot.above(), Blocks.AIR.defaultBlockState(), 3);
+        PlayerNpcEntity npc = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (npc == null) throw new AssertionError("NPC type not registered");
+        npc.moveTo(foot.getX() + 0.5, foot.getY(), foot.getZ() + 0.5, 0, 0);
+        npc.setOnGround(true);
+        npc.setMode(PlayerNpcEntity.Mode.STAY);
+        if (!level.addFreshEntity(npc)) throw new AssertionError("Cannot spawn traffic NPC");
+        FootTrafficData data = FootTrafficData.get(level);
+        boolean previous = data.physicalPathsEnabled();
+        for (int i = 0; i < FootTrafficData.PATH_THRESHOLD; i++)
+            data.countPassage(UUID.randomUUID(), foot, level.getGameTime() + i + 1);
+        data.setPhysicalPathsEnabled(true);
+        AtomicBoolean fired = new AtomicBoolean(false);
+        Consumer<BlockEvent.BlockToolModificationEvent> veto = event -> {
+            if (!event.isSimulated() && event.getPos().equals(ground)
+                && event.getPlayer() != null
+                && event.getPlayer().getUUID().equals(npc.getUUID())) {
+                fired.set(true);
+                event.setCanceled(true);
+            }
+        };
+        NeoForge.EVENT_BUS.addListener(veto);
+        try {
+            if (EmergentFootpaths.tryWearPath(npc, level, foot)
+                || !level.getBlockState(ground).is(Blocks.GRASS_BLOCK))
+                throw new AssertionError("Canceled vanilla shovel tool event modified protected grass");
+            if (!fired.get())
+                throw new AssertionError("Desire path bypassed NeoForge BlockToolModificationEvent");
+        } finally {
+            NeoForge.EVENT_BUS.unregister(veto);
+            data.setPhysicalPathsEnabled(previous);
+        }
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 200)
+    public static void autonomous_caravan_moves_real_wheat_between_two_authorized_chests(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos pickup = helper.absolutePos(new BlockPos(2, 9, 5));
+        BlockPos destination = helper.absolutePos(new BlockPos(8, 9, 5));
+        for (int x = -1; x <= 10; x++) for (int z = -3; z <= 3; z++) {
+            BlockPos ground = pickup.offset(x, -1, z);
+            level.setBlock(ground, Blocks.STONE.defaultBlockState(), 3);
+            level.setBlock(ground.above(), Blocks.AIR.defaultBlockState(), 3);
+            level.setBlock(ground.above(2), Blocks.AIR.defaultBlockState(), 3);
+        }
+        level.setBlock(pickup, Blocks.CHEST.defaultBlockState(), 3);
+        level.setBlock(destination, Blocks.CHEST.defaultBlockState(), 3);
+        if (!(level.getBlockEntity(pickup) instanceof ChestBlockEntity source)
+            || !(level.getBlockEntity(destination) instanceof ChestBlockEntity target))
+            throw new AssertionError("Real vanilla chests did not register");
+        source.setItem(0, new ItemStack(Items.WHEAT, 10));
+        PlayerNpcEntity courier = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (courier == null) throw new AssertionError("NPC missing");
+        courier.moveTo(pickup.getX() + 1.5, pickup.getY(),
+            pickup.getZ() + 0.5, 0, 0);
+        courier.setHomePos(pickup);
+        courier.setWorkPos(pickup);
+        courier.setRoamingRadius(32);
+        courier.setProfession(PlayerNpcEntity.Profession.COURIER);
+        courier.setMode(PlayerNpcEntity.Mode.LIVE);
+        courier.setCaravanPickup(pickup);
+        courier.setCaravanDropoff(destination);
+        if (!level.addFreshEntity(courier)) throw new AssertionError("Courier spawn failed");
+        if (!CaravanRoutes.tick(courier, level)
+            || courier.backpack().countItem(Items.WHEAT) != 8
+            || source.countItem(Items.WHEAT) != 2)
+            throw new AssertionError("Loading from physical source chest created/lost wheat");
+        // Next pulse gives vanilla navigation a real job; no courier teleport.
+        if (!CaravanRoutes.tick(courier, level))
+            throw new AssertionError("Real inter-depot travel not started");
+        helper.runAfterDelay(160, () -> {
+            int sourceLeft = source.countItem(Items.WHEAT);
+            int destinationReceived = target.countItem(Items.WHEAT);
+            int bagLeft = courier.backpack().countItem(Items.WHEAT);
+            if (sourceLeft + destinationReceived + bagLeft != 10)
+                helper.fail("Real chest-to-chest logistics duplicated wheat", pickup);
+            else if (destinationReceived < 8 || courier.parcelsDelivered() < 1)
+                helper.fail("Courier failed actual chest-to-chest delivery: source="
+                    + sourceLeft + ", destination=" + destinationReceived
+                    + ", bag=" + bagLeft + ", deliveries=" + courier.parcelsDelivered()
+                    + ", action=" + courier.lastAction() + ", location="
+                    + courier.blockPosition().toShortString(), destination);
+            else helper.succeed();
+        });
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 100)
+    public static void full_caravan_destination_never_deletes_existing_cargo(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos sourcePos = helper.absolutePos(new BlockPos(2, 9, 5));
+        BlockPos targetPos = helper.absolutePos(new BlockPos(5, 9, 5));
+        level.setBlock(targetPos, Blocks.CHEST.defaultBlockState(), 3);
+        if (!(level.getBlockEntity(targetPos) instanceof ChestBlockEntity destination))
+            throw new AssertionError("Chest not created");
+        for (int i = 0; i < destination.getContainerSize(); i++)
+            destination.setItem(i, new ItemStack(Items.DIRT, 64));
+        PlayerNpcEntity courier = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (courier == null) throw new AssertionError("No courier");
+        courier.moveTo(targetPos.getX() + 1.5, targetPos.getY(),
+            targetPos.getZ() + 0.5, 0, 0);
+        courier.setMode(PlayerNpcEntity.Mode.LIVE);
+        courier.setProfession(PlayerNpcEntity.Profession.COURIER);
+        courier.setHomePos(sourcePos);
+        courier.setCaravanPickup(sourcePos);
+        courier.setCaravanDropoff(targetPos);
+        courier.backpack().addItem(new ItemStack(Items.WHEAT, 4));
+        if (!level.addFreshEntity(courier)) throw new AssertionError("Courier spawn failed");
+        if (!CaravanRoutes.tick(courier, level)
+            || courier.backpack().countItem(Items.WHEAT) != 4
+            || destination.countItem(Items.WHEAT) != 0
+            || destination.countItem(Items.DIRT) != destination.getContainerSize() * 64)
+            throw new AssertionError("Full real destination chest stole/destroyed wheat");
+        CompoundTag tag = new CompoundTag();
+        courier.addAdditionalSaveData(tag);
+        PlayerNpcEntity reloaded = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (reloaded == null) throw new AssertionError("Courier cannot reload");
+        reloaded.readAdditionalSaveData(tag);
+        if (!targetPos.equals(reloaded.caravanDropoff())
+            || !sourcePos.equals(reloaded.caravanPickup())
+            || reloaded.backpack().countItem(Items.WHEAT) != 4)
+            throw new AssertionError("Route/cargo lost or duplicated after save/reload");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 350)
+    public static void actual_different_professions_found_hamlet_without_player_command(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos origin = helper.absolutePos(new BlockPos(4, 9, 4));
+        PlayerNpcEntity[] households = new PlayerNpcEntity[3];
+        PlayerNpcEntity.Profession[] jobs = {
+            PlayerNpcEntity.Profession.FARMER,
+            PlayerNpcEntity.Profession.BAKER,
+            PlayerNpcEntity.Profession.COURIER
+        };
+        for (int x = -2; x <= 10; x++) for (int z = -3; z <= 3; z++) {
+            BlockPos ground = origin.offset(x, -1, z);
+            level.setBlock(ground, Blocks.STONE.defaultBlockState(), 3);
+            level.setBlock(ground.above(), Blocks.AIR.defaultBlockState(), 3);
+            level.setBlock(ground.above(2), Blocks.AIR.defaultBlockState(), 3);
+        }
+        for (int n = 0; n < 3; n++) {
+            PlayerNpcEntity npc = NpcRegistry.PLAYER_NPC.get().create(level);
+            if (npc == null) throw new AssertionError("Missing actual resident entity");
+            BlockPos home = origin.east(n * 3);
+            npc.moveTo(home.getX() + 0.5, home.getY(), home.getZ() + 0.5, 0, 0);
+            npc.setHomePos(home);
+            npc.setWorkPos(home);
+            npc.setProfession(jobs[n]);
+            npc.setIdentity(SocietyRules.civilian("self_founded"));
+            npc.setMode(PlayerNpcEntity.Mode.LIVE);
+            if (!level.addFreshEntity(npc)) throw new AssertionError("Could not spawn citizen");
+            households[n] = npc;
+        }
+        // No /npc settlement command and no direct observe() call here:
+        // only their regular actual server tick may establish the chronicle.
+        var census = EmergentSettlements.survey(level, households[0]);
+        if (census == null || census.households() != 3)
+            throw new AssertionError("Three autonomous homes did not exist");
+        var foundingId = census.founder();
+        if (SettlementLedger.get(level).get(foundingId) != null)
+            throw new AssertionError("Hamlet was registered before residents lived their first day");
+        helper.runAfterDelay(275, () -> {
+            var chronicle = SettlementLedger.get(level).get(foundingId);
+            if (chronicle == null || chronicle.households() < 3)
+                helper.fail("Three independent LIVE occupations never autonomously registered their settlement", origin);
+            else helper.succeed();
+        });
     }
 
 }

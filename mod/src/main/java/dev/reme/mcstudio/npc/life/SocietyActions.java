@@ -17,10 +17,21 @@ public final class SocietyActions {
 
     public static boolean tick(PlayerNpcEntity npc, ServerLevel level, long tick) {
         if (npc.mode() != PlayerNpcEntity.Mode.LIVE) return false;
+        if (npc.identity().faction() == SocietyRules.Faction.RAIDERS
+            && MovementPolicy.due(tick, npc.getId(), 40))
+            return BanditActions.tick(npc, level, tick);
+        if (npc.isAfraid(tick) && npc.profession() != PlayerNpcEntity.Profession.GUARD)
+            return false; // the threat-response planner now takes precedence
+
         // Guards need timely checks so short patrol windows and threats are not skipped.
         // Other professions retain the lower-cost 80-tick cadence.
         int interval = npc.profession() == PlayerNpcEntity.Profession.GUARD ? 40 : 80;
         if (!MovementPolicy.due(tick, npc.getId(), interval)) return false;
+        // Beyond scripted trade: resident households independently form a
+        // hamlet once multiple real NPC homes cluster together. Social visits
+        // happen only during actual SOCIALIZE intent, not on every tick.
+        if (npc.profession() == PlayerNpcEntity.Profession.RESIDENT
+            && EmergentSettlements.gather(npc, level, tick)) return true;
         return switch (npc.profession()) {
             case GUARD -> guard(npc, level, tick);
             case SCOUT -> scout(npc, level, tick);
@@ -39,6 +50,11 @@ public final class SocietyActions {
     }
 
     private static boolean courier(PlayerNpcEntity npc, ServerLevel level) {
+        // A configured two-depot caravan takes precedence over the legacy
+        // one-chest farmer exchange. It moves actual wheat inventory that
+        // hostile raiders may steal while the courier is travelling.
+        if (CaravanRoutes.configured(npc))
+            return CaravanRoutes.tick(npc, level);
         if (npc.supplyPos() == null) return false;
         if (npc.backpack().countItem(net.minecraft.world.item.Items.WHEAT) > 0)
             return SupplyLogistics.deposit(npc, level);
