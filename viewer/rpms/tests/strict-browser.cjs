@@ -16,7 +16,7 @@ try{
  const n=await page.evaluate(()=>window.__STRICT_API__.getCatalog().length);
  assert.ok(n>=216,'Official registration catalog missing: '+n);
  const count=await page.locator('#paletteItems .item').count();assert.ok(count>=216);
- assert.equal(await page.locator('#blocksNum').textContent(),'4','page must display visible mechanical sample immediately');
+ assert.equal(await page.locator('#blocksNum').textContent(),'5','first visit must display Create and Aeronautics mechanical models immediately');
  const before=await page.evaluate(()=>({stats:window.__STRICT_API__.getVisualStats(),assets:window.__STRICT_API__.getAssetStatus()}));
  assert.ok(before.stats.meshes>=8,'FIRST-PAINT BLOCKS HAVE NO VISIBLE MESHES: '+JSON.stringify(before));
  assert.ok(before.assets.every(x=>x.status==='preview'),'Network offline must show 3D preview, not transparent wireframes');
