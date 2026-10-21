@@ -9,7 +9,7 @@
   ],
   "spawners": {
     "type": "reme_studio:player_npc",
-    "weight": 1,
+    "weight": 12,
     "minCount": 1,
     "maxCount": 2
   }

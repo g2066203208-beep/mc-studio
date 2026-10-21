@@ -1,0 +1,48 @@
+name: Client bootstrap smoke (experimental)
+on:
+  workflow_dispatch:
+  push:
+    branches: [fix/npc-runtime-v051]
+permissions:
+  contents: read
+jobs:
+  virtual-client-boot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Install virtual display
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq xvfb libgl1-mesa-dri
+      - name: Start Minecraft CLIENT under Xvfb (no world interaction)
+        working-directory: mod
+        shell: bash
+        run: |
+          set +e
+          timeout --signal=INT --kill-after=10s 180s             xvfb-run -a -s "-screen 0 1280x720x24" ./gradlew runClient --no-daemon             > client-smoke.log 2>&1
+          code=$?
+          set -e
+          echo "Client launcher exit code: $code"
+          tail -n 100 client-smoke.log || true
+          if grep -Ei "Exception in thread|Unreported exception|Failed to create window|Crash Report" client-smoke.log; then
+            echo "Client fatal startup error" >&2
+            exit 1
+          fi
+          if [ "$code" != 124 ] && [ "$code" != 0 ]; then
+            echo "Client launcher exited unexpectedly" >&2
+            exit 1
+          fi
+          echo "GUI startup process survived or quit cleanly; NOT proof of single-player world gameplay."
+      - name: Archive client startup logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: npc-client-startup-logs
+          path: |
+            mod/client-smoke.log
+            mod/run/logs/*.log
+            mod/runs/**/logs/*.log
+          if-no-files-found: ignore

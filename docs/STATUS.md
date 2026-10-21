@@ -139,3 +139,11 @@ Gradle 报告使用了将来不兼容 Gradle 10 的弃用功能；当前固定 W
 - Java 源提交 `6393acd5dcd74966b36e5d7072c5033574ada040`。GitHub [PR Build 39525522849](https://github.com/g2066203208-beep/mc-studio/actions/runs/39525522849) **SUCCESS** 与 [PR GameTest 39525522800](https://github.com/g2066203208-beep/mc-studio/actions/runs/39525522800) **SUCCESS**；GameTest 7/7 required passed。
 - artifact 12313600974，`reme_studio-0.5.0-dev.jar` (121888 bytes), SHA-256 `c1ee90cf5529430fbd7a322f2c968b0b3fbc43bb90e0a02bde25d60d767356ca`。解包确认生物群系 spawn modifier 和模块类。
 - v0.5 所有性能调整为可计数的触发频率/缓存优化，尚无对照 TPS 量测。真实 222-Mod 整合包未验收。
+
+
+## v0.5.1 实际用户反馈后的纠错（2026-10-21）
+- 用户明确反馈“没用”，以前只证明自动服务器 GameTests 通过，未进行真实客户端启动尝试、未实现完整生活行为。不能再声称“用户可正常玩”。
+- Hotfix draft PR #23，源提交 `e8daa4ab68e18dce4643cbf75dbc19835040990f`：修复 CHUNK_GENERATION spawn 被拒绝/自然 spawn 权重 1 -> 12/无活动路径时错误冷却。
+- NeoForge Java 测试与编译 SUCCESS [39537393137](https://github.com/g2066203208-beep/mc-studio/actions/runs/39537393137)；真实 GameTest 服务器 10/10 通过 [39537399622](https://github.com/g2066203208-beep/mc-studio/actions/runs/39537399622)，包括服务器实体实际移动、真实命令产生六实体、生物群系 spawn 表。
+- **客户端启动尝试** [39537393170](https://github.com/g2066203208-beep/mc-studio/actions/runs/39537393170)：Xvfb Render thread 加载 mod/reme_studio 资源无筛查 fatal，180 秒主动退出。不等于 HMCL 和整合包可用，更不代表真正进世界验证所有行动。
+- v0.5.1 JAR 124714 字节，sha256 aa61ce2e079b08e395cddbc4e54fc7213a7a51c37483e03dbc8b3f518dd1ac88，GitHub artifact 12317652189；保持 draft。

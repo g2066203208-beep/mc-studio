@@ -12,6 +12,11 @@ import dev.reme.mcstudio.npc.life.SocietyRules;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.entity.MobSpawnType;
+import net.minecraft.world.entity.MobCategory;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.world.level.biome.Biomes;
+import net.minecraft.world.level.block.Blocks;
+import net.neoforged.neoforge.common.util.FakePlayerFactory;
 import dev.reme.mcstudio.npc.life.MovementPolicy;
 import dev.reme.mcstudio.npc.life.DailyRoaming;
 import dev.reme.mcstudio.npc.life.NaturalResidentSpawn;
@@ -168,6 +173,71 @@ public final class CivicGameTests {
         }
         if (!NaturalResidentSpawn.atCapacity(level, base))
             throw new AssertionError("natural spawn population cap not enforced");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 100)
+    public static void real_plains_biome_contains_live_npc_spawn_rule(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        var plains = level.registryAccess().registryOrThrow(Registries.BIOME)
+            .getHolderOrThrow(Biomes.PLAINS).value();
+        boolean registered = plains.getMobSettings().getMobs(MobCategory.CREATURE)
+            .unwrap().stream().anyMatch(data -> data.type == NpcRegistry.PLAYER_NPC.get());
+        if (!registered) throw new AssertionError(
+            "Natural NPC biome modifier did not apply to actual plains registry");
+        if (!NaturalResidentSpawn.allowedNaturalReason(MobSpawnType.CHUNK_GENERATION) ||
+            !NaturalResidentSpawn.allowedNaturalReason(MobSpawnType.NATURAL) ||
+            NaturalResidentSpawn.allowedNaturalReason(MobSpawnType.MOB_SUMMONED))
+            throw new AssertionError("natural spawn reason is incorrectly filtered");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 140)
+    public static void actual_npc_pathfinding_moves_entity(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos origin = helper.absolutePos(new BlockPos(2, 1, 2));
+        for (int dx = 0; dx < 10; dx++) {
+            BlockPos foot = origin.offset(dx, -1, 0);
+            level.setBlock(foot, Blocks.STONE.defaultBlockState(), 3);
+            level.setBlock(foot.above(), Blocks.AIR.defaultBlockState(), 3);
+            level.setBlock(foot.above(2), Blocks.AIR.defaultBlockState(), 3);
+        }
+        PlayerNpcEntity npc = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (npc == null) throw new AssertionError("entity missing");
+        npc.moveTo(origin.getX() + 0.5, origin.getY(), origin.getZ() + 0.5, 0, 0);
+        npc.setHomePos(origin);
+        npc.setWorkPos(origin);
+        npc.setMode(PlayerNpcEntity.Mode.STAY); // isolate vanilla nav from schedules
+        if (!level.addFreshEntity(npc)) throw new AssertionError("cannot spawn NPC");
+        helper.runAfterDelay(3, () -> {
+            boolean route = npc.getNavigation().moveTo(
+                origin.getX() + 8.5, origin.getY(), origin.getZ() + 0.5, 1.0);
+            if (!route) helper.fail("NPC navigation could not construct path", origin);
+        });
+        helper.runAfterDelay(100, () -> {
+            if (npc.distanceToSqr(origin.getX() + 0.5, origin.getY(),
+                origin.getZ() + 0.5) < 4.0)
+                helper.fail("NPC remained immobile despite walkable stone path", origin);
+            else helper.succeed();
+        });
+    }
+
+
+    @GameTest(template = "empty", timeoutTicks = 90)
+    public static void actual_npc_demo_command_creates_six_named_residents(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos origin = helper.absolutePos(new BlockPos(5, 1, 5));
+        // Simulate a player command in the real Minecraft command dispatcher.
+        var player = FakePlayerFactory.getMinecraft(level);
+        player.moveTo(origin.getX() + 0.5, origin.getY(),
+            origin.getZ() + 0.5, 0, 0);
+        level.getServer().getCommands().performPrefixedCommand(
+            player.createCommandSourceStack().withPermission(4), "npc demo");
+        int found = level.getEntitiesOfClass(PlayerNpcEntity.class,
+            new net.minecraft.world.phys.AABB(origin).inflate(16),
+            npc -> npc.isAlive() && npc.getCustomName() != null).size();
+        if (found < 6) throw new AssertionError(
+            "NPC demo claims creation without six actual named server entities");
         helper.succeed();
     }
 
