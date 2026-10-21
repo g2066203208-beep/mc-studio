@@ -20,7 +20,7 @@ const path=require('node:path'),fs=require('node:fs');
     window.__STRICT_API__.getOfficialState().every(x=>x.phase==='ready'||x.phase==='failed'),null,{timeout:210000});
   await page.waitForFunction(()=>{
     const assets=window.__STRICT_API__.getAssetStatus();
-    return assets.length===4&&assets.some(x=>x.status==='authentic');
+    return assets.length===5&&assets.filter(x=>x.status==='authentic').length>=4;
   },null,{timeout:120000});
   const states=await page.evaluate(()=>window.__STRICT_API__.getOfficialState());
   const models=await page.evaluate(()=>window.__STRICT_API__.getAssetStatus());
