@@ -73,6 +73,9 @@ public final class BanditActions {
         UUID incident = UUID.randomUUID();
         courier.civic().witness(incident, raider.getUUID(), courier.getUUID(),
             CivicMind.Kind.THEFT, tick);
+        // Deliver an actual victim eyewitness complaint to nearby allied
+        // guards; police cannot act on a virtual global wanted list.
+        PublicSafety.reportTheft(courier, raider, level, incident, tick);
         // Other citizens can KNOW a direct crime only when physically nearby.
         for (PlayerNpcEntity witness : level.getEntitiesOfClass(
                 PlayerNpcEntity.class, courier.getBoundingBox().inflate(12.0),
