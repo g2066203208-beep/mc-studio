@@ -137,7 +137,12 @@ public final class SeamChunkSender {
         int centerZ=Math.floorDiv(player.blockPosition().getZ(),16);
         session.updateTicket(target,new ChunkPos(centerX,centerZ));
 
-        if(tick%INTERVAL!=0)return;
+        // Warm the crossing-critical 3x3 rapidly, then the 5x5 visual
+        // window. Once resident, send only bounded dirty-block updates or
+        // infrequent 1200-tick refreshes. No permanent full-chunk stream.
+        int cadence=session.lastSent.size()<9?2:
+            (session.lastSent.size()<OFFSETS.length?5:INTERVAL);
+        if(tick%cadence!=0)return;
 
         // Search the entire bounded 5x5 set for the FIRST missing/stale
         // chunk, prioritizing the player's near 3x3. On movement the
