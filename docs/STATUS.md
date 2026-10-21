@@ -100,3 +100,10 @@ Gradle 报告使用了将来不兼容 Gradle 10 的弃用功能；当前固定 W
 - GitHub Actions 39518033958 push SUCCESS；39518039426 PR SUCCESS，Test living-world planner core、Build、JAR 上传全部完成。
 - Artifact `12310085514`，JAR `reme_studio-0.3.0-dev.jar`，SHA-256：`5f480e86d8f2808c52b41662de1a5cf362c3226569099a0f7eead88d2e5eb3f3`。
 - **仍没有游戏客户端/专用服/整合包 222 mods/TPS 的实测记录，不可误报为运行通过**。
+
+
+## 2026-10-21 公民社会 v0.4 开发中
+
+- 源代码已经加入目击、有限口口传闻、个人法律声望、性格细分、委托资金托管与交付、NBT 以及 NeoForge GameTest 测试类。
+- 原本 v0.3 的纯源码构建成功 **不能**说明新系统实测通过。详见 `docs/CIVIC_V04.md`，跟踪新分支 `feature/living-world-civic-v04`。
+- GameTest server 独立 workflow 要求真实服务器级别测试，这一项如失败必须记录失败原因，不得写成成功。

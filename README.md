@@ -76,3 +76,8 @@ bash scripts/build.sh
 ## Society v0.3 (独立实验分支)
 
 国家/派系/地区、人生目标、道路偏好、守卫护送、侦察员收集、原版箱子物流、商品交换和管理员授权的小屋施工已作为**实验功能**加入 `feature/living-world-society-v03`。指令与限制详见 [Society v0.3 指南](docs/SOCIETY_V03.md)。未经实机和整合包测试，不部署正式存档。
+
+
+## Living World v0.4 公民社会（实验分支）
+
+在 v0.3 基础上进一步开发眼见为实的 NPC 消息传播、本地善恶声望、司法警示、诚实/同理心等性格、真实绿宝石委托赏金和不可重复兑现的物资交付。详见 [v0.4 测试与边界](docs/CIVIC_V04.md)；并新增 NeoForge 服务器 GameTest，**实际运行结果单独验收**。

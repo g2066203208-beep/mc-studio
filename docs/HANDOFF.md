@@ -87,3 +87,12 @@ GitHub 是整个 Minecraft 工作室的开发中心。代码、需求、研究�
 独立任务分支 `feature/living-world-society-v03`；完整实现代码提交 `e05f765e65de7234e49ac83b3b0abc999c284310`，后续仅更改文档。
 Push CI `39518033958` SUCCESS，PR CI `39518039426` SUCCESS。Artifact `12310085514` 包含 `reme_studio-0.3.0-dev.jar`（SHA-256 5f480e86d8f2808c52b41662de1a5cf362c3226569099a0f7eead88d2e5eb3f3）。已经从 ZIP 检查上述类存在。**仍无客户端游戏实测。**
 后续先读 `docs/SOCIETY_V03.md` 执行隔离世界验收，重点观察国家阵营敌对关系、组队跟随、指定原版箱子资源守恒与 5×5 房屋施工。PR #12 保持 draft。
+
+
+## 2026-10-21 civic v0.4 交接
+
+- 新分支 `feature/living-world-civic-v04` 从 v0.3 最终验证提交 `c9dcaed19fe2f2b69e6c9bc0b5d8d853eded3815` 分出，全部开发独立于 main。
+- 新增 `CivicMind`（目击事件 UUID、来源、二手传播/去重/边界）、`CharacterProfile`（诚实/正义/好奇/同理）、`CivicSocial`（受攻击见证、本地传播、守卫警示）、`Commission`+ `CivicContracts`（真实绿宝石保管资金、单人承接、不可重复领奖的交付）、`CivicPersistence`（NBT）。
+- 玩家指令：`/npc law` / `/npc news` / `/npc commission WHEAT 3 2` / `/npc job` / `/npc accept` / `/npc deliver` / `/npc canceljob`。
+- 自动测试：`scripts/living-tests/CivicSpec.java` 独立断言加入 `scripts/test-living-planner.sh`；Minecraft 真机型 `CivicGameTests.java` + `data/reme_studio/structure/empty.nbt`，.github/workflows/civic-gametest.yml 云端运行 GameTestServer。
+- 看 `docs/CIVIC_V04.md` 验收清单；真实 GameTest、客户端和整合包的结果请以 Actions 证据判定，严禁擅自标记成功。
