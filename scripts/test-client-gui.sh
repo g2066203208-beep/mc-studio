@@ -73,6 +73,27 @@ xdotool key Return
 sleep 4
 import -window root client-gui-npc-info.png
 echo "Captured real client command attempts for visual inspection"
+xdotool key --clearmodifiers t
+sleep 1
+xdotool type --clearmodifiers --delay 75 '/npc demo'
+xdotool key Return
+sleep 20
+import -window root client-gui-six-residents.png
+xdotool key --clearmodifiers t
+sleep 1
+xdotool type --clearmodifiers --delay 75 '/npc info'
+xdotool key Return
+sleep 3
+import -window root client-gui-six-status.png
+# Observe day/night transition on the same real NPCs, without assuming
+# that this proves POI/bed/farming systems are finished.
+xdotool key --clearmodifiers t
+sleep 1
+xdotool type --clearmodifiers --delay 75 '/time set night'
+xdotool key Return
+sleep 15
+import -window root client-gui-night.png
+echo "Captured six NPC demo and night-cycle screen evidence"
 echo "Window id: $found"
 echo "Minecraft launch/render indicators:"
 grep -E 'Reloading ResourceManager|mod/reme_studio|Created.*atlas' client-gui.log | tail -n 10 || true
