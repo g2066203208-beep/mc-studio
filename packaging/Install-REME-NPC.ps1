@@ -1,6 +1,7 @@
 param(
   [string]$GameDirectory = "",
-  [switch]$CheckOnly
+  [switch]$CheckOnly,
+  [switch]$ConfirmInstall
 )
 $ErrorActionPreference = "Stop"
 function Fail([string]$Message) { Write-Host "ERROR: $Message" -ForegroundColor Red; throw $Message }
@@ -53,7 +54,7 @@ Write-Host "Selected: $GameDirectory"
 Write-Host "Detected: $($signs -join ', ')"
 Write-Host "IMPORTANT: If HMCL isolates versions, use that VERSION's game directory, not the parent .minecraft folder." -ForegroundColor Yellow
 if ($CheckOnly) { Write-Host "CheckOnly: NO FILES MODIFIED"; exit 0 }
-$confirm = Read-Host "Type INSTALL to backup old REME NPC jars and install into THIS mods directory"
+$confirm = if ($ConfirmInstall) { "INSTALL" } else { Read-Host "Type INSTALL to backup old REME NPC jars and install into THIS mods directory" }
 if ($confirm -cne "INSTALL") { Fail "Cancelled. No changes made." }
 if (-not (Test-Path -LiteralPath $mods)) { New-Item -ItemType Directory -Path $mods | Out-Null }
 $old = @(Get-ChildItem -LiteralPath $mods -File -Filter "*.jar" |

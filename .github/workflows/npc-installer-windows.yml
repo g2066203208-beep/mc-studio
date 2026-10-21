@@ -1,0 +1,17 @@
+name: Windows HMCL installer actual PowerShell tests
+on:
+  push:
+    branches: [fix/npc-client-acceptance-v054]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  actual-windows-installer:
+    runs-on: windows-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run installer against simulated HMCL mod directory
+        shell: pwsh
+        run: ./scripts/test-installer-windows.ps1
