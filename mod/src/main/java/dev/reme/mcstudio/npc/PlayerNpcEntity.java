@@ -113,6 +113,11 @@ public class PlayerNpcEntity extends PathfinderMob {
     // safely restarts the survival-rate action instead of instant completing.
     @Nullable private BlockPos miningTarget;
     private float miningProgress = 0.0F;
+    // Exact UUIDs of drops created by this NPC's *real* block break, not any
+    // player's unrelated floor loot. Hard cap and expiry prevent runaway state.
+    private final Map<UUID, Integer> ownedMiningDrops = new java.util.LinkedHashMap<>();
+    private long miningLootExpiry = 0L;
+    private long miningLootStarted = 0L;
     private BlockPos lastNavDestination = BlockPos.ZERO;
     private long nextNavRepathTick = 0;
     private final CivicMind civic = new CivicMind();
@@ -226,6 +231,36 @@ public class PlayerNpcEntity extends PathfinderMob {
         miningProgress = 0.0F;
     }
     public void clearMiningTarget() { miningTarget = null; miningProgress = 0.0F; }
+    public Set<UUID> pendingMiningDrops() {
+        return java.util.Collections.unmodifiableSet(ownedMiningDrops.keySet());
+    }
+    public int remainingMiningDrop(UUID id) {
+        return ownedMiningDrops.getOrDefault(id, 0);
+    }
+    public void recordMinedPickup(UUID id, int count) {
+        if (count <= 0) return;
+        int remaining = remainingMiningDrop(id) - count;
+        if (remaining <= 0) ownedMiningDrops.remove(id);
+        else ownedMiningDrops.put(id, remaining);
+    }
+    public long miningLootExpiry() { return miningLootExpiry; }
+    public long miningLootStarted() { return miningLootStarted; }
+    public void claimMiningDrops(Map<UUID, Integer> ids, long expiry) {
+        ownedMiningDrops.clear();
+        for (Map.Entry<UUID, Integer> entry : ids.entrySet()) {
+            if (ownedMiningDrops.size() >= 24) break;
+            int amount = Math.clamp(entry.getValue(), 0, 2304);
+            if (amount > 0) ownedMiningDrops.put(entry.getKey(), amount);
+        }
+        miningLootExpiry = Math.max(0L, expiry);
+        miningLootStarted = level().getGameTime();
+    }
+    public void forgetMiningDrop(UUID id) { ownedMiningDrops.remove(id); }
+    public void clearMiningDrops() {
+        ownedMiningDrops.clear();
+        miningLootExpiry = 0L;
+        miningLootStarted = 0L;
+    }
     public void resetMiningProgress() { miningProgress = 0.0F; }
     public float miningProgress() { return miningProgress; }
     public float advanceMiningProgress(float increment) {
@@ -508,6 +543,18 @@ public class PlayerNpcEntity extends PathfinderMob {
         tag.putInt("NpcRoamingRadius", roamingRadius);
         tag.putInt("NpcSkinId", skinId());
         if (miningTarget != null) tag.putLong("NpcMiningTarget", miningTarget.asLong());
+        if (!ownedMiningDrops.isEmpty()) {
+            ListTag claims = new ListTag();
+            for (Map.Entry<UUID, Integer> item : ownedMiningDrops.entrySet()) {
+                CompoundTag entry = new CompoundTag();
+                entry.putUUID("Id", item.getKey());
+                entry.putInt("Remaining", item.getValue());
+                claims.add(entry);
+            }
+            tag.put("NpcMiningDrops", claims);
+            tag.putLong("NpcMiningDropExpiry", miningLootExpiry);
+            tag.putLong("NpcMiningDropStarted", miningLootStarted);
+        }
         tag.putBoolean("NpcNaturallySpawned", naturalResident);
         tag.putInt("NpcDailyShift", dailyShiftTicks);
         tag.putBoolean("NpcBuildEnabled", buildEnabled);
@@ -588,6 +635,19 @@ public class PlayerNpcEntity extends PathfinderMob {
         miningTarget = tag.contains("NpcMiningTarget", Tag.TAG_LONG)
             ? BlockPos.of(tag.getLong("NpcMiningTarget")) : null;
         miningProgress = 0.0F;
+        ownedMiningDrops.clear();
+        miningLootExpiry = Math.max(0L, tag.getLong("NpcMiningDropExpiry"));
+        miningLootStarted = Math.max(0L, tag.getLong("NpcMiningDropStarted"));
+        if (tag.contains("NpcMiningDrops", Tag.TAG_LIST)) {
+            ListTag claims = tag.getList("NpcMiningDrops", Tag.TAG_COMPOUND);
+            for (int i = 0; i < Math.min(24, claims.size()); i++) {
+                CompoundTag entry = claims.getCompound(i);
+                if (entry.hasUUID("Id")) {
+                    int count = Math.clamp(entry.getInt("Remaining"), 0, 2304);
+                    if (count > 0) ownedMiningDrops.put(entry.getUUID("Id"), count);
+                }
+            }
+        }
         setSkinId(tag.contains("NpcSkinId", Tag.TAG_INT)
             ? tag.getInt("NpcSkinId") : Math.floorMod(getUUID().hashCode(), 6));
         setRoamingRadius(tag.contains("NpcRoamingRadius", Tag.TAG_INT)

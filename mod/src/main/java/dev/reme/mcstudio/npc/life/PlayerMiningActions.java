@@ -1,6 +1,12 @@
 package dev.reme.mcstudio.npc.life;
 
 import dev.reme.mcstudio.npc.PlayerNpcEntity;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.UUID;
+import net.minecraft.world.entity.item.ItemEntity;
+import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.neoforge.event.level.BlockDropsEvent;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.InteractionHand;
@@ -21,6 +27,34 @@ import net.neoforged.neoforge.common.util.FakePlayer;
  */
 public final class PlayerMiningActions {
     private PlayerMiningActions() {}
+
+    /**
+     * Vanilla/NeoForge provides the exact drops before they are added to the
+     * entity index. Scanning getEntitiesOfClass just after destroyBlock during
+     * the NPC tick would miss spawns queued until the end of entity ticking.
+     * A scoped thread-local handles only this single synchronous break call;
+     * no mutable global ownership table or world object is retained.
+     */
+    private record DropCapture(ServerLevel level, BlockPos target, UUID actor,
+                               Map<UUID, Integer> exactDropIds) {}
+    private static final ThreadLocal<DropCapture> CURRENT_BREAK = new ThreadLocal<>();
+    static {
+        NeoForge.EVENT_BUS.addListener(PlayerMiningActions::captureBlockDrops);
+    }
+
+    private static void captureBlockDrops(BlockDropsEvent event) {
+        DropCapture capture = CURRENT_BREAK.get();
+        if (capture == null || event.getLevel() != capture.level()
+            || !event.getPos().equals(capture.target())
+            || event.getBreaker() == null
+            || !event.getBreaker().getUUID().equals(capture.actor()))
+            return;
+        for (ItemEntity item : event.getDrops()) {
+            if (!item.getItem().isEmpty() && capture.exactDropIds().size() < 24)
+                capture.exactDropIds().put(item.getUUID(),
+                    item.getItem().getCount());
+        }
+    }
 
     // Conservative opt-in surface. No block entities, valuables, doors,
     // protected structures, machines or arbitrary modded blocks at this stage.
@@ -98,7 +132,16 @@ public final class PlayerMiningActions {
             // This fires the real vanilla/NeoForge player break pipeline.
             // It must NOT be replaced by level.setBlock(AIR) or drops conjured
             // from an independently simulated loot table.
-            boolean destroyed = player.gameMode.destroyBlock(target);
+            // NeoForge's BlockDropsEvent exposes the exact ItemEntities.
+            // Items are NOT necessarily indexed yet while this entity ticks.
+            Map<UUID, Integer> actualDrops = new LinkedHashMap<>();
+            boolean destroyed;
+            CURRENT_BREAK.set(new DropCapture(level, target, npc.getUUID(), actualDrops));
+            try {
+                destroyed = player.gameMode.destroyBlock(target);
+            } finally {
+                CURRENT_BREAK.remove();
+            }
             level.destroyBlockProgress(npc.getId(), target, -1);
             npc.resetMiningProgress();
             if (destroyed && level.getBlockState(target).isAir()) {
@@ -106,6 +149,9 @@ public final class PlayerMiningActions {
                 npc.setItemSlot(EquipmentSlot.MAINHAND,
                     player.getMainHandItem().copy());
                 npc.clearMiningTarget();
+                // ItemEntities themselves are spawned by vanilla. IDs
+                // retain identity even when their world insertion is deferred.
+                npc.claimMiningDrops(actualDrops, level.getGameTime() + 300L);
                 npc.setAction("mined " + target.toShortString()
                     + " through vanilla player action; drops in world");
             } else {
