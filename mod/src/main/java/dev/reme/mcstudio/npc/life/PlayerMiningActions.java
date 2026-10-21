@@ -1,8 +1,8 @@
 package dev.reme.mcstudio.npc.life;
 
 import dev.reme.mcstudio.npc.PlayerNpcEntity;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.UUID;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.neoforged.neoforge.common.NeoForge;
@@ -36,7 +36,7 @@ public final class PlayerMiningActions {
      * no mutable global ownership table or world object is retained.
      */
     private record DropCapture(ServerLevel level, BlockPos target, UUID actor,
-                               Set<UUID> exactDropIds) {}
+                               Map<UUID, Integer> exactDropIds) {}
     private static final ThreadLocal<DropCapture> CURRENT_BREAK = new ThreadLocal<>();
     static {
         NeoForge.EVENT_BUS.addListener(PlayerMiningActions::captureBlockDrops);
@@ -51,7 +51,8 @@ public final class PlayerMiningActions {
             return;
         for (ItemEntity item : event.getDrops()) {
             if (!item.getItem().isEmpty() && capture.exactDropIds().size() < 24)
-                capture.exactDropIds().add(item.getUUID());
+                capture.exactDropIds().put(item.getUUID(),
+                    item.getItem().getCount());
         }
     }
 
@@ -133,7 +134,7 @@ public final class PlayerMiningActions {
             // from an independently simulated loot table.
             // NeoForge's BlockDropsEvent exposes the exact ItemEntities.
             // Items are NOT necessarily indexed yet while this entity ticks.
-            Set<UUID> actualDrops = new HashSet<>();
+            Map<UUID, Integer> actualDrops = new LinkedHashMap<>();
             boolean destroyed;
             CURRENT_BREAK.set(new DropCapture(level, target, npc.getUUID(), actualDrops));
             try {
