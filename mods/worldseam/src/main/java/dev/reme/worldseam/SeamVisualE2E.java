@@ -5,6 +5,8 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.GameType;
+import net.minecraft.world.effect.MobEffects;
+import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
@@ -110,6 +112,10 @@ public final class SeamVisualE2E {
         int z=player.blockPosition().getZ();
         int cleared=SeamTerrain.openTestColumn(server,x,z);
         player.setGameMode(GameType.CREATIVE);
+        // Real in-game NIGHT_VISION effect for a visible test near dark
+        // Nether/Overworld roofs. Only in the opt-in CI-only E2E harness.
+        player.addEffect(new MobEffectInstance(MobEffects.NIGHT_VISION,
+            20 * 60 * 6, 0, false, false));
         player.getAbilities().flying=true;
         player.onUpdateAbilities();
         player.connection.teleport(player.getX(),-61.0,player.getZ(),0,90);
