@@ -1,0 +1,35 @@
+name: Import MIT-authorized resident skins into assets
+on:
+  push:
+    branches: [feature/npc-character-skins-v055]
+    paths:
+      - scripts/build-npc-skins.py
+      - .github/workflows/import-resident-skins.yml
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  import-assets:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/npc-character-skins-v055
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install Pillow==11.3.0
+      - name: Download pinned MIT skin sources, modernize and validate UV
+        run: python scripts/build-npc-skins.py
+      - name: Push inspected six PNG assets into source branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add mod/src/main/resources/assets/reme_studio/textures/entity/npc/*.png
+          if git diff --cached --quiet; then echo 'assets unchanged'; exit 0; fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'assets(npc): bundle six licensed human Minecraft skins with modern 64x64 UV'
+          git push origin HEAD:feature/npc-character-skins-v055
