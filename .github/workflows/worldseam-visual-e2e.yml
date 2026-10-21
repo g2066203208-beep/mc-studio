@@ -41,9 +41,20 @@ jobs:
             sleep 22
             echo "Minecraft GUI windows:"
             xdotool search --name Minecraft getwindowname 2>/dev/null || true
-            xwd -root -silent | convert xwd:- -resize 800x450 -quality 50 visual-mainmenu.jpg
+            xwd -root -silent | convert xwd:- -resize 600x338 -quality 48 visual-dialog.jpg
+            # Minecraft first-launch accessibility welcome screen blocks all menus.
+            xdotool mousemove 640 568 click 1
+            sleep 8
+            xwd -root -silent | convert xwd:- -resize 600x338 -quality 48 visual-mainmenu.jpg
+            xdotool mousemove 640 336 click 1
+            sleep 8
+            xwd -root -silent | convert xwd:- -resize 600x338 -quality 48 visual-world-select.jpg
+            xdotool mousemove 640 540 click 1
+            sleep 8
+            xwd -root -silent | convert xwd:- -resize 600x338 -quality 48 visual-world-create.jpg
+            montage visual-dialog.jpg visual-mainmenu.jpg visual-world-select.jpg visual-world-create.jpg -tile 2x2 -geometry +0+0 -quality 48 visual-sequence.jpg
             echo WORLDSEAM_GUI_JPEG_BEGIN
-            base64 -w 0 visual-mainmenu.jpg
+            base64 -w 0 visual-sequence.jpg
             echo
             echo WORLDSEAM_GUI_JPEG_END
             if grep -E "Mixin apply failed|InvalidMixinException|Exception during client tick|NoSuchMethodError" visual-client.log; then
@@ -59,5 +70,5 @@ jobs:
           name: worldseam-real-gui-evidence
           path: |
             mods/worldseam/visual-client.log
-            mods/worldseam/visual-mainmenu.jpg
+            mods/worldseam/visual-*.jpg
           if-no-files-found: ignore
