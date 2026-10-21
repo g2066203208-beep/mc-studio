@@ -1,0 +1,39 @@
+name: ShipRepair standalone Mod
+on:
+  push:
+    paths:
+      - 'mods/shiprepair/**'
+      - '.github/workflows/shiprepair.yml'
+  pull_request:
+    paths:
+      - 'mods/shiprepair/**'
+      - '.github/workflows/shiprepair.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: shiprepair-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Build standalone Sable repair Mod
+        run: bash mod/gradlew -p mods/shiprepair build --no-daemon --console plain
+      - uses: actions/upload-artifact@v4
+        with:
+          name: shiprepair-${{ github.sha }}
+          path: mods/shiprepair/build/libs/shiprepair-*.jar
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: shiprepair-unit-tests-${{ github.sha }}
+          path: mods/shiprepair/build/test-results/test/*.xml
+          if-no-files-found: ignore
