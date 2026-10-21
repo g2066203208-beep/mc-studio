@@ -251,6 +251,11 @@ public final class CivicGameTests {
         var player = FakePlayerFactory.getMinecraft(level);
         player.moveTo(origin.getX() + 0.5, origin.getY(),
             origin.getZ() + 0.5, 0, 0);
+        // Regression: this unrelated NPC is intentionally closer to Dev
+        // than the three allied demo settler homes. Census must find the
+        // community, not just inspect the nearest, unaffiliated resident.
+        level.getServer().getCommands().performPrefixedCommand(
+            player.createCommandSourceStack().withPermission(4), "npc spawn Solitary");
         level.getServer().getCommands().performPrefixedCommand(
             player.createCommandSourceStack().withPermission(4), "npc demo");
         int found = level.getEntitiesOfClass(PlayerNpcEntity.class,
@@ -268,6 +273,10 @@ public final class CivicGameTests {
         });
         if (!formed) throw new AssertionError(
             "Demo's distinct real settlers never actually formed a hamlet");
+        level.getServer().getCommands().performPrefixedCommand(
+            player.createCommandSourceStack().withPermission(4), "npc settlement");
+        if (SettlementLedger.get(level).knownSettlements() == 0)
+            throw new AssertionError("Nearest solitary NPC suppressed a valid community census");
         helper.succeed();
     }
 
