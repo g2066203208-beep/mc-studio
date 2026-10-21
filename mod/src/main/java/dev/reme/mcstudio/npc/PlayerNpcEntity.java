@@ -118,6 +118,7 @@ public class PlayerNpcEntity extends PathfinderMob {
     private final Map<UUID, Integer> ownedMiningDrops = new java.util.LinkedHashMap<>();
     private long miningLootExpiry = 0L;
     private long miningLootStarted = 0L;
+    @Nullable private BlockPos lastFootTrafficSample;
     private BlockPos lastNavDestination = BlockPos.ZERO;
     private long nextNavRepathTick = 0;
     private final CivicMind civic = new CivicMind();
@@ -268,6 +269,18 @@ public class PlayerNpcEntity extends PathfinderMob {
         return miningProgress;
     }
     public void setCachedCropTarget(@Nullable BlockPos target) { cachedCropTarget = target; }
+    /** Checks measured foot-cell transition, not a repeated tick at a camp.
+     * Transit heatmap additionally throttles repeat visits by resident UUID.
+     */
+    public boolean hasNewFootTrafficPosition(BlockPos foot) {
+        if (lastFootTrafficSample == null) {
+            lastFootTrafficSample = foot.immutable();
+            return false; // never treat initial spawn as pedestrian passage
+        }
+        if (lastFootTrafficSample.equals(foot)) return false;
+        lastFootTrafficSample = foot.immutable();
+        return true;
+    }
     public boolean canRepath(BlockPos target, long tick) {
         if (tick >= nextNavRepathTick || !target.equals(lastNavDestination) &&
             tick + 8 >= nextNavRepathTick) {
@@ -655,6 +668,7 @@ public class PlayerNpcEntity extends PathfinderMob {
         naturalResident = tag.getBoolean("NpcNaturallySpawned");
         dailyShiftTicks = Math.clamp(tag.getInt("NpcDailyShift"), -400, 400);
         cachedCropTarget = null;
+        lastFootTrafficSample = null;
         lastNavDestination = BlockPos.ZERO;
         nextNavRepathTick = 0;
         buildEnabled = tag.getBoolean("NpcBuildEnabled");
