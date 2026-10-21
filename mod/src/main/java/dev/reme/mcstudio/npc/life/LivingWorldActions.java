@@ -40,11 +40,15 @@ public final class LivingWorldActions {
                     m -> m.isAlive() && npc.hasLineOfSight(m)).isEmpty());
             npc.setDecision(npc.planner().choose(new LivingPlanner.Context(
                 level.getDayTime(), level.isRaining(), exposed, danger,
-                npc.hunger(), npc.energy(), npc.socialNeed(),
+                npc.hunger(), npc.energy(),
+                Math.max(0, npc.socialNeed() -
+                    (npc.character().empathy() > 75 ? 15 : 0)),
                 npc.profession() == PlayerNpcEntity.Profession.FARMER ||
                 npc.profession() == PlayerNpcEntity.Profession.BAKER ||
                 npc.profession() == PlayerNpcEntity.Profession.BUILDER)));
         }
+        if (npc.profession() == PlayerNpcEntity.Profession.GUARD)
+            CivicSocial.guardLaw(npc, level, tick);
         if (SocietyActions.tick(npc, level, tick)) return;
         if (npc.profession() == PlayerNpcEntity.Profession.GUARD &&
             npc.getTarget() != null && npc.getTarget().isAlive() &&
@@ -335,12 +339,15 @@ public final class LivingWorldActions {
         if (tick < npc.nextSocialTick() || tick < other.nextSocialTick()) return;
         npc.rememberGreeting(other, tick);
         other.rememberGreeting(npc, tick);
+        int exchangedReports = CivicSocial.exchangeNews(npc, other, tick);
         npc.setNextSocialTick(tick + 400);
         other.setNextSocialTick(tick + 400);
         npc.changeNeeds(0, 0, 14);
         other.changeNeeds(0, 0, 14);
-        npc.setAction("talked with " + other.getName().getString());
-        other.setAction("talked with " + npc.getName().getString());
+        npc.setAction("talked with " + other.getName().getString() +
+            (exchangedReports > 0 ? " and exchanged " + exchangedReports + " witnessed reports" : ""));
+        other.setAction("talked with " + npc.getName().getString() +
+            (exchangedReports > 0 ? " about recent events" : ""));
         npc.journey().succeeded(LifeJourney.Achievement.SOCIALIZE);
         other.journey().succeeded(LifeJourney.Achievement.SOCIALIZE);
     }
