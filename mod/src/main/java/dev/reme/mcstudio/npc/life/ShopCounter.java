@@ -68,6 +68,111 @@ public final class ShopCounter {
         return true;
     }
 
+    /**
+     * A genuine autonomous NPC customer pays a genuine emerald from their own
+     * 36-slot NBT backpack. Both bags are checked and committed together.
+     * Nothing goes via FakePlayer inventory, and no item or currency is minted.
+     */
+    public static boolean purchaseByResident(PlayerNpcEntity shop, PlayerNpcEntity customer,
+                                              long tick) {
+        if (shop == customer || !shop.isAlive() || !customer.isAlive()
+            || shop.mode() != PlayerNpcEntity.Mode.LIVE
+            || customer.mode() != PlayerNpcEntity.Mode.LIVE
+            || shop.profession() != PlayerNpcEntity.Profession.SHOPKEEPER
+            || shop.intent() != LivingPlanner.Intent.WORK
+            || shop.blockPosition().distSqr(shop.workPos()) > 9
+            || shop.isSleeping() || customer.isSleeping()
+            || shop.isDetained(tick) || customer.isDetained(tick)
+            || shop.isAfraid(tick) || customer.isAfraid(tick)
+            || !shop.identity().region().equals(customer.identity().region())
+            || shop.hostileTo(customer) || customer.hostileTo(shop)
+            || shop.memory().trust(customer.getUUID()) <= -25
+            || customer.distanceToSqr(shop) > 9.0
+            || !shop.level().getServer().isSameThread()
+            || !shop.level().hasChunkAt(shop.blockPosition())
+            || !shop.level().hasChunkAt(customer.blockPosition())) return false;
+        Item good = firstStock(shop.backpack());
+        if (good == null) return false;
+        SimpleContainer seller = snapshot(shop.backpack());
+        SimpleContainer buyer = snapshot(customer.backpack());
+        if (!withdrawOne(seller, good) || !withdrawOne(buyer, Items.EMERALD))
+            return false;
+        if (!seller.addItem(new ItemStack(Items.EMERALD, 1)).isEmpty()
+            || !buyer.addItem(new ItemStack(good, 1)).isEmpty())
+            return false;
+        commit(shop.backpack(), seller);
+        commit(customer.backpack(), buyer);
+        shop.memory().witness(tick, customer.getUUID(),
+            ResidentMemory.Kind.TRADE, shop.blockPosition().toShortString());
+        customer.memory().witness(tick, shop.getUUID(),
+            ResidentMemory.Kind.TRADE, shop.blockPosition().toShortString());
+        customer.setAction("purchased one REAL " + good + " for own emerald at town shop");
+        shop.setAction("sold actual local food to a visiting resident");
+        shop.journey().succeeded(LifeJourney.Achievement.BARTER);
+        customer.journey().succeeded(LifeJourney.Achievement.BARTER);
+        return true;
+    }
+
+    /**
+     * Staff pay 1 REAL emerald for 3 REAL carrots from a nearby local farmer.
+     * This creates a local source of earnings that can fund NPC shopping.
+     */
+    public static boolean buyHarvestFromFarmer(PlayerNpcEntity shop, PlayerNpcEntity farmer,
+                                               long tick) {
+        if (shop == farmer || !shop.isAlive() || !farmer.isAlive()
+            || shop.profession() != PlayerNpcEntity.Profession.SHOPKEEPER
+            || farmer.profession() != PlayerNpcEntity.Profession.FARMER
+            || shop.mode() != PlayerNpcEntity.Mode.LIVE
+            || farmer.mode() != PlayerNpcEntity.Mode.LIVE
+            || shop.intent() != LivingPlanner.Intent.WORK
+            || shop.isSleeping() || farmer.isSleeping()
+            || shop.isDetained(tick) || farmer.isDetained(tick)
+            || shop.isAfraid(tick) || farmer.isAfraid(tick)
+            || !shop.identity().region().equals(farmer.identity().region())
+            || shop.hostileTo(farmer) || farmer.hostileTo(shop)
+            || shop.memory().trust(farmer.getUUID()) <= -25
+            || shop.distanceToSqr(farmer) > 9.0
+            || !shop.level().getServer().isSameThread()
+            || !shop.level().hasChunkAt(shop.blockPosition())
+            || !shop.level().hasChunkAt(farmer.blockPosition())
+            || stockedFood(shop.backpack()) >= 4) return false;
+        SimpleContainer till = snapshot(shop.backpack());
+        SimpleContainer farm = snapshot(farmer.backpack());
+        if (farm.countItem(Items.CARROT) < 3
+            || !withdrawOne(till, Items.EMERALD)
+            || !withdrawExactly(farm, Items.CARROT, 3)
+            || !till.addItem(new ItemStack(Items.CARROT, 3)).isEmpty()
+            || !farm.addItem(new ItemStack(Items.EMERALD, 1)).isEmpty())
+            return false;
+        commit(shop.backpack(), till);
+        commit(farmer.backpack(), farm);
+        shop.memory().witness(tick, farmer.getUUID(),
+            ResidentMemory.Kind.TRADE, farmer.blockPosition().toShortString());
+        farmer.memory().witness(tick, shop.getUUID(),
+            ResidentMemory.Kind.TRADE, farmer.blockPosition().toShortString());
+        farmer.setAction("earned a REAL emerald for three harvested carrots");
+        shop.setAction("bought three existing carrots wholesale from town farmer");
+        farmer.journey().succeeded(LifeJourney.Achievement.BARTER);
+        shop.journey().succeeded(LifeJourney.Achievement.BARTER);
+        return true;
+    }
+
+    private static boolean withdrawOne(SimpleContainer bag, Item item) {
+        return withdrawExactly(bag, item, 1);
+    }
+
+    private static boolean withdrawExactly(SimpleContainer bag, Item item, int count) {
+        if (count <= 0 || bag.countItem(item) < count) return false;
+        for (int i = 0; i < bag.getContainerSize() && count > 0; i++) {
+            ItemStack stack = bag.getItem(i);
+            if (!stack.is(item)) continue;
+            int take = Math.min(count, stack.getCount());
+            stack.shrink(take);
+            count -= take;
+        }
+        return count == 0;
+    }
+
     private static Item firstStock(SimpleContainer bag) {
         for (Item item : new Item[]{Items.BREAD, Items.APPLE, Items.CARROT}) {
             if (bag.countItem(item) > 0) return item;
