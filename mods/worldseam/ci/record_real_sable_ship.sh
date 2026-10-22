@@ -58,9 +58,9 @@ capture_jvm_diagnostics() {
     date -u
     jcmd -l || true
     ps -eo pid,ppid,stat,pcpu,pmem,etime,comm,args | grep -E 'java|Minecraft|gradle|ffmpeg' | head -n 45 || true
-    for pid in $(jcmd -l | awk '/net\\.neoforged\\.devlaunch|net\\.minecraft|DevLaunch|net\\.neoforged\\.fmlloader/{print $1}' | head -n 3); do
+    for pid in $(jcmd -l | awk '$2 == "net.neoforged.devlaunch.Main" {print $1}'); do
       echo "=== JVM PID $pid threads ==="
-      timeout 14 jcmd "$pid" Thread.print -l || true
+      timeout 25 jcmd "$pid" Thread.print -l || true
     done
   } >> real-ship-jvm-thread-dump.txt 2>&1
 }
