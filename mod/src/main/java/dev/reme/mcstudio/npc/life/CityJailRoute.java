@@ -76,7 +76,8 @@ public final class CityJailRoute {
      */
     public static boolean actuallyInCell(PlayerNpcEntity prisoner, BlockPos holding) {
         return prisoner.distanceToSqr(Vec3.atCenterOf(holding)) <= 2.5
-            && prisoner.getX() < holding.getX()+1.0
+            // Entire 0.6-block NPC collision box must clear the cell gate.
+            && prisoner.getX() < holding.getX()+0.65
             && prisoner.getZ() >= holding.getZ()-0.2
             && prisoner.getZ() < holding.getZ()+2.0;
     }
