@@ -98,12 +98,12 @@ function chassisVisual(g){
   .map(b=>b.pos[0]+','+b.pos[2]));
  for(let x=-2;x<=2;x++)for(let z=-3;z<=3;z++){
   if(occupied.has(x+','+z))continue;
-  block(g,'box',[x,0,z],[1,1,1],Math.abs(x)===2?'steel':'copper');
+  officialModule(g,Math.abs(x)===2?'create:industrial_iron_block':'create:brass_casing',[x,0,z]);
  }
  for(const x of [-2,2])for(const z of [-3,0,3])
-  block(g,'box',[x,1,z],[1,1,1],'copper');
- block(g,'box',[0,1,0],[1,1,1],'dark');
- block(g,'box',[0,0,-4],[1,1,1],'teal');
+  officialModule(g,'create:industrial_iron_block',[x,1,z]);
+ officialModule(g,'create:brass_casing',[0,1,0]);
+ officialModule(g,'create:andesite_casing',[0,0,-4]);
  for(const b of graph.blocks){
   const [x,y,z]=b.pos;
   const id=b.id,driven=id==='create:shaft'||id==='create:large_cogwheel';
@@ -116,9 +116,9 @@ function linkVisual(g,length,legId,segment){
  // All visible individual voxel blocks remain exactly one MC block.
  // Real 1x1 voxel leg blocks are stacked on centers ±.5; bearings at
  // +1.5 and boots at -1.5 never intersect these solid voxels.
- // Rapier joint center lengths 1.65/1.75 still require separate geometry calibration.
+ // Rapier segment lengths and hinge anchors are now precisely 2 voxel units.
  for(const y of [-.5,.5])
-  block(g,'box',[0,y,0],[1,1,1],isUpper?'teal':'steel',legId);
+  officialModule(g,isUpper?'create:andesite_casing':'create:industrial_iron_block',[0,y,0],{legId});
  if(isUpper){
   officialModule(g,'simulated:swivel_bearing',[0,1.5,0],
    {axis:'x',facing:'east',scale:1,legId});
@@ -126,7 +126,7 @@ function linkVisual(g,length,legId,segment){
  }else{
   officialModule(g,'simulated:swivel_bearing',[0,1.5,0],
    {axis:'x',facing:'east',scale:1,legId});
-  block(g,'box',[0,-1.5,0],[1,1,1],'foot',legId);
+  officialModule(g,'create:andesite_casing',[0,-1.5,0],{legId});
  }
  g.traverse(o=>{if(o.isMesh)o.userData.legId=legId;});
 }
