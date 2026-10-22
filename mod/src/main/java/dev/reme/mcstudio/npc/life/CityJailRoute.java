@@ -60,7 +60,11 @@ public final class CityJailRoute {
         // and the cell gate is the only valid path through the iron bars.
         if (p.getZ() < holding.getZ() || p.getX() > holding.getX()+3)
             return vestibule;
-        if (p.getX() >= holding.getX()+2)
+        // Once ACTUALLY near the inner vestibule, move through the open
+        // cell gate. Without this distance check the prisoner loops forever
+        // re-pathing toward the vestibule point it already occupies.
+        if (prisoner.distanceToSqr(Vec3.atCenterOf(vestibule)) > 2.5
+            && p.getX() >= holding.getX()+2)
             return vestibule;
         if (p.getX() >= holding.getX()+1)
             return insideCell;
