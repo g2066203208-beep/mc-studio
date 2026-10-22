@@ -42,7 +42,11 @@ public final class LivingWorldActions {
         // farmers, bakers, guards and other real households count equally.
         EmergentSettlements.observe(npc, level, tick);
         if (MovementPolicy.due(tick, npc.getId(), 200)) {
-            npc.changeNeeds(-2, npc.intent() == LivingPlanner.Intent.SLEEP ? 12 : -3,
+            // Sleep intent alone cannot regenerate energy while walking home.
+            npc.changeNeeds(-2, RestPolicy.energyDelta(
+                npc.intent(), npc.profession() == PlayerNpcEntity.Profession.GUARD,
+                npc.energy(), RestPolicy.atHome(npc.blockPosition(), npc.homePos()),
+                npc.isAfraid(tick), npc.isDetained(tick)),
                 npc.intent() == LivingPlanner.Intent.SOCIALIZE ? 2 : -3);
         }
         if (MovementPolicy.due(tick, npc.getId(), 80)) {
@@ -207,7 +211,7 @@ public final class LivingWorldActions {
 
     private static void rest(PlayerNpcEntity npc) {
         BlockPos home = npc.homePos();
-        if (npc.blockPosition().distSqr(home) > 6) {
+        if (!RestPolicy.atHome(npc.blockPosition(), home)) {
             returnHome(npc, "going home to rest");
             return;
         }

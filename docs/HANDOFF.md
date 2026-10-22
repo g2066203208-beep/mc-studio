@@ -255,3 +255,10 @@ Push CI `39518033958` SUCCESS，PR CI `39518039426` SUCCESS。Artifact `12310085
 - 修复诊断：`StudioMod` 仅记录构造完成，不再在 Mod constructor 误报指令已经注册；`NpcCommands.register` 完成时另写明确 `COMMANDS REGISTERED` 日志，断言两根节点。HMCL PowerShell 安装脚本 `-CheckOnly` 现在读取所选游戏目录实际 mods/JAR SHA/最近日志/是否执行 @Mod 和注册事件；不碰存档。
 - 新独立 `scripts/test-client-gui.sh` `REME_COMMAND_SMOKE_ONLY=1` 验证强制日志要求，加 `.github/workflows/npc-command-client-smoke.yml` 使用真正 21.1.262 图形 MC 集成服务器跑 `/remecheck`、`/npc spawn`、生成蛋。和因矿石坐标失败的整体 GUI 测试分离；必须看到该 PR CI 真结果后才能发布“最新环境可用”的声明。
 - 打包 `scripts/verify-npc-release-jar.py` 检查 `NpcCommands.class`、`NpcItems.class`、`PlayerNpcEntity.class`、配方、中文资源和 21.1.262 依赖约束是否真实进入 JAR。**未知用户 HMCL 的目录路径、Mod 列表、具体运行版本和 logs/latest.log，故截至这段代码提交，无法断言真正修复了用户那台机器**。
+
+
+## 2026-10-22：NPC 夜间返家修复（GitHub 独立功能分支）
+
+- 基于 `fix/npc-neoforge-211262-runtime-v067` 修复不在家却按睡觉恢复体力、普通职业任务抢占返家导航、提前显示 REST 姿态。新增原生 NeoForge GameTest；验收清单见 `docs/NPC_HOME_REST_AUDIT.md`。
+- 保留原 Mod ID `reme_studio` 保护旧存档，本次尚未将整个 NPC 迁为独立 `livingnpc`，不得宣称六项目已彻底隔离。
+- 真床睡觉、用户自己 HMCL 实例加载和长时间多模组兼容仍未验收；应检查对应 CI 日志。

@@ -27,6 +27,8 @@ import dev.reme.mcstudio.npc.life.CivicWorkplaces;
 import dev.reme.mcstudio.npc.life.SafeBuilder;
 import dev.reme.mcstudio.npc.life.LivingWorldActions;
 import dev.reme.mcstudio.npc.life.LivingPlanner;
+import dev.reme.mcstudio.npc.life.RestPolicy;
+import dev.reme.mcstudio.npc.life.SocietyActions;
 import dev.reme.mcstudio.npc.life.MutualAid;
 import dev.reme.mcstudio.npc.life.CaravanRoutes;
 import net.minecraft.world.level.block.entity.ChestBlockEntity;
@@ -65,6 +67,49 @@ import java.util.UUID;
 @PrefixGameTestTemplate(false)
 public final class CivicGameTests {
     private CivicGameTests() {}
+
+    @GameTest(template = "empty", timeoutTicks = 100)
+    public static void bedtime_needs_real_home_before_rest_and_preserves_guard_watches(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        PlayerNpcEntity npc = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (npc == null) throw new AssertionError("NPC registry unavailable");
+        BlockPos home = helper.absolutePos(new BlockPos(2, 1, 2));
+        BlockPos street = helper.absolutePos(new BlockPos(11, 1, 2));
+        npc.setMode(PlayerNpcEntity.Mode.LIVE);
+        npc.setHomePos(home);
+        npc.setProfession(PlayerNpcEntity.Profession.RESIDENT);
+        npc.moveTo(street.getX() + 0.5, street.getY(), street.getZ() + 0.5, 0, 0);
+        npc.changeNeeds(0, -65, 0);
+        npc.setDecision(new LivingPlanner.Decision(LivingPlanner.Intent.SLEEP, 90, "night rest"));
+
+        if (RestPolicy.atHome(npc.blockPosition(), home)
+            || RestPolicy.energyDelta(npc.intent(), false, npc.energy(), false, false, false) != -3
+            || NpcPoseSelection.select(npc, level.getGameTime()) == NpcPose.REST)
+            throw new AssertionError("NPC recovered energy or displayed sleeping pose on the street");
+        if (SocietyActions.tick(npc, level, level.getGameTime()))
+            throw new AssertionError("Routine town AI stole the route home during bedtime");
+
+        npc.moveTo(home.getX() + 0.5, home.getY(), home.getZ() + 0.5, 0, 0);
+        if (!RestPolicy.atHome(npc.blockPosition(), home)
+            || RestPolicy.energyDelta(npc.intent(), false, npc.energy(), true, false, false) != 12
+            || NpcPoseSelection.select(npc, level.getGameTime()) != NpcPose.REST)
+            throw new AssertionError("NPC cannot rest after physically returning home");
+        if (RestPolicy.energyDelta(npc.intent(), false, npc.energy(), true, true, false) >= 0
+            || RestPolicy.energyDelta(npc.intent(), false, npc.energy(), true, false, true) >= 0)
+            throw new AssertionError("Fear or detention granted sleep energy");
+
+        npc.setProfession(PlayerNpcEntity.Profession.GUARD);
+        npc.changeNeeds(0, 50, 0);
+        if (!RestPolicy.guardOnWatch(true, npc.energy())
+            || RestPolicy.blocksRoutine(npc.intent(), true, npc.energy())
+            || RestPolicy.energyDelta(npc.intent(), true, npc.energy(), true, false, false) >= 0
+            || NpcPoseSelection.select(npc, level.getGameTime()) == NpcPose.REST)
+            throw new AssertionError("On-duty guard abandoned watch or received fake sleep");
+        npc.changeNeeds(0, -70, 0);
+        if (!RestPolicy.blocksRoutine(npc.intent(), true, npc.energy()))
+            throw new AssertionError("Exhausted guard was prevented from resting");
+        helper.succeed();
+    }
 
     @GameTest(template = "empty", timeoutTicks = 100)
     public static void resident_can_spawn(GameTestHelper helper) {
