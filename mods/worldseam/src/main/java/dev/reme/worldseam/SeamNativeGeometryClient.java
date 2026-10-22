@@ -487,6 +487,8 @@ public final class SeamNativeGeometryClient {
     }
     public static long gpuDrawCalls() { return GPU.drawCalls(); }
     public static long gpuUploads() { return GPU.uploads(); }
+    public static long gpuCachedVertexBytes() {return GPU.cachedVertexBytes();}
+    public static long gpuEvictions() {return GPU.evictions();}
     public static boolean gpuBackendDisabled() { return gpuDisabled; }
     public static double lastFrameGpuCpuMs() {return lastFrameGpuCpuNanos/1_000_000.0;}
     public static int lastTickRebuildSlices() { return lastTickRebuildSlices; }
