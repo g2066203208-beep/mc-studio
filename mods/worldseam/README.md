@@ -215,3 +215,16 @@ v0.5 的 teleportTo 仍引发原版 ClientboundRespawnPacket/加载界面。本�
 ## 240 次跨维长时间压力测试（独立 CI）
 
 在首轮 v0.10.1 的真实客户端 **24/24** 次穿越通过后，新增独立长时版：软件 OpenGL NeoForge Xvfb 同一进程中在真实挖通的原生三维度连续执行 **60 轮 × 4 段 = 240 次** 玩家无 Respawn 过界。每一次必须有实际客户端/服务端切换且获得本轮生成的盔甲架 UUID；每轮检测原生 Chunk 驻留、第二渲染器 owner 不超过2，记录堆内存峰值、超过250ms/1秒游戏刻间隔及最坏卡顿，在第40/120/180/240次保存截图。崩溃/日志和图片全部作为 Actions Artifact。仅在 CI 的一次性世界执行，不会挖玩家存档里的基岩。原先逐10tick跨界阻塞日志只在单独的 `-Dworldseam.traceCrossings=true` 下输出，避免长时高压测试本身制造不必要的日志 CPU 开销。总时限40分钟；没有 240/240 通过之前不得宣称长时间稳定性完成。
+
+
+## v0.11.0-dev — 持久化 GPU 原生区块段模型，解决远端视觉严重残缺
+
+**实测问题**：旧 WorldSeam 在 `AFTER_BLOCK_ENTITIES` 阶段每帧反复调用 `renderSingleBlock`，为了避免 P95 58ms 以上的 CPU 帧开销，动态限制成几百到几千个模型。接缝下明明已收到 25/25 的远端真实 Chunk，画面却只能零散出现几个面，严重不像完整的原版世界。Voxy、Iris 等 Mod 更不能靠这个方块代理绘制方式自动兼容。
+
+**本次真正改变渲染路径：** 新增 `SeamGpuSectionRenderer`，以远端实际 `ClientLevel` 收到的真实 `BlockState` 为输入，把每个 16×16×16 Section 的方块模型根据其原始 `RenderType` 分批生成 `MeshData`，上传到原版 `VertexBuffer`（GPU 缓存）且跨帧保留。未更新的区块**无需每帧重复烘焙模型**；按当前相机透视，对所有已上传且通过 Frustum 测试的区块段直接做 GPU 绘制，**不再用 3500 个方块/帧的上限截断完整地形**。每帧至多新上传一个 16³ 区块段，逐步填满可见世界；尚未上传的部分保留安全、分预算的旧模型绘制。区块实时更新时在 GPU 新模型上传成功前保持旧图像，防止黑帧。远离接缝、世界切换、禁用 WorldSeam 或退出时，立即清理对应 GPU VBO，跟随原有两客户端世界完整生命周期。
+
+**实际视觉验收新标准：** NeoForge 真实 GUI 脚本除了原有玩家穿越、下界真实 TNT、末地自然岛和 25/25 远端 Chunk 检查外，新增 `WORLDSEAM_E2E_GPU_SCENE`：必须上传真正的 GPU 区块段，在渲染事件中至少覆盖 50% 的可见区块段，并显示至少 5000 个来自远端的真实 Block 模型，不能再靠少量散块通过。新增 `WORLDSEAM_E2E_GPU_END_SCENE` 确认末地石是通过持久 GPU 缓存而非截图假图像实际绘制。测试日志继续记录 render CPU P95、重建 P95、GPU uploads/drawCalls/coverage，与之前旧路径的模型提交成本分开。
+
+**失败回退：** 如果第三方动态 block model 导致 GPU 编译阶段抛出异常，会记录异常并回退到之前自有 BufferSource 的有限模型路径；用户也可在启动 JVM 添加 `-Dworldseam.legacyBlockPreview=true` 强制使用旧渲染器方便排查兼容问题。真实图形验收必须验证 GPU 路径没有回退，不能把 fallback 当成功。
+
+**未完成范围**：这是真实 GPU 网格缓冲渲染的重大阶段，并非已达到 Immersive Portals 的完整双 `LevelRenderer` 同帧世界合成；原生不同维度天空/天气/水体/实体/光影阴影、透明排序及 Iris/Sodium/Voxy 插件特有上下文仍需继续集成与实机验收。新世界顺序主世界→下界→末地、Sable 末地物理悬浮行为均不变。严格只修改 `mods/worldseam/**`，不涉及航空学/NPC。
