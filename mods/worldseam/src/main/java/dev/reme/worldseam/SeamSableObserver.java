@@ -32,6 +32,8 @@ public final class SeamSableObserver {
     private static int lastRemoteCollisionCandidates;
     private static int lastRemoteUnloadedBlocks;
     private static int lastRemoteProbesTruncated;
+    private static AABB sampleRemoteImage;
+    private static String sampleRemoteDimension="";
     private static Snapshot latest=new Snapshot(false,false,0,0,0,"",0);
 
     public record Snapshot(boolean installed,boolean compatible,
@@ -48,6 +50,9 @@ public final class SeamSableObserver {
     public static int remoteCollisionCandidates(){return lastRemoteCollisionCandidates;}
     public static int remoteUnloadedBlocks(){return lastRemoteUnloadedBlocks;}
     public static int remoteProbesTruncated(){return lastRemoteProbesTruncated;}
+    /** Actual Sable sublevel projected hull. Broad phase only, server thread. */
+    public static AABB sampleRemoteImage(){return sampleRemoteImage;}
+    public static String sampleRemoteDimension(){return sampleRemoteDimension;}
 
     public static void tick(MinecraftServer server,long tick,boolean worldSeamEnabled) {
         if(tick%INTERVAL_TICKS!=0)return;
@@ -57,6 +62,7 @@ public final class SeamSableObserver {
             SeamShipResidency.clear();
             lastRemoteCollisionCandidates=lastRemoteUnloadedBlocks=
                 lastRemoteProbesTruncated=0;
+            sampleRemoteImage=null;sampleRemoteDimension="";
             latest=new Snapshot(installed,false,0,0,tick,"",0);
             return;
         }
@@ -68,6 +74,8 @@ public final class SeamSableObserver {
             }
             int bodies=0,charted=0;
             int possibleContactBlocks=0,unloadedCells=0,truncatedProbes=0;
+            AABB currentSampleImage=null;
+            String currentSampleDimension="";
             var visited=new HashSet<UUID>();
             var straddled=new HashSet<UUID>();
             String sample="";
@@ -113,8 +121,11 @@ public final class SeamSableObserver {
                         SeamShipChartBounds.Projection projection=
                             SeamShipChartBounds.project(hull,link,homeY,destY);
                         if(projection.straddles()) {
-                            if(straddled.add(id) && sample.isEmpty())
+                            if(straddled.add(id) && sample.isEmpty()) {
                                 sample=id.toString()+" "+link.target();
+                                currentSampleImage=projection.neighboringPart();
+                                currentSampleDimension=link.target();
+                            }
                             charted++;
                             // Real neighboring-world VoxelShapes: a bounded,
                             // read-only source for future Rapier image
@@ -132,6 +143,8 @@ public final class SeamSableObserver {
             lastRemoteCollisionCandidates=possibleContactBlocks;
             lastRemoteUnloadedBlocks=unloadedCells;
             lastRemoteProbesTruncated=truncatedProbes;
+            sampleRemoteImage=currentSampleImage;
+            sampleRemoteDimension=currentSampleDimension;
             latest=new Snapshot(true,true,bodies,straddled.size(),tick,sample,charted);
             if(!straddled.isEmpty() && !previouslyStraddling)
                 LOG.warn("WORLDSEAM_SABLE_STRADDLE_DETECTED: {} real ships touching two dimension charts. NO unified Rapier contact bridge is installed; do NOT claim physics continuity. sample={}",
@@ -142,6 +155,7 @@ public final class SeamSableObserver {
             problem=ex.getClass().getSimpleName()+": "+ex.getMessage();
             LOG.warn("WORLDSEAM_SABLE_READ_ONLY_PROBE_UNAVAILABLE: Sable API adapter unavailable; no changes to ships were attempted",ex);
             SeamShipResidency.clear();
+            sampleRemoteImage=null;sampleRemoteDimension="";
             latest=new Snapshot(true,false,0,0,tick,"",0);
         }
     }
