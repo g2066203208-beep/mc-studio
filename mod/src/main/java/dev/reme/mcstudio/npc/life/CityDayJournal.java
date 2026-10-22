@@ -126,12 +126,18 @@ public final class CityDayJournal {
         long startedNs=System.nanoTime();
         rec.lastSample=tick;
         rec.samples++;
-        AABB area=new AABB(rec.center).inflate(28,12,28);
-        // Bounded, loaded local entity query; missing/dead NPC is NOT silently
-        // treated as an active worker.
-        var current=level.getEntitiesOfClass(PlayerNpcEntity.class,area,
-            e->e.isAlive()&&rec.people.containsKey(e.getUUID()));
-        for(var actor:current)rec.people.get(actor.getUUID()).record(actor,tick);
+        // Resolve exactly 13 persisted entity UUIDs (O(13), not a spatial
+        // scan). A living courier may leave the 41x41 center temporarily;
+        // the journal follows their real loaded entity without force-loading.
+        var current=new ArrayList<PlayerNpcEntity>(rec.people.size());
+        for(Citizen person:rec.people.values()) {
+            var entity=level.getEntity(person.id);
+            if(entity instanceof PlayerNpcEntity actor && actor.isAlive()
+                && level.hasChunkAt(actor.blockPosition())) {
+                current.add(actor);
+                person.record(actor,tick);
+            }
+        }
         rec.accumulatedNanos+=System.nanoTime()-startedNs;
         long elapsed=tick-rec.started;
         if(elapsed>0&&elapsed%2400<SAMPLE_PERIOD){
