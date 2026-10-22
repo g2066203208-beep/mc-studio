@@ -52,6 +52,7 @@ public final class SeamGpuSectionRenderer {
     private long compilations,uploads,drawCalls,evictions;
     private int lastFrameCachedSections,lastFrameUncachedSections;
     private int lastFrameModelsVisible;
+    private int lastFrameEndStoneModels;
 
     public void changed(Section section) {
         dirty.put(section.key(),section);
@@ -171,12 +172,16 @@ public final class SeamGpuSectionRenderer {
         lastFrameCachedSections=0;
         lastFrameUncachedSections=0;
         lastFrameModelsVisible=0;
+        lastFrameEndStoneModels=0;
         var projection=RenderSystem.getProjectionMatrix();
         for(var section:visible) {
             var cached=loaded.get(section.key());
             if(cached==null) {lastFrameUncachedSections++;continue;}
             lastFrameCachedSections++;
             lastFrameModelsVisible+=section.cells().size();
+            for(var c:section.cells())
+                if(c.state().is(net.minecraft.world.level.block.Blocks.END_STONE))
+                    lastFrameEndStoneModels++;
             // The models are in local 16^3 coordinates. Translate using the
             // exact seam-mapped world position and CURRENT camera every frame.
             Matrix4f matrix=new Matrix4f(pose.last().pose()).translate(
@@ -206,6 +211,7 @@ public final class SeamGpuSectionRenderer {
     public int lastFrameCachedSections(){return lastFrameCachedSections;}
     public int lastFrameUncachedSections(){return lastFrameUncachedSections;}
     public int lastFrameModelsVisible(){return lastFrameModelsVisible;}
+    public int lastFrameEndStoneModels(){return lastFrameEndStoneModels;}
     public long uploads(){return uploads;}
     public long drawCalls(){return drawCalls;}
     public long compilations(){return compilations;}
@@ -216,5 +222,6 @@ public final class SeamGpuSectionRenderer {
         loaded.clear();
         dirty.clear();
         lastFrameCachedSections=lastFrameUncachedSections=lastFrameModelsVisible=0;
+        lastFrameEndStoneModels=0;
     }
 }
