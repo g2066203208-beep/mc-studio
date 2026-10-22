@@ -1,0 +1,31 @@
+name: RPMS Boss Visual Screenshot Audit
+on:
+  pull_request:
+    paths:
+      - 'viewer/rpms/boss*'
+      - 'viewer/rpms/tests/boss-visual-review.cjs'
+      - '.github/workflows/rpms-boss-visual-audit.yml'
+  push:
+    paths:
+      - 'viewer/rpms/boss*'
+      - 'viewer/rpms/tests/boss-visual-review.cjs'
+      - '.github/workflows/rpms-boss-visual-audit.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --prefix /tmp/rpms-review --no-audit --no-fund playwright-core@1.56.1
+      - name: Real browser screenshot audit with visible base64 snapshot for visual review
+        env:
+          NODE_PATH: /tmp/rpms-review/node_modules
+        run: |
+          python3 -m http.server 8033 --directory viewer >/tmp/rpms-review-http.log 2>&1 &
+          node viewer/rpms/tests/boss-visual-review.cjs
