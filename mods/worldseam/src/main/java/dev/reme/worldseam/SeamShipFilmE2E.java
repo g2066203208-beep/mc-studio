@@ -109,24 +109,43 @@ public final class SeamShipFilmE2E {
             cfg.setCarveNewChunks(true);
             nativeFill(server,home,-64,-47);
             nativeFill(server,nether,112,134);
-            // 3x3x2 ship of real contrasting Minecraft blocks with a visible
-            // stripe. Sable assembles these blocks using its genuine API.
+            // Genuine 9x7 Minecraft-block aircraft silhouette: tapered
+            // nose, center fuselage, swept wings, lit engine and glass
+            // canopy. Every voxel is a real world block *before* the
+            // released Sable API assembles it into ONE physical sublevel.
             var blocks=new ArrayList<BlockPos>();
             BlockPos anchor=new BlockPos(x,-57,z);
-            for(int dy=0;dy<2;dy++)for(int dx=-1;dx<=1;dx++)for(int dz=-1;dz<=1;dz++){
-                BlockPos bp=anchor.offset(dx,dy,dz);
-                home.setBlock(bp,dy==1?
-                    Blocks.LIGHT_BLUE_CONCRETE.defaultBlockState():
-                    Blocks.YELLOW_CONCRETE.defaultBlockState(),3);
+            for(int dz=-4;dz<=4;dz++)for(int dx=-3;dx<=3;dx++) {
+                boolean spine=Math.abs(dx)<=1;
+                boolean wings=Math.abs(dz)<=1&&Math.abs(dx)<=3;
+                boolean tail=Math.abs(dz-3)<=1&&Math.abs(dx)<=2;
+                boolean nose=dz<=-3&&dx==0;
+                if(!(spine||wings||tail||nose))continue;
+                BlockPos bp=anchor.offset(dx,0,dz);
+                var block=dz==4?Blocks.SEA_LANTERN:
+                    Math.abs(dx)==3?Blocks.YELLOW_CONCRETE:
+                    Blocks.LIGHT_BLUE_CONCRETE;
+                home.setBlock(bp,block.defaultBlockState(),3);
                 blocks.add(bp);
+                if(spine&&dz>=-2&&dz<=2) {
+                    BlockPos top=bp.above();
+                    home.setBlock(top,Math.abs(dx)==0&&dz==-1?
+                        Blocks.LIGHT_BLUE_STAINED_GLASS.defaultBlockState():
+                        Blocks.IRON_BLOCK.defaultBlockState(),3);
+                    blocks.add(top);
+                }
             }
+            // Distinct glass canopy, third voxel layer.
+            BlockPos canopy=anchor.offset(0,2,-1);
+            home.setBlock(canopy,Blocks.LIGHT_BLUE_STAINED_GLASS.defaultBlockState(),3);
+            blocks.add(canopy);
             Class<?> bounds=Class.forName(
                 "dev.ryanhcode.sable.companion.math.BoundingBox3ic");
             Class<?> box=Class.forName(
                 "dev.ryanhcode.sable.companion.math.BoundingBox3i");
             Object region=box.getConstructor(
                 int.class,int.class,int.class,int.class,int.class,int.class)
-                .newInstance(x-1,-57,z-1,x+1,-56,z+1);
+                .newInstance(x-3,-57,z-4,x+3,-55,z+4);
             Class<?> assembler=Class.forName(
                 "dev.ryanhcode.sable.api.SubLevelAssemblyHelper");
             ship=assembler.getMethod("assembleBlocks",ServerLevel.class,
