@@ -32,9 +32,9 @@ import java.util.Map;
  * model draws; it is not yet a framebuffer/stencil portal or fluid renderer.
  */
 public final class SeamNativeGeometryClient {
-    private record Cell(int x,int y,int z,BlockState state,int light) {}
+    static record Cell(int x,int y,int z,BlockState state,int light) {}
     /** Immutable native 16^3 segment; clip ONCE before drawing its models. */
-    private record Slice(int sectionY,List<Cell> cells,AABB bounds) {}
+    static record Slice(int cx,int cz,int sectionY,List<Cell> cells,AABB bounds) {}
     private static final double NEAR_PLANE_RENDER_RANGE = 80.0;
     private static int lastVisibleSlices;
     private static int lastCulledSlices;
@@ -49,6 +49,7 @@ public final class SeamNativeGeometryClient {
     private static final SeamRenderSamples REBUILD_CPU_SAMPLES = new SeamRenderSamples(120);
     private static final SeamRenderBudget DRAW_BUDGET = new SeamRenderBudget();
     private static final SeamRenderBuffers OWNED_BUFFERS = new SeamRenderBuffers();
+    private static final SeamGpuSectionMeshes GPU_SECTIONS=new SeamGpuSectionMeshes();
     private static volatile long lastFrameDrawCpuNanos;
     private static ClientLevel queuedRemote;
     private static SeamGraph.Link queuedLink;
@@ -162,7 +163,7 @@ public final class SeamNativeGeometryClient {
         if(!cells.isEmpty()) {
             int firstY=SeamSectionLayout.mappedSectionMinY(
                 sy*16,sourceBoundary,targetBoundary);
-            replacement=new Slice(sy,List.copyOf(cells),
+            replacement=new Slice(cx,cz,sy,List.copyOf(cells),
                 new AABB(ox,firstY,oz,ox+16,firstY+16,oz+16));
         }
         publishSection(packed,sy,replacement);
@@ -170,6 +171,9 @@ public final class SeamNativeGeometryClient {
 
     /** Atomic replacement of one completed slice; keep all other slices. */
     private static void publishSection(long key,int sy,Slice replacement) {
+        // GPU mesh is tied to a particular native section revision.
+        GPU_SECTIONS.invalidate(replacement,SeamGeometryQueue.x(key),
+            SeamGeometryQueue.z(key),sy);
         var old=columns.get(key);
         var next=new ArrayList<Slice>(old==null?1:old.size()+1);
         if(old!=null) {
@@ -319,6 +323,10 @@ public final class SeamNativeGeometryClient {
             double dz=(box.minZ+box.maxZ)*0.5-camera.z;
             return dx*dx+dy*dy+dz*dz;
         }));
+        // Process bounded world-aware section model tessellation while
+        // the current native chunks are still resident and visible.
+        GPU_SECTIONS.beginFrame();
+        GPU_SECTIONS.bakeVisible(queuedRemote,visible,sourceBoundary,targetBoundary);
         int frameLimit=DRAW_BUDGET.limit();
         int perSlice=Math.max(8,frameLimit/Math.max(1,visible.size()));
         int longest=0;
@@ -328,6 +336,11 @@ public final class SeamNativeGeometryClient {
         for(int pass=0;pass*perSlice<longest;pass++) {
             int startIndex=pass*perSlice;
             for(var slice:visible) {
+                if(GPU_SECTIONS.has(slice)) {
+                    if(pass==0)lastFrameEndStone+=GPU_SECTIONS.draw(slice,
+                        pose,camera,sourceBoundary,targetBoundary);
+                    continue;
+                }
                 List<Cell> cells=slice.cells();
                 int endIndex=Math.min(cells.size(),startIndex+perSlice);
                 for(int at=startIndex;at<endIndex;at++) {
@@ -376,6 +389,10 @@ public final class SeamNativeGeometryClient {
     public static int lastFrameDrawn() { return lastFrameDrawn; }
     public static int columnCount() { return columns.size(); }
     public static int visibleSlices() { return lastVisibleSlices; }
+    public static int gpuUploadedSections() { return GPU_SECTIONS.count(); }
+    public static long gpuDrawnSections() { return GPU_SECTIONS.lastGpuDrawn(); }
+    public static long gpuDrawnCellEquivalent() { return GPU_SECTIONS.lastGpuCells(); }
+    public static double p95GpuMeshBakeMs() { return GPU_SECTIONS.p95BakeMs(); }
     public static int culledSlices() { return lastCulledSlices; }
     public static int pendingRebuilds() { return BUILD_QUEUE.size(); }
     public static int lastTickRebuildSlices() { return lastTickRebuildSlices; }
@@ -411,6 +428,7 @@ public final class SeamNativeGeometryClient {
         DRAW_CPU_SAMPLES.clear();
         REBUILD_CPU_SAMPLES.clear();
         OWNED_BUFFERS.release();
+        GPU_SECTIONS.clear();
         DRAW_BUDGET.reset();
         lastFrameDrawCpuNanos=0;
     }
