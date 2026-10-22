@@ -8,6 +8,7 @@ on:
   push:
     branches:
       - feat/npc-live-store-security-e2e-v071
+      - feat/npc-real-24k-city-film-v072
   pull_request:
     branches:
       - feat/npc-real-city-district-v070
@@ -29,7 +30,7 @@ jobs:
         run: |
           grep -Fxq 'minecraft_version=1.21.1' mod/gradle.properties
           grep -Fxq 'neo_version=21.1.262' mod/gradle.properties
-          grep -Fxq 'mod_version=0.7.1-dev' mod/gradle.properties
+          grep -Fxq 'mod_version=0.7.2-dev' mod/gradle.properties
       - name: Generate isolated native Minecraft GameTest world (NOT user world)
         run: python3 scripts/prepare-gametest-arena.py
       - name: Run ALL server-native NeoForge tests including the actual 24,000 tick store workday
@@ -51,6 +52,8 @@ jobs:
           grep -F 'REME_NPC_STORY stage=jail_reached' npc-real-store-crime-gametest.log
           grep -F 'REME_NPC_PHYSICAL_JAIL_WALK ticks=210' npc-real-store-crime-gametest.log
           grep -F 'REME_NPC_REAL_BED_DAYSOAK ticks=24000' npc-real-store-crime-gametest.log
+          grep -F 'REME_NPC_CITY_DAY_FINISH ticks=24000' npc-real-store-crime-gametest.log
+          grep -F 'REME_NPC_CITY_24K_GAMETEST ' npc-real-store-crime-gametest.log
           grep -E 'All [0-9]+ required tests passed' npc-real-store-crime-gametest.log
       - name: Always preserve unmodified real Minecraft log and save evidence
         if: always()
