@@ -176,7 +176,10 @@ public final class NeighborhoodMarket {
         int stories = CivicSocial.exchangeNews(guest, host, tick);
         guest.changeNeeds(0, 0, 8);
         guest.setNextSocialTick(tick + 2400L);
-        guest.setAction("met neighbors at a weekly market; shared " + stories + " local stories");
+        boolean played = guest.level() instanceof ServerLevel live
+            && TownEvents.playFairNote(guest, host, live);
+        guest.setAction("met neighbors at a weekly market; shared " + stories
+            + " local stories" + (played ? "; played nearby real note block" : ""));
         host.setAction("welcomed a resident at the weekly town market");
         return true;
     }
