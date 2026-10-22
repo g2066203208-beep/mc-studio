@@ -73,10 +73,13 @@ public final class ShopCounter {
      * 36-slot NBT backpack. Both bags are checked and committed together.
      * Nothing goes via FakePlayer inventory, and no item or currency is minted.
      */
+    public static boolean scheduledAt(long dayTime, int shift) {
+        long clock = Math.floorMod(dayTime + shift, 24000L);
+        return clock < 11000L;
+    }
+
     public static boolean onShift(PlayerNpcEntity shop) {
-        long clock = Math.floorMod(shop.level().getDayTime()
-            + shop.dailyShiftTicks(), 24000L);
-        return clock >= 0L && clock < 11000L;
+        return scheduledAt(shop.level().getDayTime(), shop.dailyShiftTicks());
     }
 
     public static boolean openForResidentSales(PlayerNpcEntity shop) {
