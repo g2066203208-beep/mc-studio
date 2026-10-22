@@ -60,6 +60,9 @@ public final class SeamClientWorldPool {
     private static int constructedCount;
     private static long lastReadySent = Long.MIN_VALUE / 2;
     private static int receivedChunkCount;
+    private static int remoteViewDistance;
+    private static int lastActiveViewDistance;
+    private static int nativeHandoffCount;
 
     private SeamClientWorldPool() {}
 
@@ -104,8 +107,10 @@ public final class SeamClientWorldPool {
                 );
                 ClientLevel.ClientLevelData data =
                     new ClientLevel.ClientLevelData(Difficulty.NORMAL, false, false);
+                int viewDistance=SeamNativeViewDistance.normalize(
+                    mc.options.renderDistance().get());
                 secondary = new ClientLevel(
-                    mc.getConnection(), data, dimension, type, 3,
+                    mc.getConnection(), data, dimension, type, viewDistance,
                     mc.level.getServerSimulationDistance(), mc::getProfiler,
                     renderer, mc.level.isDebug(),
                     0L /* biome zoom seed must be supplied by server later */
@@ -122,10 +127,12 @@ public final class SeamClientWorldPool {
             peakDedicatedActive=Math.max(peakDedicatedActive,OWNED_RENDERERS.size());
             remoteRenderer = renderer;
             remote = secondary;
+            remoteViewDistance=SeamNativeViewDistance.normalize(
+                mc.options.renderDistance().get());
             failed = false;
             lastReadySent = Long.MIN_VALUE / 2;
             constructedCount++;
-            LOG.info("WorldSeam prewarmed real secondary ClientLevel {} from {}", to, from);
+            LOG.info("WorldSeam prewarmed real secondary ClientLevel {} from {} with native client viewDistance={} (seam prefetch remains 5x5)",to,from,remoteViewDistance);
         } catch (Throwable error) {
             // Do not change active world or disable the vanilla fallback.
             failed = true;
@@ -255,6 +262,17 @@ public final class SeamClientWorldPool {
                 instruction.to());
             return false;
         }
+        // Promote the prewarmed ClientLevel into a FULL native Minecraft
+        // world. A fixed viewDistance=3 truncates the vanilla 8/12/16+
+        // render-distance chunk stream after teleport, causing the
+        // user's "every few chunks load again" symptom.
+        int nativeDistance=SeamNativeViewDistance.normalize(
+            mc.options.renderDistance().get());
+        remote.getChunkSource().updateViewRadius(nativeDistance);
+        remote.getChunkSource().updateViewCenter(
+            Math.floorDiv((int)Math.floor(instruction.x()),16),
+            Math.floorDiv((int)Math.floor(instruction.z()),16)
+        );
         ClientLevel oldWorld = mc.level;
         LevelRenderer oldRenderer = mc.levelRenderer;
         ClientLevel newWorld = remote;
@@ -282,10 +300,18 @@ public final class SeamClientWorldPool {
         // Retain the source world as the secondary world for reverse crossings.
         remote = oldWorld;
         remoteRenderer = oldRenderer;
+        // Keep the old world cache intact for reverse handoff, but do not
+        // redirect vanilla active-world packets into a 5x5-only storage map.
+        remoteViewDistance=nativeDistance;
+        lastActiveViewDistance=nativeDistance;
+        nativeHandoffCount++;
         source = instruction.to();
         target = instruction.from();
         failed = false;
         lastReadySent = Long.MIN_VALUE / 2;
+        LOG.info("WORLDSEAM_NATIVE_HANDOFF: activeClientViewRadius={}, nativeChunks={}, previousViewChunks={}, handoffs={}",
+            nativeDistance,newWorld.getChunkSource().getLoadedChunksCount(),
+            oldWorld.getChunkSource().getLoadedChunksCount(),nativeHandoffCount);
         LOG.info("WorldSeam direct local ClientLevel switch {} -> {} at {} {} {}",
             instruction.from(), instruction.to(),
             instruction.x(),instruction.y(),instruction.z());
@@ -309,6 +335,9 @@ public final class SeamClientWorldPool {
         return "TARGET READY CONTEXT "+target;
     }
     public static int receivedChunks() { return receivedChunkCount; }
+    public static int nativeViewDistance() { return remoteViewDistance; }
+    public static int lastActiveViewDistance() { return lastActiveViewDistance; }
+    public static int nativeHandoffCount() { return nativeHandoffCount; }
     public static int remoteWindowChunks() {
         Minecraft mc=Minecraft.getInstance();
         if(remote==null || mc.player==null || mc.level==null)return 0;
@@ -345,6 +374,15 @@ public final class SeamClientWorldPool {
         if (mc.level == null || (!source.isEmpty() &&
             !mc.level.dimension().location().toString().equals(source))) clear();
         else {
+            // Vanilla's radius setting may change without a dimension
+            // respawn. Keep the SECOND ClientChunkCache's storage allocation
+            // aligned, so the next no-respawn handoff has sufficient slots.
+            int desired=SeamNativeViewDistance.normalize(
+                mc.options.renderDistance().get());
+            if(remote!=null && desired!=remoteViewDistance) {
+                remote.getChunkSource().updateViewRadius(desired);
+                remoteViewDistance=desired;
+            }
             maybeReportReady(mc);
             if (remoteRenderer != null && remoteRenderer != mc.levelRenderer)
                 remoteRenderer.tick();
@@ -400,6 +438,7 @@ public final class SeamClientWorldPool {
         target = "";
         failed = false;
         receivedChunkCount=0;
+        remoteViewDistance=0;
         lastReadySent = Long.MIN_VALUE / 2;
         SeamNativeGeometryClient.reset();
     }
