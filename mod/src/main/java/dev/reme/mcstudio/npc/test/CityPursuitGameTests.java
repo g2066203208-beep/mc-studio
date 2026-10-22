@@ -5,6 +5,8 @@ import dev.reme.mcstudio.npc.PlayerNpcEntity;
 import dev.reme.mcstudio.npc.life.CityDistrictDemo;
 import dev.reme.mcstudio.npc.life.ConvenienceStoreCrime;
 import dev.reme.mcstudio.npc.life.PublicSafety;
+import dev.reme.mcstudio.npc.life.CityJailGate;
+import dev.reme.mcstudio.npc.life.CityJailRoute;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -53,8 +55,12 @@ public final class CityPursuitGameTests {
         PlayerNpcEntity officer=people.stream().filter(n->
             n.getTags().contains("reme_city_guard")).findAny().orElseThrow();
         BlockPos cell=center.offset(-13,1,15);
-        if(!PublicSafety.holdingSpot(level,cell))
-            throw new AssertionError("Actual built police jail isn't a legal walkable holding cell");
+        if(!PublicSafety.holdingSpot(level,cell)
+            || !level.getBlockState(center.offset(-5,1,12)).isAir()
+            || !level.getBlockState(center.offset(-5,2,12)).isAir()
+            || !CityJailGate.isGate(level,cell))
+            throw new AssertionError("Police station has blocked public entrance,"
+                + " no real holding spot, or no physical iron cell door");
         long tick=level.getGameTime();
         if(!ConvenienceStoreCrime.takeUnpaidFood(thief,shop,level,tick))
             throw new AssertionError("Demo thrift shopper cannot ACTUALLY steal stock from living clerk");
@@ -76,8 +82,10 @@ public final class CityPursuitGameTests {
                 if(escape>=4) walkedOut.set(true);
                 if(thief.shopCrimeReported()||officer.policeSuspect()!=null)reported.set(true);
                 if(thief.isDetained(level.getGameTime())||thief.detentionJail()!=null)caught.set(true);
-                if(caught.get()&&thief.distanceToSqr(Vec3.atCenterOf(cell))<=2.5
-                    &&officer.escortedPrisoner()==null)arrived.set(true);
+                if(caught.get()
+                    && CityJailRoute.actuallyInCell(thief,cell)
+                    && !CityJailGate.isOpen(level,cell)
+                    && officer.escortedPrisoner()==null)arrived.set(true);
                 if(at%120==0 || arrived.get())System.out.println(
                     "REME_NPC_UNSTAGED_CITY_PURSUIT age="+at
                     +" thief="+thief.blockPosition().toShortString()
@@ -85,7 +93,8 @@ public final class CityPursuitGameTests {
                     +" distanceFromRealShop="+String.format(java.util.Locale.ROOT,"%.2f",escape)
                     +" reported="+reported.get()+" arrested="+caught.get()
                     +" cellEntered="+arrived.get()
-                    +" lastAction="+thief.lastAction());
+                    +" lastAction="+thief.lastAction()
+                    +" gateOpen="+CityJailGate.isOpen(level,cell));
             });
         }
         helper.runAfterDelay(1380,()->{
@@ -101,7 +110,7 @@ public final class CityPursuitGameTests {
                 System.out.println("REME_NPC_UNSTAGED_CITY_FULL_CHAIN"
                     +" merchandiseMoved=true footEscape=true complaint=true"
                     +" physicalPursuit=true closeArrest=true guardEscort=true"
-                    +" jailEntered=true maxShopDistanceHundredths="+maxDist.get()
+                    +" jailEntered=true ironDoorLocked=true maxShopDistanceHundredths="+maxDist.get()
                     +" noPostTheftPositionTeleport=true");
                 helper.succeed();
             }
