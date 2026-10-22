@@ -203,13 +203,16 @@ public final class SeamVisualE2E {
                 // actually visible region to measure coherent mesh coverage.
                 double coverage=frustumCandidates<=0?0.0:
                     100.0*cells/frustumCandidates;
-                LOG.info("WORLDSEAM_E2E_GPU_SETTLED: elapsedTicks={}, nativeGpuSections={}, gpuDrawnCells={}, cachedSurfaceCells={}, frustumVisibleSurfaceCells={}, frameCoveragePct={}, gpuBakeP95Ms={}, fluidSurfaceCandidates={}, gpuDrawnFluidCells={}",
+                LOG.info("WORLDSEAM_E2E_GPU_SETTLED: elapsedTicks={}, nativeGpuSections={}, gpuDrawnCells={}, cachedSurfaceCells={}, frustumVisibleSurfaceCells={}, frameCoveragePct={}, gpuBakeP95Ms={}, fluidSurfaceCandidates={}, gpuDrawnFluidCells={}, gpuRenderTypeSetups={}",
                     now-startTick,meshes,cells,candidates,frustumCandidates,
                     String.format(java.util.Locale.ROOT,"%.1f",coverage),
                     String.format(java.util.Locale.ROOT,"%.3f",
                         SeamNativeGeometryClient.p95GpuMeshBakeMs()),
                     SeamNativeGeometryClient.countNativeFluidCells(),
-                    SeamNativeGeometryClient.gpuDrawnFluidCells());
+                    SeamNativeGeometryClient.gpuDrawnFluidCells(),
+                    SeamNativeGeometryClient.gpuRenderTypeSetups());
+                if(SeamNativeGeometryClient.gpuRenderTypeSetups()>4)
+                    LOG.error("WORLDSEAM_E2E_FAIL_GPU_SHADER_CHURN: >4 material layer setup calls in one GPU frame");
                 if(SeamNativeGeometryClient.countNativeFluidCells()==0)
                     LOG.error("WORLDSEAM_E2E_FAIL_NATIVE_FLUID: known real Nether lava source has zero remote fluid geometry");
                 // A few hundred individual remote models passing old tests
