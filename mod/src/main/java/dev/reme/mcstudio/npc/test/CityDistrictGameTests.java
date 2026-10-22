@@ -106,7 +106,8 @@ public final class CityDistrictGameTests {
             || !level.getBlockState(center.offset(-4,2,-10)).is(Blocks.BELL)
             || !level.getBlockState(center.offset(-8,1,-11)).isAir()
             || !dev.reme.mcstudio.npc.life.PublicSafety.holdingSpot(level, inmateSpot)
-            || !level.getBlockState(center.offset(-12,1,16)).isAir())
+            || !dev.reme.mcstudio.npc.life.CityJailGate.isGate(level, inmateSpot)
+            || dev.reme.mcstudio.npc.life.CityJailGate.isOpen(level, inmateSpot))
             throw new AssertionError("City lacks actual shops, 13 safe citizens, cashless shoplifter,"
                 + " physically accessible jail or genuine shop alarm: merchants=" + merchants
                 + " guards=" + guards + " payingResidents=" + customers
