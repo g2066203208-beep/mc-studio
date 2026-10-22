@@ -12,6 +12,7 @@
     "SeamMinecraftAccess",
     "SeamPacketListenerAccess",
     "SeamClientPlayerAccess",
+    "SeamClientBlockUpdateMixin",
     "SeamBufferSourceAccess",
     "SeamCreateWorldMixin"
   ],
