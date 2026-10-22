@@ -53,6 +53,8 @@ let engine=null,root=null,ready=false,paused=false,accum=0,last=0,hidePhysics=fa
 let blueprintEpoch=0,officialCount=0;
 const jarModels=new MinecraftJarModels();
 const assetCache=new Map();
+// Official MC BlockStates must be resolved per orientation, not id alone.
+const assetKey=(id,axis,facing)=>`${id}|axis=${axis||'x'}|facing=${facing||'east'}`;
 function block(parent,shape,pos,scale,kind,legId=null){
  const mesh=new THREE.Mesh(hullGeom,mats[kind]);
  mesh.position.set(...pos);mesh.scale.set(...scale);
@@ -80,11 +82,11 @@ function officialModule(parent,id,pos,{scale=1,axis='x',facing='east',legId=null
  frame.add(old);
  modules.push({id,frame,old,axis,facing,legId});
  if(rotor)spinning.push({group:frame,axis});
- if(assetCache.has(id))swapOfficial(frame,id,legId);
+ if(assetCache.has(assetKey(id,axis,facing)))swapOfficial(frame,id,axis,facing,legId);
  return frame;
 }
-function swapOfficial(frame,id,legId){
- const template=assetCache.get(id);if(!template)return false;
+function swapOfficial(frame,id,axis,facing,legId){
+ const template=assetCache.get(assetKey(id,axis,facing));if(!template)return false;
  frame.clear();
  const clone=template.clone(true);
  clone.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;if(legId)o.userData.legId=legId;}});
@@ -195,7 +197,7 @@ function createRig(){
 }
 function applyAssetCache(){
  let replaced=0;
- for(const m of modules)if(swapOfficial(m.frame,m.id,m.legId))replaced++;
+ for(const m of modules)if(swapOfficial(m.frame,m.id,m.axis,m.facing,m.legId))replaced++;
  officialCount=replaced;
  $('modelSource').textContent=assetCache.size
   ?'官方 JAR 静态模型已加载：'+replaced+'/'+modules.length+' 个模块用官方 JSON/PNG 渲染；齿轮外观并不等同于完整 Create 原版动力网络。'
@@ -209,11 +211,11 @@ async function autoloadAssets(){
    onState:state=>{if(!assetCache.size)$('modelSource').textContent=state.message;},
    onFile:async file=>{
     await jarModels.addFile(file,window.JSZip);
-    const idList=[...new Set(modules.map(x=>x.id))];
-    for(const id of idList){
-     const item=modules.find(m=>m.id===id);
-     const result=await jarModels.render({id,axis:item.axis,facing:item.facing,pos:[0,0,0]});
-     if(result.group&&result.status==='authentic')assetCache.set(id,result.group);
+    const variants=[...new Map(modules.map(m=>[assetKey(m.id,m.axis,m.facing),
+     {id:m.id,axis:m.axis,facing:m.facing}])).entries()];
+    for(const [key,variant] of variants){
+     const result=await jarModels.render({...variant,pos:[0,0,0]});
+     if(result.group&&result.status==='authentic')assetCache.set(key,result.group);
     }
     applyAssetCache();
    },
@@ -389,7 +391,8 @@ window.__BOSS_API__={
  voxelAudit:auditVoxelOccupancy,
  removeLeg,removeAllFeet:()=>{$('removeAll').click()},
  reset:createRig,physicsBodies:()=>visualBodies.length,visibleMeshes:()=>{let n=0;root?.traverse(o=>{if(o.isMesh&&o.visible)n++});return n;},
- getAssetStatus:()=>({officialTypes:[...assetCache.keys()],officialMeshes:officialCount,components:modules.length}),
+ getAssetStatus:()=>({officialTypes:[...new Set([...assetCache.keys()].map(k=>k.split('|')[0]))],
+   officialVariants:[...assetCache.keys()],officialMeshes:officialCount,components:modules.length}),
  render:syncVisual
 };
 try{
