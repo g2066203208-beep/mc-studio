@@ -338,6 +338,13 @@ public final class CityDistrictDemo {
             if (owner != null) npc.setOwner(owner);
             npc.setCustomName(Component.literal(names[i]));
             npc.setCustomNameVisible(true);
+            // Identity-stable native entity tags survive real navigation.
+            // Do NOT infer a moving citizen's identity from old spawn
+            // coordinates in the Xvfb client screenshot workflow.
+            if (i == 0) npc.addTag("reme_city_clerk");
+            if (i == 3) npc.addTag("reme_city_guard");
+            if (i == 10) npc.addTag("reme_city_park");
+            if (i == 12) npc.addTag("reme_city_shoplifter");
             npc.setCharacter(i == 12
                 ? new CharacterProfile(8, 30, 50, 25)
                 : CharacterProfile.fromSeed(i+234));
