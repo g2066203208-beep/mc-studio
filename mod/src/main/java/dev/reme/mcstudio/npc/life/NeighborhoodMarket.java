@@ -123,9 +123,7 @@ public final class NeighborhoodMarket {
      * consistency; the resident's built-in nextSocialTick prevents spam.
      */
     public static boolean tickFair(PlayerNpcEntity npc, ServerLevel level, long tick) {
-        long day = Math.floorDiv(level.getDayTime(), 24000L);
-        long clock = Math.floorMod(level.getDayTime() + npc.dailyShiftTicks(), 24000L);
-        if (Math.floorMod(day, 7L) != 2L || clock < 9000 || clock > 11000
+        if (!fairWindow(level.getDayTime(), npc.dailyShiftTicks())
             || npc.mode() != PlayerNpcEntity.Mode.LIVE
             || npc.intent() != LivingPlanner.Intent.SOCIALIZE
             || npc.isSleeping() || npc.isDetained(tick) || npc.isAfraid(tick)
@@ -152,14 +150,37 @@ public final class NeighborhoodMarket {
             }
             return false;
         }
-        // This is observable social interaction; the old rumor propagation
-        // retains first-hand vs. hearsay and never fabricates eyewitnesses.
-        npc.rememberGreeting(host, tick);
-        host.rememberGreeting(npc, tick);
-        int stories = CivicSocial.exchangeNews(npc, host, tick);
-        npc.changeNeeds(0, 0, 8);
-        npc.setNextSocialTick(tick + 2400L);
-        npc.setAction("met neighbors at a weekly market; shared " + stories + " local stories");
+        return greetAtFair(npc, host, tick);
+    }
+
+    /** Vanilla day zero starts at 06:00; every seventh day hosts a fair. */
+    public static boolean fairWindow(long dayTime, int shift) {
+        long day = Math.floorDiv(dayTime, 24000L);
+        long clock = Math.floorMod(dayTime + shift, 24000L);
+        return Math.floorMod(day, 7L) == 2L && clock >= 9000 && clock <= 11000;
+    }
+
+    /** Actual local social encounter; no remote news injection. */
+    public static boolean greetAtFair(PlayerNpcEntity guest, PlayerNpcEntity host, long tick) {
+        if (guest == host || !guest.isAlive() || !host.isAlive()
+            || host.profession() != PlayerNpcEntity.Profession.SHOPKEEPER
+            || guest.mode() != PlayerNpcEntity.Mode.LIVE
+            || host.mode() != PlayerNpcEntity.Mode.LIVE
+            || guest.isAfraid(tick) || host.isAfraid(tick)
+            || guest.isDetained(tick) || host.isDetained(tick)
+            || guest.nextSocialTick() > tick
+            || guest.distanceToSqr(host) > 12.0
+            || guest.hostileTo(host)
+            || !guest.identity().region().equals(host.identity().region()))
+            return false;
+        // Real first-hand greeting + rumor exchange. Secondhand rumors
+        // stay marked hearsay and never become fabricated eyewitness proof.
+        guest.rememberGreeting(host, tick);
+        host.rememberGreeting(guest, tick);
+        int stories = CivicSocial.exchangeNews(guest, host, tick);
+        guest.changeNeeds(0, 0, 8);
+        guest.setNextSocialTick(tick + 2400L);
+        guest.setAction("met neighbors at a weekly market; shared " + stories + " local stories");
         host.setAction("welcomed a resident at the weekly town market");
         return true;
     }
