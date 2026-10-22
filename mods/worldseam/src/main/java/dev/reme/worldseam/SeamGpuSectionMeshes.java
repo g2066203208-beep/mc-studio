@@ -1,6 +1,8 @@
 package dev.reme.worldseam;
 
 import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.logging.LogUtils;
+import org.slf4j.Logger;
 import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.ByteBufferBuilder;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
@@ -41,6 +43,7 @@ import java.util.Map;
  * experimental path cannot claim full world, sky, shader or Voxy support.
  */
 public final class SeamGpuSectionMeshes {
+    private static final Logger LOG=LogUtils.getLogger();
     // Covers the entire typical 5x5 visible section ring without
     // repeatedly evicting an on-screen section, unlike the old 128 cap.
     private static final int MAX_MESHES=192;
@@ -90,6 +93,7 @@ public final class SeamGpuSectionMeshes {
     private final SeamRenderSamples bakeSamples=new SeamRenderSamples(120);
     private long uploaded;
     private long evicted;
+    private long failedSlices;
     private long lastGpuDrawn;
     private long lastGpuCells;
     private long lastGpuFluidCells;
@@ -215,10 +219,24 @@ public final class SeamGpuSectionMeshes {
                 finish(job);
                 building=null;
             }
-        } catch(RuntimeException | Error problem) {
+        } catch(RuntimeException problem) {
+            // Model and fluid renderers supplied by other Mods may require a
+            // different render context. Never let ONE unsupported remote
+            // BakedModel kill Minecraft; keep its section in the bounded
+            // legacy fallback renderer until that chunk is changed.
+            Key key=new Key(job.slice.cx(),job.slice.cz(),job.slice.sectionY());
+            unsupported.put(key,job.slice);
+            failedSlices++;
+            LOG.warn("WORLDSEAM_GPU_SECTION_FALLBACK: {} {} {}: {}",
+                key.cx(),key.cz(),key.sy(),problem.toString());
             job.close();
             building=null;
-            throw problem;
+        } catch(Error fatal) {
+            // OOME / linkage and other fatal VM errors are not ordinary
+            // custom-model rendering incompatibilities. Do not conceal.
+            job.close();
+            building=null;
+            throw fatal;
         } finally {
             bakeSamples.add(Math.max(0,System.nanoTime()-started));
         }
@@ -349,6 +367,7 @@ public final class SeamGpuSectionMeshes {
     public int count() {return mesh.size();}
     public long uploaded() {return uploaded;}
     public long evicted() {return evicted;}
+    public long failedSlices(){return failedSlices;}
     public long lastGpuDrawn() {return lastGpuDrawn;}
     public long lastGpuCells() {return lastGpuCells;}
     public long lastGpuFluidCells() {return lastGpuFluidCells;}
