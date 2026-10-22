@@ -50,9 +50,18 @@ public final class SeamArrival {
         for(int cx=minCx;cx<=maxCx;cx++)
             for(int cz=minCz;cz<=maxCz;cz++)
                 if(!level.hasChunk(cx,cz))return false;
-        // Query Minecraft's actual native VoxelShape solver. The null entity
-        // prevents the source-world player from colliding with themself.
-        return level.noCollision((Entity)null,body);
+        // Check the authoritative native block VoxelShape solver, not
+        // unrelated entities. noCollision(null, box) CAN pick up this very
+        // same player still alive on source world during pre-handoff checks,
+        // falsely blocking every perfectly clear cross-seam passage.
+        // Entity-vs-entity resolution is handled independently by Minecraft.
+        int minX=(int)Math.floor(body.minX),maxX=(int)Math.ceil(body.maxX)-1;
+        int minZ=(int)Math.floor(body.minZ),maxZ=(int)Math.ceil(body.maxZ)-1;
+        int y=(int)Math.floor(body.minY);
+        if(!level.getWorldBorder().isWithinBounds(new BlockPos(minX,y,minZ)) ||
+           !level.getWorldBorder().isWithinBounds(new BlockPos(maxX,y,maxZ)))
+            return false;
+        return level.noBlockCollision((Entity)null,body);
     }
 
     public static boolean hasClearance(ServerLevel level, BlockPos feet, Entity entity) {
