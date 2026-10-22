@@ -349,7 +349,11 @@ public final class CityDistrictDemo {
                 npc.backpack().addItem(new ItemStack(Items.CARROT, 18));
                 npc.backpack().addItem(new ItemStack(Items.BREAD, 2));
             } else if (jobs[i] == PlayerNpcEntity.Profession.RESIDENT) {
-                npc.backpack().addItem(new ItemStack(Items.EMERALD, 3));
+                // 12th index is a low-honesty, cashless local. Honest
+                // customers get actual money and pay normally. No stolen
+                // merchandise is inserted here: crime requires real theft.
+                if (i != 12)
+                    npc.backpack().addItem(new ItemStack(Items.EMERALD, 3));
                 npc.changeNeeds(-52,0,0);
             } else npc.backpack().addItem(new ItemStack(Items.BREAD,3));
             if (level.addFreshEntity(npc)) count++;
