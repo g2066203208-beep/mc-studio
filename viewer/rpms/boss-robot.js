@@ -10,7 +10,7 @@ import {loadOfficialModelArchives} from './official-autoload.mjs';
 const $=id=>document.getElementById(id);
 const scene=new THREE.Scene();scene.background=new THREE.Color('#192935');scene.fog=new THREE.Fog('#192935',31,80);
 const camera=new THREE.PerspectiveCamera(40,1,.05,140);
-camera.position.set(9.4,7.9,11.7); // closer viewport without changing any Minecraft voxel dimensions
+camera.position.set(9.4,7.9,11.7); // larger first-frame view of gears, swivel joints and six genuine voxel legs
 const renderer=new THREE.WebGLRenderer({canvas:$('bossCanvas'),antialias:true,powerPreference:'high-performance'});
 renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,1.8));
 renderer.outputColorSpace=THREE.SRGBColorSpace;
@@ -53,7 +53,7 @@ let engine=null,root=null,ready=false,paused=false,accum=0,last=0,hidePhysics=fa
 let blueprintEpoch=0,officialCount=0;
 const jarModels=new MinecraftJarModels();
 const assetCache=new Map();
-// Official MC blockstate orientation is a part of the mesh identity.
+// Official MC BlockStates must be resolved per orientation, not id alone.
 const assetKey=(id,axis,facing)=>`${id}|axis=${axis||'x'}|facing=${facing||'east'}`;
 function block(parent,shape,pos,scale,kind,legId=null){
  const mesh=new THREE.Mesh(hullGeom,mats[kind]);
@@ -160,6 +160,21 @@ function syncVisual(){
   chip.className=item.connected?'':'off';
   return chip;
  }));
+ // This is measured REAL PHYSICS feedback, not a pre-rendered gait strip.
+ $('gaitLegs').replaceChildren(...s.legAngles.map(j=>{
+  const chip=document.createElement('span');
+  const phase=j.detached?'detached':j.gaitPhase||'stand';
+  chip.className='gait-leg gait-'+phase;
+  chip.textContent=j.id+' '+({stance:'支撑',swing:'抬腿',stand:'站立',detached:'断裂'}[phase]||phase)
+    +' · 髋'+Math.round(j.hip*180/Math.PI)+'° / 膝'+Math.round(j.knee*180/Math.PI)+'°';
+  chip.dataset.phase=phase;
+  return chip;
+ }));
+ $('gaitCycle').textContent=s.mode==='stand'?'站立：6 脚承载中':
+  s.mode==='relax'?'动力断开：关节不再提供主动转矩':
+  '步态相位 '+(s.gait.cycle%1*100).toFixed(0)+'% · '
+  +s.gait.stance+' 支撑 / '+s.gait.swing+' 摆动 · '
+  +'实际纵向位移 '+s.position.z.toFixed(3)+' 格';
  $('bodyHeight').textContent=s.bodyBottom.toFixed(2)+' 格';
  $('jointNum').textContent=s.rigidBodies+' / '+s.joints;
  $('feetCount').textContent=s.feet+' / 6';

@@ -14,12 +14,15 @@ const assert=require('node:assert/strict');
    const t=window.__BOSS_API__.getAssetStatus().officialTypes;
    return t.includes('simulated:swivel_bearing')&&t.includes('create:brass_casing')&&t.includes('create:industrial_iron_block');
   },null,{timeout:120000});
-  const variants=await page.evaluate(()=>window.__BOSS_API__.getAssetStatus().officialVariants);
-  assert.ok(variants.includes('simulated:swivel_bearing|axis=x|facing=east'),
-    'East original Simulated blockstate model missing');
-  assert.ok(variants.includes('simulated:swivel_bearing|axis=x|facing=west'),
-    'West bearing must NOT reuse east original Minecraft model');
-  console.log('BOSS_REAL_ORIGINAL_BEARING_FACINGS',JSON.stringify(variants));
+  // One official resource ID can have MULTIPLE original Minecraft
+  // blockstates. In particular left/right swivels face opposite directions.
+  // Never reuse a right-facing model for the left-facing joint.
+  const orientation=await page.evaluate(()=>window.__BOSS_API__.getAssetStatus().officialVariants);
+  console.log('BOSS_OFFICIAL_MODEL_STATES',JSON.stringify(orientation));
+  assert.ok(orientation.includes('simulated:swivel_bearing|axis=x|facing=east'),
+    'right-facing Simulated bearing lacks original blockstate model');
+  assert.ok(orientation.includes('simulated:swivel_bearing|axis=x|facing=west'),
+    'left-facing Simulated bearing incorrectly reuses east-facing model');
   await page.waitForFunction(()=>window.__BOSS_API__.snapshot().supportContacts>=4,null,{timeout:35000});
   await page.waitForTimeout(450);
   const base=await page.evaluate(()=>({audit:window.__BOSS_API__.voxelAudit(),snapshot:window.__BOSS_API__.snapshot(),assets:window.__BOSS_API__.getAssetStatus()}));

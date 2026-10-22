@@ -33,3 +33,14 @@
 .power-buttons button:hover{background:#3b626b}
 .power-audit small{display:block;color:#99b2b8;font-size:10px;line-height:1.6;margin-top:8px}
 @media(max-width:740px){.leg-power{grid-template-columns:repeat(3,1fr)}}
+
+
+/* Actuator truth board: real solved joint state, not animation target text. */
+.gait-monitor{border:1px solid #506d73;padding:10px;background:#172e38;border-radius:5px;margin-bottom:12px}
+.gait-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px}
+.gait-leg{display:block;padding:6px 7px;border-radius:4px;font:700 10px/1.4 ui-monospace,monospace;
+ white-space:normal;overflow-wrap:anywhere;border:1px solid #637985;background:#263947;color:#bcd6e0}
+.gait-stance{background:#203e33;border-color:#527d65;color:#aee3c1}
+.gait-swing{background:#493826;border-color:#a08053;color:#f7d49b}
+.gait-detached{background:#492a2a;border-color:#915b55;color:#f7aca5}
+.gait-monitor small{display:block;margin-top:8px;font-size:10px;line-height:1.6;color:#c5d9df}
