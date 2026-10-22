@@ -101,6 +101,12 @@ public final class SeamVisualE2E {
                     SeamNativeGeometryClient.gpuCachedVertexBytes()/1048576.0),
                 SeamNativeGeometryClient.gpuEvictions(),
                 SeamNativeGeometryClient.gpuBackendDisabled());
+            LOG.info("WORLDSEAM_E2E_GPU_FLUID_SCENE: nativeFluidCells={}, drawnGpuFluidCells={}",
+                SeamNativeGeometryClient.countFluidCells(),
+                SeamNativeGeometryClient.lastFrameGpuFluidCells());
+            if(SeamNativeGeometryClient.countFluidCells()<2 ||
+               SeamNativeGeometryClient.lastFrameGpuFluidCells()<1)
+                LOG.error("WORLDSEAM_E2E_FAIL_GPU_FLUID_SCENE: real target water/lava/waterlogged sections not drawn");
             // The old screen had only a few thousand cherry-picked blocks.
             // This is a REAL client-frame coverage gate, not a packet count:
             // more than half the frustum-visible complete GPU sections must
@@ -481,6 +487,18 @@ public final class SeamVisualE2E {
             if(nether.setBlock(at,Blocks.GLOWSTONE.defaultBlockState(),3))
                 markers++;
         }
+        // Native target-world liquids must appear through the vertical seam.
+        // Vanilla fluid tessellation is exercised: one WATER block, one LAVA
+        // block, and one WATERLOGGED slab with a simultaneous model+fluid.
+        // Avoid the central player clearance and the TNT witness.
+        nether.setBlock(new BlockPos(x+3,127,z-1),
+            Blocks.WATER.defaultBlockState(),3);
+        nether.setBlock(new BlockPos(x-3,127,z+1),
+            Blocks.LAVA.defaultBlockState(),3);
+        nether.setBlock(new BlockPos(x+3,127,z),
+            Blocks.OAK_SLAB.defaultBlockState().setValue(
+                net.minecraft.world.level.block.SlabBlock.WATERLOGGED,true),3);
+        LOG.info("WORLDSEAM_E2E_FLUID_FIXTURES: placed native Nether WATER LAVA and waterlogged slab at roof for real client render");
         // The End visual benchmark must use NATURALLY GENERATED island
         // terrain, not a synthetic purpur/sea-lantern frame.
         LOG.info("WORLDSEAM_E2E_END_WITNESS: NO synthetic End blocks created");
