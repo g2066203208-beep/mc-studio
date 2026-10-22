@@ -47,6 +47,7 @@ public final class SeamLongRunE2E {
     private static volatile boolean triggerSent;
     private static volatile boolean markerSpawned;
     private static volatile UUID expectedMarkerUuid;
+    private static volatile double expectedMarkerX,expectedMarkerY,expectedMarkerZ;
     private static volatile boolean serverConfirmed;
     private static volatile boolean serverReady;
     private static int stage;
@@ -194,8 +195,21 @@ public final class SeamLongRunE2E {
                         return;
                     }
                     serverConfirmed=true;
+                    // The original E2E opened real air shafts through Nether
+                    // roof/floor. A player in creative mode with flight OFF
+                    // falls dozens of blocks during the entity probe. Hold
+                    // the player STILL only AFTER the real seam transfer,
+                    // so nearby entity visibility tests are meaningful.
+                    p.getAbilities().flying=true;
+                    p.onUpdateAbilities();
+                    p.setDeltaMovement(Vec3.ZERO);
+                    p.fallDistance=0;
                     if(marker!=null)marker.discard();
-                    marker=new ArmorStand(p.serverLevel(),p.getX()+2,p.getY()+1,p.getZ());
+                    expectedMarkerX=p.getX()+2;
+                    expectedMarkerY=p.getY()+1;
+                    expectedMarkerZ=p.getZ();
+                    marker=new ArmorStand(p.serverLevel(),
+                        expectedMarkerX,expectedMarkerY,expectedMarkerZ);
                     marker.setNoGravity(true);
                     if(!p.serverLevel().addFreshEntity(marker)) {
                         LOG.error("WORLDSEAM_STRESS_FAIL_ENTITY_SPAWN: pass={}",pass+1);
@@ -221,8 +235,8 @@ public final class SeamLongRunE2E {
             UUID witness=expectedMarkerUuid;
             boolean clientEntity=witness!=null && mc.level.getEntitiesOfClass(
                 ArmorStand.class,new AABB(
-                    mc.player.getX()-5,mc.player.getY()-5,mc.player.getZ()-5,
-                    mc.player.getX()+6,mc.player.getY()+7,mc.player.getZ()+6)
+                    expectedMarkerX-3,expectedMarkerY-3,expectedMarkerZ-3,
+                    expectedMarkerX+4,expectedMarkerY+4,expectedMarkerZ+4)
                 ).stream().anyMatch(e->e.getUUID().equals(witness));
             int chunks=mc.level.getChunkSource().getLoadedChunksCount();
             int owners=SeamClientWorldPool.dedicatedRendererActive();
