@@ -87,6 +87,39 @@ public final class SeamExternalModGameTests {
                 "Sable created the ship, but no actual native hull straddled the joined world plane yet");
             helper.assertTrue(SeamShipResidency.active()>0,
                 "A genuine Sable ship touched the boundary but no adjacent-native terrain region ticket exists");
+            // The screenshot-free dedicated-server test must verify MORE
+            // than a synthetic AABB. Start with the image of the genuinely
+            // assembled Sable ServerSubLevel captured by the server observer.
+            var actualImage=SeamSableObserver.sampleRemoteImage();
+            helper.assertTrue(actualImage!=null &&
+                SeamSableObserver.sampleRemoteDimension().equals("minecraft:the_nether"),
+                "No actual Sable hull image in Nether was captured");
+            var nativeNether=server.getLevel(net.minecraft.world.level.Level.NETHER);
+            helper.assertTrue(nativeNether!=null,"The Nether native world is missing");
+            int wx=(int)Math.floor((actualImage.minX+actualImage.maxX)*0.5);
+            int wz=(int)Math.floor((actualImage.minZ+actualImage.maxZ)*0.5);
+            int wy=(int)Math.floor(actualImage.minY+
+                Math.min(0.1,(actualImage.maxY-actualImage.minY)*0.5));
+            var nativeWitness=new net.minecraft.core.BlockPos(wx,wy,wz);
+            // One deterministic test-only load is allowed when creating a
+            // fixture; the PRODUCTION contact probe must remain NO-LOAD.
+            nativeNether.getChunk(Math.floorDiv(wx,16),Math.floorDiv(wz,16));
+            var former=nativeNether.getBlockState(nativeWitness);
+            try {
+                nativeNether.setBlock(nativeWitness,
+                    net.minecraft.world.level.block.Blocks.STONE.defaultBlockState(),3);
+                var genuineProbe=SeamShipRemoteContactProbe.scan(
+                    nativeNether,actualImage);
+                helper.assertTrue(genuineProbe.hasCandidate(),
+                    "Actual Sable hull image failed to intersect REAL Nether stone collision");
+                helper.assertTrue(genuineProbe.complete(),
+                    "Actual Sable hull other-dimension collision probe was incomplete");
+                com.mojang.logging.LogUtils.getLogger().info(
+                    "WORLDSEAM_REAL_SABLE_REMOTE_VOXEL_CONTACT: authenticShip={}, realNetherBlock={}, hullContactCandidateCount={}, physicsBridgeActive=false",
+                    actualShip,nativeWitness,genuineProbe.solidCandidates());
+            } finally {
+                nativeNether.setBlock(nativeWitness,former,3);
+            }
             var nether=server.getLevel(net.minecraft.world.level.Level.NETHER);
             helper.assertTrue(nether!=null,
                 "A real Sable ship cannot enter a missing destination dimension");
