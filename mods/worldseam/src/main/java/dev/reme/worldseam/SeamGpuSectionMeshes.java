@@ -97,6 +97,7 @@ public final class SeamGpuSectionMeshes {
     private long lastGpuDrawn;
     private long lastGpuCells;
     private long lastGpuFluidCells;
+    private int lastRenderTypeSetups;
 
     public static boolean enabled() {
         return Boolean.getBoolean("worldseam.gpuSections");
@@ -304,7 +305,7 @@ public final class SeamGpuSectionMeshes {
         }
     }
 
-    public void beginFrame() {lastGpuDrawn=0;lastGpuCells=0;lastGpuFluidCells=0;frameDraws.clear();}
+    public void beginFrame() {lastGpuDrawn=0;lastGpuCells=0;lastGpuFluidCells=0;lastRenderTypeSetups=0;frameDraws.clear();}
 
     private record DrawCall(SeamNativeGeometryClient.Slice slice,
                             Compiled compiled) {}
@@ -333,8 +334,8 @@ public final class SeamGpuSectionMeshes {
         }
         for(int layer=0;layer<LAYERS.length-1;layer++) {
             RenderType type=LAYERS[layer];
-            drawBatch(type,frameDraws,false,pose,camera,
-                sourceBoundary,targetBoundary);
+            if(drawBatch(type,frameDraws,false,pose,camera,
+                sourceBoundary,targetBoundary))lastRenderTypeSetups++;
         }
         return stones;
     }
@@ -348,11 +349,11 @@ public final class SeamGpuSectionMeshes {
     public void drawTranslucentAll(PoseStack pose,Vec3 camera,
                                    int sourceBoundary,int targetBoundary) {
         if(!enabled() || frameDraws.isEmpty())return;
-        drawBatch(RenderType.translucent(),frameDraws,true,pose,camera,
-            sourceBoundary,targetBoundary);
+        if(drawBatch(RenderType.translucent(),frameDraws,true,pose,camera,
+            sourceBoundary,targetBoundary))lastRenderTypeSetups++;
     }
 
-    private static void drawBatch(RenderType type,List<DrawCall> calls,
+    private static boolean drawBatch(RenderType type,List<DrawCall> calls,
                                   boolean reverse,PoseStack pose,Vec3 camera,
                                   int sourceBoundary,int targetBoundary) {
         boolean any=false;
@@ -362,7 +363,7 @@ public final class SeamGpuSectionMeshes {
                 break;
             }
         }
-        if(!any)return;
+        if(!any)return false;
         type.setupRenderState();
         try {
             var shader=RenderSystem.getShader();
@@ -392,6 +393,7 @@ public final class SeamGpuSectionMeshes {
         } finally {
             type.clearRenderState();
         }
+        return true;
     }
 
     public int count() {return mesh.size();}
@@ -401,6 +403,7 @@ public final class SeamGpuSectionMeshes {
     public long lastGpuDrawn() {return lastGpuDrawn;}
     public long lastGpuCells() {return lastGpuCells;}
     public long lastGpuFluidCells() {return lastGpuFluidCells;}
+    public int lastRenderTypeSetups(){return lastRenderTypeSetups;}
     public double p95BakeMs() {return bakeSamples.p95Ms();}
 
     public void clear() {
