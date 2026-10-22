@@ -42,6 +42,9 @@ public final class LivingWorldActions {
         if (PublicSafety.tickPrisoner(npc, level, tick)) return;
         // Guard response owns movement before roaming/ordinary patrol.
         if (PublicSafety.tickGuard(npc, level, tick)) return;
+        // A real unpaid shop customer keeps its movement goal across ordinary
+        // sleep/eat/social replanning until it escapes or is arrested.
+        if (ConvenienceStoreCrime.tick(npc, level, tick)) return;
         // Record only actual transit, never stationary NPC ticks. Bounded per-
         // dimension SavedData persists crowd footsteps; physical wear is
         // separately operator-authorized and defaults OFF.
@@ -115,6 +118,9 @@ public final class LivingWorldActions {
         // A bounded, operator-authorized mining task is performed through the
         // same survival tool / block break pipeline as a player. Danger can
         // interrupt it; routine AI never creates an unapproved mining target.
+        // Scheduled work owns the clerk's walking and counter goal during
+        // working hours; EAT/bed/flight still take priority.
+        if (ShopCounter.tick(npc, level, tick)) return;
         if (PlayerMiningActions.tick(npc, level)) return;
         // Follow the genuine item-entity drops from this NPC's authorized
         // break, rather than treating ground loot as virtual inventory.
