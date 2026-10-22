@@ -170,16 +170,31 @@ export function createMultibodyBoss(RAPIER,opts={}){
    phase+=DT*Math.PI*2*(Math.abs(motorSpeed)/60);
   for(const leg of motors){
    if(leg.detached)continue;
-   const drive=mode==='walk'||mode==='march';
-   const wave=Math.sin(phase+(leg.tripod?Math.PI:0));
-   const lift=Math.max(0,wave);
-   // Two tripod groups alternate: the STANCE tripod stays straight,
-   // so body mass is supported by grounded collision boxes. Only the
-   // SWING tripod bends its knee; the original .54 bend on a lagging
-   // joint shortened both supports and left all soles in the air.
-   const stride=mode==='walk'?.28:.18;
-   const hipT=drive?clamp(wave*stride,-.4,.4):0;
-   const kneeT=drive?clamp(.38*lift,0,.43):0;
+   let hipT=0,kneeT=0,phaseName='stand';
+   if(mode==='walk'||mode==='march'){
+    // Alternating tripod gait. Each leg's toe stays on the ground for 64%
+    // of the cycle, then swings through the air for 36%. The plant-to-lift
+    // transition preserves position. No body translations are scripted.
+    // Propulsion comes ONLY from the actual Rapier hip/knee torques and
+    // ground friction. Default gait moves toward world -Z.
+    const u=((phase/(2*Math.PI)+(leg.tripod?.5:0))%1+1)%1;
+    const stanceDuty=.64;
+    const extent=mode==='walk'?.28:.10;
+    const lift=mode==='walk'?.86:.32;
+    const smooth=t=>t*t*(3-2*t);
+    if(u<stanceDuty){
+     const t=u/stanceDuty;
+     hipT=extent*(1-2*smooth(t));
+     kneeT=0;
+     phaseName='stance';
+    }else{
+     const t=(u-stanceDuty)/(1-stanceDuty);
+     hipT=-extent+2*extent*smooth(t);
+     kneeT=lift*Math.sin(Math.PI*t);
+     phaseName='swing';
+    }
+   }
+   leg.gaitPhase=phaseName;
    leg.hipTarget=hipT;leg.kneeTarget=kneeT;
    const branch=powerBus.bearings.find(o=>o.id===leg.id);
    // The Create source/shaft/gear/clutch graph is AUTHORITATIVE within its
@@ -187,11 +202,13 @@ export function createMultibodyBoss(RAPIER,opts={}){
    const budget=branch?.pathLive ? torque*branch.torqueMultiplier : 0;
    leg.deliveredTorque=budget;
    if(mode!=='relax'&&budget>0){
-    servoTorque(body,leg.upper,hipT,hipGain,hipDamping,budget);
+    servoTorque(body,leg.upper,hipT,mode==='walk'?hipGain*1.75:hipGain,
+     mode==='walk'?hipDamping*1.5:hipDamping,budget);
     // A powered knee servo mounted on the upper/lower leg is a separate
     // simplified electrical/mechanical coupling, NOT a proven Create shaft
     // through a moving SubLevel. Explicitly report that limitation in UI.
-    servoTorque(leg.upper,leg.lower,kneeT,kneeGain,kneeDamping,budget*.85);
+    servoTorque(leg.upper,leg.lower,kneeT,mode==='walk'?kneeGain*2.1:kneeGain,
+     mode==='walk'?kneeDamping*1.6:kneeDamping,budget*.85);
    }
   }
  };
@@ -199,8 +216,16 @@ export function createMultibodyBoss(RAPIER,opts={}){
  const feetStatus=()=>motors.map(m=>{
   if(m.detached)return {id:m.id,connected:false};
   const p=m.lower.translation(),q=m.lower.rotation();
-  const offset=-1.5, wy=p.y+offset*(1-2*(q.x*q.x+q.z*q.z))-.5;
-  return {id:m.id,connected:true,estimatedSoleBottom:wy,touching:Math.abs(wy)<.12};
+  // Exact projected Y extent of the ACTUAL ORIENTED 1x1x1 foot collider.
+  // The old .5 deduction incorrectly treated a tilted Rapier foot as an
+  // axis-aligned cube and underreported stance contact during walking.
+  const yx=2*(q.x*q.y+q.w*q.z);
+  const yy=1-2*(q.x*q.x+q.z*q.z);
+  const yz=2*(q.y*q.z-q.w*q.x);
+  const halfY=.5*(Math.abs(yx)+Math.abs(yy)+Math.abs(yz));
+  const soleBottom=p.y-1.5*yy-halfY;
+  return {id:m.id,connected:true,estimatedSoleBottom:soleBottom,
+   touching:Math.abs(soleBottom)<.12};
  });
  const snapshot=()=>{
   const feet=feetStatus();
@@ -237,8 +262,11 @@ export function createMultibodyBoss(RAPIER,opts={}){
    outputTorqueLimit:torque*gearRatio*.9,
    position:nowPos,velocity:body.linvel(),rotation:body.rotation(),
    bodyBottom:nowPos.y-.5,travel:nowPos.z,
+   gait:{cycle:phase/(2*Math.PI),stance:motors.filter(m=>!m.detached&&m.gaitPhase==='stance').length,
+    swing:motors.filter(m=>!m.detached&&m.gaitPhase==='swing').length,
+    note:'Physical tripod stance/swing controller; world displacement is measured from Rapier, never imposed'},
    legAngles:motors.map(m=>({id:m.id,hip:getJointAngle(body,m.upper),knee:getJointAngle(m.upper,m.lower),
-    hipTarget:m.hipTarget,kneeTarget:m.kneeTarget,
+    hipTarget:m.hipTarget,kneeTarget:m.kneeTarget,gaitPhase:m.gaitPhase,
     deliveredTorque:m.deliveredTorque||0,detached:m.detached}))
   };
  };
