@@ -40,6 +40,7 @@ public final class SeamNativeGeometryClient {
     private static final double NEAR_PLANE_RENDER_RANGE = 80.0;
     private static int lastVisibleSlices;
     private static int lastCulledSlices;
+    private static int lastFrustumVisibleSurfaceCells;
     private static final int MAX_COLUMNS = 25;
     private static final int VERTICAL_SECTIONS = 10;
     // 4 native 16³ slices per client tick, replacing 2 whole 160-block
@@ -346,6 +347,9 @@ public final class SeamNativeGeometryClient {
             else lastCulledSlices++;
         }
         lastVisibleSlices=visible.size();
+        int visibleCandidates=0;
+        for(var slice:visible)visibleCandidates+=slice.cells().size();
+        lastFrustumVisibleSurfaceCells=visibleCandidates;
         if(visible.isEmpty())return;
         MultiBufferSource.BufferSource buffers=OWNED_BUFFERS.source();
 
@@ -460,6 +464,7 @@ public final class SeamNativeGeometryClient {
     }
     public static double p95GpuMeshBakeMs() { return GPU_SECTIONS.p95BakeMs(); }
     public static int culledSlices() { return lastCulledSlices; }
+    public static int frustumVisibleSurfaceCells(){return lastFrustumVisibleSurfaceCells;}
     public static int pendingRebuilds() { return BUILD_QUEUE.size(); }
     public static int lastTickRebuildSlices() { return lastTickRebuildSlices; }
     /** All remote fallback paths use WorldSeam-owned GPU buffers only. */
@@ -485,6 +490,7 @@ public final class SeamNativeGeometryClient {
         lastFrameEndStone=0;
         lastVisibleSlices=0;
         lastCulledSlices=0;
+        lastFrustumVisibleSurfaceCells=0;
         source="";
         target="";
         queuedRemote=null;
