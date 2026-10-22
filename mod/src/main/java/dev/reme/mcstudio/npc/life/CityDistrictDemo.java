@@ -256,6 +256,11 @@ public final class CityDistrictDemo {
         p.put(-10, 1, 9, Blocks.CRAFTING_TABLE);
         p.put(-5, 1, 12, Blocks.STONE_BRICKS);
         p.put(-5, 2, 12, Blocks.BELL);
+        // Real audible alarm *near the mall*, not only 24 blocks away at
+        // headquarters. The store clerk can trigger it after an actual
+        // first-hand theft and nearby on-foot guard dispatch.
+        p.put(-4, 1, -10, Blocks.STONE_BRICK_WALL);
+        p.put(-4, 2, -10, Blocks.BELL);
         for (int z = 11; z <= 13; z++) p.put(-6, 5, z, Blocks.BLUE_CONCRETE);
     }
 
@@ -305,7 +310,7 @@ public final class CityDistrictDemo {
         int[][] spawn = {
             {-10,-10},{-10,-14},{-8,-8},{-5,-6},{-10,13},
             {10,11},{16,12},{9,-9},{15,-9},{-3,-12},{10,8},{3,12},
-            {-9,-12}
+            {-8,-11}
         };
         int count=0;
         String region = "city_" + (center.getX()>>4) + "_" + (center.getZ()>>4);
@@ -349,6 +354,9 @@ public final class CityDistrictDemo {
             } else npc.backpack().addItem(new ItemStack(Items.BREAD,3));
             if (level.addFreshEntity(npc)) count++;
         }
+        System.out.println("REME_NPC_STORY stage=city_initial_population"
+            + " tick=" + level.getGameTime() + " citizens=" + count
+            + " realClerks=2 realGuards=2 dishonestCustomers=1");
         return count;
     }
 }
