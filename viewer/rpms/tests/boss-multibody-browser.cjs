@@ -125,8 +125,16 @@ const {chromium}=require('playwright-core');
   await site.screenshot({path:require('node:path').join(__dirname,'boss-articulated-desktop.png'),fullPage:true});
   await site.locator('#march').click();
   assert.equal(await site.evaluate(()=>window.__BOSS_API__.snapshot().mode),'march');
+  assert.equal(await site.locator('#motorRPM').inputValue(),'28',
+    'The operator must see the actual motor RPM used for a working gait');
+  assert.equal(await site.locator('#motorTorque').inputValue(),'2200',
+    'Previously CI used 2200 Nm but the UI slider stopped at 500 Nm');
   const move=await site.evaluate(()=>window.__BOSS_API__.advance(180));
   assert.ok(move.legAngles.some(x=>Math.abs(x.hip)>.03),'physical visual must reflect true motor-driven hinge bending');
+  assert.ok(move.legAngles.filter(x=>Math.abs(x.knee)>.15).length>=2,
+    'Real user button must produce visible multi-body knee bending, not only a diagnostic test setting');
+  assert.ok(move.supportContacts>=3,'User gait must retain at least tripod floor support');
+  assert.ok(move.maxHingeError<.18,'Visual joints must remain close to solved Rapier hinges');
   assert.equal(await site.locator('#jointNum').textContent(),'13 / 12');
   await site.screenshot({path:require('node:path').join(__dirname,'boss-articulated-marching.png'),fullPage:true});
   await site.locator('#removeOne').click();

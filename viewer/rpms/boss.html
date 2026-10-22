@@ -33,7 +33,8 @@
    <label for="motorRPM">Create 风格动力马达 <strong id="rpmLabel">18 RPM</strong></label>
    <input id="motorRPM" type="range" min="0" max="90" step="1" value="18">
    <label for="motorTorque">关节驱动转矩上限 <strong id="torqueLabel">135 N·m</strong></label>
-   <input id="motorTorque" type="range" min="0" max="500" step="5" value="135">
+   <input id="motorTorque" type="range" min="0" max="2600" step="5" value="135">
+   <small id="gaitPowerHint" style="color:#d6c29b">站立默认 135 N·m；点击“原地抬腿／前进”会显示并启用经真实 Rapier 测试的基础步态设定：28 RPM、2,200 N·m。可以再手动调整。</small>
    <label for="gearRatio">机械动力齿轮箱速比 <strong id="ratioLabel">2:1 · 输出 9 RPM</strong></label>
    <select id="gearRatio" aria-label="动力传动齿比">
     <option value="1">1:1 · 直连</option>
