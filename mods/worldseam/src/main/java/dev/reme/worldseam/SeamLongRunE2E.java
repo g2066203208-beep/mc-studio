@@ -46,6 +46,7 @@ public final class SeamLongRunE2E {
     private static volatile boolean enabled;
     private static volatile boolean triggerSent;
     private static volatile boolean markerSpawned;
+    private static volatile UUID expectedMarkerUuid;
     private static volatile boolean serverConfirmed;
     private static volatile boolean serverReady;
     private static int stage;
@@ -185,6 +186,7 @@ public final class SeamLongRunE2E {
                         LOG.error("WORLDSEAM_STRESS_FAIL_ENTITY_SPAWN: pass={}",pass+1);
                         return;
                     }
+                    expectedMarkerUuid=marker.getUUID();
                     markerSpawned=true;
                 });
             }
@@ -199,11 +201,14 @@ public final class SeamLongRunE2E {
             // native world. This catches no-respawn handoff entity loading
             // regressions that old chunk-only E2E never exercised.
             if(!serverConfirmed || !markerSpawned || tick-stageTick<12)return;
-            boolean clientEntity=!mc.level.getEntitiesOfClass(
+            // Require the EXACT server-spawned UUID for THIS crossing.
+            // An old stale entity from a previous visit cannot count.
+            UUID witness=expectedMarkerUuid;
+            boolean clientEntity=witness!=null && mc.level.getEntitiesOfClass(
                 ArmorStand.class,new AABB(
                     mc.player.getX()-5,mc.player.getY()-5,mc.player.getZ()-5,
                     mc.player.getX()+6,mc.player.getY()+7,mc.player.getZ()+6)
-                ).isEmpty();
+                ).stream().anyMatch(e->e.getUUID().equals(witness));
             int chunks=mc.level.getChunkSource().getLoadedChunksCount();
             int owners=SeamClientWorldPool.dedicatedRendererActive();
             long memory=Runtime.getRuntime().totalMemory()-Runtime.getRuntime().freeMemory();
@@ -261,6 +266,7 @@ public final class SeamLongRunE2E {
         stageTick=tick;
         triggerSent=false;
         markerSpawned=false;
+        expectedMarkerUuid=null;
         serverConfirmed=false;
         String desired=from();
         int b=boundary();
