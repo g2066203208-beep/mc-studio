@@ -379,6 +379,11 @@ public final class SeamNativeGeometryClient {
     public static int culledSlices() { return lastCulledSlices; }
     public static int pendingRebuilds() { return BUILD_QUEUE.size(); }
     public static int lastTickRebuildSlices() { return lastTickRebuildSlices; }
+    /** All remote fallback paths use WorldSeam-owned GPU buffers only. */
+    public static MultiBufferSource.BufferSource fallbackBuffers() {
+        return OWNED_BUFFERS.source();
+    }
+    public static void flushFallbackBuffers() { OWNED_BUFFERS.flush(); }
     public static boolean ownBuffersActive() { return OWNED_BUFFERS.active(); }
     public static long bufferCreations() { return OWNED_BUFFERS.creations(); }
     public static long bufferFlushes() { return OWNED_BUFFERS.flushes(); }

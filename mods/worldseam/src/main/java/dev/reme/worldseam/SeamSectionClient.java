@@ -98,7 +98,7 @@ public final class SeamSectionClient {
         if (geometry.isEmpty() || event.getPoseStack()==null) return;
         Vec3 camera=event.getCamera().getPosition();
         PoseStack pose=event.getPoseStack();
-        MultiBufferSource.BufferSource buffers=mc.renderBuffers().bufferSource();
+        MultiBufferSource.BufferSource buffers=SeamNativeGeometryClient.fallbackBuffers();
         int rendered=0;
         for (List<Cell> section:geometry.values()) {
             for (Cell cell:section) {
@@ -121,7 +121,7 @@ public final class SeamSectionClient {
             }
             if (rendered>=MAX_RENDER_MODELS) break;
         }
-        if (rendered>0) buffers.endBatch();
+        SeamNativeGeometryClient.flushFallbackBuffers();
     }
 
     public static void clear() {

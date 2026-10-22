@@ -78,7 +78,7 @@ public final class SeamPreviewClient {
 
         Vec3 camera = event.getCamera().getPosition();
         PoseStack pose = event.getPoseStack();
-        MultiBufferSource.BufferSource buffers = mc.renderBuffers().bufferSource();
+        MultiBufferSource.BufferSource buffers=SeamNativeGeometryClient.fallbackBuffers();
         boolean anyDrawn = false;
         for (RenderCell entry : visibleCells) {
             var p = entry.position();
@@ -102,7 +102,7 @@ public final class SeamPreviewClient {
             pose.popPose();
             anyDrawn = true;
         }
-        if (anyDrawn) buffers.endBatch();
+        SeamNativeGeometryClient.flushFallbackBuffers();
     }
 
     /** Clear all old dimension models immediately on a disable snapshot. */

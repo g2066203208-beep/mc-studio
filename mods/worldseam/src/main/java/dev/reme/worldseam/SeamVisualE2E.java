@@ -39,6 +39,7 @@ public final class SeamVisualE2E {
     private static boolean stableBaselineTaken;
     private static boolean crossTntSpawned;
     private static boolean crossTntVerified;
+    private static boolean nativeFarWindowVerified;
     private static volatile int witnessX, witnessZ;
     private static long stableFetches = -1;
     private static long stablePackets = -1;
@@ -199,6 +200,26 @@ public final class SeamVisualE2E {
                     LOG.info("WORLDSEAM_E2E_REVERSE_STAGE: hovering inside Nether below Y128, looking UP");
                 } else LOG.error("WORLDSEAM_E2E_FAIL_SERVER: did not migrate player");
             });
+        } else if (phase==4 && !nativeFarWindowVerified && now-startTick>812) {
+            nativeFarWindowVerified=true;
+            int cx=Math.floorDiv(mc.player.blockPosition().getX(),16);
+            int cz=Math.floorDiv(mc.player.blockPosition().getZ(),16);
+            int farX=SeamNativeViewDistance.farChunkX(cx);
+            int view=SeamNativeViewDistance.normalize(mc.options.renderDistance().get());
+            boolean farNative=mc.level.getChunkSource().hasChunk(farX,cz);
+            int nativeChunks=mc.level.getChunkSource().getLoadedChunksCount();
+            LOG.info("WORLDSEAM_E2E_NATIVE_ACTIVE_STREAM: dimension={}, configuredDistance={}, promotedDistance={}, activeChunks={}, outside5x5Chunk={}, x={}, z={}",
+                mc.level.dimension().location(),view,
+                SeamClientWorldPool.lastActiveViewDistance(),
+                nativeChunks,farNative,farX,cz);
+            // THIS catches the user's complaint: the previous GUI tests only
+            // checked a five-by-five prewarm then claimed "native" loading.
+            // Nether must now have actual VANILLA chunks beyond 5x5 after
+            // client and server change dimension, without a respawn screen.
+            if(SeamNativeViewDistance.shouldRequireVanillaFarChunk(view)
+                && (!farNative || nativeChunks<=25 ||
+                    SeamClientWorldPool.lastActiveViewDistance()<view))
+                LOG.error("WORLDSEAM_E2E_FAIL_NATIVE_ACTIVE_STREAM: vanilla Nether chunks beyond seam's 5x5 cache have NOT arrived after real handoff");
         } else if (phase==4 && !crossTntSpawned && now-startTick>830) {
             crossTntSpawned=true;
             server.execute(() -> {

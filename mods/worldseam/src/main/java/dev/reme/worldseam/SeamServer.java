@@ -91,18 +91,8 @@ public final class SeamServer {
             for (SeamGraph.Link link : SeamStackRuntime.from(server,dim)) {
                 int min = SeamStackRuntime.bottom(source);
                 int max = SeamStackRuntime.top(source);
-                // No permanent "loading chunks" banner. Once the native
-                // second world is ready the gameplay view should stay clear.
-                if(SeamSettings.get(server).experimentalNoRespawn()
-                    && tick%100==0 && link.near(player.getY(),min,max,64)
-                    && !SeamReadiness.isReady(player.getUUID(),
-                        dim,link.target(),tick)) {
-                    int chunks=SeamChunkSender.currentTargetLoaded(player);
-                    player.displayClientMessage(
-                        net.minecraft.network.chat.Component.literal(
-                            "界缝 · 目标维度预载 "+chunks+"/25 个区块"
-                        ),true);
-                }
+                // Seam chunk warmup runs silently through the normal chunk scheduler.
+                // Debug/F3 still shows exact status; never spam the gameplay HUD.
                 ServerLevel target = server.getLevel(dimensionKey(link.target()));
                 if (target == null) {
                     continue;
@@ -164,15 +154,16 @@ public final class SeamServer {
                         ? sourceBoundary - 0.75 : sourceBoundary + 0.75;
                     player.connection.teleport(player.getX(), holdY,
                         player.getZ(),player.getYRot(),player.getXRot());
-                    if (tick % 40 == 0) player.displayClientMessage(
-                        net.minecraft.network.chat.Component.literal(
-                            "WorldSeam: preparing remote native chunks (9 needed)"
-                        ), true);
                     break;
                 }
-                // Now and only now, with the destination ready, load the
-                // authoritative landing chunk and validate its collision.
-                target.getChunkAt(arrival);
+                // "READY" means both client and server can cross without
+                // inventing a fresh chunk on the server main thread. Vanilla
+                // region tickets should already have made the landing chunk
+                // resident. If not, defer this crossing instead of forcing
+                // synchronous terrain generation on the render-critical tick.
+                int landingCx=Math.floorDiv(arrival.getX(),16);
+                int landingCz=Math.floorDiv(arrival.getZ(),16);
+                if(!target.hasChunk(landingCx,landingCz)) break;
                 if (!SeamArrival.hasClearance(target, arrival, player)) break;
                 boolean success;
                 if (useExperimental) {
