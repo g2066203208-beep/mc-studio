@@ -157,6 +157,10 @@ public class PlayerNpcEntity extends PathfinderMob {
     // Bounded local police case. No global suspect scans or arbitrary arrests.
     @Nullable private UUID policeSuspect;
     private long policeAlertUntil = 0L;
+    // During a nonlethal arrest, an actual guard must escort the prisoner by
+    // walking, rather than leaving while the thief 'auto-teleports' to jail.
+    @Nullable private UUID escortedPrisoner;
+    private long escortUntil = 0L;
     @Nullable private BlockPos policeJail;
     private long detainedUntil = 0L;
     @Nullable private BlockPos detentionJail;
@@ -417,6 +421,16 @@ public class PlayerNpcEntity extends PathfinderMob {
     public void clearPoliceCase() {
         policeSuspect = null;
         policeAlertUntil = 0L;
+    }
+    @Nullable public UUID escortedPrisoner() { return escortedPrisoner; }
+    public long escortUntil() { return escortUntil; }
+    public void assignPrisonerEscort(UUID prisoner, long until) {
+        escortedPrisoner = prisoner;
+        escortUntil = Math.max(0L, until);
+    }
+    public void clearPrisonerEscort() {
+        escortedPrisoner = null;
+        escortUntil = 0L;
     }
     public boolean isDetained(long tick) {
         return detentionJail != null && tick < detainedUntil;
@@ -723,6 +737,8 @@ public class PlayerNpcEntity extends PathfinderMob {
         tag.putLong("NpcNextShopCrimeTick", nextShopCrimeTick);
         tag.putBoolean("NpcShopShiftActive", shopShiftActive);
         if (policeSuspect != null) tag.putUUID("NpcPoliceSuspect", policeSuspect);
+        if (escortedPrisoner != null) tag.putUUID("NpcEscortedPrisoner", escortedPrisoner);
+        tag.putLong("NpcEscortUntil", escortUntil);
         tag.putLong("NpcPoliceAlertUntil", policeAlertUntil);
         if (policeJail != null) tag.putLong("NpcPoliceJail", policeJail.asLong());
         if (detentionJail != null) tag.putLong("NpcDetentionJail", detentionJail.asLong());
@@ -839,6 +855,10 @@ public class PlayerNpcEntity extends PathfinderMob {
         if (unpaidUntil <= level().getGameTime()) clearUnpaidShopItem();
         policeSuspect = tag.hasUUID("NpcPoliceSuspect")
             ? tag.getUUID("NpcPoliceSuspect") : null;
+        escortedPrisoner = tag.hasUUID("NpcEscortedPrisoner")
+            ? tag.getUUID("NpcEscortedPrisoner") : null;
+        escortUntil = Math.max(0L, tag.getLong("NpcEscortUntil"));
+        if (escortUntil <= level().getGameTime()) clearPrisonerEscort();
         policeAlertUntil = Math.max(0L, tag.getLong("NpcPoliceAlertUntil"));
         policeJail = tag.contains("NpcPoliceJail", Tag.TAG_LONG)
             ? BlockPos.of(tag.getLong("NpcPoliceJail")) : null;
