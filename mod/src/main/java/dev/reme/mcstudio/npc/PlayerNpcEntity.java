@@ -102,6 +102,7 @@ public class PlayerNpcEntity extends PathfinderMob {
     @Nullable private BlockPos supplyPos;
     @Nullable private BlockPos caravanPickup;
     @Nullable private BlockPos caravanDropoff;
+    @Nullable private BlockPos shopStockChest;
     @Nullable private UUID escortLeader;
     @Nullable private BlockPos exploreTarget;
     private final Set<Long> recentChunks = new LinkedHashSet<>();
@@ -242,6 +243,10 @@ public class PlayerNpcEntity extends PathfinderMob {
     @Nullable public BlockPos supplyPos() { return supplyPos; }
     public void setSupplyPos(@Nullable BlockPos pos) {
         supplyPos = pos == null ? null : pos.immutable();
+    }
+    @Nullable public BlockPos shopStockChest() { return shopStockChest; }
+    public void setShopStockChest(@Nullable BlockPos chest) {
+        shopStockChest = chest == null ? null : chest.immutable();
     }
     @Nullable public BlockPos caravanPickup() { return caravanPickup; }
     @Nullable public BlockPos caravanDropoff() { return caravanDropoff; }
@@ -636,6 +641,7 @@ public class PlayerNpcEntity extends PathfinderMob {
         if (supplyPos != null) tag.putLong("NpcSupplyPos", supplyPos.asLong());
         if (caravanPickup != null) tag.putLong("NpcCaravanPickup", caravanPickup.asLong());
         if (caravanDropoff != null) tag.putLong("NpcCaravanDropoff", caravanDropoff.asLong());
+        if (shopStockChest != null) tag.putLong("NpcShopStockChest", shopStockChest.asLong());
         if (escortLeader != null) tag.putUUID("NpcEscortLeader", escortLeader);
         if (exploreTarget != null) tag.putLong("NpcExploreTarget", exploreTarget.asLong());
         tag.putLongArray("NpcRecentChunks", recentChunks.stream().mapToLong(Long::longValue).toArray());
@@ -730,6 +736,8 @@ public class PlayerNpcEntity extends PathfinderMob {
             ? BlockPos.of(tag.getLong("NpcCaravanPickup")) : null;
         caravanDropoff = tag.contains("NpcCaravanDropoff", Tag.TAG_LONG)
             ? BlockPos.of(tag.getLong("NpcCaravanDropoff")) : null;
+        shopStockChest = tag.contains("NpcShopStockChest", Tag.TAG_LONG)
+            ? BlockPos.of(tag.getLong("NpcShopStockChest")) : null;
         escortLeader = tag.hasUUID("NpcEscortLeader")
             ? tag.getUUID("NpcEscortLeader") : null;
         exploreTarget = tag.contains("NpcExploreTarget", Tag.TAG_LONG)
