@@ -21,8 +21,8 @@ for(let i=0;i<400;i++){
  const a=planTripodFoot(t,0),b=planTripodFoot(t,1);
  if(a.phase==='stance')stance++;else swing++;
  if(a.phase!==b.phase)opposite++;
- assert.ok(a.target.vertical<=-3.60 && a.target.vertical>=-4.29);
- assert.ok(Math.abs(a.target.forward)<=.58);
+ assert.ok(a.target.vertical<=-4.22 && a.target.vertical>=-4.48);
+ assert.ok(Math.abs(a.target.forward)<=.23);
 }
 assert.ok(Math.abs(stance/400-STANCE_PORTION)<.005);
 assert.ok(opposite>270,'opposing support tripods should alternate for most of a cycle');
