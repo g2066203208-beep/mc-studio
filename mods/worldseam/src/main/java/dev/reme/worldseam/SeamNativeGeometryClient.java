@@ -76,6 +76,7 @@ public final class SeamNativeGeometryClient {
     private static int blocksBuilt;
     private static int lastFrameDrawn;
     private static int lastFrameEndStone;
+    private static long logicalPlaneNeighborReads;
 
     private SeamNativeGeometryClient() {}
 
@@ -114,6 +115,11 @@ public final class SeamNativeGeometryClient {
 
     public static long sourceBorderInvalidations() {
         return sourceBorderInvalidations;
+    }
+
+    /** Actual native mesher cross-plane neighbor samples (not packets). */
+    public static long logicalPlaneNeighborReads() {
+        return logicalPlaneNeighborReads;
     }
 
     public static void onChunk(SeamChunkPayload packet, ClientLevel remote) {
@@ -197,7 +203,8 @@ public final class SeamNativeGeometryClient {
                 // Preserve fluid-only and waterlogged native voxels.
                 if(state.getRenderShape()!=RenderShape.MODEL &&
                    state.getFluidState().isEmpty())continue;
-                if(isBuried(cache,chunk,x,y,z,joined))continue;
+                if(isBuried(cache,chunk,x,y,z,joined,
+                    targetBoundary,link.entry()))continue;
                 pos.set(ox+x,y,oz+z);
                 int block=remote.getBrightness(LightLayer.BLOCK,pos);
                 int sky=remote.getBrightness(LightLayer.SKY,pos);
@@ -249,19 +256,25 @@ public final class SeamNativeGeometryClient {
      */
     private static boolean isBuried(
         net.minecraft.client.multiplayer.ClientChunkCache cache,
-        LevelChunk chunk,int x,int y,int z,SeamJoinedBlockView joined) {
+        LevelChunk chunk,int x,int y,int z,SeamJoinedBlockView joined,
+        int logicalBoundary,SeamGraph.EdgeSide targetEntry) {
         for(int[] d:NEIGHBORS) {
             int nx=x+d[0],ny=y+d[1],nz=z+d[2];
-            if(ny<chunk.getMinBuildHeight()||ny>=chunk.getMaxBuildHeight()) {
-                // An OUTER target-world face can be buried by a REAL source
-                // world neighbor beyond the seam. Old code incorrectly
-                // assumed air and displayed phantom flat ceiling/floor faces.
+            // CRITICAL: use the CONFIGURED contact plane, not vanilla's
+            // getMaxBuildHeight. Example: Nether logical top is Y=128, yet
+            // Nether's actual chunk storage extends to Y=256! At Y=127
+            // the touching Y=128 block belongs to the OVERWORLD Y=-64,
+            // never to Nether's unrelated vanilla blocks above its roof.
+            if(SeamNeighborMapping.outsideTarget(ny,logicalBoundary,targetEntry)) {
                 if(joined==null)return false;
                 BlockPos neighbor=new BlockPos(
                     (chunk.getPos().x<<4)+nx,ny,(chunk.getPos().z<<4)+nz);
+                logicalPlaneNeighborReads++;
                 if(!joined.getBlockState(neighbor).canOcclude())return false;
                 continue;
             }
+            if(ny<chunk.getMinBuildHeight()||ny>=chunk.getMaxBuildHeight())
+                return false;
             int cx=chunk.getPos().x+Math.floorDiv(nx,16);
             int cz=chunk.getPos().z+Math.floorDiv(nz,16);
             LevelChunk neighbor;
@@ -568,6 +581,7 @@ public final class SeamNativeGeometryClient {
     public static void reset() {
         columns.clear();
         blocksBuilt=0;
+        logicalPlaneNeighborReads=0;
         lastFrameDrawn=0;
         lastFrameEndStone=0;
         lastVisibleSlices=0;
