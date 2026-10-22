@@ -52,9 +52,11 @@ public final class CityDistrictGameTests {
         // X/Z intersection with real crosswalk stripes and pavements.
         for (int i = -20; i <= 20; i++) {
             if (!(level.getBlockState(center.offset(i,0,0)).is(Blocks.GRAY_CONCRETE)
-                || level.getBlockState(center.offset(i,0,0)).is(Blocks.YELLOW_CONCRETE))
+                || level.getBlockState(center.offset(i,0,0)).is(Blocks.YELLOW_CONCRETE)
+                || level.getBlockState(center.offset(i,0,0)).is(Blocks.WHITE_CONCRETE))
                 || !(level.getBlockState(center.offset(0,0,i)).is(Blocks.GRAY_CONCRETE)
-                || level.getBlockState(center.offset(0,0,i)).is(Blocks.YELLOW_CONCRETE)))
+                || level.getBlockState(center.offset(0,0,i)).is(Blocks.YELLOW_CONCRETE)
+                || level.getBlockState(center.offset(0,0,i)).is(Blocks.WHITE_CONCRETE)))
                 throw new AssertionError("Main 41-block cross-town paved roads have a physical gap at " + i);
         }
         if (!level.getBlockState(center.offset(0,0,6)).is(Blocks.WHITE_CONCRETE)
