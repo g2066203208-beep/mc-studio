@@ -18,6 +18,9 @@ function Is-NpcJar([string]$Path) {
       $null -ne $z.GetEntry("dev/reme/npcstudio/npc/NpcCommands.class") -and
       $null -ne $z.GetEntry("dev/reme/npcstudio/npc/NpcItems.class") -and
       $null -ne $z.GetEntry("assets/reme_npc/lang/zh_cn.json"))
+  } catch {
+    Write-Host "Skipping invalid or unreadable third-party JAR: $Path"
+    return $false
   } finally { if ($z) { $z.Dispose() } }
 }
 $src = Split-Path -Parent $MyInvocation.MyCommand.Path
