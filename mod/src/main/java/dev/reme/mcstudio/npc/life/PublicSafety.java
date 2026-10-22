@@ -65,8 +65,9 @@ public final class PublicSafety {
                                   ServerLevel level, UUID incident, long tick) {
         if (!level.getServer().isSameThread() || !victim.isAlive()
             || !suspect.isAlive() || victim == suspect
-            || !suspect.hostileTo(victim)
-            || suspect.identity().faction() != SocietyRules.Faction.RAIDERS)
+            || !(suspect.identity().faction() == SocietyRules.Faction.RAIDERS
+                 && suspect.hostileTo(victim)
+                 || suspect.unpaidFrom(victim.getUUID(), tick)))
             return 0;
         var firstHand = victim.civic().reports().stream()
             .filter(report -> report.id().equals(incident)
@@ -95,7 +96,12 @@ public final class PublicSafety {
         // The village bell is a real player-built bell, not a global police
         // siren. Ring only after a verified firsthand incident was actually
         // delivered to at least one local guard.
-        if (dispatched > 0) TownEvents.ringAlarm(level, victim.blockPosition());
+        if (dispatched > 0) {
+            boolean bell = TownEvents.ringAlarm(level, victim.blockPosition());
+            System.out.println("REME_NPC_STORY stage=guard_dispatch tick=" + tick
+                + " victim=" + victim.getUUID() + " suspect=" + suspect.getUUID()
+                + " guards=" + dispatched + " bell=" + bell);
+        }
         return dispatched;
     }
 
@@ -122,8 +128,9 @@ public final class PublicSafety {
         var offender = level.getEntity(guard.policeSuspect());
         if (!(offender instanceof PlayerNpcEntity suspect)
             || !suspect.isAlive() || suspect.isDetained(tick)
-            || suspect.identity().faction() != SocietyRules.Faction.RAIDERS
-            || !guard.hostileTo(suspect)) {
+            || !(suspect.identity().faction() == SocietyRules.Faction.RAIDERS
+                && guard.hostileTo(suspect)
+                || suspect.hasUnpaidShopItem(tick))) {
             guard.clearPoliceCase();
             return false;
         }
@@ -144,6 +151,10 @@ public final class PublicSafety {
         }
         // Only here, actually within reach and line of sight, custody starts.
         suspect.detainAt(jail, tick + CUSTODY_TICKS);
+        if (suspect.hasUnpaidShopItem(tick)) suspect.clearUnpaidShopItem();
+        System.out.println("REME_NPC_STORY stage=nonlethal_arrest tick=" + tick
+            + " guard=" + guard.getUUID() + " suspect=" + suspect.getUUID()
+            + " holding=" + jail.toShortString());
         suspect.setAction("nonlethally arrested by nearby guard; walking to authorized holding spot");
         guard.setAction("arrested reported raider at close range; escorting to jail area");
         guard.clearPoliceCase();
