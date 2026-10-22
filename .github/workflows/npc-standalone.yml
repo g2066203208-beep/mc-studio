@@ -62,6 +62,23 @@ jobs:
           name: reme-npc-0.6.7-dev-standalone
           path: mods/npc/build/libs/reme_npc-0.6.7-dev.jar
           if-no-files-found: error
+      - name: Assemble standalone HMCL NPC package (no PEAK/WorldSeam/Boss classes)
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          zip -j REME-NPC-HMCL-Standalone-0.6.7-dev.zip \
+            mods/npc/build/libs/reme_npc-0.6.7-dev.jar \
+            mods/npc/scripts/Install-REME-NPC.ps1 \
+            mods/npc/scripts/Install-REME-NPC.cmd
+          unzip -l REME-NPC-HMCL-Standalone-0.6.7-dev.zip
+      - name: Upload independent NPC HMCL installer zip
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reme-npc-hmcl-standalone-installer
+          path: REME-NPC-HMCL-Standalone-0.6.7-dev.zip
+          if-no-files-found: error
       - name: Save actual GameTest logs
         if: always()
         uses: actions/upload-artifact@v4
