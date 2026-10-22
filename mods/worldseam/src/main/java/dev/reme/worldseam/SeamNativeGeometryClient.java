@@ -431,6 +431,14 @@ public final class SeamNativeGeometryClient {
             // third-party baked model throws during a draw. Do not touch
             // mc.renderBuffers() and never leave queued partial geometry.
             OWNED_BUFFERS.flush();
+            // All solid and fallback sections are finished before liquid.
+            // Camera-proximal slices are sorted ascending above, so reverse
+            // their order for section-level back-to-front transparency.
+            for(int i=visible.size()-1;i>=0;i--) {
+                var slice=visible.get(i);
+                GPU_SECTIONS.drawTranslucent(slice,pose,camera,
+                    sourceBoundary,targetBoundary);
+            }
         }
         if (lastFrameDrawn>0) {
             lastFrameDrawCpuNanos=Math.max(0,System.nanoTime()-drawStarted);
