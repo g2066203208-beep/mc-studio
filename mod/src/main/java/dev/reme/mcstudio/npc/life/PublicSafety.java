@@ -5,6 +5,7 @@ import java.util.UUID;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.ai.navigation.GroundPathNavigation;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.Vec3;
 
@@ -234,6 +235,16 @@ public final class PublicSafety {
             suspect.setAction("held at designated iron-bar holding spot until release");
             return true;
         }
+        // A prisoner is NOT allowed to physically open a CLOSED iron door.
+        // Only the guard toggles the authenticated existing door on arrest.
+        // Once OPEN, vanilla PathfinderMob's default navigation may still
+        // label its node as impassable unless setCanPassDoors(true) is set.
+        // This was verified in the real GameTest: the inmate reached the
+        // open iron door but moveTo(next cell node) always returned false.
+        if (CityJailGate.isOpen(level, jail)
+            && suspect.getNavigation() instanceof GroundPathNavigation ground)
+            ground.setCanPassDoors(true);
+
         // Real multi-stage native path, bounded to the existing urban
         // station. Before this fix the NPC stalled 4 blocks south of the
         // cell because it kept routing DIRECTLY into the solid station wall.
