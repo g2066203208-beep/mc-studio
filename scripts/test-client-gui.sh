@@ -54,6 +54,33 @@ echo "Clicked Create New World with commands enabled"
 sleep 95
 import -window root client-gui-world.png
 echo "Captured in-world attempt (must inspect picture; not automatically proof of world entry)"
+# The city visual test is a disposable OP creative showcase, not a survival
+# combat test. Real prior run proved creepers can kill the operator BEFORE
+# city commands execute; make the player invulnerable and clear hostiles now.
+# This is ONLY set for the dedicated new scratch-world city screenshot run.
+if [[ "${REME_CITY_VISUAL:-0}" == "1" ]]; then
+  xdotool key --clearmodifiers t
+  sleep 1
+  xdotool type --clearmodifiers --delay 25 '/gamemode creative'
+  xdotool key Return
+  sleep 3
+  xdotool key --clearmodifiers t
+  sleep 1
+  xdotool type --clearmodifiers --delay 25 '/difficulty peaceful'
+  xdotool key Return
+  sleep 3
+  xdotool key --clearmodifiers t
+  sleep 1
+  xdotool type --clearmodifiers --delay 25 '/gamerule doMobSpawning false'
+  xdotool key Return
+  sleep 3
+  xdotool key --clearmodifiers t
+  sleep 1
+  xdotool type --clearmodifiers --delay 25 '/time set day'
+  xdotool key Return
+  sleep 3
+  import -window root client-gui-city-creative-fixture.png
+fi
 xdotool key --clearmodifiers t
 sleep 1
 xdotool type --clearmodifiers --delay 80 '/remecheck'
