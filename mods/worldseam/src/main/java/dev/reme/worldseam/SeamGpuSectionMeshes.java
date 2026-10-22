@@ -142,7 +142,7 @@ public final class SeamGpuSectionMeshes {
                 processed++;
                 int nativeY=c.y()-sourceBoundary+targetBoundary;
                 nativePos.set(c.x(),nativeY,c.z());
-                if(c.state().getRenderShape()==RenderShape.MODEL) {
+                if(c.drawModel()) {
                     var model=dispatcher.getBlockModel(c.state());
                     job.random.setSeed(c.state().getSeed(nativePos));
                     var available=model.getRenderTypes(c.state(),job.random,ModelData.EMPTY);
@@ -169,7 +169,7 @@ public final class SeamGpuSectionMeshes {
                 // dependent: use Minecraft's native liquid tessellator with
                 // exactly the source world and native neighbor blocks.
                 var fluid=c.state().getFluidState();
-                if(!fluid.isEmpty()) {
+                if(c.drawFluid()) {
                     RenderType type=ItemBlockRenderTypes.getRenderLayer(fluid);
                     int index=layerIndex(type);
                     if(index<0) {
