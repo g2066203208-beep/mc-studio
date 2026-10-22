@@ -41,10 +41,19 @@ public final class SeamJoinedServerBlockView implements BlockGetter {
         this.home=home;
         this.neighbor=neighbor;
         this.exit=link.exit();
-        this.homePlane=SeamGraph.boundaryY(exit,
+        // All configured native seam planes are integral block heights;
+        // boundaryY returns double for continuous entity coordinates.
+        double hp=SeamGraph.boundaryY(exit,
             SeamStackRuntime.bottom(home),SeamStackRuntime.top(home));
-        this.neighborPlane=SeamGraph.boundaryY(link.entry(),
+        double np=SeamGraph.boundaryY(link.entry(),
             SeamStackRuntime.bottom(neighbor),SeamStackRuntime.top(neighbor));
+        if(!Double.isFinite(hp)||!Double.isFinite(np)||
+           hp!=Math.rint(hp)||np!=Math.rint(np)||
+           hp<Integer.MIN_VALUE||hp>Integer.MAX_VALUE||
+           np<Integer.MIN_VALUE||np>Integer.MAX_VALUE)
+            throw new IllegalArgumentException("Non-integral/overflowed seam plane");
+        this.homePlane=(int)hp;
+        this.neighborPlane=(int)np;
     }
 
     /** Null means a block belongs to the native home world. */
