@@ -29,6 +29,9 @@ public final class SeamSableObserver {
     private static boolean attempted,failed;
     private static String problem="";
     private static boolean previouslyStraddling;
+    private static int lastRemoteCollisionCandidates;
+    private static int lastRemoteUnloadedBlocks;
+    private static int lastRemoteProbesTruncated;
     private static Snapshot latest=new Snapshot(false,false,0,0,0,"",0);
 
     public record Snapshot(boolean installed,boolean compatible,
@@ -41,6 +44,10 @@ public final class SeamSableObserver {
 
     public static Snapshot snapshot(){return latest;}
     public static String problem(){return problem;}
+    /** Native-block hull BROAD-PHASE only, not physical contact resolution. */
+    public static int remoteCollisionCandidates(){return lastRemoteCollisionCandidates;}
+    public static int remoteUnloadedBlocks(){return lastRemoteUnloadedBlocks;}
+    public static int remoteProbesTruncated(){return lastRemoteProbesTruncated;}
 
     public static void tick(MinecraftServer server,long tick,boolean worldSeamEnabled) {
         if(tick%INTERVAL_TICKS!=0)return;
@@ -48,6 +55,8 @@ public final class SeamSableObserver {
         boolean installed=ModList.get().isLoaded("sable");
         if(!worldSeamEnabled || !installed) {
             SeamShipResidency.clear();
+            lastRemoteCollisionCandidates=lastRemoteUnloadedBlocks=
+                lastRemoteProbesTruncated=0;
             latest=new Snapshot(installed,false,0,0,tick,"",0);
             return;
         }
@@ -58,6 +67,7 @@ public final class SeamSableObserver {
                 return;
             }
             int bodies=0,charted=0;
+            int possibleContactBlocks=0,unloadedCells=0,truncatedProbes=0;
             var visited=new HashSet<UUID>();
             var straddled=new HashSet<UUID>();
             String sample="";
@@ -106,11 +116,22 @@ public final class SeamSableObserver {
                             if(straddled.add(id) && sample.isEmpty())
                                 sample=id.toString()+" "+link.target();
                             charted++;
+                            // Real neighboring-world VoxelShapes: a bounded,
+                            // read-only source for future Rapier image
+                            // colliders. Contact force still UNIMPLEMENTED.
+                            var probe=SeamShipRemoteContactProbe.scan(
+                                dest,projection.neighboringPart());
+                            possibleContactBlocks+=probe.solidCandidates();
+                            unloadedCells+=probe.missingChunks();
+                            if(probe.truncated())truncatedProbes++;
                         }
                     }
                 }
             }
             SeamShipResidency.prune(tick);
+            lastRemoteCollisionCandidates=possibleContactBlocks;
+            lastRemoteUnloadedBlocks=unloadedCells;
+            lastRemoteProbesTruncated=truncatedProbes;
             latest=new Snapshot(true,true,bodies,straddled.size(),tick,sample,charted);
             if(!straddled.isEmpty() && !previouslyStraddling)
                 LOG.warn("WORLDSEAM_SABLE_STRADDLE_DETECTED: {} real ships touching two dimension charts. NO unified Rapier contact bridge is installed; do NOT claim physics continuity. sample={}",
