@@ -279,7 +279,24 @@ public final class ShopCounter {
                 + " tick=" + tick + " clerk=" + clerk.getUUID()
                 + " x=" + clerk.blockPosition().getX() + " z=" + clerk.blockPosition().getZ());
         }
-        if (!scheduled) return false;
+        if (!scheduled) {
+            // After clock-out, the clerk physically walks home instead of
+            // idling indefinitely at the counter. Do not override danger
+            // or native bed sleeping; both ran earlier in LivingWorldActions.
+            long clock = Math.floorMod(level.getDayTime() + clerk.dailyShiftTicks(), 24000L);
+            if (clock >= 11000 && clock < 12500
+                && !clerk.isAfraid(tick) && !clerk.isDetained(tick)
+                && !clerk.isSleeping()
+                && clerk.blockPosition().distSqr(clerk.homePos()) > 9
+                && MovementPolicy.due(tick, clerk.getId(), 40)
+                && level.hasChunkAt(clerk.homePos())
+                && DailyRoaming.inRange(clerk, clerk.homePos())
+                && RoadNavigator.moveToward(clerk, level, clerk.homePos(), 0.88)) {
+                clerk.setAction("finished convenience-store shift; commuting home by road");
+                return true;
+            }
+            return false;
+        }
         if (!MovementPolicy.due(tick, clerk.getId(), 40)) return true;
         if (!level.hasChunkAt(clerk.workPos())
             || !DailyRoaming.inRange(clerk, clerk.workPos())) {
