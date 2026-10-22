@@ -167,6 +167,21 @@ function syncVisual(){
  $('contactCount').textContent=s.supportContacts+' / 6';
  const knee=s.legAngles.find(x=>!x.detached);
  $('jointAngle').textContent=knee?(knee.hip*180/Math.PI).toFixed(1)+'°':'—';
+ // Report actual physical angles/contacts alongside gait commands.
+ $('gaitLegs').replaceChildren(...s.legAngles.map(j=>{
+  const phase=j.detached?'detached':j.gaitPhase||'stand';
+  const foot=s.footMeasurements.find(f=>f.id===j.id);
+  const chip=document.createElement('span');
+  chip.className='gait-leg gait-'+phase;
+  chip.textContent=j.id+' '+({stance:'支撑',swing:'抬腿',stand:'站立',detached:'断裂'}[phase]||phase)
+   +' · '+(j.hip*180/Math.PI).toFixed(0)+'°'
+   +' · '+(foot?.touching?'触地':'离地');
+  return chip;
+ }));
+ $('gaitCycle').textContent=s.mode==='stand'?'六足站立伺服中'
+   :'步态周期 '+((s.gait?.cycle||0)%1*100).toFixed(0)+'% · '
+     +(s.gait?.stance||0)+' 支撑 / '+(s.gait?.swing||0)+' 摆动 · '
+     +'净位移 '+s.travel.toFixed(2)+' 格';
  $('distance').textContent=s.travel.toFixed(2)+' 格';
  $('velocity').textContent=s.velocity.y.toFixed(2)+' m/s';
  $('steps').textContent=s.steps+' 个物理步长';
