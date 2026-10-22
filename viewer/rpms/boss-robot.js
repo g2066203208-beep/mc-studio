@@ -374,6 +374,23 @@ requestAnimationFrame(animate);
   }
   return {overlaps,offGrid,rigidBodies:visualBodies.length,modules:modules.length};
  }
+function bearingVisualAudit(){
+ const results=[];
+ for(let i=0;i<engine.motors.length;i++){
+  const motor=engine.motors[i];
+  for(const part of ['upper','lower']){
+   const visual=visualBodies[1+i*2+(part==='lower'?1:0)]?.mesh;
+   const bearing=visual?.children.find(x=>x.userData.fullVoxelModule?.id==='simulated:swivel_bearing');
+   const expected=(part==='upper'?engine.upperLength:engine.lowerLength)/2;
+   // The simulated bearing occupies y=0..1, and its UPPER face at y=1
+   // should coincide with the actual Rapier hinge near y=.825 / .875.
+   const faceY=bearing?.position.y+0.5;
+   results.push({id:motor.id,part,realPivotY:expected,bearingFaceY:faceY,
+    pivotError:Math.abs(expected-faceY),oneVoxel:bearing?.scale.x===1});
+  }
+ }
+ return results;
+}
 window.__BOSS_API__={
  get ready(){return ready},get engine(){return engine},get error(){return $('engineState').dataset.error||null},
  snapshot:()=>engine?.snapshot(),advance:n=>{const s=engine.advance(n);syncVisual();return s;},
@@ -381,7 +398,7 @@ window.__BOSS_API__={
  motor:o=>{engine.setMotor(o);syncVisual();},
  disconnectBranch:(id,cut)=>{engine.disconnectBranch(id,cut);syncVisual();},
  getPowertrain:()=>engine?.snapshot().powertrain,
- voxelAudit:auditVoxelOccupancy,
+ voxelAudit:auditVoxelOccupancy,bearingAudit:bearingVisualAudit,
  removeLeg,removeAllFeet:()=>{$('removeAll').click()},
  reset:createRig,physicsBodies:()=>visualBodies.length,visibleMeshes:()=>{let n=0;root?.traverse(o=>{if(o.isMesh&&o.visible)n++});return n;},
  getAssetStatus:()=>({officialTypes:[...assetCache.keys()],officialMeshes:officialCount,components:modules.length}),
