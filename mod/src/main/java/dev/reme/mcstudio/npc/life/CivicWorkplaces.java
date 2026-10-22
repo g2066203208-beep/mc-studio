@@ -58,7 +58,14 @@ public final class CivicWorkplaces {
                 if (state.is(Blocks.LECTERN)) lectern++;
                 if (state.is(Blocks.IRON_BARS)) bars++;
                 if (state.is(Blocks.BELL)) bell++;
-                if (state.getBlock() instanceof net.minecraft.world.level.block.DoorBlock)
+                if (state.getBlock() instanceof net.minecraft.world.level.block.DoorBlock
+                    && state.getValue(net.minecraft.world.level.block.DoorBlock.HALF)
+                        == net.minecraft.world.level.block.state.properties.DoubleBlockHalf.LOWER
+                    && level.hasChunkAt(pos.above())
+                    && level.getBlockState(pos.above()).is(state.getBlock())
+                    && level.getBlockState(pos.above()).getValue(
+                        net.minecraft.world.level.block.DoorBlock.HALF)
+                        == net.minecraft.world.level.block.state.properties.DoubleBlockHalf.UPPER)
                     doors++;
                 if (y == 3 && state.isSolid()) roofs++;
             }
