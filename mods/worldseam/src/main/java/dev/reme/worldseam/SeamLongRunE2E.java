@@ -50,6 +50,7 @@ public final class SeamLongRunE2E {
     private static volatile double expectedMarkerX,expectedMarkerY,expectedMarkerZ;
     private static volatile boolean serverConfirmed;
     private static volatile boolean serverReady;
+    private static volatile long stageArmedAfterServerTick;
     private static int stage;
     private static int pass;
     private static long stageTick;
@@ -187,19 +188,28 @@ public final class SeamLongRunE2E {
                 server.execute(()->{
                     ServerPlayer p=server.getPlayerList().getPlayer(player);
                     if(p==null || !p.serverLevel().dimension().location().toString().equals(from()))return;
-                    if(!SeamReadiness.isReady(player,from(),to(),
-                        server.overworld().getGameTime()))return;
+                    long serverTick=server.overworld().getGameTime();
+                    // Give SeamReturnGuard a real server-tick interval at
+                    // the position THREE blocks inside this world. If we
+                    // reverse immediately after the prior crossing, the
+                    // anti-bounce hysteresis rightly rejects the attempt.
+                    if(serverTick<stageArmedAfterServerTick)return;
+                    if(!SeamReadiness.isReady(player,from(),to(),serverTick))return;
                     if(triggerSent)return;
                     triggerSent=true;
                     int bound=boundary();
                     double starting=UP[pass%4]?bound-0.25:bound+0.25;
                     p.connection.teleport(p.getX(),starting,p.getZ(),
                         p.getYRot(),UP[pass%4]?-90:90);
-                    p.getAbilities().flying=false;
+                    // Avoid the prior test bug: flying=false causes normal
+                    // gravity and the client movement packets to overwrite
+                    // upward momentum before the seam logic can see it.
+                    p.getAbilities().flying=true;
                     p.onUpdateAbilities();
-                    p.setDeltaMovement(new Vec3(0,UP[pass%4]?0.23:-0.23,0));
+                    p.fallDistance=0;
+                    p.setDeltaMovement(new Vec3(0,UP[pass%4]?0.90:-0.55,0));
                     LOG.info("WORLDSEAM_STRESS_TRIGGER: pass={} {} -> {} boundary={} velocity={} native_ready=true",
-                        pass+1,from(),to(),bound,UP[pass%4]?0.23:-0.23);
+                        pass+1,from(),to(),bound,UP[pass%4]?0.90:-0.55);
                 });
             }
             if(triggerSent) {
@@ -356,6 +366,7 @@ public final class SeamLongRunE2E {
             p.fallDistance=0;
             double standby=UP[pass%4]?b-3.0:b+3.0;
             p.connection.teleport(x+0.5,standby,z+0.5,0,UP[pass%4]?-90:90);
+            stageArmedAfterServerTick=server.overworld().getGameTime()+12;
             LOG.info("WORLDSEAM_STRESS_STAGE: pass={}/{}, native source={}, destination={}, x={}, z={}, y={}, upper={}",
                 pass+1,PASSES,desired,to(),x,z,standby,UP[pass%4]);
         });
