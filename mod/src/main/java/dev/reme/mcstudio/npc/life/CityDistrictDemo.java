@@ -170,9 +170,11 @@ public final class CityDistrictDemo {
     private static void door(Plan p, int x, int z, Direction facing) {
         p.state(x, 1, z, Blocks.OAK_DOOR.defaultBlockState()
             .setValue(DoorBlock.FACING, facing)
+            .setValue(DoorBlock.OPEN, true)
             .setValue(DoorBlock.HALF, DoubleBlockHalf.LOWER));
         p.state(x, 2, z, Blocks.OAK_DOOR.defaultBlockState()
             .setValue(DoorBlock.FACING, facing)
+            .setValue(DoorBlock.OPEN, true)
             .setValue(DoorBlock.HALF, DoubleBlockHalf.UPPER));
     }
 
@@ -239,18 +241,43 @@ public final class CityDistrictDemo {
         shell(p, -18, 6, -6, 18, 6, Blocks.STONE_BRICKS,
             Blocks.GLASS, Blocks.DEEPSLATE_TILES);
         door(p, -6, 12, Direction.EAST);
+        // Real rear prisoner intake: outside street z=19 -> open station
+        // back door z=18 -> authorized IRON cell gate z=17 -> actual cell.
+        // Avoid a 25-block detour around solid police walls, which left
+        // pathfinding stuck four blocks from the cell for 1200 ticks.
+        door(p, -13, 18, Direction.SOUTH);
         // Lockable-looking REAL iron-bar holding room; true custody remains
         // the existing PublicSafety controller, not the structure itself.
         for (int x = -17; x <= -12; x++)
             for (int z = 14; z <= 17; z++) {
                 if (x != -17 && x != -12 && z != 14 && z != 17) continue;
+                // Only south intake at x=-13,z=17 can be unlocked.
+                // East wall stays fully closed: no walkaround out of jail.
+                if (x == -13 && z == 17) continue;
                 for (int y = 1; y <= 3; y++) p.put(x, y, z, Blocks.IRON_BARS);
             }
+        // A REAL initially locked iron gate directly facing the rear
+        // entrance, changed only by CityJailGate after physical arrest.
+        p.state(-13, 1, 17, Blocks.IRON_DOOR.defaultBlockState()
+            .setValue(DoorBlock.FACING, Direction.SOUTH)
+            .setValue(DoorBlock.HALF, DoubleBlockHalf.LOWER));
+        p.state(-13, 2, 17, Blocks.IRON_DOOR.defaultBlockState()
+            .setValue(DoorBlock.FACING, Direction.SOUTH)
+            .setValue(DoorBlock.HALF, DoubleBlockHalf.UPPER));
         p.put(-11, 1, 10, Blocks.LECTERN);
         p.put(-15, 1, 9, Blocks.CHEST);
         p.put(-10, 1, 9, Blocks.CRAFTING_TABLE);
-        p.put(-5, 1, 12, Blocks.STONE_BRICKS);
-        p.put(-5, 2, 12, Blocks.BELL);
+        // Keep the EAST station door and its approach genuinely walkable.
+        // Earlier -5,1,12 STONE_BRICKS blocked the only native entrance:
+        // prisoner reached the outside south wall but could never get in.
+        // Alarm is moved along the facade away from the route.
+        p.put(-5, 1, 9, Blocks.STONE_BRICKS);
+        p.put(-5, 2, 9, Blocks.BELL);
+        // Real audible alarm *near the mall*, not only 24 blocks away at
+        // headquarters. The store clerk can trigger it after an actual
+        // first-hand theft and nearby on-foot guard dispatch.
+        p.put(-4, 1, -10, Blocks.STONE_BRICK_WALL);
+        p.put(-4, 2, -10, Blocks.BELL);
         for (int z = 11; z <= 13; z++) p.put(-6, 5, z, Blocks.BLUE_CONCRETE);
     }
 
@@ -286,18 +313,21 @@ public final class CityDistrictDemo {
     private static int spawnShowcaseResidents(ServerLevel level, BlockPos center,
                                                @Nullable ServerPlayer owner) {
         String[] names = {"商场经理","食品店员","烘焙店员","巡逻警察","值班警察",
-            "街区农夫","农贸供应商","上班族甲","上班族乙","逛街顾客","公园居民","快递配送员"};
+            "街区农夫","农贸供应商","上班族甲","上班族乙","逛街顾客","公园居民","快递配送员",
+            "街区逃单者"};
         PlayerNpcEntity.Profession[] jobs = {
             PlayerNpcEntity.Profession.SHOPKEEPER, PlayerNpcEntity.Profession.SHOPKEEPER,
             PlayerNpcEntity.Profession.BAKER, PlayerNpcEntity.Profession.GUARD,
             PlayerNpcEntity.Profession.GUARD, PlayerNpcEntity.Profession.FARMER,
             PlayerNpcEntity.Profession.FARMER, PlayerNpcEntity.Profession.RESIDENT,
             PlayerNpcEntity.Profession.RESIDENT, PlayerNpcEntity.Profession.RESIDENT,
-            PlayerNpcEntity.Profession.RESIDENT, PlayerNpcEntity.Profession.COURIER
+            PlayerNpcEntity.Profession.RESIDENT, PlayerNpcEntity.Profession.COURIER,
+            PlayerNpcEntity.Profession.RESIDENT
         };
         int[][] spawn = {
-            {-10,-10},{-10,-14},{-8,-8},{-10,10},{-10,13},
-            {10,11},{16,12},{9,-9},{15,-9},{-3,-12},{10,8},{3,12}
+            {-10,-10},{-10,-14},{-8,-8},{-7,-10},{-10,13},
+            {10,11},{16,12},{9,-9},{15,-9},{-3,-12},{10,8},{3,12},
+            {-8,-11}
         };
         int count=0;
         String region = "city_" + (center.getX()>>4) + "_" + (center.getZ()>>4);
@@ -314,15 +344,27 @@ public final class CityDistrictDemo {
             npc.setHomePos(center.offset(i%2==0 ? 9 : 15, 1, -12));
             if (i < 3) npc.setWorkPos(center.offset(-10,1,-12));
             else if (i < 5) {
-                npc.setWorkPos(center.offset(-10,1,12));
-                npc.setPoliceJail(center.offset(-14,1,15));
+                // One officer's actual street beat covers the shop so
+                // eyewitness reports can reach police. One guards station.
+                npc.setWorkPos(center.offset(i == 3 ? -7 : -10, 1,
+                    i == 3 ? -10 : 12));
+                npc.setPoliceJail(center.offset(-13,1,15));
             }
             else if (i < 7) npc.setWorkPos(center.offset(15,1,12));
             else npc.setWorkPos(center.offset(-3,1,-12));
             if (owner != null) npc.setOwner(owner);
             npc.setCustomName(Component.literal(names[i]));
             npc.setCustomNameVisible(true);
-            npc.setCharacter(CharacterProfile.fromSeed(i+234));
+            // Identity-stable native entity tags survive real navigation.
+            // Do NOT infer a moving citizen's identity from old spawn
+            // coordinates in the Xvfb client screenshot workflow.
+            if (i == 0) npc.addTag("reme_city_clerk");
+            if (i == 3) npc.addTag("reme_city_guard");
+            if (i == 10) npc.addTag("reme_city_park");
+            if (i == 12) npc.addTag("reme_city_shoplifter");
+            npc.setCharacter(i == 12
+                ? new CharacterProfile(8, 30, 50, 25)
+                : CharacterProfile.fromSeed(i+234));
             if (jobs[i] == PlayerNpcEntity.Profession.SHOPKEEPER) {
                 npc.backpack().addItem(new ItemStack(Items.BREAD, 12));
                 npc.backpack().addItem(new ItemStack(Items.APPLE, 8));
@@ -331,11 +373,18 @@ public final class CityDistrictDemo {
                 npc.backpack().addItem(new ItemStack(Items.CARROT, 18));
                 npc.backpack().addItem(new ItemStack(Items.BREAD, 2));
             } else if (jobs[i] == PlayerNpcEntity.Profession.RESIDENT) {
-                npc.backpack().addItem(new ItemStack(Items.EMERALD, 3));
+                // 12th index is a low-honesty, cashless local. Honest
+                // customers get actual money and pay normally. No stolen
+                // merchandise is inserted here: crime requires real theft.
+                if (i != 12)
+                    npc.backpack().addItem(new ItemStack(Items.EMERALD, 3));
                 npc.changeNeeds(-52,0,0);
             } else npc.backpack().addItem(new ItemStack(Items.BREAD,3));
             if (level.addFreshEntity(npc)) count++;
         }
+        System.out.println("REME_NPC_STORY stage=city_initial_population"
+            + " tick=" + level.getGameTime() + " citizens=" + count
+            + " realClerks=2 realGuards=2 dishonestCustomers=1");
         return count;
     }
 }

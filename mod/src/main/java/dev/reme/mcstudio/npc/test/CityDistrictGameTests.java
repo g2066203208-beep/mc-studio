@@ -74,7 +74,9 @@ public final class CityDistrictGameTests {
             || !level.getBlockState(center.offset(15,1,-15)).is(Blocks.RED_BED))
             throw new AssertionError("Two townhouses lack physical vanilla resident beds");
         if (!level.getBlockState(center.offset(-12,2,15)).is(Blocks.IRON_BARS)
-            || !level.getBlockState(center.offset(-5,2,12)).is(Blocks.BELL)
+            || !level.getBlockState(center.offset(-5,2,9)).is(Blocks.BELL)
+            || !level.getBlockState(center.offset(-5,1,12)).isAir()
+            || !level.getBlockState(center.offset(-5,2,12)).isAir()
             || !level.getBlockState(center.offset(15,1,9)).is(Blocks.NOTE_BLOCK)
             || !level.getBlockState(center.offset(12,2,12)).is(Blocks.WATER_CAULDRON))
             throw new AssertionError("Town's police cell, village alarm or market park is missing");
@@ -89,9 +91,33 @@ public final class CityDistrictGameTests {
         long customers = people.stream().filter(p -> p.profession()
             == PlayerNpcEntity.Profession.RESIDENT
             && p.backpack().countItem(Items.EMERALD) > 0).count();
-        if (merchants < 2 || guards < 2 || customers < 3)
-            throw new AssertionError("City lacks actual autonomous stores, guards or paid shoppers: "
-                + merchants + "/" + guards + "/" + customers);
+        long realDishonestShoppers = people.stream().filter(p ->
+            p.profession() == PlayerNpcEntity.Profession.RESIDENT
+            && p.character().honesty() <= 20).count();
+        for (String track : new String[]{"reme_city_clerk","reme_city_guard",
+                                       "reme_city_park","reme_city_shoplifter"}) {
+            long tracked = people.stream().filter(p -> p.getTags().contains(track)).count();
+            if (tracked != 1)
+                throw new AssertionError("Real entity identity not stable for camera: "
+                    + track + "=" + tracked);
+        }
+        BlockPos inmateSpot = center.offset(-13, 1, 15);
+        if (merchants < 2 || guards < 2 || customers < 3
+            || realDishonestShoppers != 1
+            || people.size() != 13
+            || !level.getBlockState(center.offset(-4,2,-10)).is(Blocks.BELL)
+            || !level.getBlockState(center.offset(-8,1,-11)).isAir()
+            || !dev.reme.mcstudio.npc.life.PublicSafety.holdingSpot(level, inmateSpot)
+            || !dev.reme.mcstudio.npc.life.CityJailGate.isGate(level, inmateSpot)
+            || dev.reme.mcstudio.npc.life.CityJailGate.isOpen(level, inmateSpot)
+            || !level.getBlockState(center.offset(-12,1,16)).is(Blocks.IRON_BARS)
+            || !level.getBlockState(center.offset(-13,1,18)).is(Blocks.OAK_DOOR)
+            || !level.getBlockState(center.offset(-13,1,18))
+                .getValue(net.minecraft.world.level.block.DoorBlock.OPEN))
+            throw new AssertionError("City lacks actual shops, 13 safe citizens, cashless shoplifter,"
+                + " physically accessible jail or genuine shop alarm: merchants=" + merchants
+                + " guards=" + guards + " payingResidents=" + customers
+                + " dishonest=" + realDishonestShoppers + " total=" + people.size());
         // Once created, a city cannot silently overprint an existing world.
         CityDistrictDemo.Result refused = CityDistrictDemo.build(level, center, null);
         if (refused.success() || refused.blocks() != 0 || refused.citizens() != 0)

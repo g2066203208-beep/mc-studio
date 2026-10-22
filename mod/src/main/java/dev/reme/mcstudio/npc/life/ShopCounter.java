@@ -73,18 +73,28 @@ public final class ShopCounter {
      * 36-slot NBT backpack. Both bags are checked and committed together.
      * Nothing goes via FakePlayer inventory, and no item or currency is minted.
      */
+    public static boolean scheduledAt(long dayTime, int shift) {
+        long clock = Math.floorMod(dayTime + shift, 24000L);
+        return clock < 11000L;
+    }
+
+    public static boolean onShift(PlayerNpcEntity shop) {
+        return scheduledAt(shop.level().getDayTime(), shop.dailyShiftTicks());
+    }
+
     public static boolean openForResidentSales(PlayerNpcEntity shop) {
         if (shop.profession() != PlayerNpcEntity.Profession.SHOPKEEPER
             || shop.mode() != PlayerNpcEntity.Mode.LIVE || !shop.isAlive()
             || shop.isSleeping() || shop.blockPosition().distSqr(shop.workPos()) > 9)
             return false;
-        // 06:00-18:30: the clerk can sell while greeting neighbors at the
-        // physical counter, not solely during its formal WORK planner score.
-        // Prevent "on site but unavailable" deadlocks during morning routine.
-        long clock = Math.floorMod(shop.level().getDayTime() + shop.dailyShiftTicks(), 24000L);
-        return shop.intent() == LivingPlanner.Intent.WORK
-            || (shop.intent() == LivingPlanner.Intent.SOCIALIZE
-                && clock < 12500L);
+        // Business opens at Minecraft 06:00 (dayTime=0) and closes
+        // at 17:00 (dayTime=11000), regardless of a passing social planner.
+        // Being at a real counter is also mandatory: no remote selling.
+        return onShift(shop) && shop.energy() > 20
+            && shop.intent() != LivingPlanner.Intent.SLEEP
+            && shop.intent() != LivingPlanner.Intent.ESCAPE
+            && !shop.isAfraid(shop.level().getGameTime())
+            && !shop.isDetained(shop.level().getGameTime());
     }
 
     public static boolean purchaseByResident(PlayerNpcEntity shop, PlayerNpcEntity customer,
@@ -122,6 +132,9 @@ public final class ShopCounter {
         shop.setAction("sold actual local food to a visiting resident");
         shop.journey().succeeded(LifeJourney.Achievement.BARTER);
         customer.journey().succeeded(LifeJourney.Achievement.BARTER);
+        System.out.println("REME_NPC_STORY stage=paid_sale tick=" + tick
+            + " shop=" + shop.getUUID() + " buyer=" + customer.getUUID()
+            + " product=" + good + " price_em=1");
         return true;
     }
 
@@ -255,8 +268,40 @@ public final class ShopCounter {
 
     public static boolean tick(PlayerNpcEntity clerk, ServerLevel level, long tick) {
         if (clerk.profession() != PlayerNpcEntity.Profession.SHOPKEEPER
-            || clerk.mode() != PlayerNpcEntity.Mode.LIVE
-            || clerk.intent() != LivingPlanner.Intent.WORK) return false;
+            || clerk.mode() != PlayerNpcEntity.Mode.LIVE) return false;
+        boolean scheduled = onShift(clerk) && !clerk.isSleeping()
+            && clerk.intent() != LivingPlanner.Intent.SLEEP
+            && clerk.intent() != LivingPlanner.Intent.ESCAPE
+            && !clerk.isDetained(tick) && !clerk.isAfraid(tick)
+            && clerk.energy() > 20;
+        // No replay on every game tick; one structured open/close event.
+        if (scheduled != clerk.shopShiftActive()) {
+            clerk.setShopShiftActive(scheduled);
+            clerk.setAction(scheduled
+                ? "convenience store shift started; going to real counter"
+                : "convenience store shift ended; closing register");
+            System.out.println("REME_NPC_STORY stage=" + (scheduled ? "shift_start" : "shift_end")
+                + " tick=" + tick + " clerk=" + clerk.getUUID()
+                + " x=" + clerk.blockPosition().getX() + " z=" + clerk.blockPosition().getZ());
+        }
+        if (!scheduled) {
+            // After clock-out, the clerk physically walks home instead of
+            // idling indefinitely at the counter. Do not override danger
+            // or native bed sleeping; both ran earlier in LivingWorldActions.
+            long clock = Math.floorMod(level.getDayTime() + clerk.dailyShiftTicks(), 24000L);
+            if (clock >= 11000 && clock < 12500
+                && !clerk.isAfraid(tick) && !clerk.isDetained(tick)
+                && !clerk.isSleeping()
+                && clerk.blockPosition().distSqr(clerk.homePos()) > 9
+                && MovementPolicy.due(tick, clerk.getId(), 40)
+                && level.hasChunkAt(clerk.homePos())
+                && DailyRoaming.inRange(clerk, clerk.homePos())
+                && RoadNavigator.moveToward(clerk, level, clerk.homePos(), 0.88)) {
+                clerk.setAction("finished convenience-store shift; commuting home by road");
+                return true;
+            }
+            return false;
+        }
         if (!MovementPolicy.due(tick, clerk.getId(), 40)) return true;
         if (!level.hasChunkAt(clerk.workPos())
             || !DailyRoaming.inRange(clerk, clerk.workPos())) {
@@ -279,6 +324,7 @@ public final class ShopCounter {
             }
             if (restock(clerk, level) > 0) return true;
         }
+        if (NeighborhoodMarket.tickSupplier(clerk, level, tick)) return true;
         if (clerk.blockPosition().distSqr(clerk.workPos()) > 6) {
             RoadNavigator.moveToward(clerk, level, clerk.workPos(), 0.83);
             clerk.setAction("walking to shop counter for real daytime shift");

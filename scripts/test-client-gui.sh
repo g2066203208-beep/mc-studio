@@ -163,19 +163,45 @@ if [[ "${REME_CITY_VISUAL:-0}" == "1" ]]; then
   say_city '/fill ~-20 ~ ~-20 ~20 ~10 ~20 minecraft:air' 5
   say_city '/npc city survey' 4
   import -window root client-gui-city-survey.png
-  say_city '/npc city demo' 20
+  # Previously filming started well AFTER jail_reached. Capture an UNBROKEN
+  # real client video BEFORE the city even spawns its first thief.
+  # This is an actual screen recorder, no still-image assembly or fake
+  # path animations. Start a stable UUID spectator chase immediately.
+  ffmpeg -loglevel error -nostdin -y -f x11grab -video_size 1280x720 \
+    -framerate 6 -i "$DISPLAY" -c:v libx264 -preset ultrafast -crf 27 \
+    -pix_fmt yuv420p -movflags +faststart \
+    client-gui-city-full-crime-to-locked-jail.mp4 >client-gui-city-case-ffmpeg.log 2>&1 &
+  CASE_VIDEO_PID=$!
+  say_city '/npc city demo' 1
+  say_city '/gamemode spectator' 1
+  say_city '/npc camera chase shoplifter' 2
+  import -window root client-gui-city-full-case-t0.png
+  sleep 13
+  import -window root client-gui-city-full-case-t1.png
+  sleep 17
+  import -window root client-gui-city-full-case-t2.png
+  sleep 17
+  import -window root client-gui-city-full-case-t3.png
+  sleep 18
+  import -window root client-gui-city-full-case-t4.png
+  sleep 15
+  import -window root client-gui-city-full-case-t5.png
+  say_city '/npc camera stop' 1
+  kill -INT "$CASE_VIDEO_PID" 2>/dev/null || true
+  wait "$CASE_VIDEO_PID" || true
+  # Return to the physical city center (not an obsolete moving NPC spawn).
+  # Native spectator travel moves only our observer, not any citizen.
+  say_city '/tp @s ~ ~ ~' 1
   say_city '/npc city census' 4
+  say_city '/npc city audit' 4
   import -window root client-gui-city-census.png
   import -window root client-gui-city-street-level.png
-  # Tag three REAL NPCs at their physical shops/guard post/park spawn points,
-  # while the player is still at the city origin. No visual stand-ins.
-  # Named tags are attached to loaded remestudio NPC entities, never armor stands.
-  say_city '/execute positioned ~-10 ~1 ~-12 run tag @e[type=reme_studio:player_npc,distance=..8,sort=nearest,limit=1] add reme_city_clerk' 3
-  say_city '/execute positioned ~-10 ~1 ~12 run tag @e[type=reme_studio:player_npc,distance=..8,sort=nearest,limit=1] add reme_city_guard' 3
-  say_city '/execute positioned ~10 ~1 ~8 run tag @e[type=reme_studio:player_npc,distance=..8,sort=nearest,limit=1] add reme_city_park' 3
+  # Identity tags are attached during actual NPC creation in CityDistrictDemo.
+  # A moving customer must NEVER be found by its obsolete spawn coordinate.
   say_city '/execute if entity @e[type=reme_studio:player_npc,tag=reme_city_clerk] run say REME_CITY_CLERK_ENTITY_EXISTS' 2
   say_city '/execute if entity @e[type=reme_studio:player_npc,tag=reme_city_guard] run say REME_CITY_GUARD_ENTITY_EXISTS' 2
   say_city '/execute if entity @e[type=reme_studio:player_npc,tag=reme_city_park] run say REME_CITY_PARK_ENTITY_EXISTS' 2
+  say_city '/execute if entity @e[type=reme_studio:player_npc,tag=reme_city_shoplifter] run say REME_CITY_SHOPLIFTER_ENTITY_EXISTS' 2
   # Spectator gives a reproducible free-camera vista while leaving
   # all world blocks and authentic NPC entities untouched.
   say_city '/gamemode spectator' 4
@@ -192,6 +218,31 @@ if [[ "${REME_CITY_VISUAL:-0}" == "1" ]]; then
   import -window root client-gui-city-npc-guard-closeup.png
   say_city '/execute at @e[type=reme_studio:player_npc,tag=reme_city_clerk,limit=1] run tp @s ~ ~2 ~4 facing entity @e[type=reme_studio:player_npc,tag=reme_city_clerk,limit=1] eyes' 6
   import -window root client-gui-city-npc-shopkeeper-closeup.png
+  # Start unmodified REAL X11 screen capture. This is actual GUI video,
+  # not assembled still screenshots nor a staged engine animation.
+  ffmpeg -loglevel error -nostdin -y -f x11grab -video_size 1280x720 \
+    -framerate 6 -i "$DISPLAY" -c:v libx264 -preset ultrafast -crf 27 \
+    -pix_fmt yuv420p -movflags +faststart \
+    client-gui-city-physical-npc-follow.mp4 >client-gui-city-ffmpeg.log 2>&1 &
+  VIDEO_PID=$!
+  # REAL MOD CAMERA: the target UUID is retained across frames. The
+  # spectator alone moves continuously; NPC AI is not teleported/paused.
+  say_city '/npc camera chase shoplifter' 8
+  import -window root client-gui-city-shoplifter-t0.png
+  sleep 14
+  import -window root client-gui-city-shoplifter-t1.png
+  sleep 14
+  import -window root client-gui-city-shoplifter-t2.png
+  say_city '/npc camera stop' 3
+  say_city '/npc camera pov guard' 5
+  import -window root client-gui-city-guard-native-possession.png
+  sleep 8
+  import -window root client-gui-city-guard-native-possession-t1.png
+  say_city '/npc camera stop' 3
+  kill -INT "$VIDEO_PID" 2>/dev/null || true
+  wait "$VIDEO_PID" || true
+  say_city '/npc city audit' 4
+  import -window root client-gui-city-live-audit.png
   say_city '/npc market' 4
   import -window root client-gui-city-market-activity.png
   log=run/logs/latest.log
@@ -203,15 +254,68 @@ if [[ "${REME_CITY_VISUAL:-0}" == "1" ]]; then
     echo 'FAIL: GUI /npc city demo did not build true road/mall blocks'
     exit 1
   fi
-  if ! grep -q '实际生活NPC：12' "$log"; then
+  if ! grep -q '实际生活NPC：13' "$log"; then
     echo 'FAIL: GUI real city did not spawn the 12 citizen entities'
     exit 1
+  fi
+  if ! test -s client-gui-city-full-crime-to-locked-jail.mp4; then
+    echo "FAIL: no real full-incident native Minecraft video"; exit 1
+  fi
+  # Check the FULL case in real integrated-client server stdout, NOT staged
+  # GameTest results: identical live thief UUID must steal, get reported,
+  # arrested and ENTER a physically locked cell in timestamp order. The
+  # camera attach must precede the actual arrest, else filming was late.
+  python3 - <<'PY'
+import pathlib,re,sys
+text=pathlib.Path("client-gui.log").read_text(errors="replace")
+markers=["stage=unpaid_pickup","stage=police_report",
+         "stage=nonlethal_arrest","stage=jail_reached"]
+events=[]
+for marker in markers:
+    m=re.search(r"^.*"+re.escape(marker)+r".*$",text,re.MULTILINE)
+    if not m:
+        sys.exit("FAIL: real joined client lacks "+marker)
+    events.append(m)
+uuids=[]
+for m in events:
+    x=re.search(r"(?:suspect|prisoner)=([0-9a-f-]{36})",m.group())
+    if not x: sys.exit("FAIL: real crime event has no physical actor UUID")
+    uuids.append(x.group(1))
+if len(set(uuids))!=1:
+    sys.exit("FAIL: theft/arrest/jail refer to DIFFERENT NPCs "+str(uuids))
+if not all(events[i].start()<events[i+1].start()
+           for i in range(len(events)-1)):
+    sys.exit("FAIL: real city incident timeline out of order")
+gate=re.search(r"^.*stage=jail_gate_locked.*$",text,re.MULTILINE)
+if not gate: sys.exit("FAIL: no real Minecraft iron door locked after entry")
+pov=re.search(r"已连续跟踪真实NPC ([0-9a-f-]{36})：CHASE",text)
+if not pov or pov.group(1)!=uuids[0]:
+    sys.exit("FAIL: native camera not tracking the REAL thief in incident")
+if not pov.start()<events[2].start():
+    sys.exit("FAIL: follow camera started only after actual in-world arrest")
+print("REME_NPC_REAL_CLIENT_FULL_CASE_RECORDING_OK thief="+uuids[0]
+      +" theft-report-arrest-cell=true camera-attached-before-arrest=true")
+PY
+  if ! test -s client-gui-city-physical-npc-follow.mp4; then
+    echo "FAIL: no genuine H264 recording of Minecraft NPC pursuit/follow"; exit 1
+  fi
+  if ! grep -q '已连续跟踪真实NPC' "$log"; then
+    echo "FAIL: true integrated spectator camera never attached to actual resident"; exit 1
+  fi
+  if ! grep -q 'NPC镜头已解除附身/追踪' "$log"; then
+    echo "FAIL: live NPC camera could not detach"; exit 1
+  fi
+  for frame in client-gui-city-shoplifter-t0.png client-gui-city-shoplifter-t1.png client-gui-city-shoplifter-t2.png client-gui-city-guard-native-possession.png; do
+    test -s "$frame" || { echo "FAIL: missing native moving follow camera RGB frame $frame"; exit 1; }
+  done
+  if ! grep -q '城市治安直播统计' "$log"; then
+    echo "FAIL: live in-client police/store register audit missing"; exit 1
   fi
   if ! grep -q '城市实体普查：周围42格内真正存活 NPC' "$log"; then
     echo "FAIL: real in-client population census did not count living entities"
     exit 1
   fi
-  for tag in CLERK GUARD PARK; do
+  for tag in CLERK GUARD PARK SHOPLIFTER; do
     if ! grep -q "REME_CITY_${tag}_ENTITY_EXISTS" "$log"; then
       echo "FAIL: real tracked NPC ${tag} not found in 3D city world"
       exit 1
@@ -233,7 +337,7 @@ fi
 # separate coordinate fixture and masked an already-working command test.
 if [[ "${REME_COMMAND_SMOKE_ONLY:-0}" == "1" ]]; then
   log=run/logs/latest.log
-  if ! grep -q 'REME NPC 0.7.0-dev COMMANDS REGISTERED: /npc=true, /remecheck=true' "$log"; then
+  if ! grep -q 'REME NPC 0.7.1-dev COMMANDS REGISTERED: /npc=true, /remecheck=true' "$log"; then
     echo "FAIL: 21.1.262 server never actually registered both commands"; exit 1
   fi
   if ! grep -q '/npc registered=true' "$log"; then

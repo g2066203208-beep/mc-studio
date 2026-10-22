@@ -1,0 +1,64 @@
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+name: NPC REAL convenience store daily shift, shopping and police GameTest soak
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feat/npc-live-store-security-e2e-v071
+  pull_request:
+    branches:
+      - feat/npc-real-city-district-v070
+
+permissions:
+  contents: read
+
+jobs:
+  live-store-law-acceptance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 23
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Pin the exact native game/loader and 0.7.1 mod
+        run: |
+          grep -Fxq 'minecraft_version=1.21.1' mod/gradle.properties
+          grep -Fxq 'neo_version=21.1.262' mod/gradle.properties
+          grep -Fxq 'mod_version=0.7.1-dev' mod/gradle.properties
+      - name: Generate isolated native Minecraft GameTest world (NOT user world)
+        run: python3 scripts/prepare-gametest-arena.py
+      - name: Run ALL server-native NeoForge tests including the actual 24,000 tick store workday
+        working-directory: mod
+        shell: bash
+        run: |
+          set -o pipefail
+          ./gradlew runGameTestServer --no-daemon --stacktrace 2>&1 | tee ../npc-real-store-crime-gametest.log
+      - name: Fail on missing real pay, theft case, arrest, daily shop hours or original beds
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -F 'REME_NPC_REAL_STORE_DAYSOAK ticks=24000' npc-real-store-crime-gametest.log
+          grep -F 'REME_NPC_STORE_CRIME_PATH stock=3->2 suspectFood=1' npc-real-store-crime-gametest.log
+          grep -F 'REME_NPC_STORY stage=paid_sale' npc-real-store-crime-gametest.log
+          grep -F 'REME_NPC_STORY stage=unpaid_pickup' npc-real-store-crime-gametest.log
+          grep -F 'REME_NPC_STORY stage=guard_dispatch' npc-real-store-crime-gametest.log
+          grep -F 'REME_NPC_STORY stage=nonlethal_arrest' npc-real-store-crime-gametest.log
+          grep -F 'REME_NPC_STORY stage=jail_reached' npc-real-store-crime-gametest.log
+          grep -F 'REME_NPC_PHYSICAL_JAIL_WALK ticks=210' npc-real-store-crime-gametest.log
+          grep -F 'REME_NPC_REAL_BED_DAYSOAK ticks=24000' npc-real-store-crime-gametest.log
+          grep -E 'All [0-9]+ required tests passed' npc-real-store-crime-gametest.log
+      - name: Always preserve unmodified real Minecraft log and save evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: npc-real-24k-store-police-story-logs
+          if-no-files-found: warn
+          path: |
+            npc-real-store-crime-gametest.log
+            mod/runs/**/logs/*.log
+            mod/run/logs/*.log

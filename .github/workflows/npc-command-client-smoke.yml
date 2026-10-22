@@ -1,3 +1,7 @@
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
 name: NPC 1.21.1 NeoForge 21.1.262 real client command smoke
 on:
   workflow_dispatch:
@@ -7,6 +11,7 @@ on:
       - feat/npc-real-bed-lifecycle-v068
       - feat/npc-economy-market-fair-v069
       - feat/npc-real-city-district-v070
+      - feat/npc-live-store-security-e2e-v071
   pull_request:
     branches:
       - fix/npc-command-access-v066
@@ -32,7 +37,7 @@ jobs:
         run: |
           grep -Fxq 'minecraft_version=1.21.1' mod/gradle.properties
           grep -Fxq 'neo_version=21.1.262' mod/gradle.properties
-          grep -Fxq 'mod_version=0.7.0-dev' mod/gradle.properties
+          grep -Fxq 'mod_version=0.7.1-dev' mod/gradle.properties
       - name: Install real Linux virtual display and input automation
         run: sudo apt-get update -qq && sudo apt-get install -y -qq xvfb xdotool imagemagick openbox
       - name: Launch REAL NeoForge graphical Minecraft; enter integrated world; run /remecheck and /npc spawn
