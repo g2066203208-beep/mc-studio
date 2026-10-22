@@ -11,13 +11,13 @@ import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
  * Materialized vanilla iron cell gate. Only operates an already placed
  * properly oriented, matching upper/lower iron door beside the actual holding
  * block; never creates a prison, breaks walls or touches arbitrary player doors.
- * The 0.7.1 city demo puts this at jail.east().south().
+ * City demo uses a DIRECT SOUTH-ENTRY intake corridor: holding + south(2).
  */
 public final class CityJailGate {
     private CityJailGate() {}
 
     public static BlockPos gateFor(BlockPos holding) {
-        return holding.east().south();
+        return holding.south(2);
     }
 
     public static boolean isGate(ServerLevel level, BlockPos holding) {
