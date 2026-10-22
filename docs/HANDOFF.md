@@ -229,3 +229,13 @@ Push CI `39518033958` SUCCESS，PR CI `39518039426` SUCCESS。Artifact `12310085
 - 独立子分支 `fix/npc-v064-reliable-workplaces` 从 `feature/npc-physical-workplaces-v064` 创建，不影响 main 或 WorldSeam/航空学项目。修复了 `CivicWorkplaces` 三块悬空板也可能误判 roof 的问题；新增实体世界 GameTest；恢复旧 v0.6.3 已验证的隔离测试 NBT 准备器。这个 GameTest 前置步骤只能在 CI 测试副本修改结构尺寸。
 - 预期共 50 个 GameTest，CI 真实状态应由新分支 PR Actions 核查；在完成前不得将它们记为通过。Minecraft 客户端图形、222 Mod 和 200 NPC TPS/MSPT 本轮均没有声称已验收。
 - 下一位开发者优先做两项真验收：在 48×24×48 隔离模板上运行全套 50 GameTest 并看日志，随后在真实客户端从 0/N 个材料按序建完 shop 与 bakery，核实每个 BlockItem 使用、家具、上下门、材料减少、日程/交易/补货，以及失效/中断/存档恢复。然后推进真正 ServerPlayer + 网络玩家渲染原型。
+
+
+## 2026-10-22 v0.6.5 邻里互助 + 真 NeoForge 2400 Tick 压测分支
+
+- 源分支 `feature/npc-mutual-aid-longrun-v065` 继承已验收的 `fix/npc-v064-reliable-workplaces` (#76, Build success, 50/50 server GameTests, Windows success)。仍不可改 `main` 或 WorldSeam。
+- 新 `MutualAid.java`：饥饿真实居民从近邻**已有物品**得到 1 份食物；双方背包各自快照后事务提交，捐赠者保留 2 份，安全/派系/距离/视线/职业校验，原 `ResidentMemory.HELPED` 留关系与 600 tick NBT 冷却；接收后通过旧 `LivingWorldActions.eat` 真正消耗物品。
+- 性能漏洞：原 `ResidentMemory.witness` 没有 live 时的关系个数上限，新增统一 128 关系上界和 400 独立联系人纯 Java 回归；保留原 48 事件上界。
+- `CivicGameTests` 新增 3 项，共 53 个（源码计数）：真实一份食物互助/NBT、禁止跨区域与溢出与连续乞食、24 名 LIVE NPC 在真实 MC 服务端连跑 2400 world ticks。不是 200 NPC 性能结论、不是完整白天黑夜长时游玩或自动建城。
+- `mod_version=0.6.5-dev`，同步 Windows HMCL PowerShell 安装测试文件；GameTest/真实 GUI workflow 加新分支触发，GameTest timeout 提升为22分钟。源/研究/人工说明见 `docs/NPC_MUTUAL_AID_LONGRUN_V065.md`。
+- 必须回查本 PR 的 Java BUILD、纯 Java 18项、NeoForge 53 GameTests、Xvfb GUI 和 Windows installer 真实状态；发现失败逐个修复，不能冒充成功。仍未验证真正联网 `ServerPlayer`、用户222 Mod HMCL、20-200 NPC MSPT。
