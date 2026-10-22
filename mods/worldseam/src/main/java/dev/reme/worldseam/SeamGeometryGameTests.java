@@ -243,4 +243,56 @@ public final class SeamGeometryGameTests {
         }
     }
 
+    /**
+     * Regression for the native Atlas Tier-1 mapped-COM correction. This
+     * GameTest uses genuine 1.21.1 Vec3 and actual configurable WorldSeam
+     * logical planes. It does not claim native image collision is installed.
+     */
+    @GameTest(template="empty",batch="worldseam.native_contact_math",timeoutTicks=100)
+    public static void imageContactLeverArmDoesNotInvent192BlockTorque(GameTestHelper h) {
+        var vec=net.minecraft.world.phys.Vec3.class;
+        var down=SeamContactFrame.between(-64.0,128.0);
+        var up=SeamContactFrame.between(128.0,-64.0);
+        var com=new net.minecraft.world.phys.Vec3(0,-65,0);
+        var imagePoint=new net.minecraft.world.phys.Vec3(0,127,2);
+        var force=new net.minecraft.world.phys.Vec3(10,0,0);
+        var one=down.contactWrench(com,imagePoint,force);
+        // At the real body's center chart: lever arm r=(0,0,2).
+        // r CROSS F=(0,20,0). Naively using image p-COM would
+        // produce a FAKE z-torque = -1920. This is the atlas
+        // "mapped COM" Tier-1 solver bug that pure AABB tests miss.
+        if(!near(down.sourceToDestinationY(),192.0) ||
+           !near(one.contactInSource().y,-65.0) ||
+           !near(one.force().x,10.0) ||
+           !near(one.torque().x,0.0) ||
+           !near(one.torque().y,20.0) ||
+           !near(one.torque().z,0.0)) {
+            h.fail("Invalid one-body mapped-COM image-contact torque across OW -64 / Nether 128");
+            return;
+        }
+        var reverse=up.contactWrench(
+            new net.minecraft.world.phys.Vec3(0,127,0),
+            new net.minecraft.world.phys.Vec3(0,-65,2),force);
+        if(!near(reverse.torque().y,20.0) ||
+           !near(reverse.torque().z,0.0) ||
+           !near(up.inverse().sourceToDestinationY(),192.0)) {
+            h.fail("Wrong reverse seam wrench mapping");
+            return;
+        }
+        var custom=SeamContactFrame.between(209,37);
+        var arbitrary=custom.contactWrench(
+            new net.minecraft.world.phys.Vec3(5,207,8),
+            new net.minecraft.world.phys.Vec3(6,35,8),
+            new net.minecraft.world.phys.Vec3(0,0,9));
+        if(!near(arbitrary.contactInSource().x,6) ||
+           !near(arbitrary.contactInSource().y,207) ||
+           !near(arbitrary.torque().y,-9)) {
+            h.fail("Non-16-aligned custom seam created a false force/torque");
+            return;
+        }
+        com.mojang.logging.LogUtils.getLogger().info(
+            "WORLDSEAM_TRANSLATION_IMAGE_CONTACT_MATH_PASS: mapped COM, real torque, inverse chart mapping; NATIVE RAPIER ATLAS BRIDGE NOT IMPLEMENTED");
+        h.succeed();
+    }
+
 }
