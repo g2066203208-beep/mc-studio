@@ -1,3 +1,7 @@
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
 name: NPC REAL convenience store daily shift, shopping and police GameTest soak
 on:
   workflow_dispatch:
