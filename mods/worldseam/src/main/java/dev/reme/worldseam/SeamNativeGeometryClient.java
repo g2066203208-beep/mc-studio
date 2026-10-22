@@ -35,7 +35,7 @@ import java.util.Map;
  * ClientLevel chunk data instead of relying solely on sparse preview packets.
  *
  * This is an instrumented first render path. It uses bounded vanilla block
- * model draws; it is not yet a framebuffer/stencil portal or fluid renderer.
+ * model draws; it is not yet a framebuffer/stencil portal or full renderer.
  */
 public final class SeamNativeGeometryClient {
     /** Immutable native 16^3 segment; clip ONCE before drawing its models. */
@@ -160,7 +160,10 @@ public final class SeamNativeGeometryClient {
         for(int y=begin;y<end;y++) {
             for(int z=0;z<16;z++)for(int x=0;x<16;x++) {
                 BlockState state=section.getBlockState(x,y&15,z);
-                if(state.isAir()||state.getRenderShape()!=RenderShape.MODEL)continue;
+                if(state.isAir())continue;
+                // Preserve fluid-only and waterlogged native voxels.
+                if(state.getRenderShape()!=RenderShape.MODEL &&
+                   state.getFluidState().isEmpty())continue;
                 if(isBuried(cache,chunk,x,y,z))continue;
                 pos.set(ox+x,y,oz+z);
                 int block=remote.getBrightness(LightLayer.BLOCK,pos);
@@ -317,7 +320,7 @@ public final class SeamNativeGeometryClient {
                     pendingVisible.add(slice.gpuSection());
             try {
                 GPU.compileVisible(mc,queuedRemote,pendingVisible,mc.player.position(),
-                    sourceBoundary,targetBoundary);
+                    sourceBoundary,targetBoundary,queuedLink.entry());
             } catch(RuntimeException | Error ex) {
                 LOG.error("WorldSeam GPU tick pre-upload failed; falling back to safe section preview",ex);
                 gpuDisabled=true;
@@ -376,7 +379,7 @@ public final class SeamNativeGeometryClient {
                 var sections=new ArrayList<Section>(visible.size());
                 for(var slice:visible)sections.add(slice.gpuSection());
                 GPU.compileVisible(mc,queuedRemote,sections,camera,
-                    sourceBoundary,targetBoundary);
+                    sourceBoundary,targetBoundary,queuedLink.entry());
                 GPU.draw(sections,pose,camera);
                 lastFrameGpuModels=GPU.lastFrameModelsVisible();
                 lastFrameGpuSections=GPU.lastFrameCachedSections();
