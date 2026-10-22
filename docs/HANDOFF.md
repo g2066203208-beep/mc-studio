@@ -262,3 +262,10 @@ Push CI `39518033958` SUCCESS，PR CI `39518039426` SUCCESS。Artifact `12310085
 - 基于 `fix/npc-neoforge-211262-runtime-v067` 修复不在家却按睡觉恢复体力、普通职业任务抢占返家导航、提前显示 REST 姿态。新增原生 NeoForge GameTest；验收清单见 `docs/NPC_HOME_REST_AUDIT.md`。
 - 保留原 Mod ID `reme_studio` 保护旧存档，本次尚未将整个 NPC 迁为独立 `livingnpc`，不得宣称六项目已彻底隔离。
 - 真床睡觉、用户自己 HMCL 实例加载和长时间多模组兼容仍未验收；应检查对应 CI 日志。
+
+
+## 2026-10-22：NPC v0.6.8 真实床位及多人测试（PR #92）
+- 当前分支：`feat/npc-real-bed-lifecycle-v068`，继承 `fix/npc-real-home-rest-v067`。Mod 版本为 `0.6.8-dev`、MC 1.21.1、NeoForge 21.1.262、Java 21；主分支未整合。
+- 实施原生床头搜索/互斥/实体睡眠/起床/NBT 持久化、改变住处解除床位、毁床与受伤/拘留醒来、慢速无床休息、`/npc bed`、`/npc bed assign`、`/npc bed clear`、`/npc info` 诊断与游戏客户端按钮输入验证。
+- 验证要求：完整 56+ 原生 GameTest，新增 16 人争 8 床与一个人整日 24k tick 睡醒链路的测试；HTML/JAR 虚拟网页不能取代 MC 游戏中的实际状态。详见 `docs/NPC_BED_LIFECYCLE_V068.md`。
+- 用户 HMCL 真实整合包尚未接入，此开发版从本 PR Actions 成功 Build 下载 `installer-0.6.8-dev`；不要将共享主分支机械骨架当 NPC，也不要与旧 PEAK `reme_studio` JAR 同时加载。尚未另建独立 livingnpc Mod ID／数据迁移。

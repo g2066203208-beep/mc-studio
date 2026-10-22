@@ -24,7 +24,7 @@ with zipfile.ZipFile(jar) as z:
     missing = must_have.difference(names)
     assert not missing, f"Required code/resources absent from release JAR: {sorted(missing)}"
     assert re.search(r'(?m)^modId="reme_studio"$', metadata), metadata
-    assert 'version="0.6.7-dev"' in metadata, metadata
+    assert 'version="0.6.8-dev"' in metadata, metadata
     assert 'versionRange="[21.1.262,)"' in metadata, metadata
     assert 'versionRange="[1.21.1]"' in metadata, metadata
     assert "spawn_egg" in z.read("data/reme_studio/recipe/npc_spawn_egg.json").decode()

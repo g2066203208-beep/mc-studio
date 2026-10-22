@@ -5,7 +5,8 @@ import net.minecraft.core.BlockPos;
 /**
  * Physical bedtime policy shared by the server's needs, jobs and visual pose.
  * "Decided to sleep" and "actually reached home" are different states.
- * This does not implement vanilla player BedBlock sleep or bed ownership.
+ * Native physical bed sleep is managed by ResidentBedLife; fallback at home
+ * without a bed is intentionally much slower.
  */
 public final class RestPolicy {
     private static final int HOME_DISTANCE_SQUARED = 6;
@@ -34,9 +35,10 @@ public final class RestPolicy {
 
     /** Change to apply on the 200-tick needs cadence; never per render frame. */
     public static int energyDelta(LivingPlanner.Intent intent, boolean guard,
-                                  int energy, boolean reachedHome,
-                                  boolean afraid, boolean detained) {
-        return shouldRest(intent, guard, energy)
-            && reachedHome && !afraid && !detained ? 12 : -3;
+                                  int energy, boolean sleepingInBed,
+                                  boolean reachedHome, boolean afraid, boolean detained) {
+        if (!shouldRest(intent, guard, energy) || afraid || detained) return -3;
+        if (sleepingInBed) return 12;
+        return reachedHome ? 2 : -3;
     }
 }

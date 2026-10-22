@@ -10,6 +10,7 @@ import dev.reme.mcstudio.npc.life.LifeJourney;
 import dev.reme.mcstudio.npc.life.SafeBuilder;
 import dev.reme.mcstudio.npc.life.MovementPolicy;
 import dev.reme.mcstudio.npc.life.DailyRoaming;
+import dev.reme.mcstudio.npc.life.ResidentBedLife;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.SimpleContainer;
@@ -27,8 +28,15 @@ public final class LivingWorldActions {
     private LivingWorldActions() {}
 
     public static void tick(PlayerNpcEntity npc, ServerLevel level) {
-        if (npc.mode() != PlayerNpcEntity.Mode.LIVE) return;
+        if (npc.mode() != PlayerNpcEntity.Mode.LIVE) {
+            if (npc.isSleeping()) npc.stopSleeping();
+            return;
+        }
         long tick = level.getGameTime();
+        // Prison and fear checks run BEFORE ordinary AI, so a detained or
+        // attacked sleeper must release the vanilla occupied bed immediately.
+        if (npc.isSleeping() && (npc.isDetained(tick) || npc.isAfraid(tick)))
+            npc.stopSleeping();
         // Prisoners cannot carry on stealing/working after a real close-range
         // guard arrest; detention is physical navigation plus timed release.
         if (PublicSafety.tickPrisoner(npc, level, tick)) return;
@@ -45,7 +53,8 @@ public final class LivingWorldActions {
             // Sleep intent alone cannot regenerate energy while walking home.
             npc.changeNeeds(-2, RestPolicy.energyDelta(
                 npc.intent(), npc.profession() == PlayerNpcEntity.Profession.GUARD,
-                npc.energy(), RestPolicy.atHome(npc.blockPosition(), npc.homePos()),
+                npc.energy(), npc.isSleeping(),
+                RestPolicy.atHome(npc.blockPosition(), npc.homePos()),
                 npc.isAfraid(tick), npc.isDetained(tick)),
                 npc.intent() == LivingPlanner.Intent.SOCIALIZE ? 2 : -3);
         }
@@ -66,6 +75,9 @@ public final class LivingWorldActions {
                 npc.profession() == PlayerNpcEntity.Profession.BUILDER ||
                 npc.profession() == PlayerNpcEntity.Profession.SHOPKEEPER)));
         }
+        // Resolve native bed occupancy immediately after planning, before
+        // cargo/work/social activities may override the path to bed.
+        if (ResidentBedLife.tick(npc, level, tick)) return;
         if (npc.profession() == PlayerNpcEntity.Profession.GUARD)
             CivicSocial.guardLaw(npc, level, tick);
         // NPCs can ask for essentials themselves. The reward is funded from
@@ -216,8 +228,8 @@ public final class LivingWorldActions {
             return;
         }
         npc.getNavigation().stop();
-        npc.changeNeeds(0, 1, 0);
-        npc.setAction("resting at home (no bed animation yet)");
+        // Actual recovery is exclusively the 200-tick RestPolicy cadence.
+        npc.setAction("resting at home without an available bed");
     }
 
     private static void returnHome(PlayerNpcEntity npc, String reason) {

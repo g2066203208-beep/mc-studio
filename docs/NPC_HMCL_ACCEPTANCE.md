@@ -1,3 +1,15 @@
+# 最新 v0.6.8（真实床位与 NPC 指令，2026-10-22）
+
+- 工作分支：`feat/npc-real-bed-lifecycle-v068`，PR #92。正式主分支尚未整合。
+- 游戏目标：Minecraft 1.21.1、NeoForge 21.1.262（严格依元数据的 NeoForge 下限）、Java 21。
+- 增加真实原版床位认领、原生入睡/起床、`/npc bed`、`/npc bed assign`、`/npc bed clear`、床位 NBT、真正睡床恢复精力。新增测试详见 `docs/NPC_BED_LIFECYCLE_V068.md`。
+- 请选择 PR #92 对应的 **成功 Build Action Artifacts** 中 `installer-0.6.8-dev`，不要拿 main 中的通用 `reme_studio` 骨架、PEAK 攀爬包或旧 0.6.7 安装包替代。
+- HMCL 必须打开正在运行的那一个实例对应 mods 文件夹，不能凭路径猜。不要让同一目录有两个同 ID 的 REME 版本，也不要同时装 PEAK 当前尚未隔离的 `reme_studio` 包。
+- 真实 GUI 测试仅能证明 GitHub 的干净 NeoForge 客户端可运行；用户 HMCL 的 222 Mod 整合包仍必须验证，不能把用户实际看不到指令归因为没开作弊。
+- 老版本历史与诊断记录保留如下，避免误以为已经完全修复全部整合包兼容。
+
+---
+
 # HMCL 安装及指令/生成蛋真实客户端验收 (v0.6.7)
 
 本阶段目标是**解决用户截图中 `/npc` 根命令未知**。此前所有 GameTest 都是 GitHub 的服务器环境，不能证明 JAR 已经安装进用户 HMCL 当前实例。真实用户尚未确认已成功运行。

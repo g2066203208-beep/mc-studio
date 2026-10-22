@@ -89,6 +89,8 @@ public class PlayerNpcEntity extends PathfinderMob {
     private Profession profession = Profession.RESIDENT;
     private BlockPos homePos = BlockPos.ZERO;
     private BlockPos workPos = BlockPos.ZERO;
+    // Native vanilla bed HEAD, saved in the existing REME NPC NBT.
+    @Nullable private BlockPos assignedBedPos;
     private int hunger = 90, energy = 85, socialNeed = 65;
     private final ResidentMemory memory = new ResidentMemory();
     private LivingPlanner.Personality personality = LivingPlanner.Personality.average();
@@ -207,6 +209,8 @@ public class PlayerNpcEntity extends PathfinderMob {
 
     public Mode mode() { return mode; }
     public void setMode(Mode newMode) {
+        if (newMode != Mode.LIVE && isSleeping() && !level().isClientSide)
+            stopSleeping(); // release occupied real bed before follow/stay
         mode = newMode;
         this.setTarget(null);
         this.getNavigation().stop();
@@ -367,9 +371,21 @@ public class PlayerNpcEntity extends PathfinderMob {
     }
     public Profession profession() { return profession; }
     public void setProfession(Profession job) { profession = job; }
-    public void setHomePos(BlockPos pos) { homePos = pos.immutable(); }
+    public void setHomePos(BlockPos pos) {
+        if (!homePos.equals(pos)) {
+            // Moving house invalidates the old bed claim. Wake before moving
+            // so the old physical BedBlock is not left OCCUPIED.
+            if (isSleeping() && !level().isClientSide) stopSleeping();
+            assignedBedPos = null;
+        }
+        homePos = pos.immutable();
+    }
     public void setWorkPos(BlockPos pos) { workPos = pos.immutable(); }
     public BlockPos homePos() { return homePos; }
+    @Nullable public BlockPos assignedBedPos() { return assignedBedPos; }
+    public void setAssignedBedPos(@Nullable BlockPos pos) {
+        assignedBedPos = pos == null ? null : pos.immutable();
+    }
     public BlockPos workPos() { return workPos; }
     public LivingPlanner planner() { return planner; }
     public LivingPlanner.Personality personality() { return personality; }
@@ -451,6 +467,8 @@ public class PlayerNpcEntity extends PathfinderMob {
     }
     @Override public boolean hurt(DamageSource source, float amount) {
         boolean damaged = super.hurt(source, amount);
+        if (damaged && !level().isClientSide && isSleeping())
+            stopSleeping();
         if (damaged && !level().isClientSide && source.getEntity() instanceof Player player) {
             recentAggressor = player.getUUID();
             afraidUntil = level().getGameTime() + 600;
@@ -691,6 +709,7 @@ public class PlayerNpcEntity extends PathfinderMob {
         tag.putInt("NpcCaution", personality.caution());
         tag.putLong("NpcHomePos", homePos.asLong());
         tag.putLong("NpcWorkPos", workPos.asLong());
+        if (assignedBedPos != null) tag.putLong("NpcAssignedBedHead", assignedBedPos.asLong());
         tag.putInt("NpcHunger", hunger);
         tag.putInt("NpcEnergy", energy);
         tag.putInt("NpcSocial", socialNeed);
@@ -816,6 +835,8 @@ public class PlayerNpcEntity extends PathfinderMob {
             ? BlockPos.of(tag.getLong("NpcHomePos")) : blockPosition();
         workPos = tag.contains("NpcWorkPos", Tag.TAG_LONG)
             ? BlockPos.of(tag.getLong("NpcWorkPos")) : blockPosition();
+        assignedBedPos = tag.contains("NpcAssignedBedHead", Tag.TAG_LONG)
+            ? BlockPos.of(tag.getLong("NpcAssignedBedHead")) : null;
         hunger = Math.clamp(tag.contains("NpcHunger") ? tag.getInt("NpcHunger") : 90, 0, 100);
         energy = Math.clamp(tag.contains("NpcEnergy") ? tag.getInt("NpcEnergy") : 85, 0, 100);
         socialNeed = Math.clamp(tag.contains("NpcSocial") ? tag.getInt("NpcSocial") : 65, 0, 100);
