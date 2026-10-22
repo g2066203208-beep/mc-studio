@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - test/npc-realwall-soak-v065
+  pull_request:
+    branches:
+      - feature/npc-mutual-aid-longrun-v065
 
 permissions:
   contents: read
