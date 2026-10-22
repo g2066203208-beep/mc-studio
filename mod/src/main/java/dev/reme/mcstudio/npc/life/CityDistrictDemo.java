@@ -170,9 +170,11 @@ public final class CityDistrictDemo {
     private static void door(Plan p, int x, int z, Direction facing) {
         p.state(x, 1, z, Blocks.OAK_DOOR.defaultBlockState()
             .setValue(DoorBlock.FACING, facing)
+            .setValue(DoorBlock.OPEN, true)
             .setValue(DoorBlock.HALF, DoubleBlockHalf.LOWER));
         p.state(x, 2, z, Blocks.OAK_DOOR.defaultBlockState()
             .setValue(DoorBlock.FACING, facing)
+            .setValue(DoorBlock.OPEN, true)
             .setValue(DoorBlock.HALF, DoubleBlockHalf.UPPER));
     }
 
@@ -244,6 +246,9 @@ public final class CityDistrictDemo {
         for (int x = -17; x <= -12; x++)
             for (int z = 14; z <= 17; z++) {
                 if (x != -17 && x != -12 && z != 14 && z != 17) continue;
+                // Real walkable cell entrance at x=-12,z=16, not a
+                // magically teleporting prisoner through solid iron bars.
+                if (x == -12 && z == 16) continue;
                 for (int y = 1; y <= 3; y++) p.put(x, y, z, Blocks.IRON_BARS);
             }
         p.put(-11, 1, 10, Blocks.LECTERN);
@@ -286,18 +291,21 @@ public final class CityDistrictDemo {
     private static int spawnShowcaseResidents(ServerLevel level, BlockPos center,
                                                @Nullable ServerPlayer owner) {
         String[] names = {"商场经理","食品店员","烘焙店员","巡逻警察","值班警察",
-            "街区农夫","农贸供应商","上班族甲","上班族乙","逛街顾客","公园居民","快递配送员"};
+            "街区农夫","农贸供应商","上班族甲","上班族乙","逛街顾客","公园居民","快递配送员",
+            "街区逃单者"};
         PlayerNpcEntity.Profession[] jobs = {
             PlayerNpcEntity.Profession.SHOPKEEPER, PlayerNpcEntity.Profession.SHOPKEEPER,
             PlayerNpcEntity.Profession.BAKER, PlayerNpcEntity.Profession.GUARD,
             PlayerNpcEntity.Profession.GUARD, PlayerNpcEntity.Profession.FARMER,
             PlayerNpcEntity.Profession.FARMER, PlayerNpcEntity.Profession.RESIDENT,
             PlayerNpcEntity.Profession.RESIDENT, PlayerNpcEntity.Profession.RESIDENT,
-            PlayerNpcEntity.Profession.RESIDENT, PlayerNpcEntity.Profession.COURIER
+            PlayerNpcEntity.Profession.RESIDENT, PlayerNpcEntity.Profession.COURIER,
+            PlayerNpcEntity.Profession.RESIDENT
         };
         int[][] spawn = {
-            {-10,-10},{-10,-14},{-8,-8},{-10,10},{-10,13},
-            {10,11},{16,12},{9,-9},{15,-9},{-3,-12},{10,8},{3,12}
+            {-10,-10},{-10,-14},{-8,-8},{-5,-6},{-10,13},
+            {10,11},{16,12},{9,-9},{15,-9},{-3,-12},{10,8},{3,12},
+            {-9,-12}
         };
         int count=0;
         String region = "city_" + (center.getX()>>4) + "_" + (center.getZ()>>4);
@@ -314,15 +322,20 @@ public final class CityDistrictDemo {
             npc.setHomePos(center.offset(i%2==0 ? 9 : 15, 1, -12));
             if (i < 3) npc.setWorkPos(center.offset(-10,1,-12));
             else if (i < 5) {
-                npc.setWorkPos(center.offset(-10,1,12));
-                npc.setPoliceJail(center.offset(-14,1,15));
+                // One officer's actual street beat covers the shop so
+                // eyewitness reports can reach police. One guards station.
+                npc.setWorkPos(center.offset(i == 3 ? -5 : -10, 1,
+                    i == 3 ? -6 : 12));
+                npc.setPoliceJail(center.offset(-13,1,15));
             }
             else if (i < 7) npc.setWorkPos(center.offset(15,1,12));
             else npc.setWorkPos(center.offset(-3,1,-12));
             if (owner != null) npc.setOwner(owner);
             npc.setCustomName(Component.literal(names[i]));
             npc.setCustomNameVisible(true);
-            npc.setCharacter(CharacterProfile.fromSeed(i+234));
+            npc.setCharacter(i == 12
+                ? new CharacterProfile(8, 30, 50, 25)
+                : CharacterProfile.fromSeed(i+234));
             if (jobs[i] == PlayerNpcEntity.Profession.SHOPKEEPER) {
                 npc.backpack().addItem(new ItemStack(Items.BREAD, 12));
                 npc.backpack().addItem(new ItemStack(Items.APPLE, 8));
