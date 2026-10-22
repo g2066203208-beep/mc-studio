@@ -8,6 +8,9 @@ import dev.reme.mcstudio.npc.life.DailyRoaming;
 import dev.reme.mcstudio.npc.life.PublicSafety;
 import dev.reme.mcstudio.npc.life.CivicWorkplaces;
 import dev.reme.mcstudio.npc.life.ShopCounter;
+import dev.reme.mcstudio.npc.life.ResidentBedLife;
+import net.minecraft.world.level.block.BedBlock;
+import net.minecraft.world.level.block.state.properties.BedPart;
 import dev.reme.mcstudio.npc.life.FootTrafficData;
 import dev.reme.mcstudio.npc.life.EmergentSettlements;
 import dev.reme.mcstudio.npc.life.SettlementLedger;
@@ -76,6 +79,12 @@ public final class NpcCommands {
             .then(Commands.literal("baker").executes(ctx -> profession(ctx.getSource(), PlayerNpcEntity.Profession.BAKER)))
             .then(Commands.literal("shopkeeper").executes(ctx -> profession(ctx.getSource(), PlayerNpcEntity.Profession.SHOPKEEPER)))
             .then(Commands.literal("workplace").executes(ctx -> describeWorkplace(ctx.getSource())))
+            .then(Commands.literal("bed")
+                .executes(ctx -> bedStatus(ctx.getSource()))
+                .then(Commands.literal("assign")
+                    .executes(ctx -> assignBed(ctx.getSource())))
+                .then(Commands.literal("clear")
+                    .executes(ctx -> clearBed(ctx.getSource()))))
             .then(Commands.literal("shopstock")
                 .executes(ctx -> shopStockStatus(ctx.getSource()))
                 .then(Commands.literal("set").requires(source -> source.hasPermission(2))
@@ -334,6 +343,67 @@ public final class NpcCommands {
         npc.setMode(PlayerNpcEntity.Mode.LIVE);
         source.sendSuccess(() -> Component.literal(npc.getName().getString()
             + " profession: " + job), false);
+        return 1;
+    }
+
+    private static int bedStatus(CommandSourceStack source)
+        throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        PlayerNpcEntity npc = closestNpc(source.getPlayerOrException());
+        if (npc == null) {
+            source.sendFailure(Component.literal("附近 16 格没有 NPC"));
+            return 0;
+        }
+        source.sendSuccess(() -> Component.literal(
+            npc.getName().getString() + " 床位: "
+            + (npc.assignedBedPos() == null ? "未分配" : npc.assignedBedPos().toShortString())
+            + " | 原生睡眠状态: " + npc.isSleeping()
+            + " | 住处: " + npc.homePos().toShortString()), false);
+        return 1;
+    }
+
+    private static int assignBed(CommandSourceStack source)
+        throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        ServerPlayer player = source.getPlayerOrException();
+        PlayerNpcEntity npc = closestOwnedNpc(player);
+        if (npc == null) {
+            source.sendFailure(Component.literal("需要附近 16 格内自己拥有的 NPC"));
+            return 0;
+        }
+        HitResult hit = player.pick(6.0D, 0.0F, false);
+        if (!(hit instanceof BlockHitResult block)
+            || !player.serverLevel().hasChunkAt(block.getBlockPos())) {
+            source.sendFailure(Component.literal("请看向 6 格内已加载的原版床"));
+            return 0;
+        }
+        BlockPos target = block.getBlockPos();
+        var state = player.serverLevel().getBlockState(target);
+        if (!(state.getBlock() instanceof BedBlock)) {
+            source.sendFailure(Component.literal("目标不是原版床方块"));
+            return 0;
+        }
+        BlockPos head = state.getValue(BedBlock.PART) == BedPart.HEAD
+            ? target : target.relative(state.getValue(BedBlock.FACING));
+        if (!ResidentBedLife.claimSpecificBed(npc, player.serverLevel(), head)) {
+            source.sendFailure(Component.literal(
+                "床位不可分配：必须是住处附近可走到的空床，且没有其他 NPC 预订"));
+            return 0;
+        }
+        source.sendSuccess(() -> Component.literal(
+            "已为 " + npc.getName().getString() + " 认领床头 " + head.toShortString()
+            + "，入夜会真实走到床旁并睡觉"), false);
+        return 1;
+    }
+
+    private static int clearBed(CommandSourceStack source)
+        throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        PlayerNpcEntity npc = closestOwnedNpc(source.getPlayerOrException());
+        if (npc == null) {
+            source.sendFailure(Component.literal("需要附近 16 格内自己拥有的 NPC"));
+            return 0;
+        }
+        ResidentBedLife.forgetBed(npc);
+        source.sendSuccess(() -> Component.literal(
+            "已解除 " + npc.getName().getString() + " 的床位；如果睡着会安全起床"), false);
         return 1;
     }
 
