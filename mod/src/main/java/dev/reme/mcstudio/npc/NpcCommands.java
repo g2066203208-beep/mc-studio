@@ -101,6 +101,10 @@ public final class NpcCommands {
                         BlockPosArgument.getLoadedBlockPos(ctx, "target")))))
             .then(Commands.literal("minestop").requires(source -> source.hasPermission(2))
                 .executes(ctx -> cancelMining(ctx.getSource())))
+            .then(Commands.literal("buildplan").requires(source -> source.hasPermission(2))
+                .then(Commands.argument("type", StringArgumentType.word())
+                    .executes(ctx -> setBlueprint(ctx.getSource(),
+                        StringArgumentType.getString(ctx, "type")))))
             .then(Commands.literal("buildstart").requires(source -> source.hasPermission(2))
                 .executes(ctx -> construction(ctx.getSource(), true)))
             .then(Commands.literal("buildstop").requires(source -> source.hasPermission(2))
@@ -386,6 +390,31 @@ public final class NpcCommands {
         return 1;
     }
 
+    private static int setBlueprint(CommandSourceStack source, String selected)
+        throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        PlayerNpcEntity npc = closestOwnedNpc(source.getPlayerOrException());
+        if (npc == null) return 0;
+        SafeBuilder.Template kind;
+        try { kind = SafeBuilder.Template.valueOf(selected.toUpperCase(Locale.ROOT)); }
+        catch (IllegalArgumentException ignored) {
+            source.sendFailure(Component.literal(
+                "Unknown building type. Allowed: shelter, shop, bakery."));
+            return 0;
+        }
+        if (npc.buildEnabled()) {
+            source.sendFailure(Component.literal(
+                "Pause the active construction with /npc buildstop before changing templates."));
+            return 0;
+        }
+        npc.setBuildTemplate(kind);
+        source.sendSuccess(() -> Component.literal(
+            "Building blueprint: " + kind + " | "
+            + SafeBuilder.steps(kind) + " real block placements. Prepare actual"
+            + " inventory materials. /npc setwork at build site; /npc buildstart"
+            + " checks empty loaded cells. No buildings spawn for free."), false);
+        return 1;
+    }
+
     private static int construction(CommandSourceStack source, boolean start)
         throws com.mojang.brigadier.exceptions.CommandSyntaxException {
         ServerPlayer player = source.getPlayerOrException();
@@ -396,7 +425,7 @@ public final class NpcCommands {
             source.sendSuccess(() -> Component.literal("Construction paused"), false);
             return 1;
         }
-        if (!SafeBuilder.validateSite(player.serverLevel(), npc.workPos())) {
+        if (!SafeBuilder.validateSite(player.serverLevel(), npc.workPos(), npc.buildTemplate())) {
             source.sendFailure(Component.literal("Build site must be loaded and empty: 5x5 x 3, no entities inside"));
             return 0;
         }
@@ -404,7 +433,7 @@ public final class NpcCommands {
         npc.resetBuildCursor();
         npc.setBuildEnabled(true);
         npc.setMode(PlayerNpcEntity.Mode.LIVE);
-        source.sendSuccess(() -> Component.literal("Started consented 5x5 shelter build at " +
+        source.sendSuccess(() -> Component.literal("Started consented 5x5 " + npc.buildTemplate() + " build at " +
             npc.workPos().toShortString() + "; uses actual cobblestone/planks, cannot clear blocks"), true);
         return 1;
     }
