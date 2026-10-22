@@ -92,6 +92,13 @@ public final class CityDistrictGameTests {
         long realDishonestShoppers = people.stream().filter(p ->
             p.profession() == PlayerNpcEntity.Profession.RESIDENT
             && p.character().honesty() <= 20).count();
+        for (String track : new String[]{"reme_city_clerk","reme_city_guard",
+                                       "reme_city_park","reme_city_shoplifter"}) {
+            long tracked = people.stream().filter(p -> p.getTags().contains(track)).count();
+            if (tracked != 1)
+                throw new AssertionError("Real entity identity not stable for camera: "
+                    + track + "=" + tracked);
+        }
         BlockPos inmateSpot = center.offset(-13, 1, 15);
         if (merchants < 2 || guards < 2 || customers < 3
             || realDishonestShoppers != 1
