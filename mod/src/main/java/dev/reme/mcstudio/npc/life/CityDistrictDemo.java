@@ -262,8 +262,11 @@ public final class CityDistrictDemo {
         p.put(-11, 1, 10, Blocks.LECTERN);
         p.put(-15, 1, 9, Blocks.CHEST);
         p.put(-10, 1, 9, Blocks.CRAFTING_TABLE);
-        p.put(-5, 1, 12, Blocks.STONE_BRICKS);
-        p.put(-5, 2, 12, Blocks.BELL);
+        // The old pedestal at (-5,12) LITERALLY BRICKED UP the only
+        // public police-station entrance (-6,12), trapping escort AI
+        // outside until sentence expiry. Move it to the SIDE of the door.
+        p.put(-4, 1, 10, Blocks.STONE_BRICKS);
+        p.put(-4, 2, 10, Blocks.BELL);
         // Real audible alarm *near the mall*, not only 24 blocks away at
         // headquarters. The store clerk can trigger it after an actual
         // first-hand theft and nearby on-foot guard dispatch.
