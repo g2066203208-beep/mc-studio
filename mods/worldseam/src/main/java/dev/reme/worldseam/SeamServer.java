@@ -76,18 +76,9 @@ public final class SeamServer {
             SeamChunkSender.prune(online);
             SeamStackSync.prune(online);
         }
-        // Sable structures are NOT vanilla Entities: resolve whole-ship
-        // ownership before ordinary player/entity crossing checks.
-        SeamSableInterop.tick(server,tick,enabled &&
-            SeamSettings.get(server).experimentalSableShips());
         if (!enabled) return;
         // Only one teleport per player per tick. All operations on server thread.
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-            // AeroPortals must own ship riders as one group. A separate
-            // WorldSeam player teleport would detach them before it can.
-            if (SeamSettings.get(server).experimentalSableShips() &&
-                SeamSableInterop.playerInsideShip(
-                    player.serverLevel(),player.position())) continue;
             if (!player.isAlive() || player.isPassenger() || player.isVehicle()
                 || player.isSleeping() || player.isSpectator()) {
                 continue;
@@ -261,9 +252,6 @@ public final class SeamServer {
             double sourceBoundary = SeamGraph.boundaryY(link.exit(),
                 sourceMinY, sourceTopY);
             if(Math.abs(entity.getY()-sourceBoundary)>2.0)continue;
-            if(SeamSettings.get(server).experimentalSableShips() &&
-               SeamSableInterop.playerInsideShip(source,entity.position()))
-                return;
             ServerLevel target = server.getLevel(dimensionKey(link.target()));
             if(target==null || !entity.canChangeDimensions(source,target))continue;
             double targetBoundary = SeamGraph.boundaryY(link.entry(),
