@@ -1,0 +1,70 @@
+name: NPC city FULL real 24000-tick Minecraft day documentary
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feat/npc-city-full-day-video-v072
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  document-real-city-day:
+    runs-on: ubuntu-latest
+    timeout-minutes: 58
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Pin actual 1.21.1 NeoForge client and NPC mod
+        shell: bash
+        run: |
+          grep -Fxq 'minecraft_version=1.21.1' mod/gradle.properties
+          grep -Fxq 'neo_version=21.1.262' mod/gradle.properties
+          grep -Fxq 'mod_version=0.7.1-dev' mod/gradle.properties
+      - name: Real GPU offscreen Minecraft window and genuine H264 capture
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq xvfb xdotool imagemagick openbox ffmpeg
+      - name: Film entire true 24000 native ticks: all 13 citizen cameras, work, police and night
+        shell: bash
+        env:
+          REME_CITY_VISUAL: '1'
+          REME_CITY_FULL_DAY: '1'
+          REME_COMMAND_SMOKE_ONLY: '0'
+        run: |
+          set -euo pipefail
+          timeout --signal=INT --kill-after=30s 3300s \
+            xvfb-run -a -s "-screen 0 1280x720x24" \
+            bash scripts/test-client-gui.sh
+      - name: Check video type, real frame count and continuous runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s mod/client-gui-city-real-24000ticks-uncut.mp4
+          test -s mod/client-gui-city-24000ticks-8x-timelapse.mp4
+          ffprobe -v error -select_streams v:0 -show_entries stream=codec_name \
+            -of csv=p=0 mod/client-gui-city-real-24000ticks-uncut.mp4 | grep -q h264
+          grep -F 'REME_NPC_CITY_FULL_DAY_VERIFIED real_world_ticks=24000' \
+            <(printf '%s\n' "$(cat mod/client-gui.log)")
+          grep -F 'REME_NPC_CITY_DAY stage=full_day_complete' mod/client-gui.log
+      - name: Always preserve the actual video and original client/game logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: npc-real-24000tick-city-day-full-uncut-and-8x-viewing-video
+          compression-level: 0
+          if-no-files-found: warn
+          retention-days: 60
+          path: |
+            mod/client-gui-city-real-24000ticks-uncut.mp4
+            mod/client-gui-city-24000ticks-8x-timelapse.mp4
+            mod/client-gui-city-day*.png
+            mod/client-gui-city-full-day*.png
+            mod/client-gui.log
+            mod/run/logs/*.log
+            mod/client-gui-city-ffmpeg.log
