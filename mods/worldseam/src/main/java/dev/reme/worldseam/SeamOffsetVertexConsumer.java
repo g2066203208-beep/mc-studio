@@ -19,7 +19,8 @@ public final class SeamOffsetVertexConsumer implements VertexConsumer {
         this.dx=dx; this.dy=dy; this.dz=dz;
     }
     @Override public VertexConsumer addVertex(float x,float y,float z) {
-        delegate.addVertex(x+dx,y+dy,z+dz);
+        var mapped=SeamFluidCoordinates.shifted(x,y,z,dx,dy,dz);
+        delegate.addVertex(mapped.x(),mapped.y(),mapped.z());
         return this;
     }
     @Override public VertexConsumer setColor(int r,int g,int b,int a) {
