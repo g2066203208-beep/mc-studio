@@ -51,6 +51,19 @@ public final class LivingPlannerSpec {
         expect(memory.trust(alice) <= 100, "trust must stay bounded");
         expect(memory.recentEvents().get(0).worldTick() == 352,
             "oldest event must be evicted deterministically");
-        System.out.println("LivingPlannerSpec: 15 assertions passed");
+        for (int i = 0; i < 400; i++) {
+            memory.witness(1000 + i, new UUID(0, 10_000 + i),
+                ResidentMemory.Kind.GREETING, "real_city");
+        }
+        expect(memory.relationshipSnapshot().size() == 128,
+            "live eyewitness events must never create an unbounded city trust map");
+        expect(memory.trust(alice) == 0,
+            "oldest inactive city contact should be evicted");
+        ResidentMemory restored = new ResidentMemory();
+        for (int i = 0; i < 400; i++)
+            restored.restoreTrust(new UUID(1, i + 1), 70);
+        expect(restored.relationshipSnapshot().size() == 128,
+            "NBT restore must obey same relationship cap as live updates");
+        System.out.println("LivingPlannerSpec: 18 assertions passed");
     }
 }
