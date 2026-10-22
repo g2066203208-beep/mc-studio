@@ -45,6 +45,22 @@ function getJointAngle(a,b){
  return 2*Math.atan2(rx,rw);
 }
 const safeFinite=v=>Number.isFinite(v)?v:0;
+// Measure the true solver-space seam gap between each pair of hinges.
+// Rendering a neatly arranged Minecraft cube does NOT prove its physical
+// joint is there; check the transformed endpoints on the two real bodies.
+function jointWorldPoint(body,v){
+ const q=body.rotation(),p=body.translation();
+ const tx=2*(q.y*v.z-q.z*v.y);
+ const ty=2*(q.z*v.x-q.x*v.z);
+ const tz=2*(q.x*v.y-q.y*v.x);
+ return makeV(
+  p.x+v.x+q.w*tx+(q.y*tz-q.z*ty),
+  p.y+v.y+q.w*ty+(q.z*tx-q.x*tz),
+  p.z+v.z+q.w*tz+(q.x*ty-q.y*tx)
+ );
+}
+function seamError(a,b){return Math.hypot(a.x-b.x,a.y-b.y,a.z-b.z);}
+
 export function createMultibodyBoss(RAPIER,opts={}){
  if(!RAPIER?.JointData?.revolute||!RAPIER?.World)throw Error('Rapier 3D revolute joint API unavailable');
  const world=new RAPIER.World(makeV(0,GRAVITY,0));
@@ -189,6 +205,16 @@ export function createMultibodyBoss(RAPIER,opts={}){
  const snapshot=()=>{
   const feet=feetStatus();
   const nowPos=body.translation();
+  const hingeErrors=motors.filter(m=>!m.detached).map(m=>({
+   id:m.id,
+   hip:seamError(
+    jointWorldPoint(body,makeV(m.x,HIP_Y,m.z)),
+    jointWorldPoint(m.upper,makeV(0,UPPER_LENGTH/2,0))),
+   knee:seamError(
+    jointWorldPoint(m.upper,makeV(0,-UPPER_LENGTH/2,0)),
+    jointWorldPoint(m.lower,makeV(0,LOWER_LENGTH/2,0)))
+  }));
+  const maxHingeError=Math.max(0,...hingeErrors.flatMap(e=>[e.hip,e.knee]));
   return {
    solver:'Rapier WebAssembly',source:'actual-13-body-12-revolute-wasm',
    mode,elapsed:+elapsed.toFixed(2),steps,gravity:GRAVITY,
@@ -204,6 +230,8 @@ export function createMultibodyBoss(RAPIER,opts={}){
    supportContacts:feet.filter(x=>x.touching).length,
    footMeasurements:feet,
    joints:motors.filter(x=>!x.detached).length*2,
+   hingeErrors,maxHingeError,
+   modelUnits:{upperVoxelLength:UPPER_LENGTH,lowerVoxelLength:LOWER_LENGTH,footCenterY:-1.5,hipGridX:3},
    rigidBodies:allBodies.length,torqueLimit:torque,motorRPM:commandRPM,
    gearRatio,outputRPM:powerBus.bearings.find(b=>b.pathLive)?.outputRPM||0,
    outputTorqueLimit:torque*gearRatio*.9,
