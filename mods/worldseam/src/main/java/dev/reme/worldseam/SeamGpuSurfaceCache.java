@@ -42,6 +42,9 @@ public final class SeamGpuSurfaceCache {
     private static final int MAX_BUILDERS_PER_SLICE=16;
 
     private record Layer(RenderType type,VertexBuffer gpu) {}
+    private record Draw(Layer layer,Matrix4f model,double squaredDistance) {}
+    private final SeamRenderSamples uploadCpuSamples=new SeamRenderSamples(120);
+    private final SeamRenderSamples drawCpuSamples=new SeamRenderSamples(120);
     private static final class Entry {
         final List<Layer> layers;
         final int cellCount;
@@ -192,12 +195,13 @@ public final class SeamGpuSurfaceCache {
 
         // Upload small nearby sections first. Keep other already-built
         // distant VBOs; no hardcoded 3,500 visible-block cap anymore.
+        long uploadStarted=System.nanoTime();
         int budget=MAX_UPLOAD_CELLS_PER_FRAME;
         for(var slice:visible) {
             if(entries.containsKey(slice))continue;
             int cells=slice.cells().size();
             if(builtThisFrame>=MAX_UPLOAD_SLICES_PER_FRAME)break;
-            if(cells>budget && builtThisFrame>0)break;
+            if(!SeamGpuBudget.shouldCompile(cells,budget,builtThisFrame))break;
             long started=System.nanoTime();
             Entry item=compile(slice,mc);
             lastBuildNanos=Math.max(0,System.nanoTime()-started);
@@ -209,45 +213,64 @@ public final class SeamGpuSurfaceCache {
             builtThisFrame++;
             budget-=cells;
         }
+        if(builtThisFrame>0)
+            uploadCpuSamples.add(Math.max(0,System.nanoTime()-uploadStarted));
 
-        // Render depth-writing opaque geometry first and translucent layers
-        // after, respecting each layer's own state/shader.
+        // The initial GPU implementation changed shaders, atlas textures,
+        // blend/depth and output state for EVERY SINGLE uploaded section.
+        // This cost ~98ms P95 on software GL despite the VBO cache working.
+        // Group the entire visible remote surface by native RenderType and
+        // set up each shader/layer ONCE for all its section VBOs.
+        long drawStarted=System.nanoTime();
+        var byType=new LinkedHashMap<RenderType,List<Draw>>();
+        Matrix4f base=new Matrix4f(RenderSystem.getModelViewMatrix())
+            .mul(pose.last().pose());
+        for(var slice:visible) {
+            Entry mesh=entries.get(slice);
+            if(mesh==null)continue;
+            mesh.lastFrame=frame;
+            Matrix4f world=new Matrix4f(base)
+                .translate((float)(slice.bounds().minX-cameraX),
+                           (float)(slice.bounds().minY-cameraY),
+                           (float)(slice.bounds().minZ-cameraZ));
+            double dx=(slice.bounds().minX+8)-cameraX;
+            double dy=(slice.bounds().minY+8)-cameraY;
+            double dz=(slice.bounds().minZ+8)-cameraZ;
+            double distance=dx*dx+dy*dy+dz*dz;
+            for(var layer:mesh.layers)
+                byType.computeIfAbsent(layer.type(),ignored->new ArrayList<>())
+                    .add(new Draw(layer,world,distance));
+            drawnCells+=mesh.cellCount;
+            drawnEndStone+=mesh.endStoneCount;
+        }
+        // Pass 0: opaque/cutout depth-writing layers. Pass 1: translucent
+        // far-to-near approximation (exact translucent quad sorting is still
+        // the responsibility of a future native LevelRenderer backend).
         for(int pass=0;pass<2;pass++) {
-            for(var slice:visible) {
-                Entry mesh=entries.get(slice);
-                if(mesh==null)continue;
-                mesh.lastFrame=frame;
-                Matrix4f world=new Matrix4f(RenderSystem.getModelViewMatrix())
-                    .mul(pose.last().pose())
-                    .translate((float)(slice.bounds().minX-cameraX),
-                               (float)(slice.bounds().minY-cameraY),
-                               (float)(slice.bounds().minZ-cameraZ));
-                for(var layer:mesh.layers) {
-                    RenderType type=layer.type();
-                    if((type.sortOnUpload()?1:0)!=pass)continue;
-                    type.setupRenderState();
-                    try {
-                        var shader=RenderSystem.getShader();
-                        if(shader!=null) {
-                            layer.gpu().bind();
-                            try {
-                                layer.gpu().drawWithShader(
-                                    world,RenderSystem.getProjectionMatrix(),shader);
-                                drawnLayers++;
-                            } finally {
-                                VertexBuffer.unbind();
-                            }
-                        }
-                    } finally {
-                        type.clearRenderState();
+            for(var group:byType.entrySet()) {
+                RenderType type=group.getKey();
+                if((type.sortOnUpload()?1:0)!=pass)continue;
+                if(pass==1)
+                    group.getValue().sort(Comparator.comparingDouble(
+                        Draw::squaredDistance).reversed());
+                type.setupRenderState();
+                try {
+                    var shader=RenderSystem.getShader();
+                    if(shader==null)continue;
+                    var projection=RenderSystem.getProjectionMatrix();
+                    for(var command:group.getValue()) {
+                        command.layer().gpu().bind();
+                        command.layer().gpu().drawWithShader(
+                            command.model(),projection,shader);
+                        drawnLayers++;
                     }
-                }
-                if(pass==0) {
-                    drawnCells+=mesh.cellCount;
-                    drawnEndStone+=mesh.endStoneCount;
+                } finally {
+                    VertexBuffer.unbind();
+                    type.clearRenderState();
                 }
             }
         }
+        drawCpuSamples.add(Math.max(0,System.nanoTime()-drawStarted));
     }
 
     public int readySlices(){return entries.size();}
@@ -260,6 +283,8 @@ public final class SeamGpuSurfaceCache {
     public long evictedSlices(){return evictedSlices;}
     public long uploadedCells(){return uploadedCells;}
     public double lastBuildMs(){return lastBuildNanos/1_000_000.0;}
+    public double p95GpuUploadMs(){return uploadCpuSamples.p95Ms();}
+    public double p95GpuDrawMs(){return drawCpuSamples.p95Ms();}
 
     public void clear() {
         for(var e:entries.values())close(e);
@@ -268,5 +293,7 @@ public final class SeamGpuSurfaceCache {
         frame=0;
         drawnCells=drawnEndStone=builtThisFrame=drawnLayers=0;
         lastBuildNanos=0;
+        uploadCpuSamples.clear();
+        drawCpuSamples.clear();
     }
 }
