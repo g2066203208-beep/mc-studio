@@ -1,0 +1,50 @@
+name: NPC single resident precise 24000-tick day observation
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [fix/npc-command-access-v066]
+  push:
+    branches: [test/npc-single-citizen-full-day-v067]
+permissions:
+  contents: read
+jobs:
+  exact-one-game-day:
+    name: ONE farmer, precisely 24 in-game hourly observations
+    runs-on: ubuntu-latest
+    timeout-minutes: 22
+    env:
+      # Fast GameTestServer advances Minecraft world ticks much faster than
+      # wall clock. Real >=20m *graphical viewing* belongs to separate
+      # npc-one-day-gui.yml, NOT this accelerated tick loop.
+      JAVA_TOOL_OPTIONS: "-Dreme.npc.singleDay=true -Dreme.npc.singleDay.minWallSeconds=0"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Prepare isolated 48x24x48 Minecraft GameTest world
+        run: python3 scripts/prepare-gametest-arena.py
+      - name: Trace ONE UUID from 06:00 to 06:00 — 24000 actual world ticks
+        working-directory: mod
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./gradlew runGameTestServer --no-daemon --stacktrace 2>&1 | tee daywatch-exact-game-day.log
+          grep -F 'REME_DAYWATCH_BEGIN' daywatch-exact-game-day.log
+          grep -F 'REME_DAYWATCH_RESULT' daywatch-exact-game-day.log
+          grep -E 'All [0-9]+ required tests passed' daywatch-exact-game-day.log
+          count=$(grep -c '^REME_DAYWATCH_HOUR hour=' daywatch-exact-game-day.log || true)
+          echo "Tracked exactly $count Minecraft hourly checkpoints"
+          test "$count" -eq 24
+          grep -E 'REME_DAYWATCH_RESULT.*ticks=24000 ' daywatch-exact-game-day.log
+      - name: Archive all 24 genuine hourly observations even if failed
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: npc-farmer-24-exact-mc-hours-evidence
+          if-no-files-found: warn
+          path: |
+            mod/daywatch-exact-game-day.log
+            mod/run/logs/*.log
+            mod/runs/**/logs/*.log

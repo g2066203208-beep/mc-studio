@@ -59,6 +59,24 @@ public final class LivingPlanner {
         boolean workHours = clock >= 2000L && clock < 9000L;
         boolean leisureHours = clock >= 9000L && clock < 12500L;
 
+        // An actual 24,000-tick single-farmer trace exposed a broken work
+        // cycle: at zero energy (0/100) this planner still preferred WORK
+        // to REST for hours. Treat exhaustion as a real physical limit.
+        // Stay home long enough to recover instead of oscillating back to
+        // work every time one energy point regenerates.
+        // Extreme hunger still takes precedence so a resident can eat.
+        if (c.hunger() <= 20) {
+            last = Intent.EAT;
+            return new Decision(Intent.EAT, 900,
+                "critical hunger interrupts even exhausted rest");
+        }
+        if (c.energy() <= 20 ||
+            (last == Intent.SLEEP && c.energy() < 62 && !asleepHours)) {
+            last = Intent.SLEEP;
+            return new Decision(Intent.SLEEP, 850,
+                "exhaustion requires recovery before returning to work");
+        }
+
         int rest = (asleepHours ? 68 : 5) + (100 - c.energy()) / 2;
         // Minecraft time 0 = 06:00, 6000 = midday, 12000 = dusk.
         // Breakfast/lunch/supper are meaningful routine windows but NEVER

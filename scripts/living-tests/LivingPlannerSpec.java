@@ -37,6 +37,30 @@ public final class LivingPlannerSpec {
         expect(brain.choose(new LivingPlanner.Context(10000, false, false, false, 90, 90, 35, true))
             .intent() == LivingPlanner.Intent.SOCIALIZE, "evening social opportunity");
 
+        // Discovered only by tracing one real working farmer for a complete
+        // 24,000-tick day: work had previously outranked rest at 0 energy.
+        LivingPlanner fatigued = new LivingPlanner(LivingPlanner.Personality.average());
+        expect(fatigued.choose(new LivingPlanner.Context(
+            3000, false, false, false, 75, 0, 80, true))
+            .intent() == LivingPlanner.Intent.SLEEP,
+            "zero energy cannot keep a daytime employee working");
+        expect(fatigued.choose(new LivingPlanner.Context(
+            3050, false, false, false, 75, 42, 80, true))
+            .intent() == LivingPlanner.Intent.SLEEP,
+            "one short rest must not interrupt exhaustion recovery");
+        expect(fatigued.choose(new LivingPlanner.Context(
+            3100, false, false, false, 75, 72, 80, true))
+            .intent() == LivingPlanner.Intent.WORK,
+            "fully recovered employee returns to legitimate work shift");
+        expect(fatigued.choose(new LivingPlanner.Context(
+            3120, false, false, true, 75, 0, 80, true))
+            .intent() == LivingPlanner.Intent.ESCAPE,
+            "visible threats always outrank exhausted rest");
+        expect(fatigued.choose(new LivingPlanner.Context(
+            3125, false, false, false, 10, 0, 80, true))
+            .intent() == LivingPlanner.Intent.EAT,
+            "critical hunger still outranks exhaustion to permit survival eating");
+
         ResidentMemory memory = new ResidentMemory();
         UUID alice = UUID.randomUUID();
         UUID bob = UUID.randomUUID();
@@ -64,6 +88,6 @@ public final class LivingPlannerSpec {
             restored.restoreTrust(new UUID(1, i + 1), 70);
         expect(restored.relationshipSnapshot().size() == 128,
             "NBT restore must obey same relationship cap as live updates");
-        System.out.println("LivingPlannerSpec: 18 assertions passed");
+        System.out.println("LivingPlannerSpec: 23 assertions passed");
     }
 }
