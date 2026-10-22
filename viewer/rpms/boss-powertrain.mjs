@@ -19,7 +19,7 @@
  */
 import {evaluate} from './strict-core.mjs';
 
-const ROWS=[-2,0,2];
+const ROWS=[-3,0,3]; // 3-block spacing prevents a branch gear from meshing with TWO adjacent main cogs
 export const DRIVE_OUTPUTS=ROWS.flatMap((z,row)=>[-1,1].map(side=>({
  id:(side<0?'L':'R')+(row+1),side,z,
  motorBearingPos:[side*3,0,z],
@@ -34,12 +34,14 @@ export function buildCreatePowerBus({rpm=18,enabled=true,gearRatio=2,disconnecte
  if(![1,2,4].includes(gearRatio))throw new RangeError('Only tested preview gear reductions 1,2,4');
  const removed=new Set(disconnected);
  const blocks=[
-  make('create:creative_motor',0,0,2,{facing:'north',axis:'z',rpm:enabled&&rpm>0?rpm:0}),
+  make('create:creative_motor',0,0,5,{facing:'north',axis:'z',rpm:enabled&&rpm>0?rpm:0}),
+  make('create:large_cogwheel',0,0,4,{axis:'z'}),
+  make('create:shaft',0,0,3,{axis:'z'}),
+  make('create:shaft',0,0,2,{axis:'z'}),
   make('create:large_cogwheel',0,0,1,{axis:'z'}),
   make('create:shaft',0,0,0,{axis:'z'}),
-  make('create:large_cogwheel',0,0,-1,{axis:'z'}),
-  make('create:shaft',0,0,-2,{axis:'z'}),
-  make('create:large_cogwheel',0,0,-3,{axis:'z'})
+  make('create:shaft',0,0,-1,{axis:'z'}),
+  make('create:large_cogwheel',0,0,-2,{axis:'z'})
  ];
  for(const o of DRIVE_OUTPUTS){
   blocks.push(make('create:large_cogwheel',...o.outputGearPos,{axis:'x'}));
@@ -67,7 +69,7 @@ export function buildCreatePowerBus({rpm=18,enabled=true,gearRatio=2,disconnecte
  const overloaded=loadSU>capacitySU;
  return {
   blocks,graph,
-  motor:{id:'create:creative_motor',pos:[0,0,2],rpm:powered?rpm:0,powered,defaultCapacity:16384},
+  motor:{id:'create:creative_motor',pos:[0,0,5],rpm:powered?rpm:0,powered,defaultCapacity:16384},
   gearRatio,live:live.length,bearings:bearings.map(b=>({
    ...b,pathLive:b.pathLive&&!overloaded,
    outputRPM:overloaded?0:b.outputRPM,
