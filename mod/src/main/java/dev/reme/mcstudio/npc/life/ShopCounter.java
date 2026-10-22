@@ -73,14 +73,26 @@ public final class ShopCounter {
      * 36-slot NBT backpack. Both bags are checked and committed together.
      * Nothing goes via FakePlayer inventory, and no item or currency is minted.
      */
+    public static boolean openForResidentSales(PlayerNpcEntity shop) {
+        if (shop.profession() != PlayerNpcEntity.Profession.SHOPKEEPER
+            || shop.mode() != PlayerNpcEntity.Mode.LIVE || !shop.isAlive()
+            || shop.isSleeping() || shop.blockPosition().distSqr(shop.workPos()) > 9)
+            return false;
+        // 06:00-18:30: the clerk can sell while greeting neighbors at the
+        // physical counter, not solely during its formal WORK planner score.
+        // Prevent "on site but unavailable" deadlocks during morning routine.
+        long clock = Math.floorMod(shop.level().getDayTime() + shop.dailyShiftTicks(), 24000L);
+        return shop.intent() == LivingPlanner.Intent.WORK
+            || (shop.intent() == LivingPlanner.Intent.SOCIALIZE
+                && clock < 12500L);
+    }
+
     public static boolean purchaseByResident(PlayerNpcEntity shop, PlayerNpcEntity customer,
                                               long tick) {
         if (shop == customer || !shop.isAlive() || !customer.isAlive()
             || shop.mode() != PlayerNpcEntity.Mode.LIVE
             || customer.mode() != PlayerNpcEntity.Mode.LIVE
-            || shop.profession() != PlayerNpcEntity.Profession.SHOPKEEPER
-            || shop.intent() != LivingPlanner.Intent.WORK
-            || shop.blockPosition().distSqr(shop.workPos()) > 9
+            || !openForResidentSales(shop)
             || shop.isSleeping() || customer.isSleeping()
             || shop.isDetained(tick) || customer.isDetained(tick)
             || shop.isAfraid(tick) || customer.isAfraid(tick)
