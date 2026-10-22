@@ -10,6 +10,7 @@
  * animation pose setting, anti-gravity, or hidden leg-independent thrust.
  */
 import {buildCreatePowerBus} from './boss-powertrain.mjs';
+import {planTripodFoot} from './boss-gait.mjs';
 export const DT=1/60;
 export const GRAVITY=-11;
 export const LEG_COUNT=6;
@@ -127,8 +128,10 @@ export function createMultibodyBoss(RAPIER,opts={}){
  // Keep the measured-stable low-impulse PD gains. Overdriving the
  // motor caused large ballistic hops in the real Rapier integration.
  let hipGain=115,kneeGain=92,hipDamping=15,kneeDamping=13;
- let phase=0;
- const setMotor=({rpm,torqueLimit,stiffness,damping,period,ratio}={})=>{
+ let phase=0,stepStride=1.15,stepClearance=.64;
+ const setMotor=({rpm,torqueLimit,stiffness,damping,period,ratio,stride,clearance}={})=>{
+  if(Number.isFinite(stride))stepStride=clamp(stride,.1,1.8);
+  if(Number.isFinite(clearance))stepClearance=clamp(clearance,.05,.85);
   if([1,2,4].includes(Number(ratio)))gearRatio=Number(ratio);
   if(Number.isFinite(rpm))commandRPM=clamp(rpm,0,96);
   if(Number.isFinite(torqueLimit))torque=clamp(torqueLimit,0,5500);
@@ -177,10 +180,15 @@ export function createMultibodyBoss(RAPIER,opts={}){
    // so body mass is supported by grounded collision boxes. Only the
    // SWING tripod bends its knee; the original .54 bend on a lagging
    // joint shortened both supports and left all soles in the air.
+   const trajectory=mode==='walk'
+    ?planTripodFoot(phase/(Math.PI*2),leg.tripod,{stride:stepStride,clearance:stepClearance})
+    :null;
    const stride=mode==='walk'?.28:.18;
-   const hipT=drive?clamp(wave*stride,-.4,.4):0;
-   const kneeT=drive?clamp(.38*lift,0,.43):0;
+   const hipT=trajectory?trajectory.hip:drive?clamp(wave*stride,-.4,.4):0;
+   const kneeT=trajectory?trajectory.knee:drive?clamp(.38*lift,0,.43):0;
    leg.hipTarget=hipT;leg.kneeTarget=kneeT;
+   leg.gaitPhase=trajectory?.phase||(drive?(lift>0?'swing':'stance'):'hold');
+   leg.footTarget=trajectory?.target||null;
    const branch=powerBus.bearings.find(o=>o.id===leg.id);
    // The Create source/shaft/gear/clutch graph is AUTHORITATIVE within its
    // supported subset. A broken/disabled branch creates NO hinge torque.
@@ -198,9 +206,21 @@ export function createMultibodyBoss(RAPIER,opts={}){
  const allBodies=[body,...motors.flatMap(m=>[m.upper,m.lower])];
  const feetStatus=()=>motors.map(m=>{
   if(m.detached)return {id:m.id,connected:false};
-  const p=m.lower.translation(),q=m.lower.rotation();
-  const offset=-1.5, wy=p.y+offset*(1-2*(q.x*q.x+q.z*q.z))-.5;
-  return {id:m.id,connected:true,estimatedSoleBottom:wy,touching:Math.abs(wy)<.12};
+  const q=m.lower.rotation();
+  const bottomCenter=jointWorldPoint(m.lower,makeV(0,-1.5,0));
+  const worldYBasis=makeV(2*(q.x*q.y+q.w*q.z),1-2*(q.x*q.x+q.z*q.z),
+     2*(q.y*q.z-q.w*q.x));
+  const halfExtent=.5*(Math.abs(worldYBasis.x)+Math.abs(worldYBasis.y)+Math.abs(worldYBasis.z));
+  const worldFootBottom=bottomCenter.y-halfExtent;
+  // Read actual collision manifolds against the REAL Rapier floor, rather
+  // than labeling every foot within 0.12 blocks as touching.
+  let contact=false,contactCount=0;
+  world.narrowPhase.contactPair(m.sole.handle,ground.handle,manifold=>{
+   const n=manifold.numContacts();if(n>0){contact=true;contactCount+=n;}
+  });
+  return {id:m.id,connected:true,estimatedSoleBottom:worldFootBottom,
+   touching:contact,contacts:contactCount,gait:m.gaitPhase||'hold',
+   desiredFoot:m.footTarget||null};
  });
  const snapshot=()=>{
   const feet=feetStatus();
@@ -236,7 +256,10 @@ export function createMultibodyBoss(RAPIER,opts={}){
    gearRatio,outputRPM:powerBus.bearings.find(b=>b.pathLive)?.outputRPM||0,
    outputTorqueLimit:torque*gearRatio*.9,
    position:nowPos,velocity:body.linvel(),rotation:body.rotation(),
-   bodyBottom:nowPos.y-.5,travel:nowPos.z,
+   bodyBottom:nowPos.y-.5,travel:nowPos.z,forwardDistance:-nowPos.z,
+   gaitCycle:phase/(2*Math.PI),stepStride,stepClearance,
+   groundedTripodA:feet.filter(x=>x.touching&&motors.find(m=>m.id===x.id)?.tripod===0).length,
+   groundedTripodB:feet.filter(x=>x.touching&&motors.find(m=>m.id===x.id)?.tripod===1).length,
    legAngles:motors.map(m=>({id:m.id,hip:getJointAngle(body,m.upper),knee:getJointAngle(m.upper,m.lower),
     hipTarget:m.hipTarget,kneeTarget:m.kneeTarget,
     deliveredTorque:m.deliveredTorque||0,detached:m.detached}))
