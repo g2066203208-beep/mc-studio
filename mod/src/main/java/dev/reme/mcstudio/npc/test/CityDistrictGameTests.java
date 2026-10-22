@@ -74,7 +74,9 @@ public final class CityDistrictGameTests {
             || !level.getBlockState(center.offset(15,1,-15)).is(Blocks.RED_BED))
             throw new AssertionError("Two townhouses lack physical vanilla resident beds");
         if (!level.getBlockState(center.offset(-12,2,15)).is(Blocks.IRON_BARS)
-            || !level.getBlockState(center.offset(-5,2,12)).is(Blocks.BELL)
+            || !level.getBlockState(center.offset(-5,2,9)).is(Blocks.BELL)
+            || !level.getBlockState(center.offset(-5,1,12)).isAir()
+            || !level.getBlockState(center.offset(-5,2,12)).isAir()
             || !level.getBlockState(center.offset(15,1,9)).is(Blocks.NOTE_BLOCK)
             || !level.getBlockState(center.offset(12,2,12)).is(Blocks.WATER_CAULDRON))
             throw new AssertionError("Town's police cell, village alarm or market park is missing");
