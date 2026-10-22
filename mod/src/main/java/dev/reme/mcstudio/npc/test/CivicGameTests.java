@@ -1416,6 +1416,34 @@ public final class CivicGameTests {
         helper.succeed();
     }
 
+    /** Real in-world interaction entrypoint: the NPC actually receives a
+     * human Player right-click, not merely a direct ShopCounter.purchase call.
+     */
+    @GameTest(template = "empty", timeoutTicks = 100)
+    public static void shopkeeper_actual_player_right_click_consumes_emerald_and_delivers_real_bread(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos pos = helper.absolutePos(new BlockPos(4, 9, 4));
+        PlayerNpcEntity shop = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (shop == null) throw new AssertionError("No NPC shop entity");
+        shop.moveTo(pos.getX() + .5, pos.getY(), pos.getZ() + .5, 0, 0);
+        shop.setProfession(PlayerNpcEntity.Profession.SHOPKEEPER);
+        shop.setMode(PlayerNpcEntity.Mode.LIVE);
+        shop.backpack().addItem(new ItemStack(Items.BREAD, 2));
+        if (!level.addFreshEntity(shop)) throw new AssertionError("NPC shop entity not in actual world");
+        var customer = FakePlayerFactory.getMinecraft(level);
+        customer.getInventory().clearContent();
+        customer.moveTo(pos.getX() + 1.5, pos.getY(), pos.getZ() + .5, 0, 0);
+        customer.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.EMERALD, 1));
+        if (!shop.interact(customer, InteractionHand.MAIN_HAND).consumesAction())
+            throw new AssertionError("Player right-click did not invoke real NPC merchant interaction");
+        if (customer.getInventory().countItem(Items.BREAD) != 1
+            || customer.getInventory().countItem(Items.EMERALD) != 0
+            || shop.backpack().countItem(Items.EMERALD) != 1
+            || shop.backpack().countItem(Items.BREAD) != 1)
+            throw new AssertionError("Real player click failed to transfer food and payment without duplication");
+        helper.succeed();
+    }
+
     @GameTest(template = "empty", timeoutTicks = 100)
     public static void full_cash_drawer_prevents_shop_transaction_without_loss(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
