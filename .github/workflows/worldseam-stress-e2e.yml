@@ -28,7 +28,7 @@ jobs:
           java-version: '21'
       - name: Install real OpenGL software driver and GUI input tools
         run: sudo apt-get update -qq && sudo apt-get install -y xvfb libgl1-mesa-dri libglx-mesa0 xdotool imagemagick x11-apps
-      - name: Launch actual NeoForge client and perform 24 real physical passages
+      - name: Launch actual NeoForge client and perform 240 real physical passages
         shell: bash
         working-directory: mods/worldseam
         run: |
@@ -82,10 +82,10 @@ jobs:
               tail -n 100 stress-client.log; exit 1
             fi
             xwd -root -silent | convert xwd:- -resize 800x450 -quality 60 stress-start.jpg
-            for milestone in 4 12 20 24; do
+            for milestone in 40 120 180 240; do
               found=0
               for second in $(seq 1 650); do
-                if grep -q "WORLDSEAM_STRESS_PROGRESS: pass=$milestone/24" stress-client.log; then found=1; break; fi
+                if grep -q "WORLDSEAM_STRESS_PROGRESS: pass=$milestone/240" stress-client.log; then found=1; break; fi
                 if grep -q "WORLDSEAM_STRESS_FAIL" stress-client.log; then break; fi
                 if ! kill -0 "$pid" 2>/dev/null; then
                   echo "Minecraft crashed during repeated crossings"; tail -n 120 stress-client.log; exit 1
@@ -102,15 +102,15 @@ jobs:
               ps -eo pid,etime,rss,comm,args | grep -E "net.minecraft.client.main.Main|net.neoforged.devlaunch.Main" | grep -v grep | tail -n 3 || true
             done
             sleep 8
-            if ! grep -q "WORLDSEAM_STRESS_PASS: crossings=24," stress-client.log ||
+            if ! grep -q "WORLDSEAM_STRESS_PASS: crossings=240," stress-client.log ||
                ! grep -q "WORLDSEAM_STRESS_PASS_CLEANUP" stress-client.log; then
               echo "Stress or resource cleanup never proved complete"; tail -n 100 stress-client.log; exit 1
             fi
             if grep -E "WORLDSEAM_STRESS_FAIL|WORLDSEAM_E2E_FAIL|Mixin apply failed|InvalidMixinException|Exception during client tick|OutOfMemoryError|NoSuchMethodError|Crash report saved" stress-client.log; then
               echo "Real Minecraft stress found a crash or regression"; exit 1
             fi
-            montage stress-start.jpg stress-crossing-4.jpg stress-crossing-12.jpg stress-crossing-20.jpg stress-crossing-24.jpg -tile 3x2 -geometry +0+0 -quality 65 stress-sequence.jpg
-            echo "WORLDSEAM_STRESS_VERIFIED_ALL_24_REAL_HANDOFFS"
+            montage stress-start.jpg stress-crossing-40.jpg stress-crossing-120.jpg stress-crossing-180.jpg stress-crossing-240.jpg -tile 3x2 -geometry +0+0 -quality 65 stress-sequence.jpg
+            echo "WORLDSEAM_STRESS_VERIFIED_ALL_240_REAL_HANDOFFS"
             grep -E "WORLDSEAM_STRESS_(START|BOTH_SHAFTS_OPEN|PROGRESS|PASS|PASS_CLEANUP)" stress-client.log | tail -n 35
           '
       - name: Persist screenshots, crash diagnostics, native logs and full stress evidence
