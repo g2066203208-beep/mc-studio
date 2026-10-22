@@ -76,6 +76,10 @@ public final class SeamServer {
             SeamChunkSender.prune(online);
             SeamStackSync.prune(online);
         }
+        // Sable structures are NOT vanilla Entities: resolve whole-ship
+        // ownership before ordinary player/entity crossing checks.
+        SeamSableInterop.tick(server,tick,enabled &&
+            SeamSettings.get(server).experimentalSableShips());
         if (!enabled) return;
         // Only one teleport per player per tick. All operations on server thread.
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
