@@ -2,6 +2,7 @@ package dev.reme.mcstudio.npc.test;
 
 import dev.reme.mcstudio.StudioMod;
 import dev.reme.mcstudio.npc.NpcRegistry;
+import dev.reme.mcstudio.npc.NpcItems;
 import dev.reme.mcstudio.npc.PlayerNpcEntity;
 import dev.reme.mcstudio.npc.NpcPose;
 import dev.reme.mcstudio.npc.player.RealNpcServerPlayer;
@@ -304,12 +305,60 @@ public final class CivicGameTests {
             var parsed = dispatcher.parse("remecheck", source);
             int result = dispatcher.execute(parsed);
             if (result != 1) throw new AssertionError("Non-op diagnostic command failed");
+            if (dispatcher.execute(dispatcher.parse("npc", source)) != 1)
+                throw new AssertionError("Unprivileged player cannot invoke root /npc");
+            if (dispatcher.getRoot().getChild("npc").getChild("spawn").canUse(source))
+                throw new AssertionError("Spawn command leaked OP privileges to non-op");
         } catch (com.mojang.brigadier.exceptions.CommandSyntaxException failure) {
             throw new AssertionError("Diagnostic command rejected at permission 0", failure);
         }
         helper.succeed();
     }
 
+
+    @GameTest(template = "empty", timeoutTicks = 110)
+    public static void real_spawn_egg_spawns_living_citizen_without_cheats_or_commands(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        var egg = NpcItems.NPC_SPAWN_EGG.get();
+        if (!(egg instanceof net.minecraft.world.item.SpawnEggItem)
+            || !net.minecraft.core.registries.BuiltInRegistries.ITEM
+                .getKey(egg).toString().equals("reme_studio:npc_spawn_egg"))
+            throw new AssertionError("NPC spawn egg item not registered correctly");
+
+        BlockPos floor = helper.absolutePos(new BlockPos(6, 8, 6));
+        level.setBlock(floor, Blocks.STONE.defaultBlockState(), 3);
+        level.setBlock(floor.above(), Blocks.AIR.defaultBlockState(), 3);
+        level.setBlock(floor.above(2), Blocks.AIR.defaultBlockState(), 3);
+
+        // Real spawn-egg ItemStack.useOn, not a manually fabricated entity.
+        // The FakePlayer is an event-authenticated interaction actor on the
+        // actual authoritative server, not a fake UI screenshot.
+        var player = FakePlayerFactory.getMinecraft(level);
+        player.moveTo(floor.getX() + 0.5, floor.getY() + 1,
+            floor.getZ() + 0.5, 0, 0);
+        var stack = new ItemStack(egg);
+        player.setItemInHand(InteractionHand.MAIN_HAND, stack);
+        var hit = new net.minecraft.world.phys.BlockHitResult(
+            net.minecraft.world.phys.Vec3.atCenterOf(floor).add(0, 0.5, 0),
+            net.minecraft.core.Direction.UP, floor, false);
+        var result = stack.useOn(new net.minecraft.world.item.context.UseOnContext(
+            player, InteractionHand.MAIN_HAND, hit));
+        if (!result.consumesAction())
+            throw new AssertionError("Real vanilla spawn egg use did not succeed");
+        helper.runAfterDelay(3, () -> {
+            var found = level.getEntitiesOfClass(PlayerNpcEntity.class,
+                new AABB(floor).inflate(3.5), npc -> npc.isAlive());
+            var spawned = found.stream()
+                .filter(npc -> npc.homePos().distSqr(floor.above()) <= 4
+                    && npc.workPos().distSqr(floor.above()) <= 4
+                    && npc.mode() == PlayerNpcEntity.Mode.LIVE
+                    && npc.backpack().countItem(Items.BREAD) == 2)
+                .findFirst().orElse(null);
+            if (spawned == null)
+                helper.fail("Spawn egg did not create a real, initialized LIVE NPC at clicked block", floor);
+            else helper.succeed();
+        });
+    }
 
     @GameTest(template = "empty", timeoutTicks = 100)
     public static void chunk_generated_npc_has_full_life_identity(GameTestHelper helper) {
