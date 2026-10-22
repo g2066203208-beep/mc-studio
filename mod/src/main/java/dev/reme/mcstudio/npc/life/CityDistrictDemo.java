@@ -308,7 +308,7 @@ public final class CityDistrictDemo {
             PlayerNpcEntity.Profession.RESIDENT
         };
         int[][] spawn = {
-            {-10,-10},{-10,-14},{-8,-8},{-5,-6},{-10,13},
+            {-10,-10},{-10,-14},{-8,-8},{-7,-10},{-10,13},
             {10,11},{16,12},{9,-9},{15,-9},{-3,-12},{10,8},{3,12},
             {-8,-11}
         };
@@ -329,8 +329,8 @@ public final class CityDistrictDemo {
             else if (i < 5) {
                 // One officer's actual street beat covers the shop so
                 // eyewitness reports can reach police. One guards station.
-                npc.setWorkPos(center.offset(i == 3 ? -5 : -10, 1,
-                    i == 3 ? -6 : 12));
+                npc.setWorkPos(center.offset(i == 3 ? -7 : -10, 1,
+                    i == 3 ? -10 : 12));
                 npc.setPoliceJail(center.offset(-13,1,15));
             }
             else if (i < 7) npc.setWorkPos(center.offset(15,1,12));
