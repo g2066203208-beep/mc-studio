@@ -9,6 +9,7 @@ import dev.reme.mcstudio.npc.life.PublicSafety;
 import dev.reme.mcstudio.npc.life.CivicWorkplaces;
 import dev.reme.mcstudio.npc.life.ShopCounter;
 import dev.reme.mcstudio.npc.life.ResidentBedLife;
+import dev.reme.mcstudio.npc.life.NeighborhoodMarket;
 import net.minecraft.world.level.block.BedBlock;
 import net.minecraft.world.level.block.state.properties.BedPart;
 import dev.reme.mcstudio.npc.life.FootTrafficData;
@@ -105,6 +106,8 @@ public final class NpcCommands {
                     .executes(ctx -> setPaths(ctx.getSource(), false))))
             .then(Commands.literal("settlement")
                 .executes(ctx -> settlementInfo(ctx.getSource())))
+            .then(Commands.literal("market")
+                .executes(ctx -> marketStatus(ctx.getSource())))
             .then(Commands.literal("mine").requires(source -> source.hasPermission(2))
                 .then(Commands.argument("target", BlockPosArgument.blockPos())
                     .executes(ctx -> authorizeMining(ctx.getSource(),
@@ -192,6 +195,37 @@ public final class NpcCommands {
                 + " dispatcherIdentity={}, NeoForge requires runtime 21.1.262+",
             dev.reme.mcstudio.StudioMod.VERSION, npcPresent, checkPresent,
             System.identityHashCode(event.getDispatcher()));
+    }
+
+    private static int marketStatus(CommandSourceStack source)
+        throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        ServerPlayer player = source.getPlayerOrException();
+        var locals = player.serverLevel().getEntitiesOfClass(
+            PlayerNpcEntity.class, player.getBoundingBox().inflate(20),
+            resident -> resident.isAlive() && resident.mode() == PlayerNpcEntity.Mode.LIVE);
+        int stores = 0, operating = 0, food = 0, patronsWithMoney = 0, localFarmers = 0;
+        for (PlayerNpcEntity resident : locals) {
+            if (resident.profession() == PlayerNpcEntity.Profession.SHOPKEEPER) {
+                stores++;
+                food += ShopCounter.stockedFood(resident.backpack());
+                if (resident.intent() == LivingPlanner.Intent.WORK
+                    && resident.blockPosition().distSqr(resident.workPos()) <= 9)
+                    operating++;
+            }
+            if (resident.profession() == PlayerNpcEntity.Profession.FARMER)
+                localFarmers++;
+            if (resident.hunger() <= 65
+                && resident.backpack().countItem(Items.EMERALD) > 0)
+                patronsWithMoney++;
+        }
+        final int a = stores, b = operating, c = food, d = patronsWithMoney, e = localFarmers;
+        boolean fair = NeighborhoodMarket.fairWindow(player.serverLevel().getDayTime(), 0);
+        source.sendSuccess(() -> Component.literal(
+            "附近20格 NPC 市集：店铺 " + a + "，正在柜台营业 " + b
+            + "，真实食品库存 " + c + "，有绿宝石且有消费需求的居民 " + d
+            + "，农夫 " + e + "，每七天市集时段 " + (fair ? "进行中" : "未开始")
+            + "。NPC 买卖只转移实际背包里的商品和绿宝石，不凭空创造物品。"), false);
+        return 1;
     }
 
     private static int pathInfo(CommandSourceStack source) {
