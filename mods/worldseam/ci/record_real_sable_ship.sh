@@ -65,7 +65,23 @@ capture_jvm_diagnostics() {
   } >> real-ship-jvm-thread-dump.txt 2>&1
 }
 ready=0; returned=0; failure=0; ready_step=0; last_diag=0
+camera_ui_hidden=0; ready_still=0; descent_still=0
 for step in $(seq 1 240); do
+  if [[ "$camera_ui_hidden" = 0 ]] &&
+     grep -q "WORLDSEAM_FILM_ARENA_READY" real-ship-film-client.log; then
+    xdotool key F1 || true
+    camera_ui_hidden=1
+  fi
+  if [[ "$ready_still" = 0 ]] &&
+     grep -q "WORLDSEAM_FILM_RECORD_READY" real-ship-film-client.log; then
+    xwd -root -silent | convert xwd:- -resize 960x540 -quality 82 real-ship-first-frame.jpg || true
+    ready_still=1
+  fi
+  if [[ "$descent_still" = 0 ]] &&
+     grep -q "WORLDSEAM_FILM_REAL_SHIP_DOWN" real-ship-film-client.log; then
+    xwd -root -silent | convert xwd:- -resize 960x540 -quality 82 real-ship-below-seam.jpg || true
+    descent_still=1
+  fi
   if grep -q "WORLDSEAM_FILM_RECORD_READY" real-ship-film-client.log; then
     if [ "$ready" = 0 ]; then ready_step="$step"; fi
     ready=1
@@ -84,6 +100,7 @@ for step in $(seq 1 240); do
   fi
   if grep -q "WORLDSEAM_FILM_PASS_REAL_SHIP_RETURN" real-ship-film-client.log; then
     returned=1
+    xwd -root -silent | convert xwd:- -resize 960x540 -quality 82 real-ship-returned.jpg || true
     sleep 7 # show clearly recognizable final aircraft for viewer
     break
   fi
