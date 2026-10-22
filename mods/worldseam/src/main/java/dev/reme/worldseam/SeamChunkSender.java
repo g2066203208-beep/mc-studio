@@ -62,6 +62,7 @@ public final class SeamChunkSender {
         ChunkPos ticketCenter;
         long ticketChanges;
         long chunkFetches;
+        long waitingForAsyncChunks;
         long packetsSent;
         final Map<Long,Long> lastSent=new HashMap<>();
         final Set<Long> dirty=new HashSet<>();
@@ -172,8 +173,13 @@ public final class SeamChunkSender {
         // A controlled, bounded one-chunk fetch occurs only for unsent/stale
         // data. Temporary residency keeps the remaining chunks loaded.
         if(!target.hasChunk(cx,cz)) {
-            session.chunkFetches++;
-            target.getChunk(cx,cz);
+            // The region ticket has already requested this chunk from the
+            // NORMAL server chunk scheduler. Synchronous getChunk() here
+            // forces expensive terrain generation or disk I/O on the server
+            // main thread. Wait for the ticket to complete asynchronously;
+            // leave the item unsent so it is revisited next tick.
+            session.waitingForAsyncChunks++;
+            return;
         }
         ClientboundLevelChunkWithLightPacket vanilla =
             new ClientboundLevelChunkWithLightPacket(
@@ -191,14 +197,16 @@ public final class SeamChunkSender {
     }
 
     public record StreamStats(boolean ticketActive,int resident,int transmitted,
-                              long fetches,long ticketMoves,long packets,long liveUpdates) {}
+                              long fetches,long ticketMoves,long packets,long liveUpdates,
+                              long pendingAsyncWaits) {}
 
     public static StreamStats stats(ServerPlayer player) {
         Session session=sessions.get(player.getUUID());
-        if(session==null)return new StreamStats(false,0,0,0,0,0,0);
+        if(session==null)return new StreamStats(false,0,0,0,0,0,0,0);
         return new StreamStats(session.ticketLevel!=null,
             currentTargetLoaded(player),session.lastSent.size(),
-            session.chunkFetches,session.ticketChanges,session.packetsSent,session.changeResends);
+            session.chunkFetches,session.ticketChanges,session.packetsSent,session.changeResends,
+            session.waitingForAsyncChunks);
     }
 
     /**
