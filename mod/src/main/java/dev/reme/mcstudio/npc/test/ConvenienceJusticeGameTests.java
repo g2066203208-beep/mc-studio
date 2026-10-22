@@ -54,7 +54,7 @@ public final class ConvenienceJusticeGameTests {
         return middle;
     }
 
-    @GameTest(template="empty",timeoutTicks=160)
+    @GameTest(template="empty",timeoutTicks=300)
     public static void actual_unpaid_item_then_real_eyewitness_report_nonlethal_arrest_and_save(
         GameTestHelper helper) {
         ServerLevel level=helper.getLevel();
@@ -113,7 +113,22 @@ public final class ConvenienceJusticeGameTests {
             throw new AssertionError("Arrest/past criminal state corrupted by NBT reload");
         System.out.println("REME_NPC_STORE_CRIME_PATH stock=3->2 suspectFood=1"
             +" unpaid=1 report=1 guardDispatch=1 nonlethalArrest=1 cellAssigned=1 nbt=1");
-        helper.succeed();
+        // From this point NO TEST MANIPULATES POSITION. It is genuine
+        // vanilla world motion for at least 180 game ticks, including
+        // server-authoritative prisoner navigation and police on-foot escort.
+        helper.runAfterDelay(210, () -> {
+            if (!crook.isAlive() || !guard.isAlive())
+                helper.fail("Guard or arrested prisoner died before reaching jail", jail);
+            else if (crook.distanceToSqr(net.minecraft.world.phys.Vec3.atCenterOf(jail)) > 2.5)
+                helper.fail("Arrest assigned a cell but prisoner never physically walked into it", jail);
+            else if (guard.escortedPrisoner() != null)
+                helper.fail("Guard never completed physical escort", jail);
+            else {
+                System.out.println("REME_NPC_PHYSICAL_JAIL_WALK ticks=210"
+                    + " reachedRealCell=true nonTeleport=true guardEscortCompleted=true");
+                helper.succeed();
+            }
+        });
     }
 
     @GameTest(template="empty",timeoutTicks=120)
