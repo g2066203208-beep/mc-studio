@@ -106,13 +106,59 @@ sleep 3
 import -window root client-gui-npc-market.png
 echo "Captured real client command attempts for visual inspection"
 
+# This branch's actual 3D city screenshot acceptance runs in a fresh
+# disposable Minecraft single-player save only. The ADMIN manually flattens
+# its scratch fixture using genuine vanilla /fill commands; /npc city demo
+# itself NEVER bulldozes or edits pre-existing terrain.
+if [[ "${REME_CITY_VISUAL:-0}" == "1" ]]; then
+  say_city() {
+    xdotool key --clearmodifiers t
+    sleep 1
+    xdotool type --clearmodifiers --delay 25 "$1"
+    xdotool key Return
+    sleep "${2:-3}"
+  }
+  # The initial /npc spawn is part of command-smoke coverage; never use
+  # those NPCs as evidence of simulated autonomous urban growth.
+  say_city '/fill ~-20 ~-1 ~-20 ~20 ~-1 ~20 minecraft:stone' 5
+  say_city '/fill ~-20 ~ ~-20 ~20 ~10 ~20 minecraft:air' 5
+  say_city '/npc city survey' 4
+  import -window root client-gui-city-survey.png
+  say_city '/npc city demo' 20
+  import -window root client-gui-city-street-level.png
+  # Spectator gives a reproducible free-camera vista while leaving
+  # all world blocks and authentic NPC entities untouched.
+  say_city '/gamemode spectator' 4
+  say_city '/tp @s ~-24 ~23 ~-24 facing ~20 ~-14 ~20' 15
+  import -window root client-gui-city-aerial-northwest.png
+  say_city '/tp @s ~48 ~ ~ facing ~-20 ~-14 ~20' 12
+  import -window root client-gui-city-aerial-northeast.png
+  say_city '/npc market' 4
+  import -window root client-gui-city-market-activity.png
+  log=run/logs/latest.log
+  if ! grep -q '场地通过：41×41空地' "$log"; then
+    echo 'FAIL: GUI /npc city survey did not certify the actual flat loaded world'
+    exit 1
+  fi
+  if ! grep -q '已在真实 Minecraft 世界建成 41×41 街区' "$log"; then
+    echo 'FAIL: GUI /npc city demo did not build true road/mall blocks'
+    exit 1
+  fi
+  if ! grep -q '实际生活NPC：12' "$log"; then
+    echo 'FAIL: GUI real city did not spawn the 12 citizen entities'
+    exit 1
+  fi
+  echo "PASS: real NeoForge 1.21.1 GUI visual city world generated streets, two-floor mall, houses, police post and NPCs."
+  exit 0
+fi
+
 # Dedicated real-client acceptance: this mode explicitly stops after genuine
 # command registration, egg registry and /npc spawn are observed. The old
 # comprehensive screenshot/mining scenario occasionally failed due to a
 # separate coordinate fixture and masked an already-working command test.
 if [[ "${REME_COMMAND_SMOKE_ONLY:-0}" == "1" ]]; then
   log=run/logs/latest.log
-  if ! grep -q 'REME NPC 0.6.9-dev COMMANDS REGISTERED: /npc=true, /remecheck=true' "$log"; then
+  if ! grep -q 'REME NPC 0.7.0-dev COMMANDS REGISTERED: /npc=true, /remecheck=true' "$log"; then
     echo "FAIL: 21.1.262 server never actually registered both commands"; exit 1
   fi
   if ! grep -q '/npc registered=true' "$log"; then
