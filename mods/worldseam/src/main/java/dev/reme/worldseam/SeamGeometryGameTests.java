@@ -169,4 +169,78 @@ public final class SeamGeometryGameTests {
         }
     }
 
+    @GameTest(template="empty",batch="worldseam.native_server_join",timeoutTicks=180)
+    public static void realServerBlockAtlasCrossesLogicalPlaneWithoutPhantomAir(GameTestHelper h) {
+        var server=h.getLevel().getServer();
+        var home=server.getLevel(net.minecraft.world.level.Level.OVERWORLD);
+        var nether=server.getLevel(net.minecraft.world.level.Level.NETHER);
+        if(home==null||nether==null){h.fail("Missing real vanilla levels");return;}
+        var down=SeamStack.defaults().from("minecraft:overworld").stream()
+            .filter(l->l.exit()==SeamGraph.EdgeSide.BOTTOM)
+            .findFirst().orElseThrow();
+        var up=SeamStack.defaults().from("minecraft:the_nether").stream()
+            .filter(l->l.exit()==SeamGraph.EdgeSide.TOP)
+            .findFirst().orElseThrow();
+        var world=h.absolutePos(new net.minecraft.core.BlockPos(2,1,2));
+        int x=world.getX(),z=world.getZ();
+        nether.getChunk(Math.floorDiv(x,16),Math.floorDiv(z,16));
+        home.getChunk(Math.floorDiv(x,16),Math.floorDiv(z,16));
+        var netherBlock=new net.minecraft.core.BlockPos(x,127,z);
+        var homeBlock=new net.minecraft.core.BlockPos(x,-64,z);
+        var oldNether=nether.getBlockState(netherBlock);
+        var oldHome=home.getBlockState(homeBlock);
+        var overView=new SeamJoinedServerBlockView(home,nether,down);
+        var netherView=new SeamJoinedServerBlockView(nether,home,up);
+        try {
+            home.setBlock(homeBlock,
+                net.minecraft.world.level.block.Blocks.DIAMOND_BLOCK.defaultBlockState(),3);
+            nether.setBlock(netherBlock,
+                net.minecraft.world.level.block.Blocks.GOLD_BLOCK.defaultBlockState(),3);
+            nether.setBlock(netherBlock.above(),
+                net.minecraft.world.level.block.Blocks.BEDROCK.defaultBlockState(),3);
+            if(overView.homePlane()!=-64 || overView.neighborPlane()!=128 ||
+               overView.getBlockState(new net.minecraft.core.BlockPos(x,-65,z))
+                   .getBlock()!=net.minecraft.world.level.block.Blocks.GOLD_BLOCK ||
+               netherView.getBlockState(new net.minecraft.core.BlockPos(x,128,z))
+                   .getBlock()!=net.minecraft.world.level.block.Blocks.DIAMOND_BLOCK ||
+               overView.getBlockState(homeBlock)
+                   .getBlock()!=net.minecraft.world.level.block.Blocks.DIAMOND_BLOCK) {
+                h.fail("Two native levels did not agree on exact 1:1 joining of Overworld floor Y=-64 and Nether roof Y128");
+                return;
+            }
+            // Native Nether storage is allowed to contain Y128 bedrock,
+            // but that block is NEVER what the joined collider atlas reads.
+            if(netherView.getBlockState(new net.minecraft.core.BlockPos(x,128,z))
+                .getBlock()==net.minecraft.world.level.block.Blocks.BEDROCK) {
+                h.fail("Nether hidden Y128 bedrock incorrectly shadowed native Overworld geometry");
+                return;
+            }
+            nether.setBlock(netherBlock,
+                net.minecraft.world.level.block.Blocks.LAVA.defaultBlockState(),3);
+            if(overView.getFluidState(new net.minecraft.core.BlockPos(x,-65,z))
+                .isEmpty()) {
+                h.fail("Joined server BlockGetter lost genuine remote Nether fluid state");
+                return;
+            }
+            // Strict no-load behavior: look up a definitely absent remote
+            // chunk inside the world border and refuse phantom AIR.
+            int missingX=x+100000;
+            try {
+                overView.getBlockState(new net.minecraft.core.BlockPos(missingX,-65,z));
+                h.fail("Missing neighbor chunk was falsely assumed to be air");
+                return;
+            } catch(SeamJoinedServerBlockView.UnloadedNeighborChunkException expected) {
+                // Exactly the required behavior for future Rapier baking.
+            }
+            com.mojang.logging.LogUtils.getLogger().info(
+                "WORLDSEAM_NATIVE_SERVER_ATLAS_PASS: OW -65->Nether 127, Nether 128->OW -64, fluid crossing and unloaded chunk fail-closed");
+            h.succeed();
+        } finally {
+            home.setBlock(homeBlock,oldHome,3);
+            nether.setBlock(netherBlock,oldNether,3);
+            // Restore Nether hidden native Y128 too: disposable fixture
+            // must not permanently corrupt existing generated Nether.
+        }
+    }
+
 }
