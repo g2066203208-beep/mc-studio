@@ -1,6 +1,7 @@
 package dev.reme.mcstudio.npc;
 
 import dev.reme.mcstudio.npc.life.LivingPlanner;
+import dev.reme.mcstudio.npc.life.RestPolicy;
 import net.minecraft.world.item.Items;
 
 /**
@@ -20,7 +21,11 @@ public final class NpcPoseSelection {
             npc.profession() == PlayerNpcEntity.Profession.COURIER
                 && npc.backpack().countItem(Items.WHEAT) > 0,
             intent == LivingPlanner.Intent.SOCIALIZE,
-            intent == LivingPlanner.Intent.SLEEP || npc.energy() < 20
+            RestPolicy.shouldRest(intent,
+                npc.profession() == PlayerNpcEntity.Profession.GUARD,
+                npc.energy())
+                && RestPolicy.atHome(npc.blockPosition(), npc.homePos())
+                && !npc.isAfraid(tick)
         );
     }
 

@@ -17,6 +17,12 @@ public final class SocietyActions {
 
     public static boolean tick(PlayerNpcEntity npc, ServerLevel level, long tick) {
         if (npc.mode() != PlayerNpcEntity.Mode.LIVE) return false;
+        // Real bedtime and escape own navigation before normal professional
+        // tasks, but raiders retain their separate nighttime behavior.
+        if (npc.identity().faction() != SocietyRules.Faction.RAIDERS
+            && RestPolicy.blocksRoutine(npc.intent(),
+                npc.profession() == PlayerNpcEntity.Profession.GUARD,
+                npc.energy())) return false;
         if (npc.identity().faction() == SocietyRules.Faction.RAIDERS
             && MovementPolicy.due(tick, npc.getId(), 40))
             return BanditActions.tick(npc, level, tick);
