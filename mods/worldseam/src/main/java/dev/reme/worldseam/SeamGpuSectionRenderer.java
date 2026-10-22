@@ -40,17 +40,28 @@ public final class SeamGpuSectionRenderer {
     public record Key(long column,int sectionY) {}
     public record Section(Key key,int originX,int originY,int originZ,
                           AABB bounds,List<Cell> cells) {}
-    private record Layer(RenderType renderType,VertexBuffer buffer) {}
+    private record Layer(RenderType renderType,VertexBuffer buffer,long vertexBytes) {}
     private record DrawTask(Section section,Layer layer) {}
     private record Cached(Section section,List<Layer> layers) {
+        long bytes() {
+            long count=0;
+            for(var layer:layers)count+=layer.vertexBytes();
+            return count;
+        }
         void close() { for(var layer:layers)layer.buffer().close(); }
     }
 
     public static final int MAX_SECTION_UPLOADS_PER_FRAME=1;
     public static final int MAX_CACHED_SECTIONS=300;
+    // Bound the total persistent vertex bytes of the proxy cache independently
+    // from model complexity, resource packs and third-party block models.
+    // This is a CPU-side estimate of vertex and explicit index storage;
+    // native GPU allocation may additionally include driver overhead.
+    public static final long MAX_CACHED_VERTEX_BYTES=128L*1024*1024;
     private final Map<Key,Cached> loaded=new LinkedHashMap<>();
     private final Map<Key,Section> dirty=new LinkedHashMap<>();
     private long compilations,uploads,drawCalls,evictions;
+    private long cachedVertexBytes;
     private int lastFrameCachedSections,lastFrameUncachedSections;
     private int lastFrameModelsVisible;
     private int lastFrameEndStoneModels;
@@ -64,7 +75,10 @@ public final class SeamGpuSectionRenderer {
     public void removed(Key key) {
         dirty.remove(key);
         Cached old=loaded.remove(key);
-        if(old!=null){old.close();evictions++;}
+        if(old!=null){
+            cachedVertexBytes-=old.bytes();
+            old.close();evictions++;
+        }
     }
 
     public void trimTo(Set<Key> alive) {
@@ -73,6 +87,7 @@ public final class SeamGpuSectionRenderer {
         while(iterator.hasNext()) {
             var entry=iterator.next();
             if(!alive.contains(entry.getKey())) {
+                cachedVertexBytes-=entry.getValue().bytes();
                 entry.getValue().close();
                 iterator.remove();
                 evictions++;
@@ -95,13 +110,19 @@ public final class SeamGpuSectionRenderer {
             if(built==null)continue;
             Cached old=loaded.put(candidate.key(),built);
             dirty.remove(candidate.key());
-            if(old!=null)old.close();
+            if(old!=null){
+                cachedVertexBytes-=old.bytes();
+                old.close();
+            }
+            cachedVertexBytes+=built.bytes();
             compilations++;
             uploads+=built.layers().size();
         }
-        while(loaded.size()>MAX_CACHED_SECTIONS) {
+        while(loaded.size()>MAX_CACHED_SECTIONS ||
+              cachedVertexBytes>MAX_CACHED_VERTEX_BYTES) {
             var oldest=loaded.entrySet().iterator();
             var value=oldest.next();
+            cachedVertexBytes-=value.getValue().bytes();
             value.getValue().close();
             oldest.remove();
             evictions++;
@@ -147,8 +168,11 @@ public final class SeamGpuSectionRenderer {
                     var vb=new VertexBuffer(VertexBuffer.Usage.STATIC);
                     try {
                         vb.bind();
+                        long vertexBytes=data.vertexBuffer().remaining();
+                        var indices=data.indexBuffer();
+                        if(indices!=null)vertexBytes+=indices.remaining();
                         vb.upload(data);
-                        layers.add(new Layer(entry.getKey(),vb));
+                        layers.add(new Layer(entry.getKey(),vb,vertexBytes));
                     } catch (RuntimeException | Error failed) {
                         vb.close();
                         throw failed;
@@ -236,11 +260,13 @@ public final class SeamGpuSectionRenderer {
     public long drawCalls(){return drawCalls;}
     public long compilations(){return compilations;}
     public long evictions(){return evictions;}
+    public long cachedVertexBytes(){return cachedVertexBytes;}
 
     public void release() {
         for(var cached:loaded.values())cached.close();
         loaded.clear();
         dirty.clear();
+        cachedVertexBytes=0;
         lastFrameCachedSections=lastFrameUncachedSections=lastFrameModelsVisible=0;
         lastFrameEndStoneModels=0;
     }
