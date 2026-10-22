@@ -46,6 +46,7 @@ public final class SeamNativeGeometryClient {
     private static final SeamSectionWorkQueue BUILD_QUEUE=new SeamSectionWorkQueue();
     private static int lastTickRebuildSlices;
     private static final SeamRenderSamples DRAW_CPU_SAMPLES = new SeamRenderSamples(120);
+    private static final SeamRenderSamples REBUILD_CPU_SAMPLES = new SeamRenderSamples(120);
     private static final SeamRenderBudget DRAW_BUDGET = new SeamRenderBudget();
     private static volatile long lastFrameDrawCpuNanos;
     private static ClientLevel queuedRemote;
@@ -238,9 +239,13 @@ public final class SeamNativeGeometryClient {
         var queued=BUILD_QUEUE.drain(MAX_SECTION_BUILDS_PER_TICK,
             cx,cz,2,nearestSy);
         lastTickRebuildSlices=queued.size();
-        for(var job:queued)
-            rebuildSection(queuedRemote,queuedLink,
-                job.chunkX(),job.chunkZ(),job.sectionY());
+        if(!queued.isEmpty()) {
+            long started=System.nanoTime();
+            for(var job:queued)
+                rebuildSection(queuedRemote,queuedLink,
+                    job.chunkX(),job.chunkZ(),job.sectionY());
+            REBUILD_CPU_SAMPLES.add(Math.max(0,System.nanoTime()-started));
+        }
 
         if(changed) {
             // Pruned columns were outside the moving 5x5 visible window.
@@ -362,6 +367,7 @@ public final class SeamNativeGeometryClient {
     public static int culledSlices() { return lastCulledSlices; }
     public static int pendingRebuilds() { return BUILD_QUEUE.size(); }
     public static int lastTickRebuildSlices() { return lastTickRebuildSlices; }
+    public static double p95RebuildCpuMs() { return REBUILD_CPU_SAMPLES.p95Ms(); }
     /** Measures client CPU model submission only; never interpreted as GPU frame time. */
     public static double p95ModelCpuMs() { return DRAW_CPU_SAMPLES.p95Ms(); }
     public static int currentModelBudget() { return DRAW_BUDGET.limit(); }
@@ -382,6 +388,7 @@ public final class SeamNativeGeometryClient {
         BUILD_QUEUE.clear();
         lastTickRebuildSlices=0;
         DRAW_CPU_SAMPLES.clear();
+        REBUILD_CPU_SAMPLES.clear();
         DRAW_BUDGET.reset();
         lastFrameDrawCpuNanos=0;
     }
