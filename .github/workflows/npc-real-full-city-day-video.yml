@@ -1,0 +1,59 @@
+name: NPC REAL 24000 tick city full-day video (all professions)
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feat/npc-real-24k-city-film-v072
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  one-actual-city-day:
+    runs-on: ubuntu-latest
+    timeout-minutes: 42
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Exact native game + loader and release check
+        run: |
+          set -euo pipefail
+          grep -Fxq 'minecraft_version=1.21.1' mod/gradle.properties
+          grep -Fxq 'neo_version=21.1.262' mod/gradle.properties
+          grep -Fxq 'mod_version=0.7.2-dev' mod/gradle.properties
+      - name: Actual offscreen OpenGL game plus continuous X11 video encoder
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb xdotool imagemagick openbox ffmpeg
+      - name: REAL Minecraft Java integrated-client whole day; reject staged time skips
+        shell: bash
+        env:
+          REME_CITY_DAY_VIDEO: '1'
+          REME_CITY_VISUAL: '0'
+          REME_COMMAND_SMOKE_ONLY: '0'
+        run: |
+          set -euo pipefail
+          timeout --signal=INT --kill-after=15s 2050s \
+            xvfb-run -a -s "-screen 0 1280x720x24" \
+            bash scripts/test-client-gui.sh
+      - name: Always publish uncut actual gameplay MP4 and all 13 residents' event log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: npc-1-21-1-real-entire-24000-tick-city-day-mp4
+          if-no-files-found: warn
+          retention-days: 45
+          path: |
+            mod/client-gui-city-full-24000-game-ticks.mp4
+            mod/client-gui-city-full-day-*.png
+            mod/client-gui-city-full-day-ffmpeg.log
+            mod/client-gui-city-*.png
+            mod/client-gui.log
+            mod/run/logs/*.log
