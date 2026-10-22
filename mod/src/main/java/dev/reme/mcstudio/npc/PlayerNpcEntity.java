@@ -459,6 +459,8 @@ public class PlayerNpcEntity extends PathfinderMob {
     }
     @Override public boolean hurt(DamageSource source, float amount) {
         boolean damaged = super.hurt(source, amount);
+        if (damaged && !level().isClientSide && isSleeping())
+            stopSleeping();
         if (damaged && !level().isClientSide && source.getEntity() instanceof Player player) {
             recentAggressor = player.getUUID();
             afraidUntil = level().getGameTime() + 600;
