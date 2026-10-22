@@ -66,7 +66,7 @@ public final class SeamVisualE2E {
             server.execute(() -> prepare(server,playerId));
         } else if (phase==1 && !previewLogged && now-startTick>290) {
             previewLogged=true;
-            LOG.info("WORLDSEAM_E2E_PREVIEW_WINDOW: client dim={}, received={}, cached3x3={}, surface geometry={}, drawn={}, camera near floor Y={}, nativeModelCpuP95Ms={}, modelBudget={}, visibleSlices={}, frustumCulledSlices={}, rebuildCpuP95Ms={}, pendingSections={}, lastTickSections={}",
+            LOG.info("WORLDSEAM_E2E_PREVIEW_WINDOW: client dim={}, received={}, cached3x3={}, surface geometry={}, drawn={}, camera near floor Y={}, nativeModelCpuP95Ms={}, modelBudget={}, visibleSlices={}, frustumCulledSlices={}, rebuildCpuP95Ms={}, pendingSections={}, lastTickSections={}, ownBufferActive={}, ownBufferCreations={}, ownBufferFlushes={}",
                 mc.level.dimension().location(),SeamClientWorldPool.receivedChunks(),
                 SeamClientWorldPool.nearbyChunks(),
                 SeamNativeGeometryClient.visibleBlockCount(),
@@ -77,7 +77,14 @@ public final class SeamVisualE2E {
                 SeamNativeGeometryClient.culledSlices(),
                 String.format(java.util.Locale.ROOT,"%.3f",SeamNativeGeometryClient.p95RebuildCpuMs()),
                 SeamNativeGeometryClient.pendingRebuilds(),
-                SeamNativeGeometryClient.lastTickRebuildSlices());
+                SeamNativeGeometryClient.lastTickRebuildSlices(),
+                SeamNativeGeometryClient.ownBuffersActive(),
+                SeamNativeGeometryClient.bufferCreations(),
+                SeamNativeGeometryClient.bufferFlushes());
+            if(SeamNativeGeometryClient.lastFrameDrawn()>0 &&
+                (!SeamNativeGeometryClient.ownBuffersActive() ||
+                 SeamNativeGeometryClient.bufferFlushes()<1))
+                LOG.error("WORLDSEAM_E2E_FAIL_RENDER_BUFFER_ISOLATION: remote terrain was drawn without owned flushed buffers");
             if(SeamNativeGeometryClient.lastTickRebuildSlices()>4)
                 LOG.error("WORLDSEAM_E2E_FAIL_REBUILD_BUDGET: geometry builder exceeded four native sections per tick");
             server.execute(() -> {
@@ -264,14 +271,18 @@ public final class SeamVisualE2E {
             boolean cleared=!SeamStackClient.enabled() &&
                 "NO TARGET ClientLevel".equals(status) &&
                 SeamNativeGeometryClient.visibleBlockCount()==0 &&
-                SeamNativeGeometryClient.pendingRebuilds()==0;
+                SeamNativeGeometryClient.pendingRebuilds()==0 &&
+                !SeamNativeGeometryClient.ownBuffersActive() &&
+                SeamNativeGeometryClient.bufferDisposals()>0;
             if(cleared)
-                LOG.info("WORLDSEAM_E2E_PASS_DISABLE_CLEARED: authoritative OFF synced, remote ClientLevel and models released");
+                LOG.info("WORLDSEAM_E2E_PASS_DISABLE_CLEARED: authoritative OFF synced, remote ClientLevel, models and render buffers released, bufferDisposals={}",SeamNativeGeometryClient.bufferDisposals());
             else
-                LOG.error("WORLDSEAM_E2E_FAIL_DISABLE: enabled={}, remote={}, geometry={}, pending={}",
+                LOG.error("WORLDSEAM_E2E_FAIL_DISABLE: enabled={}, remote={}, geometry={}, pending={}, ownBuffersActive={}, disposed={}",
                     SeamStackClient.enabled(),status,
                     SeamNativeGeometryClient.visibleBlockCount(),
-                    SeamNativeGeometryClient.pendingRebuilds());
+                    SeamNativeGeometryClient.pendingRebuilds(),
+                    SeamNativeGeometryClient.ownBuffersActive(),
+                    SeamNativeGeometryClient.bufferDisposals());
         }
     }
 
