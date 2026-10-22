@@ -2,7 +2,7 @@ name: Server GameTests (experimental)
 on:
   workflow_dispatch:
   push:
-    branches: [feature/living-world-civic-v04, feature/living-world-natural-v05, feature/npc-resource-pickup-v058, feature/npc-emergent-roads-hamlets-v059, feature/npc-animation-art-pipeline-v060, feature/npc-real-player-actor-v061, feature/npc-local-justice-v062, feature/npc-physical-shopkeepers-v063, feature/npc-physical-workplaces-v064]
+    branches: [feature/living-world-civic-v04, feature/living-world-natural-v05, feature/npc-resource-pickup-v058, feature/npc-emergent-roads-hamlets-v059, feature/npc-animation-art-pipeline-v060, feature/npc-real-player-actor-v061, feature/npc-local-justice-v062, feature/npc-physical-shopkeepers-v063, feature/npc-physical-workplaces-v064, fix/npc-v064-reliable-workplaces]
   pull_request:
 permissions:
   contents: read
@@ -16,6 +16,8 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
+      - name: Prepare separate 48x24x48 GameTest structures (do not modify user saves)
+        run: python3 scripts/prepare-gametest-arena.py
       - name: Run Minecraft 1.21.1 NeoForge GameTest server
         working-directory: mod
         run: ./gradlew runGameTestServer --no-daemon --stacktrace
