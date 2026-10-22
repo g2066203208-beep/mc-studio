@@ -58,10 +58,13 @@ function block(parent,shape,pos,scale,kind,legId=null){
  mesh.position.set(...pos);mesh.scale.set(...scale);
  mesh.castShadow=true;mesh.receiveShadow=true;
  if(legId)mesh.userData.legId=legId;
+ mesh.userData.fullVoxel=true;
  parent.add(mesh);return mesh;
 }
 function officialModule(parent,id,pos,{scale=1,axis='x',facing='east',legId=null,rotor=false}={}){
- const frame=new THREE.Group();frame.position.set(...pos);frame.scale.setScalar(scale);parent.add(frame);
+ const frame=new THREE.Group();frame.position.set(...pos);frame.scale.setScalar(scale);
+ frame.userData.fullVoxelModule={id};
+ parent.add(frame);
  const old=createPreviewModel({id,axis,facing});
  old.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;if(legId)o.userData.legId=legId;}});
  frame.add(old);
@@ -336,6 +339,36 @@ function animate(now=0){
  renderer.render(scene,camera);
 }
 requestAnimationFrame(animate);
+// A small, deterministic Minecraft-style voxel integrity inspection.
+ // A module occupies one lattice cell even when its source JSON consists of
+ // hundreds of decorative mesh triangles. Full-block modules may TOUCH
+ // neighbors at their faces; they must not overlap the same cube interior.
+ function auditVoxelOccupancy(){
+  const overlaps=[],offGrid=[];
+  const near=(a,b)=>Math.abs(a-b)<1-1e-6;
+  for(const entry of visualBodies){
+   const g=entry.mesh;
+   const cells=[];
+   for(const child of g.children){
+    if(child.userData.fullVoxel){
+     cells.push({id:'voxel',p:child.position,scale:child.scale});
+    }else if(child.userData.fullVoxelModule){
+     cells.push({id:child.userData.fullVoxelModule.id,p:child.position,scale:child.scale});
+    }
+   }
+   for(const cell of cells){
+    if(Math.abs(cell.scale.x-1)>1e-6||Math.abs(cell.scale.y-1)>1e-6||Math.abs(cell.scale.z-1)>1e-6)
+     offGrid.push({id:cell.id,reason:'a single Minecraft model block is scaled'});
+   }
+   for(let i=0;i<cells.length;i++)for(let j=i+1;j<cells.length;j++){
+    const a=cells[i],b=cells[j];
+    if(near(a.p.x,b.p.x)&&near(a.p.y,b.p.y)&&near(a.p.z,b.p.z))
+     overlaps.push({body:visualBodies.indexOf(entry),a:a.id,b:b.id,
+      at:[a.p.x,a.p.y,a.p.z],other:[b.p.x,b.p.y,b.p.z]});
+   }
+  }
+  return {overlaps,offGrid,rigidBodies:visualBodies.length,modules:modules.length};
+ }
 window.__BOSS_API__={
  get ready(){return ready},get engine(){return engine},get error(){return $('engineState').dataset.error||null},
  snapshot:()=>engine?.snapshot(),advance:n=>{const s=engine.advance(n);syncVisual();return s;},
@@ -343,6 +376,7 @@ window.__BOSS_API__={
  motor:o=>{engine.setMotor(o);syncVisual();},
  disconnectBranch:(id,cut)=>{engine.disconnectBranch(id,cut);syncVisual();},
  getPowertrain:()=>engine?.snapshot().powertrain,
+ voxelAudit:auditVoxelOccupancy,
  removeLeg,removeAllFeet:()=>{$('removeAll').click()},
  reset:createRig,physicsBodies:()=>visualBodies.length,visibleMeshes:()=>{let n=0;root?.traverse(o=>{if(o.isMesh&&o.visible)n++});return n;},
  getAssetStatus:()=>({officialTypes:[...assetCache.keys()],officialMeshes:officialCount,components:modules.length}),
