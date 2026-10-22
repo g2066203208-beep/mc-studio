@@ -19,7 +19,7 @@ const {chromium}=require('playwright-core');
   assert.equal(initial.powertrain.connectedBranches,6,'all six Rapier hips must have actual Create gear/clutch paths');
   assert.equal(initial.powertrain.source.id,'create:creative_motor');
   assert.equal(initial.powertrain.inputs.length,6);
-  assert.ok(initial.powertrain.blocks>=24);
+  assert.ok(initial.powertrain.blocks>=26);
 
   assert.ok(initial.mass>20,'mechanical Boss has real structural mass');
   const standing=await page.evaluate(()=>window.__MULTIBODY_RIG__.advance(240));
