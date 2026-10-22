@@ -208,8 +208,7 @@ public final class NpcCommands {
             if (resident.profession() == PlayerNpcEntity.Profession.SHOPKEEPER) {
                 stores++;
                 food += ShopCounter.stockedFood(resident.backpack());
-                if (resident.intent() == LivingPlanner.Intent.WORK
-                    && resident.blockPosition().distSqr(resident.workPos()) <= 9)
+                if (ShopCounter.openForResidentSales(resident))
                     operating++;
             }
             if (resident.profession() == PlayerNpcEntity.Profession.FARMER)
