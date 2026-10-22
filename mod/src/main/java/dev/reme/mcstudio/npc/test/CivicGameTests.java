@@ -1511,11 +1511,43 @@ public final class CivicGameTests {
             Blocks.OAK_DOOR.defaultBlockState()
                 .setValue(net.minecraft.world.level.block.DoorBlock.HALF,
                     net.minecraft.world.level.block.state.properties.DoubleBlockHalf.UPPER), 3);
+        if (CivicWorkplaces.inspect(level, center).indoorBuilding())
+            throw new AssertionError("Three isolated planks counted as a completed ceiling");
+        for (int x = -1; x <= 1; x++) for (int z = -1; z <= 1; z++)
+            level.setBlock(center.offset(x, 3, z),
+                Blocks.OAK_PLANKS.defaultBlockState(), 3);
         if (!CivicWorkplaces.inspect(level, center).indoorBuilding())
-            throw new AssertionError("Real roof + actual double door not recognized as building");
+            throw new AssertionError("Real 3x3 roof + actual double door not recognized as building");
         level.setBlock(center.east(), Blocks.AIR.defaultBlockState(), 3);
         if (CivicWorkplaces.inspect(level, center).type() != CivicWorkplaces.Type.UNASSIGNED)
             throw new AssertionError("Worksite named shop without its real barrel");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 100)
+    public static void scattered_solid_blocks_at_different_heights_cannot_fake_a_roof(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos center = helper.absolutePos(new BlockPos(4, 9, 4));
+        level.setBlock(center.west(), Blocks.CHEST.defaultBlockState(), 3);
+        level.setBlock(center.east(), Blocks.BARREL.defaultBlockState(), 3);
+        level.setBlock(center.north(), Blocks.OAK_DOOR.defaultBlockState(), 3);
+        level.setBlock(center.north().above(),
+            Blocks.OAK_DOOR.defaultBlockState().setValue(
+                net.minecraft.world.level.block.DoorBlock.HALF,
+                net.minecraft.world.level.block.state.properties.DoubleBlockHalf.UPPER), 3);
+        // Nine solid blocks total is not a ceiling if split across two Y layers.
+        for (int x = -1; x <= 1; x++) for (int z = -1; z <= 1; z++) {
+            int y = ((x + z) & 1) == 0 ? 2 : 3;
+            level.setBlock(center.offset(x, y, z),
+                Blocks.OAK_PLANKS.defaultBlockState(), 3);
+        }
+        if (CivicWorkplaces.inspect(level, center).indoorBuilding())
+            throw new AssertionError("Scattered blocks across two heights faked a full roof");
+        for (int x = -1; x <= 1; x++) for (int z = -1; z <= 1; z++)
+            level.setBlock(center.offset(x, 3, z),
+                Blocks.OAK_PLANKS.defaultBlockState(), 3);
+        if (!CivicWorkplaces.inspect(level, center).indoorBuilding())
+            throw new AssertionError("A real uninterrupted ceiling above a paired door was rejected");
         helper.succeed();
     }
 
