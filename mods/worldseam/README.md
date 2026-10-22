@@ -1,5 +1,13 @@
 # WorldSeam · 界缝
 
+### 2026-10-22 — Sable / Aeronautics real-mod gate (P2 prototype)
+
+- Pinned current actual compatible NeoForge 1.21.1 release versions: **Sable 2.0.6** (Modrinth `fg9dTRz9`), **Create 6.0.10** (`UjX6dr61`), **Create Aeronautics 1.3.2** (`44pLdPGg`). Official JARs are downloaded **only by CI** using Modrinth API, recursively resolving required dependencies and **verifying SHA-256**; these files are not copied into this repository or re-distributed as artifacts.
+- New workflow `WorldSeam Real Sable Aeronautics Integration` is separate from standalone WorldSeam's NeoForge GameTests. It starts a real game-test server with official mod jars and confirms that Sable + Create + Aeronautics were loaded and the real Sable 2.x sublevel reflection API can be accessed. This test is *not* a fabricated test-double API.
+- `SeamSableObserver` reads authentic sub-level UUID, `boundingBox()` in world coordinates and the saved dimension stack once every 10 server ticks while the feature is enabled. `/worldseam ships status` reports live body count and the number of hulls intersecting an actual seam. It **does not** alter velocity, move the sublevel, spawn a duplicate physics body, or issue a teleport.
+- `SeamShipChartBounds` provides an immutable exact horizontal plane clipping model of **one** physical ship hull across the current dimension and mapped neighbor dimension, with coordinate invertibility tests and 64-block example. The rigid body identity lives in Sable only.
+- **Blocking release gates:** live assembled Aeronautics ship must straddle world/Nether with correct **simultaneous** model clipping in both native renderers; ONE authoritative Rapier body must receive contacts from **both** world's terrain, applying torques, joints, motor shafts and riders without transferring or duplicating bodies; all actual CI and many mod configurations must be tested. Neither the observer nor pinned-JAR smoke test proves those gates. DO NOT publish as a finished continuous physics implementation.
+
 ## WorldSeam 0.13.0-dev — 连续接缝渲染的第一项真实改造
 
 **验收目标不是整船瞬移，也不把原版维度传送当作合格结果。**
