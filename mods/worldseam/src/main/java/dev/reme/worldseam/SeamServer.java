@@ -202,14 +202,10 @@ public final class SeamServer {
                 SeamDirectTransfer.move(player,target,
                     new Vec3(player.getX(),nextY,player.getZ()),
                     player.getYRot(),player.getXRot());
-                {
-                    player.setDeltaMovement(previousVelocity);
-                    player.fallDistance = previousFall;
-                    lastCross.put(player.getUUID(), tick);
-                    RETURN_GUARD.landed(player.getUUID(), link.target(), link.entry());
-                } else {
-                    LOG.warn("Seam teleport rejected: {} -> {}", dim, link.target());
-                }
+                player.setDeltaMovement(previousVelocity);
+                player.fallDistance = previousFall;
+                lastCross.put(player.getUUID(), tick);
+                RETURN_GUARD.landed(player.getUUID(), link.target(), link.entry());
                 break;
             }
         }
