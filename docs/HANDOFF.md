@@ -239,3 +239,10 @@ Push CI `39518033958` SUCCESS，PR CI `39518039426` SUCCESS。Artifact `12310085
 - `CivicGameTests` 新增 3 项，共 53 个（源码计数）：真实一份食物互助/NBT、禁止跨区域与溢出与连续乞食、24 名 LIVE NPC 在真实 MC 服务端连跑 2400 world ticks。不是 200 NPC 性能结论、不是完整白天黑夜长时游玩或自动建城。
 - `mod_version=0.6.5-dev`，同步 Windows HMCL PowerShell 安装测试文件；GameTest/真实 GUI workflow 加新分支触发，GameTest timeout 提升为22分钟。源/研究/人工说明见 `docs/NPC_MUTUAL_AID_LONGRUN_V065.md`。
 - 必须回查本 PR 的 Java BUILD、纯 Java 18项、NeoForge 53 GameTests、Xvfb GUI 和 Windows installer 真实状态；发现失败逐个修复，不能冒充成功。仍未验证真正联网 `ServerPlayer`、用户222 Mod HMCL、20-200 NPC MSPT。
+
+## 2026-10-22 用户报告：/npc 指令不存在；0.6.6 无命令生成 NPC 修复
+
+- 不能拿 GitHub GameTest 的 `/npc` 根节点存在来证明用户 HMCL 里已经安装到正确的 NeoForge 1.21.1 版本：客户端实际只在对应 `--gameDir/mods` 加载 Mod，`/npc` 和 `/remecheck` 均未知更可能是游戏实例未加载/未注册该 Mod；`/npc` 有但 `/npc spawn` 不显示则为 `source.hasPermission(2)` 权限过滤。
+- 独立分支 `fix/npc-command-access-v066` 从真实构建通过的 0.6.5（draft PR #78）分出。版本号提升 0.6.6-dev，删除 0.6.3/0.6.4 旧登录提示，中文版准确显示根指令是否存在；`NpcItems` 使用 1.21.1 `DeferredSpawnEggItem` 注册原生生成蛋；刷怪蛋创造分类及中文物品名 `NPC 生成蛋（居民）`。生存配方 `EBE / BPB / EBE`，E=绿宝石/B=面包/P=纸；生成蛋和自然出生均调用 `finalizeSpawn` 设置真实附近家/工作位置，而不是零坐标。
+- 新服务端 NeoForge GameTest 使用真正 `FakePlayer` 的 `ItemStack.useOn` 检查生成蛋真实生成实体、检查初始 LIVE/物资/家位置；原 `diagnostic_command_is_visible_without_cheats` 加权限 0 的 `/npc` 调用和 spawn 指令不可见断言。真实图形客户端 CI 添加生成蛋物品注册断言和 /npc 登录日志硬门槛。
+- 安装包附送新的 `docs/NPC_HMCL_ACCEPTANCE.md`，明确 HMCL 版本隔离、正确游戏路径、日志字段、是否有 OP、不开作弊如何用生成蛋。**仍没有用户实际目录/222-mod 运行证据**；必须检查本 PR 的 Build、GameTest、Xvfb、Windows installer 所对应 SHA，任何失败不算通过。
