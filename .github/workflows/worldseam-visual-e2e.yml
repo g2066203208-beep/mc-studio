@@ -37,7 +37,7 @@ jobs:
           xvfb-run -a -s '-screen 0 1280x720x24' bash -c '
             set -euo pipefail
             export LIBGL_ALWAYS_SOFTWARE=1
-            bash ./gradlew runClient -PworldseamE2E --no-daemon --console=plain > visual-client.log 2>&1 &
+            bash ./gradlew runClient -PworldseamE2E -PworldseamGpuSections --no-daemon --console=plain > visual-client.log 2>&1 &
             pid=$!
             trap "kill $pid 2>/dev/null || true" EXIT
             for step in $(seq 1 170); do
@@ -93,6 +93,21 @@ jobs:
             fi
             xwd -root -silent | convert xwd:- -resize 800x450 -quality 58 visual-in-world.jpg
             echo "WORLDSEAM_CAPTURED_PRE_CROSSING_OVERWORLD"
+            # Give time for bounded world-aware VBO compilation, then
+            # capture the settled view separately. An early frame showing
+            # five cached sections is NOT evidence of a complete world.
+            found=0
+            for step in $(seq 1 120); do
+              if grep -q "WORLDSEAM_E2E_GPU_SETTLED" visual-client.log; then found=1; break; fi
+              if grep -q "WORLDSEAM_E2E_FAIL_GPU_COVERAGE" visual-client.log; then break; fi
+              sleep 1
+            done
+            if [ "$found" != 1 ]; then
+              echo "WorldSeam GPU section view never reached late coverage checkpoint"
+              tail -n 70 visual-client.log; exit 1
+            fi
+            xwd -root -silent | convert xwd:- -resize 800x450 -quality 64 visual-gpu-settled.jpg
+            echo "WORLDSEAM_CAPTURED_GPU_SETTLED_WORLD"
             found=0
             for step in $(seq 1 90); do
               if grep -q "WORLDSEAM_E2E_REVERSE_STAGE" visual-client.log; then found=1; break; fi

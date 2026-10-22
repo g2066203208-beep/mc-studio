@@ -210,3 +210,12 @@ v0.5 的 teleportTo 仍引发原版 ClientboundRespawnPacket/加载界面。本�
 
 
 **长测 CI 编排修正：** 独立 `worldseam-stress-e2e.yml` 不再先跑 1500+ tick 旧顺序截图 E2E（该工作流自己独立运行，已经通过），而是在新建的真实一次性世界中从主世界立刻开始试验，主动启用 no-respawn、创造模式飞行和默认堆叠，开挖主世界底面、下界顶面及底面、末地顶面的实际方块。24 次循环顺序改为 `主世界→下界→末地→下界→主世界` 共六轮。固定实体见证位置随目标连接面在内部±2格，避免位于接缝**外侧**的测试实体被 WorldSeam 正确地立即传送到相邻维度而产生假阴性。旧截图和新世界性能长测分别留下真实证据，不再使用易超时的串行等待。
+
+
+## v0.10.2-dev — 原生世界烘焙几何的 GPU 区块段缓存（实验阶段）
+
+之前逐方块 `renderSingleBlock()` 每帧在 8ms CPU 预算下只能画 ~500–2000 个方块，而第二世界有超过 5 万可见表面候选；此路径从架构上不可能表现为完整地形。参考 NeoForge 1.21.1 原生 `BlockRenderDispatcher.renderBatched` / `BakedModel.getRenderTypes`、`BufferBuilder` 和持久 `VertexBuffer`，引入 `SeamGpuSectionMeshes`：第一次碰到真实远端区块段时，把该段对应的**真实** ClientLevel、邻居遮挡、原版环境光遮蔽、biome 色调、随机模型和资源包模型转换为多层 GPU 网格。以后每帧对整个可见段仅画一次 VBO，GPU 缓存段**不再受到 `renderSingleBlock` 单帧方块数量预算的限制**。每帧最多 180 次块模型烘焙与目标 4ms 构建时间片，进度跨帧持续；缓存限制 128 个段，动态更新或离开维度即时释放旧 VBO，防止 VRAM 无限增长。
+
+**实验开关：** `-PworldseamGpuSections` 用于专属 NeoForge 图形 CI；正式 `JAR` 暂不默认启用，避免在未经充分验证的 Sodium/Iris/Voxy 配置下产生错误 GPU 着色状态。普通旧路径保留，遇到不受支持的自定义/透明模型时使用原来的 CPU fallback。目前固体、镂空和 cutout-mipped 模型可编译，流体、BlockEntity、实体、透明远景、完整天空和原生双世界 `LevelRenderer` 同帧合成**尚未完成**。
+
+新增 E2E 指标 `gpuMeshedSections`、`gpuDrawnSections`、`gpuSectionCells`、`gpuBakeP95Ms`；真正 GUI 必须观察到至少一个上传并绘制的缓存段，才允许称该路径通过。与只画几百个代理方块不同，它直接改变了几何对象在何时由 CPU 构建、GPU 如何重复使用的底层机制。所有颜色和 shader/深度仍需人工审视真实截图，与原生画面比对。

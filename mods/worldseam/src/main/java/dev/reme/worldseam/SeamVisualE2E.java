@@ -32,6 +32,7 @@ public final class SeamVisualE2E {
     private static long startTick;
     private static UUID playerId;
     private static boolean previewLogged;
+    private static boolean gpuSettledLogged;
     private static boolean endPreviewLogged;
     private static boolean dualStableChecked;
     private static boolean liveChangeStarted;
@@ -67,7 +68,7 @@ public final class SeamVisualE2E {
             server.execute(() -> prepare(server,playerId));
         } else if (phase==1 && !previewLogged && now-startTick>290) {
             previewLogged=true;
-            LOG.info("WORLDSEAM_E2E_PREVIEW_WINDOW: client dim={}, received={}, cached3x3={}, surface geometry={}, drawn={}, camera near floor Y={}, nativeModelCpuP95Ms={}, modelBudget={}, visibleSlices={}, frustumCulledSlices={}, rebuildCpuP95Ms={}, pendingSections={}, lastTickSections={}, ownBufferActive={}, ownBufferCreations={}, ownBufferFlushes={}",
+            LOG.info("WORLDSEAM_E2E_PREVIEW_WINDOW: client dim={}, received={}, cached3x3={}, surface geometry={}, drawn={}, camera near floor Y={}, nativeModelCpuP95Ms={}, modelBudget={}, visibleSlices={}, frustumCulledSlices={}, rebuildCpuP95Ms={}, pendingSections={}, lastTickSections={}, ownBufferActive={}, ownBufferCreations={}, ownBufferFlushes={}, gpuMeshedSections={}, gpuDrawnSections={}, gpuSectionCells={}, gpuBakeP95Ms={}",
                 mc.level.dimension().location(),SeamClientWorldPool.receivedChunks(),
                 SeamClientWorldPool.nearbyChunks(),
                 SeamNativeGeometryClient.visibleBlockCount(),
@@ -81,7 +82,16 @@ public final class SeamVisualE2E {
                 SeamNativeGeometryClient.lastTickRebuildSlices(),
                 SeamNativeGeometryClient.ownBuffersActive(),
                 SeamNativeGeometryClient.bufferCreations(),
-                SeamNativeGeometryClient.bufferFlushes());
+                SeamNativeGeometryClient.bufferFlushes(),
+                SeamNativeGeometryClient.gpuUploadedSections(),
+                SeamNativeGeometryClient.gpuDrawnSections(),
+                SeamNativeGeometryClient.gpuDrawnCellEquivalent(),
+                String.format(java.util.Locale.ROOT,"%.3f",
+                    SeamNativeGeometryClient.p95GpuMeshBakeMs()));
+            if(Boolean.getBoolean("worldseam.gpuSections") &&
+                (SeamNativeGeometryClient.gpuUploadedSections()==0 ||
+                 SeamNativeGeometryClient.gpuDrawnSections()==0))
+                LOG.error("WORLDSEAM_E2E_FAIL_GPU_MESH: actual native section GPU meshes were not drawn");
             if(SeamNativeGeometryClient.lastFrameDrawn()>0 &&
                 (!SeamNativeGeometryClient.ownBuffersActive() ||
                  SeamNativeGeometryClient.bufferFlushes()<1))
@@ -179,6 +189,24 @@ public final class SeamVisualE2E {
                     transferred<0 || transferred>16)
                     LOG.error("WORLDSEAM_E2E_FAIL_DUAL_STABLE: duplicate chunk fetch, unsolicited full resend or unbounded live-update packet rate");
             });
+        } else if(phase==1 && !gpuSettledLogged && now-startTick>585) {
+            gpuSettledLogged=true;
+            if(Boolean.getBoolean("worldseam.gpuSections")) {
+                int meshes=SeamNativeGeometryClient.gpuUploadedSections();
+                long cells=SeamNativeGeometryClient.gpuDrawnCellEquivalent();
+                int candidates=SeamNativeGeometryClient.visibleBlockCount();
+                double coverage=candidates<=0?0.0:100.0*cells/candidates;
+                LOG.info("WORLDSEAM_E2E_GPU_SETTLED: elapsedTicks={}, nativeGpuSections={}, gpuDrawnCells={}, candidateSurfaceCells={}, frameCoveragePct={}, gpuBakeP95Ms={}",
+                    now-startTick,meshes,cells,candidates,
+                    String.format(java.util.Locale.ROOT,"%.1f",coverage),
+                    String.format(java.util.Locale.ROOT,"%.3f",
+                        SeamNativeGeometryClient.p95GpuMeshBakeMs()));
+                // A few hundred individual remote models passing old tests
+                // is not adequate visual evidence. Require material GPU
+                // surface coverage after allowing additional bake frames.
+                if(meshes<8 || cells<5000)
+                    LOG.error("WORLDSEAM_E2E_FAIL_GPU_COVERAGE: native section mesh upload too slow for a coherent remote world view");
+            }
         } else if (phase==1 && now-startTick>620) {
             phase=2;
             LOG.info("WORLDSEAM_E2E_CHECK: client native packets={}, 3x3={}, geometry={}, drawn={}",
