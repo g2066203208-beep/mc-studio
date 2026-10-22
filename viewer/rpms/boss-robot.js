@@ -167,6 +167,21 @@ function syncVisual(){
  $('contactCount').textContent=s.supportContacts+' / 6';
  const knee=s.legAngles.find(x=>!x.detached);
  $('jointAngle').textContent=knee?(knee.hip*180/Math.PI).toFixed(1)+'°':'—';
+ // Report actual physical angles/contacts alongside gait commands.
+ $('gaitLegs').replaceChildren(...s.legAngles.map(j=>{
+  const phase=j.detached?'detached':j.gaitPhase||'stand';
+  const foot=s.footMeasurements.find(f=>f.id===j.id);
+  const chip=document.createElement('span');
+  chip.className='gait-leg gait-'+phase;
+  chip.textContent=j.id+' '+({stance:'支撑',swing:'抬腿',stand:'站立',detached:'断裂'}[phase]||phase)
+   +' · '+(j.hip*180/Math.PI).toFixed(0)+'°'
+   +' · '+(foot?.touching?'触地':'离地');
+  return chip;
+ }));
+ $('gaitCycle').textContent=s.mode==='stand'?'六足站立伺服中'
+   :'步态周期 '+((s.gait?.cycle||0)%1*100).toFixed(0)+'% · '
+     +(s.gait?.stance||0)+' 支撑 / '+(s.gait?.swing||0)+' 摆动 · '
+     +'净位移 '+s.travel.toFixed(2)+' 格';
  $('distance').textContent=s.travel.toFixed(2)+' 格';
  $('velocity').textContent=s.velocity.y.toFixed(2)+' m/s';
  $('steps').textContent=s.steps+' 个物理步长';
@@ -228,11 +243,19 @@ function setModeButton(mode){
 }
 for(const mode of ['stand','march','walk','relax'])$(mode).addEventListener('click',()=>{
  if(!engine)return;
+ // Stand-only default of 135 N·m cannot propel the tested six-foot gait.
+ // Use a reproducible, real Chrome-measured locomotion motor configuration
+ // when the player has not already chosen stronger values.
+ if(mode==='walk'){
+  const rpmEl=$('motorRPM'),torqueEl=$('motorTorque');
+  if(Number(rpmEl.value)<40){rpmEl.value='48';rpmEl.dispatchEvent(new Event('input',{bubbles:true}));}
+  if(Number(torqueEl.value)<750){torqueEl.value='2200';torqueEl.dispatchEvent(new Event('input',{bubbles:true}));}
+ }
  engine.setMode(mode);setModeButton(mode);
  setMessage({
   stand:'六足髋膝伺服器正在真实受力保持站立；腿承重不足时身体会塌。',
   march:'两组三角支撑腿交替抬腿：12 个真实物理关节驱动，关节角度由求解器更新。',
-  walk:'前进步态实验：改变关节角度与足底摩擦产生实际运动，不保证未经调参就能稳定直线走。',
+  walk:'采用已由 Chrome 真实物理行走验证的 48 RPM / 2200 N·m，或你设定的更强动力；三脚架支撑与足底摩擦推动机身，不使用手工平移。',
   relax:'已断电：不再向关节施加主动转矩，真实重力将使腿和身体失稳。'
  }[mode]);
 });

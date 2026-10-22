@@ -33,3 +33,13 @@
 .power-buttons button:hover{background:#3b626b}
 .power-audit small{display:block;color:#99b2b8;font-size:10px;line-height:1.6;margin-top:8px}
 @media(max-width:740px){.leg-power{grid-template-columns:repeat(3,1fr)}}
+
+
+/* Actual articulated six-leg contact and gait telemetry */
+.gait-monitor{border:1px solid #506d73;padding:10px;background:#172e38;border-radius:5px;margin-bottom:12px}
+.gait-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px}
+.gait-leg{display:block;padding:6px 7px;border-radius:4px;font:700 10px/1.4 ui-monospace,monospace;white-space:normal;overflow-wrap:anywhere;border:1px solid #637985;background:#263947;color:#bcd6e0}
+.gait-stance{background:#203e33;border-color:#457f63;color:#a4e0bd}
+.gait-swing{background:#503c20;border-color:#9b7c47;color:#f0cf8b}
+.gait-detached{background:#542d2c;border-color:#a26a62;color:#f4abab}
+#gaitCycle{display:block;margin-top:8px;font-size:10px;line-height:1.65;color:#afc6d0}

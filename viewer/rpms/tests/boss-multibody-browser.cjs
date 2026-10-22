@@ -136,6 +136,30 @@ const {chromium}=require('playwright-core');
   assert.equal(await site.evaluate(()=>window.__BOSS_API__.snapshot().mode),'relax');
   await site.locator('#restart').click();
   assert.equal(await site.evaluate(()=>window.__BOSS_API__.snapshot().joints),12);
+  // The user must be able to press the actual PLAY-WALK button and get
+  // real displacement; don't require them to guess the tested motor gains.
+  await site.evaluate(()=>window.__BOSS_API__.advance(240));
+  const readyToWalk=await site.evaluate(()=>window.__BOSS_API__.snapshot().position.z);
+  await site.locator('#walk').click();
+  assert.equal(await site.evaluate(()=>window.__BOSS_API__.snapshot().mode),'walk');
+  assert.equal(await site.locator('#motorRPM').inputValue(),'48',
+   'Walk button should pick tested physical motor RPM');
+  assert.equal(await site.locator('#motorTorque').inputValue(),'2200',
+   'Walk button must pick actual gait-capable servo torque');
+  const walked=await site.evaluate(()=>{
+   const rig=window.__BOSS_API__;rig.advance(600);return rig.advance(120);
+  });
+  const walkedDistance=Math.abs(walked.position.z-readyToWalk);
+  console.log('HOSTED_CLICK_WALK_TRUE_WORLD_DISTANCE',JSON.stringify({
+   deltaZ:walkedDistance,contacts:walked.supportContacts,
+   gait:walked.gait,phase:walked.legAngles.map(x=>x.gaitPhase)
+  }));
+  assert.ok(walkedDistance>.22,'Clicking WALK did not actually propel robot: '+walkedDistance);
+  assert.ok(walked.joints===12&&walked.maxHingeError<.35,
+   'Physical hinges separated during player-triggered walk');
+  assert.equal(await site.locator('#gaitLegs').locator('.gait-leg').count(),6,
+   'All six legs must show real physical gait and contact telemetry');
+  await site.screenshot({path:require('node:path').join(__dirname,'boss-articulated-real-walking.png'),fullPage:true});
   await site.locator('#motorTorque').evaluate(el=>{el.value='0';el.dispatchEvent(new Event('input',{bubbles:true}));});
   assert.equal(await site.evaluate(()=>window.__BOSS_API__.snapshot().torqueLimit),0);
   assert.equal(pageErrors.length,0,'Hosted robot threw an error: '+pageErrors.join('\n'));

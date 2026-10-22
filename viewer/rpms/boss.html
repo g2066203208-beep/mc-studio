@@ -26,14 +26,14 @@
   <div class="mode-grid">
    <button id="stand" class="action primary">◆ 站立锁角</button>
    <button id="march" class="action">↕ 原地交替抬腿</button>
-   <button id="walk" class="action">⇥ 前进步态实验</button>
+   <button id="walk" class="action">⇥ 真实三脚架步行（采用已测马达参数）</button>
    <button id="relax" class="action danger">✕ 断电／关节失力</button>
   </div>
   <div class="motor-controls">
    <label for="motorRPM">Create 风格动力马达 <strong id="rpmLabel">18 RPM</strong></label>
    <input id="motorRPM" type="range" min="0" max="90" step="1" value="18">
    <label for="motorTorque">关节驱动转矩上限 <strong id="torqueLabel">135 N·m</strong></label>
-   <input id="motorTorque" type="range" min="0" max="500" step="5" value="135">
+   <input id="motorTorque" type="range" min="0" max="3000" step="5" value="135">
    <label for="gearRatio">机械动力齿轮箱速比 <strong id="ratioLabel">2:1 · 输出 9 RPM</strong></label>
    <select id="gearRatio" aria-label="动力传动齿比">
     <option value="1">1:1 · 直连</option>
@@ -59,6 +59,11 @@
    </div>
    <small>关掉动力源或分支，真实 Rapier 关节将停止获得主动转矩。齿轮网络是 Create 规则的网页子集，并非运行原版 Java 模组。</small>
   </section>
+  <div class="subhead">六足实际步态 · 脚本输出与物理测量</div>
+  <div class="gait-monitor">
+   <div id="gaitLegs" class="gait-grid" aria-label="六条腿支撑与摆动状态"></div>
+   <small id="gaitCycle" aria-live="polite">当前为站立模式</small>
+  </div>
   <div class="subhead">物理破坏与试验</div>
   <button id="removeOne" class="action danger">拆断一条腿 <span>两个真实物理铰链断开</span></button>
   <button id="removeAll" class="action danger">拆断所有腿 <span>机身失去支撑</span></button>
