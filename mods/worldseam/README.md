@@ -161,3 +161,16 @@ v0.5 的 teleportTo 仍引发原版 ClientboundRespawnPacket/加载界面。本�
 **新增可验证指标：** 真实 NeoForge GUI E2E 输出 `rebuildCpuP95Ms`、`pendingSections`、`lastTickSections`，并有硬性日志检查 `lastTickSections <= 4`。F3 显示“待重建段”和重建P95，与 `nativeModelCpuP95Ms`（绘制提交）区分。新增纯 Java JUnit 测试队列去重、原生负高度 Section、逐 tick 上限、移动窗口清理和禁用清理。
 
 **明确限制：** 这里只优化现有后备渲染器的 CPU 几何重建峰值，**不是**最终 GPU 原生区块网格、双 `LevelRenderer` 帧缓冲合成、Iris/Voxy 光影兼容或 Sable 物理化船体跨维。这些目标需要独立版本锁定的真实图形和多模组验收。先比较 CI 实际的客户端重建P95、绘制P95及真实截图，再谈收益。
+
+
+## v0.9.8-dev — 独立渲染缓冲池，消除跨 Mod 提交冲突
+
+**源码审计发现的底层风险：** 旧 `SeamNativeGeometryClient.render` 在原版 `RenderLevelStageEvent.AFTER_BLOCK_ENTITIES` 中，获取 `mc.renderBuffers().bufferSource()`，在绘制远端模型后调用该**主世界共享对象的** `endBatch()`。这可能提前提交实体、方块实体、Create/Sable 或光影 Mod 仍在使用的缓冲，形成跨维度图像污染及不可预测的渲染顺序。使用减少模型数并不能修复这个问题。
+
+**这次实际改造：** `SeamRenderBuffers` 通过 NeoForge/Minecraft 1.21.1 原生 `MultiBufferSource.immediateWithBuffers` 与 `ByteBufferBuilder` 创建 **WorldSeam 自己管理**的专用缓冲；针对 solid/cutout/cutoutMipped/translucent 四个常见渲染类型各维护独立构建缓冲，另设 shared fallback。初始堆外缓冲预算总计 **1.75 MiB**，只在首次需要绘制远端地形时懒创建，后续逐帧复用；注意 `ByteBufferBuilder` 运行时可以自动增长，1.75 MiB 是初始容量而非绝对硬内存上限。
+
+远端渲染只调用自己缓冲池的 `flush()`，用 `try/finally` 确保异常时也完成原有资源的正常提交，模型的 PoseStack 也在单次绘制抛异常时恢复。不再对 `Minecraft.renderBuffers()` 做任何远端绘制或 `endBatch()`。退出世界、停用 WorldSeam、更换第二维度后清理所有 `ByteBufferBuilder` 堆外内存；初始化失败时同样释放已创建内存，防止 native buffer 泄漏。
+
+**真正测试的验收条件：** NeoForge GUI E2E 除原有双向穿越、TNT 跨维爆炸、末地岛、区块驻留和关闭清理外，新增 `ownBufferActive`、`ownBufferCreations`、`ownBufferFlushes` 运行日志；远端模型绘制时必须实际使用且提交自有缓冲，关闭后必须释放自有缓冲并增加 disposals 计数。保留独立 CPU P95 和重建 P95，验证修复没有引入性能灾难。
+
+**安全边界：** 这是为双独立 LevelRenderer/FBO 做的资源隔离基础，**不是已实现** Iris 着色器上下文切换、Voxy LOD、Sable 物理子世界自由穿越或全 GPU 多维度渲染。所有这些仍需版本绑定的真实客户端集成测试，不能从一个成功截图推断“完美兼容”。本次未改航空学、NPC 或 Sable 代码，也未改变末地作为新世界最底层的默认安排。

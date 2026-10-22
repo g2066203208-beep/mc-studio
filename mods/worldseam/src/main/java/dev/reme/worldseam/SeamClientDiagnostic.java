@@ -53,7 +53,9 @@ public final class SeamClientDiagnostic {
             " | CPU P95: "+String.format(java.util.Locale.ROOT,"%.1fms",SeamNativeGeometryClient.p95ModelCpuMs())+
             " | 片段: "+SeamNativeGeometryClient.visibleSlices()+"/"+
             (SeamNativeGeometryClient.visibleSlices()+SeamNativeGeometryClient.culledSlices())+
-            " | 重建P95: "+String.format(java.util.Locale.ROOT,"%.1fms",SeamNativeGeometryClient.p95RebuildCpuMs());
+            " | 重建P95: "+String.format(java.util.Locale.ROOT,"%.1fms",SeamNativeGeometryClient.p95RebuildCpuMs())+
+            " | 专用缓冲: "+(SeamNativeGeometryClient.ownBuffersActive()?"活动":"未分配")+
+            " | 提交: "+SeamNativeGeometryClient.bufferFlushes();
         String rawStatus=SeamClientWorldPool.remoteStatus();
         String detail=rawStatus.contains("FAILED")?"目标维度初始化失败，请看日志":
             rawStatus.contains("NO TARGET")?"等待目标维度区块":

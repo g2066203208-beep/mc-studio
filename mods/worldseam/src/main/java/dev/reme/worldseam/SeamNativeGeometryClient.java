@@ -48,6 +48,7 @@ public final class SeamNativeGeometryClient {
     private static final SeamRenderSamples DRAW_CPU_SAMPLES = new SeamRenderSamples(120);
     private static final SeamRenderSamples REBUILD_CPU_SAMPLES = new SeamRenderSamples(120);
     private static final SeamRenderBudget DRAW_BUDGET = new SeamRenderBudget();
+    private static final SeamRenderBuffers OWNED_BUFFERS = new SeamRenderBuffers();
     private static volatile long lastFrameDrawCpuNanos;
     private static ClientLevel queuedRemote;
     private static SeamGraph.Link queuedLink;
@@ -291,7 +292,8 @@ public final class SeamNativeGeometryClient {
         long drawStarted=System.nanoTime();
         PoseStack pose=event.getPoseStack();
         Vec3 camera=event.getCamera().getPosition();
-        MultiBufferSource.BufferSource buffers=mc.renderBuffers().bufferSource();
+        // NEVER use Minecraft's shared entity/block-entity BufferSource here.
+        // A remote-frame endBatch() could flush foreign pending shader draws.
 
         // Broad-phase CPU culling using immutable per-16^3 bounds, not a NEW
         // AABB allocation + frustum test for EACH of thousands of cells.
@@ -305,6 +307,7 @@ public final class SeamNativeGeometryClient {
         }
         lastVisibleSlices=visible.size();
         if(visible.isEmpty())return;
+        MultiBufferSource.BufferSource buffers=OWNED_BUFFERS.source();
 
         // Prioritize true camera-proximal slices while spreading the CPU
         // budget across adjacent visible sections; packet arrival order
@@ -320,6 +323,7 @@ public final class SeamNativeGeometryClient {
         int perSlice=Math.max(8,frameLimit/Math.max(1,visible.size()));
         int longest=0;
         for(var slice:visible)longest=Math.max(longest,slice.cells().size());
+        try {
         outer:
         for(int pass=0;pass*perSlice<longest;pass++) {
             int startIndex=pass*perSlice;
@@ -333,19 +337,27 @@ public final class SeamNativeGeometryClient {
                     double dz=c.z()+.5-camera.z;
                     if(dx*dx+dy*dy+dz*dz>MAX_DISTANCE_SQ)continue;
                     pose.pushPose();
-                    pose.translate(c.x()-camera.x,c.y()-camera.y,c.z()-camera.z);
-                    mc.getBlockRenderer().renderSingleBlock(
-                        c.state(),pose,buffers,c.light(),OverlayTexture.NO_OVERLAY
-                    );
-                    pose.popPose();
+                    try {
+                        pose.translate(c.x()-camera.x,c.y()-camera.y,c.z()-camera.z);
+                        mc.getBlockRenderer().renderSingleBlock(
+                            c.state(),pose,buffers,c.light(),OverlayTexture.NO_OVERLAY
+                        );
+                    } finally {
+                        pose.popPose();
+                    }
                     lastFrameDrawn++;
                     if(c.state().is(Blocks.END_STONE))lastFrameEndStone++;
                     if(lastFrameDrawn>=frameLimit)break outer;
                 }
             }
         }
+        } finally {
+            // Always submit ONLY WorldSeam's own buffers, including if a
+            // third-party baked model throws during a draw. Do not touch
+            // mc.renderBuffers() and never leave queued partial geometry.
+            OWNED_BUFFERS.flush();
+        }
         if (lastFrameDrawn>0) {
-            buffers.endBatch();
             lastFrameDrawCpuNanos=Math.max(0,System.nanoTime()-drawStarted);
             DRAW_CPU_SAMPLES.add(lastFrameDrawCpuNanos);
             DRAW_BUDGET.observe(lastFrameDrawn,lastFrameDrawCpuNanos);
@@ -367,6 +379,10 @@ public final class SeamNativeGeometryClient {
     public static int culledSlices() { return lastCulledSlices; }
     public static int pendingRebuilds() { return BUILD_QUEUE.size(); }
     public static int lastTickRebuildSlices() { return lastTickRebuildSlices; }
+    public static boolean ownBuffersActive() { return OWNED_BUFFERS.active(); }
+    public static long bufferCreations() { return OWNED_BUFFERS.creations(); }
+    public static long bufferFlushes() { return OWNED_BUFFERS.flushes(); }
+    public static long bufferDisposals() { return OWNED_BUFFERS.disposals(); }
     public static double p95RebuildCpuMs() { return REBUILD_CPU_SAMPLES.p95Ms(); }
     /** Measures client CPU model submission only; never interpreted as GPU frame time. */
     public static double p95ModelCpuMs() { return DRAW_CPU_SAMPLES.p95Ms(); }
@@ -389,6 +405,7 @@ public final class SeamNativeGeometryClient {
         lastTickRebuildSlices=0;
         DRAW_CPU_SAMPLES.clear();
         REBUILD_CPU_SAMPLES.clear();
+        OWNED_BUFFERS.release();
         DRAW_BUDGET.reset();
         lastFrameDrawCpuNanos=0;
     }
