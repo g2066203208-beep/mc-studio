@@ -46,6 +46,7 @@ public final class SeamShipFilmE2E {
     private static ServerLevel stagingHome;
     private static int upTicks,downTicks,passes;
     private static double initialMinY,lowMinY=Double.POSITIVE_INFINITY;
+    private static double actualShipMassKg;
     private static final double PLANE=-64.0;
     private static boolean sawStraddle,fullyAcross;
     private static long lastPulse;
@@ -203,6 +204,15 @@ public final class SeamShipFilmE2E {
             pipeline=system.getMethod("getPipeline").invoke(owner);
             Class<?> body=Class.forName(
                 "dev.ryanhcode.sable.api.physics.PhysicsPipelineBody");
+            Object massData=body.getMethod("getMassTracker").invoke(ship);
+            Class<?> massInterface=Class.forName(
+                "dev.ryanhcode.sable.api.physics.mass.MassData");
+            actualShipMassKg=((Number)massInterface.getMethod("getMass")
+                .invoke(massData)).doubleValue();
+            if(!Double.isFinite(actualShipMassKg) ||
+                actualShipMassKg<=0 || actualShipMassKg>100_000_000)
+                throw new IllegalStateException(
+                    "Sable assembled ship with invalid native mass="+actualShipMassKg);
             vec=Class.forName("org.joml.Vector3d");
             Class<?> v=Class.forName("org.joml.Vector3dc");
             impulse=pipeline.getClass().getMethod("applyLinearAndAngularImpulse",
@@ -219,6 +229,8 @@ public final class SeamShipFilmE2E {
             stagingBlocks=null;
             LOG.info("WORLDSEAM_FILM_RECORD_READY: REAL Sable uuid={}, startMinY={}, plane=-64, real camera pre-tracking stable, /fill air Overworld and Nether completed",
                 shipUuid,initialMinY);
+            LOG.info("WORLDSEAM_FILM_REAL_RAPIER_MASS: uuid={}, nativeMassKg={}, forceAccelerationScale=mass-times-meters-per-second-squared",
+                shipUuid,actualShipMassKg);
             state=2;
         } catch(Exception | LinkageError ex) {
             fail("Setup failed: "+ex,ex);
@@ -236,10 +248,16 @@ public final class SeamShipFilmE2E {
             coords[0],coords[1],coords[2],coords[3],coords[4],coords[5]);
     }
 
-    /** NOT a teleport: pushes the SAME Rapier UUID by native linear impulse. */
-    private static void pulse(double vertical) throws Exception {
+    /**
+     * Sable's API method is historically named applyLinearAndAngularImpulse,
+     * but its native Rapier bridge actually calls applyForceAndTorque and
+     * expects NEWTONS. The old test sent merely 35 N to a many-ton ship,
+     * producing no perceptible movement. Scale FORCE by the genuine
+     * Sable-reported block mass: F = m*a (NO pose editing/teleport).
+     */
+    private static void pulse(double accelerationY) throws Exception {
         var xyz=vec.getConstructor(double.class,double.class,double.class);
-        Object linear=xyz.newInstance(0.0,vertical,0.0);
+        Object linear=xyz.newInstance(0.0,actualShipMassKg*accelerationY,0.0);
         Object torque=xyz.newInstance(0.0,0.0,0.0);
         impulse.invoke(pipeline,ship,linear,torque,true);
     }
