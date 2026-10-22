@@ -370,11 +370,8 @@ public final class SeamNativeGeometryClient {
         // Cached chunks are submitted IN FULL, independently of the
         // per-block CPU fallback model budget. Otherwise a 3,500-model
         // budget would still clip meshes and recreate the old holes.
-        for(var slice:visible) {
-            if(GPU_SECTIONS.has(slice))
-                lastFrameEndStone+=GPU_SECTIONS.draw(slice,pose,camera,
-                    sourceBoundary,targetBoundary);
-        }
+        lastFrameEndStone+=GPU_SECTIONS.drawOpaqueAll(
+            visible,pose,camera,sourceBoundary,targetBoundary);
         int frameLimit=DRAW_BUDGET.limit();
         int perSlice=Math.max(8,frameLimit/Math.max(1,visible.size()));
         int longest=0;
@@ -434,11 +431,8 @@ public final class SeamNativeGeometryClient {
             // All solid and fallback sections are finished before liquid.
             // Camera-proximal slices are sorted ascending above, so reverse
             // their order for section-level back-to-front transparency.
-            for(int i=visible.size()-1;i>=0;i--) {
-                var slice=visible.get(i);
-                GPU_SECTIONS.drawTranslucent(slice,pose,camera,
-                    sourceBoundary,targetBoundary);
-            }
+            GPU_SECTIONS.drawTranslucentAll(
+                pose,camera,sourceBoundary,targetBoundary);
         }
         if (lastFrameDrawn>0) {
             lastFrameDrawCpuNanos=Math.max(0,System.nanoTime()-drawStarted);
