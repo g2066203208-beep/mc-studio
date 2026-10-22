@@ -6,6 +6,8 @@ import net.minecraft.commands.arguments.coordinates.BlockPosArgument;
 import dev.reme.mcstudio.npc.life.PlayerMiningActions;
 import dev.reme.mcstudio.npc.life.DailyRoaming;
 import dev.reme.mcstudio.npc.life.PublicSafety;
+import dev.reme.mcstudio.npc.life.CivicWorkplaces;
+import dev.reme.mcstudio.npc.life.ShopCounter;
 import dev.reme.mcstudio.npc.life.FootTrafficData;
 import dev.reme.mcstudio.npc.life.EmergentSettlements;
 import dev.reme.mcstudio.npc.life.SettlementLedger;
@@ -73,6 +75,13 @@ public final class NpcCommands {
             .then(Commands.literal("farmer").executes(ctx -> profession(ctx.getSource(), PlayerNpcEntity.Profession.FARMER)))
             .then(Commands.literal("baker").executes(ctx -> profession(ctx.getSource(), PlayerNpcEntity.Profession.BAKER)))
             .then(Commands.literal("shopkeeper").executes(ctx -> profession(ctx.getSource(), PlayerNpcEntity.Profession.SHOPKEEPER)))
+            .then(Commands.literal("workplace").executes(ctx -> describeWorkplace(ctx.getSource())))
+            .then(Commands.literal("shopstock")
+                .executes(ctx -> shopStockStatus(ctx.getSource()))
+                .then(Commands.literal("set").requires(source -> source.hasPermission(2))
+                    .executes(ctx -> assignShopStock(ctx.getSource())))
+                .then(Commands.literal("clear").requires(source -> source.hasPermission(2))
+                    .executes(ctx -> clearShopStock(ctx.getSource()))))
             .then(Commands.literal("resident").executes(ctx -> profession(ctx.getSource(), PlayerNpcEntity.Profession.RESIDENT)))
             .then(Commands.literal("scout").executes(ctx -> profession(ctx.getSource(), PlayerNpcEntity.Profession.SCOUT)))
             .then(Commands.literal("courier").executes(ctx -> profession(ctx.getSource(), PlayerNpcEntity.Profession.COURIER)))
@@ -509,6 +518,73 @@ public final class NpcCommands {
         source.sendSuccess(() -> Component.literal(
             "Guard holding location unset. Existing individual detainees"
             + " retain their finite sentence and automatic release."), true);
+        return 1;
+    }
+
+    private static int describeWorkplace(CommandSourceStack source)
+        throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        PlayerNpcEntity npc = closestOwnedNpc(source.getPlayerOrException());
+        if (npc == null) return 0;
+        var survey = CivicWorkplaces.inspect(source.getLevel(), npc.workPos());
+        source.sendSuccess(() -> Component.literal(
+            npc.getName().getString() + " workplace: "
+            + survey.type() + " | physical stations=" + survey.requiredBlocks()
+            + " | roof=" + survey.roof() + " | door=" + survey.door()
+            + " | finished building=" + survey.indoorBuilding()
+            + " | actual role compatible="
+            + CivicWorkplaces.matchesProfession(survey.type(), npc.profession())
+            + ". Worksite detection does not automatically build a structure or create supplies."), false);
+        return 1;
+    }
+
+    private static int shopStockStatus(CommandSourceStack source)
+        throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        PlayerNpcEntity npc = closestOwnedNpc(source.getPlayerOrException());
+        if (npc == null) return 0;
+        source.sendSuccess(() -> Component.literal(
+            "Shopkeeper=" + (npc.profession() == PlayerNpcEntity.Profession.SHOPKEEPER)
+            + " | assigned stock chest=" + npc.shopStockChest()
+            + " | actual food=" + ShopCounter.stockedFood(npc.backpack())
+            + " | emerald balance=" + npc.backpack().countItem(Items.EMERALD)), false);
+        return 1;
+    }
+
+    private static int assignShopStock(CommandSourceStack source)
+        throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        ServerPlayer player = source.getPlayerOrException();
+        PlayerNpcEntity npc = closestOwnedNpc(player);
+        if (npc == null || npc.profession() != PlayerNpcEntity.Profession.SHOPKEEPER) {
+            source.sendFailure(Component.literal(
+                "Own a SHOPKEEPER NPC within sixteen blocks before assigning stocks"));
+            return 0;
+        }
+        HitResult hit = player.pick(6.0D, 0.0F, false);
+        if (!(hit instanceof BlockHitResult target)
+            || !player.serverLevel().hasChunkAt(target.getBlockPos())
+            || !(player.serverLevel().getBlockEntity(target.getBlockPos())
+                instanceof ChestBlockEntity)
+            || !DailyRoaming.inRange(npc, target.getBlockPos())) {
+            source.sendFailure(Component.literal(
+                "Look at an actual loaded vanilla chest within six blocks"
+                + " and the shopkeeper's home territory. No remote inventories."));
+            return 0;
+        }
+        BlockPos pos = target.getBlockPos();
+        npc.setShopStockChest(pos);
+        source.sendSuccess(() -> Component.literal(
+            "Shop supply chest authorized at " + pos.toShortString()
+            + ". Clerk physically retrieves up to eight existing food items"
+            + " when local carried stock runs low. No goods are generated."), true);
+        return 1;
+    }
+
+    private static int clearShopStock(CommandSourceStack source)
+        throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        PlayerNpcEntity npc = closestOwnedNpc(source.getPlayerOrException());
+        if (npc == null) return 0;
+        npc.setShopStockChest(null);
+        source.sendSuccess(() -> Component.literal(
+            "Automatic shop restock canceled; all existing items remain intact."), false);
         return 1;
     }
 
