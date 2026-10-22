@@ -185,7 +185,9 @@ public final class SeamServer {
                         landingCx,landingCz,link.target());
                     break;
                 }
-                if (!SeamArrival.hasClearance(target, arrival, player)) {
+                if (!SeamArrival.hasJoinedClearance(
+                    source,target,link,sourceBoundary,targetBoundary,
+                    player.getX(),nextY,player.getZ(),player)) {
                     if(trace)LOG.warn("WORLDSEAM_STRESS_SERVER_BLOCKED: destination has COLLISION at {} in {}",
                         arrival,link.target());
                     break;
@@ -269,7 +271,11 @@ public final class SeamServer {
             // not currently loaded, defer the entity migration until it is.
             if(!target.hasChunk(Math.floorDiv(dest.getX(),16),
                                 Math.floorDiv(dest.getZ(),16)))return;
-            if (!SeamArrival.hasClearance(target, dest, entity)) return;
+            double sourceBoundary=SeamGraph.boundaryY(link.exit(),
+                sourceMinY,sourceTopY);
+            if (!SeamArrival.hasJoinedClearance(
+                source,target,link,sourceBoundary,targetBoundary,
+                entity.getX(),y,entity.getZ(),entity)) return;
             Vec3 motion = entity.getDeltaMovement();
             float fall = entity.fallDistance;
             Entity moved = entity.changeDimension(new DimensionTransition(
