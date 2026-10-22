@@ -158,6 +158,36 @@ public final class SeamShipFilmE2E {
             BlockPos canopy=anchor.offset(0,2,-1);
             home.setBlock(canopy,Blocks.LIGHT_BLUE_STAINED_GLASS.defaultBlockState(),3);
             blocks.add(canopy);
+
+            // IMPORTANT: actually build Create:Aeronautics machinery instead
+            // of a plain blue/yellow raft that our CI forcibly pushes.
+            // Create Creative Motor is a real KineticBlockEntity (initial
+            // 16 RPM); the genuine Aeronautics Smart Propeller above it
+            // consumes Create rotation via its vertical kinetic shaft and
+            // submits native Sable propulsion per physics substep.
+            // Fail explicitly if the exact RELEASED mod blocks are absent.
+            var motor=net.minecraft.core.registries.BuiltInRegistries.BLOCK.get(
+                net.minecraft.resources.ResourceLocation.parse("create:creative_motor"));
+            var rotor=net.minecraft.core.registries.BuiltInRegistries.BLOCK.get(
+                net.minecraft.resources.ResourceLocation.parse("aeronautics:smart_propeller"));
+            if(motor==Blocks.AIR || rotor==Blocks.AIR)
+                throw new IllegalStateException(
+                    "Actual Create creative motor or Aeronautics smart propeller missing in released jars");
+            var motorState=motor.defaultBlockState();
+            if(!motorState.hasProperty(
+                net.minecraft.world.level.block.state.properties.BlockStateProperties.FACING))
+                throw new IllegalStateException(
+                    "Release Create Creative Motor FACING property incompatible");
+            motorState=motorState.setValue(
+                net.minecraft.world.level.block.state.properties.BlockStateProperties.FACING,
+                net.minecraft.core.Direction.UP);
+            BlockPos motorPos=anchor.offset(0,1,-2);
+            BlockPos rotorPos=motorPos.above();
+            home.setBlock(motorPos,motorState,3);
+            home.setBlock(rotorPos,rotor.defaultBlockState(),3);
+            blocks.add(rotorPos); // motor already replaces a counted hull voxel
+            LOG.info("WORLDSEAM_FILM_REAL_CREATE_AERO_MACHINERY: motor={} {}, propeller={} {}, intendedShaft=vertical, verify TRUE getSpeed()+scaledThrust AFTER assembly",
+                motorPos,motorState,rotorPos,rotor.defaultBlockState());
             stagingBlocks=blocks;
             stagingAnchor=anchor;
             stagingHome=home;
