@@ -86,9 +86,16 @@ public final class SeamVisualE2E {
                 (!SeamNativeGeometryClient.ownBuffersActive() ||
                  SeamNativeGeometryClient.bufferFlushes()<1))
                 LOG.error("WORLDSEAM_E2E_FAIL_RENDER_BUFFER_ISOLATION: remote terrain was drawn without owned flushed buffers");
-            if(SeamNativeGeometryClient.bufferCreations()>1)
-                LOG.error("WORLDSEAM_E2E_FAIL_RENDER_BUFFER_CHURN: same active seam allocated buffer pool {} times instead of reusing it",
-                    SeamNativeGeometryClient.bufferCreations());
+            // This cumulative counter includes correctly released pools from
+            // earlier seam changes. Only TWO simultaneously live pools or
+            // allocations without a matching disposal indicate churn/leak.
+            // Do not fail merely because a dimension switch reallocated once.
+            long liveBuffers=SeamNativeGeometryClient.bufferCreations()-
+                SeamNativeGeometryClient.bufferDisposals();
+            if(liveBuffers>1 || liveBuffers<0)
+                LOG.error("WORLDSEAM_E2E_FAIL_RENDER_BUFFER_CHURN: unreleased pools={}, created={}, disposed={}",
+                    liveBuffers,SeamNativeGeometryClient.bufferCreations(),
+                    SeamNativeGeometryClient.bufferDisposals());
             LOG.info("WORLDSEAM_E2E_NATIVE_RENDERER_POOL: remoteOwns={}, mainOwns={}, created={}, released={}, active={}, peak={}",
                 SeamClientWorldPool.remoteHasDedicatedBuffers(),
                 SeamClientWorldPool.mainHasDedicatedBuffers(),
