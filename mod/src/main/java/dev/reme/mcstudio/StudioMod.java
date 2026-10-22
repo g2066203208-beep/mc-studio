@@ -3,6 +3,7 @@ package dev.reme.mcstudio;
 import com.mojang.logging.LogUtils;
 import dev.reme.mcstudio.npc.NpcCommands;
 import dev.reme.mcstudio.npc.NpcRegistry;
+import dev.reme.mcstudio.npc.NpcItems;
 import dev.reme.mcstudio.npc.life.NaturalResidentSpawn;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.common.Mod;
@@ -14,14 +15,16 @@ import net.neoforged.neoforge.common.NeoForge;
 @Mod(StudioMod.MOD_ID)
 public final class StudioMod {
     public static final String MOD_ID = "reme_studio";
+    public static final String VERSION = "0.6.6-dev";
 
     public StudioMod(IEventBus modBus) {
         NpcRegistry.register(modBus);
+        NpcItems.register(modBus);
         modBus.addListener(NpcRegistry::onEntityAttributes);
         modBus.addListener(NaturalResidentSpawn::register);
         NeoForge.EVENT_BUS.addListener(NpcCommands::register);
         NeoForge.EVENT_BUS.addListener(StudioMod::onPlayerLogin);
-        LogUtils.getLogger().info("REME NPC 0.6.3-dev: MOD CONSTRUCTED; on player login will check /npc command");
+        LogUtils.getLogger().info("REME NPC {}: mod loaded; /npc command registered on server command reload", VERSION);
     }
     private static void onPlayerLogin(PlayerEvent.PlayerLoggedInEvent event) {
         if (!(event.getEntity() instanceof ServerPlayer player)) return;
@@ -29,8 +32,10 @@ public final class StudioMod {
         boolean commandsAvailable = server != null &&
             server.getCommands().getDispatcher().getRoot().getChild("npc") != null;
         String status = commandsAvailable
-            ? "REME NPC v0.6.3-dev loaded; /npc registered. Use /npc spawn (cheats enabled)."
-            : "REME NPC v0.6.3-dev loaded, but /npc command MISSING. Send logs/latest.log.";
+            ? "REME NPC " + VERSION + " 已加载：/npc、/remecheck 已注册。"
+                + " 生成NPC无需指令：创造模式拿 NPC 生成蛋，生存模式可在工作台合成。"
+                + " /npc spawn 需要作弊或OP。"
+            : "REME NPC " + VERSION + " 已加载但 /npc 未注册，请提交当前游戏实例 logs/latest.log。";
         player.sendSystemMessage(Component.literal(status));
         if (!commandsAvailable)
             LogUtils.getLogger().error("REME NPC: COMMAND REGISTRATION MISSING despite Mod loaded");

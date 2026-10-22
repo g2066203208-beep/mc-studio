@@ -1,14 +1,16 @@
 name: Actual Minecraft client GUI screenshots (experimental)
 on:
   workflow_dispatch:
+  pull_request:
+    branches: [feature/npc-mutual-aid-longrun-v065]
   push:
-    branches: [fix/npc-client-acceptance-v054, feature/npc-character-skins-v055, feature/npc-player-action-bridge-v056, feature/npc-player-parity-mining-v057, feature/npc-resource-pickup-v058, feature/npc-emergent-roads-hamlets-v059, feature/npc-animation-art-pipeline-v060, feature/npc-real-player-actor-v061, feature/npc-local-justice-v062, feature/npc-physical-shopkeepers-v063, feature/npc-physical-workplaces-v064, fix/npc-v064-reliable-workplaces, feature/npc-mutual-aid-longrun-v065]
+    branches: [fix/npc-client-acceptance-v054, feature/npc-character-skins-v055, feature/npc-player-action-bridge-v056, feature/npc-player-parity-mining-v057, feature/npc-resource-pickup-v058, feature/npc-emergent-roads-hamlets-v059, feature/npc-animation-art-pipeline-v060, feature/npc-real-player-actor-v061, feature/npc-local-justice-v062, feature/npc-physical-shopkeepers-v063, feature/npc-physical-workplaces-v064, fix/npc-v064-reliable-workplaces, feature/npc-mutual-aid-longrun-v065, fix/npc-command-access-v066]
 permissions:
   contents: read
 jobs:
   gui-client-test:
     runs-on: ubuntu-latest
-    timeout-minutes: 14
+    timeout-minutes: 18
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -20,7 +22,7 @@ jobs:
       - name: Boot real NeoForge Minecraft CLIENT; photograph main menu and try UI
         run: |
           set +e
-          timeout --signal=INT --kill-after=15s 495s             xvfb-run -a -s "-screen 0 1280x720x24"             bash scripts/test-client-gui.sh
+          timeout --signal=INT --kill-after=15s 685s             xvfb-run -a -s "-screen 0 1280x720x24"             bash scripts/test-client-gui.sh
           code=$?
           echo "UI script exit: $code"
           if [ "$code" -ne 0 ]; then exit "$code"; fi

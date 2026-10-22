@@ -45,7 +45,7 @@ public final class NpcCommands {
                 boolean ready = ctx.getSource().getServer().getCommands()
                     .getDispatcher().getRoot().getChild("npc") != null;
                 ctx.getSource().sendSuccess(() -> Component.literal(
-                    "REME NPC v0.6.4-dev active; /npc registered=" + ready
+                    "REME NPC " + dev.reme.mcstudio.StudioMod.VERSION + " 已加载; /npc registered=" + ready
                     + ". If /npc spawn is denied, enable cheats or operator privileges."),
                     false);
                 return 1;
@@ -53,7 +53,7 @@ public final class NpcCommands {
         event.getDispatcher().register(Commands.literal("npc")
             .executes(ctx -> {
                 ctx.getSource().sendSuccess(() -> Component.literal(
-                    "REME NPC v0.6.4-dev: /npc info, /npc spawn (cheats required), /npc demo (cheats required)"),
+                    "REME NPC " + dev.reme.mcstudio.StudioMod.VERSION + "：/npc info; /npc spawn 与 /npc demo 需要作弊权限。没有指令也能用生成蛋生成居民"),
                     false);
                 return 1;
             })

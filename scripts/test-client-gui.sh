@@ -60,6 +60,25 @@ xdotool type --clearmodifiers --delay 80 '/remecheck'
 xdotool key Return
 sleep 4
 import -window root client-gui-remecheck.png
+# Independently verify that the newly registered NPC egg is a REAL item in
+# the integrated server's registry, not just listed in source/packaging.
+xdotool key --clearmodifiers t
+sleep 1
+xdotool type --clearmodifiers --delay 55 '/item replace entity @s weapon.mainhand with reme_studio:npc_spawn_egg'
+xdotool key Return
+sleep 3
+import -window root client-gui-egg-in-hand.png
+xdotool key --clearmodifiers t
+sleep 1
+xdotool type --clearmodifiers --delay 45 '/execute if items entity @s weapon.mainhand reme_studio:npc_spawn_egg run say REME_NPC_EGG_REGISTERED'
+xdotool key Return
+sleep 2
+import -window root client-gui-egg-validated.png
+xdotool key --clearmodifiers t
+sleep 1
+xdotool type --clearmodifiers --delay 50 '/clear @s reme_studio:npc_spawn_egg'
+xdotool key Return
+sleep 2
 xdotool key --clearmodifiers t
 sleep 1
 xdotool type --clearmodifiers --delay 80 '/npc spawn'
@@ -276,6 +295,15 @@ fi
 if ! grep -q 'REME_PLAYER_EMPTY_AFTER_NPC_PICKUP' run/logs/latest.log; then
   echo "Real human player unexpectedly collected NPC's mined drop"; exit 1
 fi
+# Integrated-server command registration MUST be visible on this exact
+# Java/NeoForge client run, not inferred from separate headless GameTests.
+if ! grep -q 'REME NPC: /npc present on dispatcher for player' run/logs/latest.log; then
+  echo "Actual integrated server never registered /npc for the joined player"; exit 1
+fi
+if ! grep -q 'REME_NPC_EGG_REGISTERED' run/logs/latest.log; then
+  echo "Actual client command did not find the registered 0.6.6 NPC spawn egg"; exit 1
+fi
+echo "PASS: joined Minecraft player has /npc registered AND the usable egg exists in game"
 echo "PASS: integrated Minecraft verified NPC got mined cobblestone and actual player did not steal it"
 
 echo "Window id: $found"

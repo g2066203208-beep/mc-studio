@@ -168,8 +168,11 @@ public class PlayerNpcEntity extends PathfinderMob {
     public SpawnGroupData finalizeSpawn(ServerLevelAccessor world,
             DifficultyInstance difficulty, MobSpawnType reason, SpawnGroupData group) {
         SpawnGroupData outcome = super.finalizeSpawn(world, difficulty, reason, group);
-        if (NaturalResidentSpawn.allowedNaturalReason(reason)) {
-            naturalResident = true;
+        if (NaturalResidentSpawn.allowedNaturalReason(reason)
+            || reason == MobSpawnType.SPAWN_EGG) {
+            // User-spawned eggs get valid home/work coordinates too, instead
+            // of retaining BlockPos.ZERO and navigating towards world origin.
+            naturalResident = NaturalResidentSpawn.allowedNaturalReason(reason);
             BlockPos anchor = blockPosition();
             setHomePos(anchor);
             setWorkPos(anchor);
