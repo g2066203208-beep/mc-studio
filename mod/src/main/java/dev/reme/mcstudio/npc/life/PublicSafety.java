@@ -154,6 +154,9 @@ public final class PublicSafety {
             return true;
         }
         // Only here, actually within reach and line of sight, custody starts.
+        // A native iron cell door is physically opened before the walk;
+        // the prisoner is never moved through walls by setPos/teleport.
+        CityJailGate.setOpen(level, jail, true);
         suspect.detainAt(jail, tick + CUSTODY_TICKS);
         if (suspect.hasUnpaidShopItem(tick)) suspect.clearUnpaidShopItem();
         System.out.println("REME_NPC_STORY stage=nonlethal_arrest tick=" + tick
@@ -217,12 +220,16 @@ public final class PublicSafety {
         BlockPos jail = suspect.detentionJail();
         if (jail == null) return false;
         if (tick >= suspect.detainedUntil() || !holdingSpot(level, jail)) {
+            // Completed sentence unlocks the physical exit. The ex-prisoner
+            // is free to navigate back into society; no teleport on release.
+            CityJailGate.setOpen(level, jail, true);
             suspect.releaseDetention();
             suspect.setAction("released from temporary community detention");
             return false;
         }
         suspect.setTarget(null);
         if (suspect.distanceToSqr(Vec3.atCenterOf(jail)) <= 2.5) {
+            CityJailGate.setOpen(level, jail, false);
             suspect.getNavigation().stop();
             suspect.setAction("held at designated iron-bar holding spot until release");
             return true;
