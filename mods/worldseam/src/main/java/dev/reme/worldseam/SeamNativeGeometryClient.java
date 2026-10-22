@@ -327,6 +327,14 @@ public final class SeamNativeGeometryClient {
         // the current native chunks are still resident and visible.
         GPU_SECTIONS.beginFrame();
         GPU_SECTIONS.bakeVisible(queuedRemote,visible,sourceBoundary,targetBoundary);
+        // Cached chunks are submitted IN FULL, independently of the
+        // per-block CPU fallback model budget. Otherwise a 3,500-model
+        // budget would still clip meshes and recreate the old holes.
+        for(var slice:visible) {
+            if(GPU_SECTIONS.has(slice))
+                lastFrameEndStone+=GPU_SECTIONS.draw(slice,pose,camera,
+                    sourceBoundary,targetBoundary);
+        }
         int frameLimit=DRAW_BUDGET.limit();
         int perSlice=Math.max(8,frameLimit/Math.max(1,visible.size()));
         int longest=0;
@@ -336,11 +344,7 @@ public final class SeamNativeGeometryClient {
         for(int pass=0;pass*perSlice<longest;pass++) {
             int startIndex=pass*perSlice;
             for(var slice:visible) {
-                if(GPU_SECTIONS.has(slice)) {
-                    if(pass==0)lastFrameEndStone+=GPU_SECTIONS.draw(slice,
-                        pose,camera,sourceBoundary,targetBoundary);
-                    continue;
-                }
+                if(GPU_SECTIONS.has(slice))continue;
                 List<Cell> cells=slice.cells();
                 int endIndex=Math.min(cells.size(),startIndex+perSlice);
                 for(int at=startIndex;at<endIndex;at++) {
