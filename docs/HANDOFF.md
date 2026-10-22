@@ -246,3 +246,10 @@ Push CI `39518033958` SUCCESS，PR CI `39518039426` SUCCESS。Artifact `12310085
 - 独立分支 `fix/npc-command-access-v066` 从真实构建通过的 0.6.5（draft PR #78）分出。版本号提升 0.6.6-dev，删除 0.6.3/0.6.4 旧登录提示，中文版准确显示根指令是否存在；`NpcItems` 使用 1.21.1 `DeferredSpawnEggItem` 注册原生生成蛋；刷怪蛋创造分类及中文物品名 `NPC 生成蛋（居民）`。生存配方 `EBE / BPB / EBE`，E=绿宝石/B=面包/P=纸；生成蛋和自然出生均调用 `finalizeSpawn` 设置真实附近家/工作位置，而不是零坐标。
 - 新服务端 NeoForge GameTest 使用真正 `FakePlayer` 的 `ItemStack.useOn` 检查生成蛋真实生成实体、检查初始 LIVE/物资/家位置；原 `diagnostic_command_is_visible_without_cheats` 加权限 0 的 `/npc` 调用和 spawn 指令不可见断言。真实图形客户端 CI 添加生成蛋物品注册断言和 /npc 登录日志硬门槛。
 - 安装包附送新的 `docs/NPC_HMCL_ACCEPTANCE.md`，明确 HMCL 版本隔离、正确游戏路径、日志字段、是否有 OP、不开作弊如何用生成蛋。**仍没有用户实际目录/222-mod 运行证据**；必须检查本 PR 的 Build、GameTest、Xvfb、Windows installer 所对应 SHA，任何失败不算通过。
+
+## 2026-10-22 单一 NPC 全天真实观察分支 v0.6.7 测试
+
+- 由 `fix/npc-command-access-v066` (#80) 派生 `test/npc-single-citizen-full-day-v067`，不动 main/用户存档。此前50/200人真实墙钟压力测试只证明存活和需求变化，**不证明任何具体NPC真的在生活**。
+- `NpcSingleDayGameTests.java`: `-Dreme.npc.singleDay=true` 下跟踪一个实体UUID，真实成熟小麦、实际背包粮食、24个每1000 ticks的`REME_DAYWATCH_HOUR`记录及日终必须吃饭/工作/休息/收割/行走的验收；CI矩阵含加速24,000 tick及同时要求>=1,200秒墙钟的实测。
+- `scripts/test-npc-single-day-gui.sh`: 启动真正的 NeoForge 图形客户端，起新世界，用`/npc spawn DayWatchFarmer`+`/npc farmer`，玩家作为旁观者每约50秒移动到该NPC旁边拍摄，连续24次，输出24张真实渲染PNG和客户端logs；跟24,000 tick GameTest证据区分。
+- 工作流 `.github/workflows/npc-one-day-watch.yml`、`.github/workflows/npc-one-day-gui.yml`；文档 `docs/NPC_DAYWATCH_24H_V067.md`。**必须看到真实CI日志和PNG才能宣称成功**，不是写完代码就完成。旧NPC的“睡觉”仍是假床（回家补精力），如检查显示逻辑漏洞要修。
