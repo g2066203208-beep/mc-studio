@@ -24,10 +24,10 @@ NeoForge 1.21.1 同时安装 Sable 与 AeroPortals 且运行时 API 匹配时，
   动力机械及 100+ 方块高载具，现阶段不能宣称安全可用。
 
 **参考与许可证审查（仅调用接口，没有复制外部源码）**：
-- [AeroPortals](https://github.com/breakinblocks/AeroPortals), MIT：
+- [AeroPortals](https://github.com/breakinblocks/AeroPortals), PolyForm Shield 1.0.0 **与** PolyForm Perimeter 1.0.0 双重条款（见上游 LICENSE.md）：
   `portal/PortalTeleport.java`、`portal/SableBridge.java`、`docs/API.md`；
   真正的原子搬运包含持久恢复日志、链接机械、乘客、连接物群组验证。
-- [IPSable](https://github.com/r2smith141/IPSable), 以其仓库声明为准：
+- [IPSable](https://github.com/r2smith141/IPSable), 根 LICENSE 为 Apache-2.0（其依赖及原生模块需分别审查）：
   `IplSceneOwnership`、`SableSubLevelDimension`、`IplPortalRimManager`；
   Atlas World 物理宿主维度、双侧图像接触碰撞，是后续真正无缝的必要研究方向。
 - [Sable](https://github.com/STRELENA1/sable), Polyform Shield：
