@@ -41,6 +41,9 @@ public final class SeamShipFilmE2E {
     private static Class<?> vec;
     private static int x,z;
     private static UUID viewerId;
+    private static ArrayList<BlockPos> stagingBlocks;
+    private static BlockPos stagingAnchor;
+    private static ServerLevel stagingHome;
     private static int upTicks,downTicks,passes;
     private static double initialMinY,lowMinY=Double.POSITIVE_INFINITY;
     private static final double PLANE=-64.0;
@@ -110,6 +113,13 @@ public final class SeamShipFilmE2E {
             cfg.setCarveNewChunks(true);
             nativeFill(server,home,-64,-47);
             nativeFill(server,nether,112,134);
+            // Put the real spectator in tracking range BEFORE Sable
+            // registers its first sublevel/spawn packets. The previous
+            // film assembled immediately and got "movement packet for a
+            // non-existent sub-level" from the remote client.
+            player.setGameMode(GameType.SPECTATOR);
+            viewerId=player.getUUID();
+            player.connection.teleport(x+8,-57,z+8,135,13);
             // Genuine 9x7 Minecraft-block aircraft silhouette: tapered
             // nose, center fuselage, swept wings, lit engine and glass
             // canopy. Every voxel is a real world block *before* the
@@ -140,6 +150,24 @@ public final class SeamShipFilmE2E {
             BlockPos canopy=anchor.offset(0,2,-1);
             home.setBlock(canopy,Blocks.LIGHT_BLUE_STAINED_GLASS.defaultBlockState(),3);
             blocks.add(canopy);
+            stagingBlocks=blocks;
+            stagingAnchor=anchor;
+            stagingHome=home;
+            started=server.getTickCount();
+            LOG.info("WORLDSEAM_FILM_ARENA_READY: /fill air complete in BOTH native worlds, native spectator positioned; waiting for Sable client sublevel tracking handshake");
+            state=1;
+        } catch(Exception | LinkageError ex) {
+            fail("Arena setup failed: "+ex,ex);
+        }
+    }
+
+    private static void assembleAfterTracking(MinecraftServer server) {
+        try {
+            ServerLevel home=stagingHome;
+            BlockPos anchor=stagingAnchor;
+            ArrayList<BlockPos> blocks=stagingBlocks;
+            if(home==null||anchor==null||blocks==null)
+                throw new IllegalStateException("Missing prepared native aircraft");
             Class<?> bounds=Class.forName(
                 "dev.ryanhcode.sable.companion.math.BoundingBox3ic");
             Class<?> box=Class.forName(
@@ -170,10 +198,8 @@ public final class SeamShipFilmE2E {
             initialMinY=hull.minY;
             started=server.getTickCount();
             // The camera is an ACTUAL in-game spectator, never a diagram.
-            player.setGameMode(GameType.SPECTATOR);
-            viewerId=player.getUUID();
-            player.connection.teleport(x+8,-57,z+8,135,13);
-            LOG.info("WORLDSEAM_FILM_RECORD_READY: REAL Sable uuid={}, startMinY={}, plane=-64, /fill air Overworld and Nether completed",
+            stagingBlocks=null;
+            LOG.info("WORLDSEAM_FILM_RECORD_READY: REAL Sable uuid={}, startMinY={}, plane=-64, real camera pre-tracking stable, /fill air Overworld and Nether completed",
                 shipUuid,initialMinY);
             state=2;
         } catch(Exception | LinkageError ex) {
@@ -201,8 +227,16 @@ public final class SeamShipFilmE2E {
     }
 
     private static void serverTick(ServerTickEvent.Post event) {
-        if(state!=2&&state!=3)return;
         MinecraftServer server=event.getServer();
+        if(state==1) {
+            long elapsed=server.getTickCount()-started;
+            if(elapsed>=60) {
+                LOG.info("WORLDSEAM_FILM_NATIVE_TICK_HANDSHAKE: spectator tracked for {} real server ticks before sublevel assembly",elapsed);
+                assembleAfterTracking(server);
+            }
+            return;
+        }
+        if(state!=2&&state!=3)return;
         if(server.getTickCount()-started>20*100) {
             fail("Native Rapier ship never completed real bidirectional seam crossing",null);
             return;
@@ -257,7 +291,7 @@ public final class SeamShipFilmE2E {
                         shipUuid,initialMinY,lowMinY,hull.minY,ticks,downTicks,upTicks);
                 }
             }
-            if(ticks%20==0)
+            if(ticks<=6 || ticks%10==0)
                 LOG.info("WORLDSEAM_FILM_FRAME: tick={} uuid={} state={} hullMinY={} hullMaxY={} straddles={} dimension=overworld(authoritative Sable body)",
                     ticks,shipUuid,state,hull.minY,hull.maxY,
                     hull.minY<PLANE&&hull.maxY>PLANE);
