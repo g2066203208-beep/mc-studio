@@ -11,6 +11,8 @@ import com.mojang.blaze3d.vertex.VertexFormat;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.RenderType;
+import net.minecraft.client.renderer.ItemBlockRenderTypes;
+import net.minecraft.world.level.block.RenderShape;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.core.BlockPos;
 import net.minecraft.util.RandomSource;
@@ -41,7 +43,8 @@ public final class SeamGpuSectionMeshes {
     private static final int MAX_BAKED_CELLS_PER_FRAME=180;
     private static final long MAX_BAKE_CPU_NANOS=4_000_000L;
     private static final RenderType[] LAYERS={
-        RenderType.solid(),RenderType.cutoutMipped(),RenderType.cutout()
+        RenderType.solid(),RenderType.cutoutMipped(),RenderType.cutout(),
+        RenderType.translucent()
     };
     private record Key(int cx,int cz,int sy) {}
     private record Compiled(SeamNativeGeometryClient.Slice origin,
@@ -139,24 +142,43 @@ public final class SeamGpuSectionMeshes {
                 processed++;
                 int nativeY=c.y()-sourceBoundary+targetBoundary;
                 nativePos.set(c.x(),nativeY,c.z());
-                var model=dispatcher.getBlockModel(c.state());
-                job.random.setSeed(c.state().getSeed(nativePos));
-                var available=model.getRenderTypes(c.state(),job.random,ModelData.EMPTY);
-                for(var type:available) {
+                if(c.state().getRenderShape()==RenderShape.MODEL) {
+                    var model=dispatcher.getBlockModel(c.state());
+                    job.random.setSeed(c.state().getSeed(nativePos));
+                    var available=model.getRenderTypes(c.state(),job.random,ModelData.EMPTY);
+                    for(var type:available) {
+                        int index=layerIndex(type);
+                        if(index<0) {
+                            job.unsupported=true;
+                            break;
+                        }
+                        job.random.setSeed(c.state().getSeed(nativePos));
+                        job.pose.pushPose();
+                        try {
+                            job.pose.translate(c.x()-sx,nativeY-sy,c.z()-sz);
+                            dispatcher.renderBatched(c.state(),nativePos,remote,
+                                job.pose,job.builders[index],true,job.random,
+                                ModelData.EMPTY,type);
+                        } finally {
+                            job.pose.popPose();
+                        }
+                    }
+                }
+                // The default fallback skipped ALL lava/water because their
+                // BlockState is INVISIBLE. Real fluid geometry is position-
+                // dependent: use Minecraft's native liquid tessellator with
+                // exactly the source world and native neighbor blocks.
+                var fluid=c.state().getFluidState();
+                if(!fluid.isEmpty()) {
+                    RenderType type=ItemBlockRenderTypes.getRenderLayer(fluid);
                     int index=layerIndex(type);
                     if(index<0) {
                         job.unsupported=true;
-                        break;
-                    }
-                    job.random.setSeed(c.state().getSeed(nativePos));
-                    job.pose.pushPose();
-                    try {
-                        job.pose.translate(c.x()-sx,nativeY-sy,c.z()-sz);
-                        dispatcher.renderBatched(c.state(),nativePos,remote,
-                            job.pose,job.builders[index],true,job.random,
-                            ModelData.EMPTY,type);
-                    } finally {
-                        job.pose.popPose();
+                    } else {
+                        var transformed=new SeamOffsetVertexConsumer(
+                            job.builders[index],-sx,-sy,-sz);
+                        dispatcher.renderLiquid(nativePos,remote,transformed,
+                            c.state(),fluid);
                     }
                 }
                 if(job.unsupported)break;
