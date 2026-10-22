@@ -57,6 +57,10 @@ neoForge {
             if (project.hasProperty('worldseamE2E')) {
                 systemProperty 'worldseam.e2e', 'true'
             }
+            if (project.hasProperty('worldseamStress')) {
+                systemProperty 'worldseam.e2e', 'true'
+                systemProperty 'worldseam.stress', 'true'
+            }
             // Comma-separated list of namespaces to load gametests from. Empty = all namespaces.
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
         }
