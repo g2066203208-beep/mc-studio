@@ -30,6 +30,9 @@ jobs:
         run: |
           node --check viewer/rpms/boss-physics.mjs
           node --check viewer/rpms/boss-multibody.mjs
+          node --check viewer/rpms/boss-gait.mjs
+          node viewer/rpms/tests/boss-gait.test.mjs
+          node --check viewer/rpms/tests/boss-walk-physical.cjs
           node --check viewer/rpms/boss-powertrain.mjs
           node --check viewer/rpms/tests/boss-powertrain.test.mjs
           node viewer/rpms/tests/boss-powertrain.test.mjs
@@ -56,6 +59,7 @@ jobs:
           python3 -m http.server 8033 --directory viewer >/tmp/rpms-boss-http.log 2>&1 &
           node viewer/rpms/tests/boss-browser-physics.cjs
           node viewer/rpms/tests/boss-multibody-browser.cjs
+          node viewer/rpms/tests/boss-walk-physical.cjs
       - name: Upload REAL Chrome physics evidence (screenshots + run logs)
         if: always()
         uses: actions/upload-artifact@v4

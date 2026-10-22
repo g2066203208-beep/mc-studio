@@ -152,10 +152,15 @@ function syncVisual(){
  $('driveConnected').textContent=bus.connectedBranches+' / 6';
  $('driveLinks').textContent=bus.links+' 条';
  $('driveStress').textContent=Math.round(bus.capacitySU)+' / '+Math.round(bus.loadSU)+' SU*';
+ const contacts=new Map(s.footMeasurements.map(x=>[x.id,x]));
  $('legPowerStatus').replaceChildren(...bus.inputs.map(item=>{
   const chip=document.createElement('span');
-  chip.textContent=item.id+' '+(item.connected?item.rpm.toFixed(1)+' RPM':'断电');
+  const foot=contacts.get(item.id);
+  const actualContact=foot?.touching?'脚部实碰撞':'无地面接触';
+  chip.textContent=item.id+' '+(item.connected?item.rpm.toFixed(1)+' RPM':'断电')+
+    ' · '+(foot?.gait||'hold')+' · '+actualContact;
   chip.className=item.connected?'':'off';
+  chip.title='Rapier 实测接触点 '+(foot?.contacts||0)+'；非“靠近地面”估计';
   return chip;
  }));
  $('bodyHeight').textContent=s.bodyBottom.toFixed(2)+' 格';
@@ -165,10 +170,11 @@ function syncVisual(){
  $('contactCount').textContent=s.supportContacts+' / 6';
  const knee=s.legAngles.find(x=>!x.detached);
  $('jointAngle').textContent=knee?(knee.hip*180/Math.PI).toFixed(1)+'°':'—';
- $('distance').textContent=s.travel.toFixed(2)+' 格';
+ $('distance').textContent=s.forwardDistance.toFixed(2)+' 格';
  $('velocity').textContent=s.velocity.y.toFixed(2)+' m/s';
  $('steps').textContent=s.steps+' 个物理步长';
- $('worldState').textContent=s.mode.toUpperCase()+' · '+s.joints+' 铰链 · '+bus.connectedBranches+'/6 传动支路有动力 · '+s.supportContacts+' 脚近地';
+ $('worldState').textContent=s.mode.toUpperCase()+' · '+s.joints+' 铰链 · '+bus.connectedBranches+
+ '/6 支路供能 · '+s.supportContacts+' 脚真实接触 · 前进 '+s.forwardDistance.toFixed(2)+' 格';
 }
 function setMessage(message){$('statusMessage').textContent=message;}
 function createRig(){
@@ -185,7 +191,7 @@ function createRig(){
   linkVisual(shin,engine.lowerLength,l.id,'lower');
   visualBodies.push({body:l.upper,mesh:thigh},{body:l.lower,mesh:shin});
  }
- engine.setMotor({rpm:Number($('motorRPM').value),torqueLimit:Number($('motorTorque').value),ratio:Number($('gearRatio').value)});
+ engine.setMotor({rpm:Number($('motorRPM').value),torqueLimit:Number($('motorTorque').value),ratio:Number($('gearRatio').value),stride:Number($('stepStride').value),clearance:Number($('stepClearance').value)});
  engine.setMode('stand');
  paused=false;accum=0;last=0;
  $('pause').textContent='暂停物理';
@@ -230,7 +236,7 @@ for(const mode of ['stand','march','walk','relax'])$(mode).addEventListener('cli
  setMessage({
   stand:'六足髋膝伺服器正在真实受力保持站立；腿承重不足时身体会塌。',
   march:'两组三角支撑腿交替抬腿：12 个真实物理关节驱动，关节角度由求解器更新。',
-  walk:'前进步态实验：改变关节角度与足底摩擦产生实际运动，不保证未经调参就能稳定直线走。',
+  walk:'真正的三足支撑/三足摆动：IK 生成前进足点，由真实髋膝铰链执行；看前进位移和实际脚底接触判断效果。',
   relax:'已断电：不再向关节施加主动转矩，真实重力将使腿和身体失稳。'
  }[mode]);
 });
@@ -248,6 +254,14 @@ function updateRatioLabel(){
 $('gearRatio').addEventListener('change',e=>{
  engine?.setMotor({ratio:Number(e.target.value)});
  updateRatioLabel();syncVisual();
+});
+$('stepStride').addEventListener('input',e=>{
+ const stride=Number(e.target.value);$('strideLabel').textContent=stride.toFixed(2)+' 格';
+ engine?.setMotor({stride});
+});
+$('stepClearance').addEventListener('input',e=>{
+ const clearance=Number(e.target.value);$('clearanceLabel').textContent=clearance.toFixed(2)+' 格';
+ engine?.setMotor({clearance});
 });
 
 
