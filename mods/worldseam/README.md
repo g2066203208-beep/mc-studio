@@ -219,3 +219,12 @@ v0.5 的 teleportTo 仍引发原版 ClientboundRespawnPacket/加载界面。本�
 **实验开关：** `-PworldseamGpuSections` 用于专属 NeoForge 图形 CI；正式 `JAR` 暂不默认启用，避免在未经充分验证的 Sodium/Iris/Voxy 配置下产生错误 GPU 着色状态。普通旧路径保留，遇到不受支持的自定义/透明模型时使用原来的 CPU fallback。目前固体、镂空和 cutout-mipped 模型可编译，流体、BlockEntity、实体、透明远景、完整天空和原生双世界 `LevelRenderer` 同帧合成**尚未完成**。
 
 新增 E2E 指标 `gpuMeshedSections`、`gpuDrawnSections`、`gpuSectionCells`、`gpuBakeP95Ms`；真正 GUI 必须观察到至少一个上传并绘制的缓存段，才允许称该路径通过。与只画几百个代理方块不同，它直接改变了几何对象在何时由 CPU 构建、GPU 如何重复使用的底层机制。所有颜色和 shader/深度仍需人工审视真实截图，与原生画面比对。
+
+
+## v0.10.3-dev — 原生 GPU 网格增加真实岩浆、水和水浸方块
+
+受玩家跨维下界画面岩浆/水体大量消失的反馈驱动：旧 `SeamNativeGeometryClient.rebuildSection` 只采集 `RenderShape.MODEL`，原生流体 `RenderShape.INVISIBLE` 会在**编码缓存前**直接被丢弃，纯固体 GPU section mesh 再好也不可能渲染水体。现在借助 Minecraft 1.21.1 自带 `BlockRenderDispatcher.renderLiquid`、真正第二 `ClientLevel` 的原生流体数据、相邻原生方块、渲染层 `ItemBlockRenderTypes.getRenderLayer(FluidState)`，把暴露在空气旁的岩浆、水和水浸方块加入远端几何缓存、GPU tessellation 与旧 CPU fallback。四大原生材质层依序支持 solid/cutoutMipped/cutout/translucent，区块边界不进行同步获取。
+
+`LiquidBlockRenderer` 无 PoseStack，直接写 native 世界坐标；单独使用 `SeamOffsetVertexConsumer` 把正确的维度 Y 偏移和客户端相机偏移应用在**每一个顶点**，不修改 Minecraft 全局模型视图矩阵/其他 Mod 的 shader/实体状态。新增 JUnit 验证维度与相机坐标转换、颜色/光照/UV 透传与多顶点无误差积累。
+
+这仍是 **实验** GPU 缓存（继承 `-PworldseamGpuSections`），透明 VBO 还未做到每帧正确的 per-quad depth sorting，未渲染流体之外的 BlockEntity/实体，不代表 Iris/Voxy/Sable 完整兼容；必须检查真实游戏内水/岩浆、透明物体遮挡和逐轮性能变化，失败不合入默认 WorldSeam。
