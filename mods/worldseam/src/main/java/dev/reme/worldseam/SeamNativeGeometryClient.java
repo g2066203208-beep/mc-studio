@@ -457,6 +457,7 @@ public final class SeamNativeGeometryClient {
     public static long gpuDrawnSections() { return GPU_SECTIONS.lastGpuDrawn(); }
     public static long gpuDrawnCellEquivalent() { return GPU_SECTIONS.lastGpuCells(); }
     public static long gpuDrawnFluidCells() { return GPU_SECTIONS.lastGpuFluidCells(); }
+    public static int gpuRenderTypeSetups() { return GPU_SECTIONS.lastRenderTypeSetups(); }
     /** Number of non-occluded native fluid surfaces in the current remote geometry. */
     public static int countNativeFluidCells() {
         int count=0;
