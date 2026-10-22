@@ -33,6 +33,10 @@ public final class LivingWorldActions {
             return;
         }
         long tick = level.getGameTime();
+        // Prison and fear checks run BEFORE ordinary AI, so a detained or
+        // attacked sleeper must release the vanilla occupied bed immediately.
+        if (npc.isSleeping() && (npc.isDetained(tick) || npc.isAfraid(tick)))
+            npc.stopSleeping();
         // Prisoners cannot carry on stealing/working after a real close-range
         // guard arrest; detention is physical navigation plus timed release.
         if (PublicSafety.tickPrisoner(npc, level, tick)) return;
