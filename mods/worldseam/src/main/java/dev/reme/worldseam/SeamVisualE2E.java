@@ -66,7 +66,7 @@ public final class SeamVisualE2E {
             server.execute(() -> prepare(server,playerId));
         } else if (phase==1 && !previewLogged && now-startTick>290) {
             previewLogged=true;
-            LOG.info("WORLDSEAM_E2E_PREVIEW_WINDOW: client dim={}, received={}, cached3x3={}, surface geometry={}, drawn={}, camera near floor Y={}, nativeModelCpuP95Ms={}, modelBudget={}, visibleSlices={}, frustumCulledSlices={}",
+            LOG.info("WORLDSEAM_E2E_PREVIEW_WINDOW: client dim={}, received={}, cached3x3={}, surface geometry={}, drawn={}, camera near floor Y={}, nativeModelCpuP95Ms={}, modelBudget={}, visibleSlices={}, frustumCulledSlices={}, rebuildCpuP95Ms={}, pendingSections={}, lastTickSections={}",
                 mc.level.dimension().location(),SeamClientWorldPool.receivedChunks(),
                 SeamClientWorldPool.nearbyChunks(),
                 SeamNativeGeometryClient.visibleBlockCount(),
@@ -74,7 +74,12 @@ public final class SeamVisualE2E {
                 String.format(java.util.Locale.ROOT,"%.3f",SeamNativeGeometryClient.p95ModelCpuMs()),
                 SeamNativeGeometryClient.currentModelBudget(),
                 SeamNativeGeometryClient.visibleSlices(),
-                SeamNativeGeometryClient.culledSlices());
+                SeamNativeGeometryClient.culledSlices(),
+                String.format(java.util.Locale.ROOT,"%.3f",SeamNativeGeometryClient.p95RebuildCpuMs()),
+                SeamNativeGeometryClient.pendingRebuilds(),
+                SeamNativeGeometryClient.lastTickRebuildSlices());
+            if(SeamNativeGeometryClient.lastTickRebuildSlices()>4)
+                LOG.error("WORLDSEAM_E2E_FAIL_REBUILD_BUDGET: geometry builder exceeded four native sections per tick");
             server.execute(() -> {
                 ServerPlayer player=server.getPlayerList().getPlayer(playerId);
                 if(player==null)return;
