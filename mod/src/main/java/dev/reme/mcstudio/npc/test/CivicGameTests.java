@@ -28,6 +28,10 @@ import dev.reme.mcstudio.npc.life.SafeBuilder;
 import dev.reme.mcstudio.npc.life.LivingWorldActions;
 import dev.reme.mcstudio.npc.life.LivingPlanner;
 import dev.reme.mcstudio.npc.life.RestPolicy;
+import dev.reme.mcstudio.npc.life.ResidentBedLife;
+import net.minecraft.world.level.block.BedBlock;
+import net.minecraft.world.level.block.state.properties.BedPart;
+import net.minecraft.core.Direction;
 import dev.reme.mcstudio.npc.life.SocietyActions;
 import dev.reme.mcstudio.npc.life.MutualAid;
 import dev.reme.mcstudio.npc.life.CaravanRoutes;
@@ -83,7 +87,7 @@ public final class CivicGameTests {
         npc.setDecision(new LivingPlanner.Decision(LivingPlanner.Intent.SLEEP, 90, "night rest"));
 
         if (RestPolicy.atHome(npc.blockPosition(), home)
-            || RestPolicy.energyDelta(npc.intent(), false, npc.energy(), false, false, false) != -3
+            || RestPolicy.energyDelta(npc.intent(), false, npc.energy(), false, false, false, false) != -3
             || NpcPoseSelection.select(npc, level.getGameTime()) == NpcPose.REST)
             throw new AssertionError("NPC recovered energy or displayed sleeping pose on the street");
         if (SocietyActions.tick(npc, level, level.getGameTime()))
@@ -91,23 +95,89 @@ public final class CivicGameTests {
 
         npc.moveTo(home.getX() + 0.5, home.getY(), home.getZ() + 0.5, 0, 0);
         if (!RestPolicy.atHome(npc.blockPosition(), home)
-            || RestPolicy.energyDelta(npc.intent(), false, npc.energy(), true, false, false) != 12
+            || RestPolicy.energyDelta(npc.intent(), false, npc.energy(), false, true, false, false) != 2
             || NpcPoseSelection.select(npc, level.getGameTime()) != NpcPose.REST)
             throw new AssertionError("NPC cannot rest after physically returning home");
-        if (RestPolicy.energyDelta(npc.intent(), false, npc.energy(), true, true, false) >= 0
-            || RestPolicy.energyDelta(npc.intent(), false, npc.energy(), true, false, true) >= 0)
+        if (RestPolicy.energyDelta(npc.intent(), false, npc.energy(), false, true, true, false) >= 0
+            || RestPolicy.energyDelta(npc.intent(), false, npc.energy(), false, true, false, true) >= 0)
             throw new AssertionError("Fear or detention granted sleep energy");
 
         npc.setProfession(PlayerNpcEntity.Profession.GUARD);
         npc.changeNeeds(0, 50, 0);
         if (!RestPolicy.guardOnWatch(true, npc.energy())
             || RestPolicy.blocksRoutine(npc.intent(), true, npc.energy())
-            || RestPolicy.energyDelta(npc.intent(), true, npc.energy(), true, false, false) >= 0
+            || RestPolicy.energyDelta(npc.intent(), true, npc.energy(), false, true, false, false) >= 0
             || NpcPoseSelection.select(npc, level.getGameTime()) == NpcPose.REST)
             throw new AssertionError("On-duty guard abandoned watch or received fake sleep");
         npc.changeNeeds(0, -70, 0);
         if (!RestPolicy.blocksRoutine(npc.intent(), true, npc.energy()))
             throw new AssertionError("Exhausted guard was prevented from resting");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 100)
+    public static void resident_claims_native_bed_sleeps_wakes_and_saves_claim(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos head = helper.absolutePos(new BlockPos(7, 2, 7));
+        BlockPos foot = head.relative(Direction.SOUTH);
+        BlockPos home = head.relative(Direction.WEST, 3);
+        for (int dx = -1; dx <= 3; dx++)
+            for (int dz = -2; dz <= 2; dz++)
+                level.setBlock(head.offset(dx, -1, dz), Blocks.STONE.defaultBlockState(), 2);
+        level.setBlock(head, Blocks.RED_BED.defaultBlockState()
+            .setValue(BedBlock.PART, BedPart.HEAD)
+            .setValue(BedBlock.FACING, Direction.NORTH), 2);
+        level.setBlock(foot, Blocks.RED_BED.defaultBlockState()
+            .setValue(BedBlock.PART, BedPart.FOOT)
+            .setValue(BedBlock.FACING, Direction.NORTH), 2);
+
+        PlayerNpcEntity first = NpcRegistry.PLAYER_NPC.get().create(level);
+        PlayerNpcEntity second = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (first == null || second == null) throw new AssertionError("no NPC entity");
+        first.setMode(PlayerNpcEntity.Mode.LIVE);
+        second.setMode(PlayerNpcEntity.Mode.LIVE);
+        first.setHomePos(home);
+        second.setHomePos(home);
+        first.setProfession(PlayerNpcEntity.Profession.RESIDENT);
+        second.setProfession(PlayerNpcEntity.Profession.RESIDENT);
+        first.moveTo(head.getX() + 1.5, head.getY(), head.getZ() + 0.5, 0, 0);
+        second.moveTo(head.getX() + 2.5, head.getY(), head.getZ() + 0.5, 0, 0);
+        first.setDecision(new LivingPlanner.Decision(LivingPlanner.Intent.SLEEP, 99, "bedtime"));
+        second.setDecision(new LivingPlanner.Decision(LivingPlanner.Intent.SLEEP, 99, "bedtime"));
+        if (!level.addFreshEntity(first) || !level.addFreshEntity(second))
+            throw new AssertionError("could not load residents");
+        if (!ResidentBedLife.reserveNearbyBed(first, level)
+            || !head.equals(first.assignedBedPos()))
+            throw new AssertionError("failed real bed search");
+        if (ResidentBedLife.reserveNearbyBed(second, level))
+            throw new AssertionError("both residents claimed the SAME loaded bed");
+        CompoundTag saved = new CompoundTag();
+        first.addAdditionalSaveData(saved);
+        PlayerNpcEntity copied = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (copied == null) throw new AssertionError("no deserialization target");
+        copied.readAdditionalSaveData(saved);
+        if (!head.equals(copied.assignedBedPos()))
+            throw new AssertionError("bed head not saved to NPC NBT");
+        if (!ResidentBedLife.tick(first, level, level.getGameTime())
+            || !first.isSleeping() || first.getSleepingPos().isEmpty()
+            || !level.getBlockState(head).getValue(BedBlock.OCCUPIED))
+            throw new AssertionError("real native LivingEntity sleeping/bed occupancy missing");
+        if (ResidentBedLife.tick(second, level, level.getGameTime())
+            && second.isSleeping())
+            throw new AssertionError("second resident entered another resident's bed");
+        if (RestPolicy.energyDelta(first.intent(), false, first.energy(),
+                first.isSleeping(), true, false, false) != 12)
+            throw new AssertionError("real native bed failed to regenerate full energy");
+        first.setDecision(new LivingPlanner.Decision(LivingPlanner.Intent.WORK, 80, "sunrise"));
+        ResidentBedLife.tick(first, level, level.getGameTime());
+        if (first.isSleeping() || level.getBlockState(head).getValue(BedBlock.OCCUPIED))
+            throw new AssertionError("sunrise failed to release real occupied bed");
+        first.setAssignedBedPos(null);
+        if (!ResidentBedLife.reserveNearbyBed(second, level)
+            || !ResidentBedLife.tick(second, level, level.getGameTime())
+            || !second.isSleeping())
+            throw new AssertionError("released bed cannot be reused by neighbor");
+        second.stopSleeping();
         helper.succeed();
     }
 
