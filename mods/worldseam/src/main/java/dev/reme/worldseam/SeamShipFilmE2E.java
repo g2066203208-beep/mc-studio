@@ -191,6 +191,12 @@ public final class SeamShipFilmE2E {
             bounding=sub.getDeclaredMethod("boundingBox");
             uuidGetter=sub.getDeclaredMethod("getUniqueId");
             shipUuid=(UUID)uuidGetter.invoke(ship);
+            // Sable initializes SubLevel.globalBounds to the zero AABB.
+            // assembleBlocks() DOES NOT call updateBoundingBox(): reading
+            // the zero box immediately as a ship at Y=0 was a false signal.
+            // Refresh the actual plot geometry after real assembly, before
+            // recording any real position. No physics pose/ship teleport.
+            sub.getMethod("updateBoundingBox").invoke(ship);
             Class<?> system=Class.forName(
                 "dev.ryanhcode.sable.sublevel.system.SubLevelPhysicsSystem");
             Object owner=system.getMethod("require",Level.class).invoke(null,home);
@@ -202,6 +208,11 @@ public final class SeamShipFilmE2E {
             impulse=pipeline.getClass().getMethod("applyLinearAndAngularImpulse",
                 body,v,v,boolean.class);
             var hull=currentHull();
+            if(hull.getSize()<=0.0 ||
+               hull.minY>=hull.maxY ||
+               hull.minY< -256 || hull.maxY>512)
+                throw new IllegalStateException(
+                    "Sable returned stale/invalid zero AABB after real assembly: "+hull);
             initialMinY=hull.minY;
             started=server.getTickCount();
             // The camera is an ACTUAL in-game spectator, never a diagram.
@@ -237,6 +248,9 @@ public final class SeamShipFilmE2E {
         MinecraftServer server=event.getServer();
         if(state==1) {
             long elapsed=server.getTickCount()-started;
+            if(elapsed%10==0)
+                LOG.info("WORLDSEAM_FILM_HANDSHAKE_TICK: actualServerTicksSinceArena={}, waitingFor=60, serverTick={}",
+                    elapsed,server.getTickCount());
             if(elapsed>=60) {
                 LOG.info("WORLDSEAM_FILM_NATIVE_TICK_HANDSHAKE: spectator tracked for {} real server ticks before sublevel assembly",elapsed);
                 assembleAfterTracking(server);
