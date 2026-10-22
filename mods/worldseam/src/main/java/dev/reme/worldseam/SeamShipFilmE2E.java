@@ -119,6 +119,13 @@ public final class SeamShipFilmE2E {
             // non-existent sub-level" from the remote client.
             player.setGameMode(GameType.SPECTATOR);
             viewerId=player.getUUID();
+            // Genuine vanilla night vision improves visibility inside the
+            // excavated deepslate/Nether roof instead of post-processing
+            // or recoloring the MP4 into fabricated gameplay.
+            player.addEffect(new net.minecraft.world.effect.MobEffectInstance(
+                net.minecraft.world.effect.MobEffects.NIGHT_VISION,
+                20*60*20,0,false,false));
+            home.setDayTime(6000L);
             player.connection.teleport(x+8,-57,z+8,135,13);
             // Genuine 9x7 Minecraft-block aircraft silhouette: tapered
             // nose, center fuselage, swept wings, lit engine and glass
