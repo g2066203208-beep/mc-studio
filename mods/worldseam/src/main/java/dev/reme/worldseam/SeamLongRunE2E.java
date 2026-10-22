@@ -206,7 +206,14 @@ public final class SeamLongRunE2E {
                     p.fallDistance=0;
                     if(marker!=null)marker.discard();
                     expectedMarkerX=p.getX()+2;
-                    expectedMarkerY=p.getY()+1;
+                    // Entering through a target TOP puts the player at
+                    // targetBoundary-0.125. The old test put ArmorStand
+                    // at playerY+1, which is *outside* that dimension.
+                    // WorldSeam correctly crossed that marker straight
+                    // BACK over the seam, making client entity tracking
+                    // look broken on every third visit. Keep witnesses
+                    // 2 blocks INSIDE the real target world.
+                    expectedMarkerY=p.getY()+(UP[pass%4]?2.0:-2.0);
                     expectedMarkerZ=p.getZ();
                     marker=new ArmorStand(p.serverLevel(),
                         expectedMarkerX,expectedMarkerY,expectedMarkerZ);
@@ -253,8 +260,10 @@ public final class SeamLongRunE2E {
                 fail("CHUNK_DROPOUT activeChunks="+chunks+" pass="+(pass+1));
                 return;
             }
-            LOG.info("WORLDSEAM_STRESS_PROGRESS: pass={}/{}, {} -> {}, activeChunks={}, markerEntityClient=true, activeRendererOwners={}, heapUsedMiB={}, renderCpuP95Ms={}, rebuildCpuP95Ms={}",
-                pass+1,PASSES,from(),to(),chunks,owners,memory/(1024*1024),
+            LOG.info("WORLDSEAM_STRESS_PROGRESS: pass={}/{}, {} -> {}, activeChunks={}, markerEntityClient=true, witnessY={}, activeRendererOwners={}, heapUsedMiB={}, renderCpuP95Ms={}, rebuildCpuP95Ms={}",
+                pass+1,PASSES,from(),to(),chunks,
+                String.format(java.util.Locale.ROOT,"%.3f",expectedMarkerY),
+                owners,memory/(1024*1024),
                 String.format(java.util.Locale.ROOT,"%.3f",SeamNativeGeometryClient.p95ModelCpuMs()),
                 String.format(java.util.Locale.ROOT,"%.3f",SeamNativeGeometryClient.p95RebuildCpuMs()));
             pass++;
