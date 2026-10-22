@@ -269,3 +269,12 @@ Push CI `39518033958` SUCCESS，PR CI `39518039426` SUCCESS。Artifact `12310085
 - 实施原生床头搜索/互斥/实体睡眠/起床/NBT 持久化、改变住处解除床位、毁床与受伤/拘留醒来、慢速无床休息、`/npc bed`、`/npc bed assign`、`/npc bed clear`、`/npc info` 诊断与游戏客户端按钮输入验证。
 - 验证要求：完整 56+ 原生 GameTest，新增 16 人争 8 床与一个人整日 24k tick 睡醒链路的测试；HTML/JAR 虚拟网页不能取代 MC 游戏中的实际状态。详见 `docs/NPC_BED_LIFECYCLE_V068.md`。
 - 用户 HMCL 真实整合包尚未接入，此开发版从本 PR Actions 成功 Build 下载 `installer-0.6.8-dev`；不要将共享主分支机械骨架当 NPC，也不要与旧 PEAK `reme_studio` JAR 同时加载。尚未另建独立 livingnpc Mod ID／数据迁移。
+
+
+## 2026-10-22 NPC v0.6.9：真实自主购物、农夫收入、市集、治安钟声（Draft PR #93）
+- 基线 `feat/npc-real-bed-lifecycle-v068`，新分支 `feat/npc-economy-market-fair-v069`，MC 1.21.1 / NeoForge 21.1.262 / Java21；保留 `reme_studio` 旧存档 ID，仅改 NPC 工作室。
+- 生产文件：`NeighborhoodMarket.java`、`ShopCounter.java`、`PublicSafety.java`、`TownEvents.java`、`ResidentMemory.java`、`LivingWorldActions.java`、`NpcCommands.java`；游戏实测在 `MarketEconomyGameTests.java` 与 `TownEventGameTests.java`，加既有 58 项服务器回归。
+- 已在代码中实现居民真货币购物、店员花真钱收购农夫实物、交易关系 NBT、七日实际聚会/信息交流、玩家查询市集、只有真实盗窃接警才敲现有原版钟、现有音符盒演奏。没有城镇 NPC 的经济无限刷钱，每件交易成功必须两边库存校验。
+- 第一次原生单人服务器 180-tick 顾客测试失败，发现店员早晨 SOCIALIZE 在柜台却不营业；修复开放柜台营业状态后同一用例通过（真实服务器日志：shopEmerald=1, guestEmerald=0, shopBread=0, buyerHunger=72），以后不可只测单独接口。
+- 后续需看 64+ GameTest、Build、真正 GUI `/npc market`、Windows 安装脚本对应同一个最新 SHA，再从 PR 成功 Build 的 Artifacts 获取 `installer-0.6.9-dev`。不等于用户 HMCL 222-mod 实机整合包通过，也尚未与 PEAK 的同 ID 独立工程兼容。
+- 文档 `docs/NPC_NEIGHBORHOOD_MARKET_V069.md` 有完整玩法与限制，其他五个工作室源代码没有加入此 PR。
