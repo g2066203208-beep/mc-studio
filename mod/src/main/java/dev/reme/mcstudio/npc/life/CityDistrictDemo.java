@@ -241,23 +241,28 @@ public final class CityDistrictDemo {
         shell(p, -18, 6, -6, 18, 6, Blocks.STONE_BRICKS,
             Blocks.GLASS, Blocks.DEEPSLATE_TILES);
         door(p, -6, 12, Direction.EAST);
+        // Real rear prisoner intake: outside street z=19 -> open station
+        // back door z=18 -> authorized IRON cell gate z=17 -> actual cell.
+        // Avoid a 25-block detour around solid police walls, which left
+        // pathfinding stuck four blocks from the cell for 1200 ticks.
+        door(p, -13, 18, Direction.SOUTH);
         // Lockable-looking REAL iron-bar holding room; true custody remains
         // the existing PublicSafety controller, not the structure itself.
         for (int x = -17; x <= -12; x++)
             for (int z = 14; z <= 17; z++) {
                 if (x != -17 && x != -12 && z != 14 && z != 17) continue;
-                // Real walkable cell entrance at x=-12,z=16, not a
-                // magically teleporting prisoner through solid iron bars.
-                if (x == -12 && z == 16) continue;
+                // Only south intake at x=-13,z=17 can be unlocked.
+                // East wall stays fully closed: no walkaround out of jail.
+                if (x == -13 && z == 17) continue;
                 for (int y = 1; y <= 3; y++) p.put(x, y, z, Blocks.IRON_BARS);
             }
-        // Unlike the earlier open gap, a REAL initially locked two-block
-        // iron door holds the cell until an escort unlocks it.
-        p.state(-12, 1, 16, Blocks.IRON_DOOR.defaultBlockState()
-            .setValue(DoorBlock.FACING, Direction.EAST)
+        // A REAL initially locked iron gate directly facing the rear
+        // entrance, changed only by CityJailGate after physical arrest.
+        p.state(-13, 1, 17, Blocks.IRON_DOOR.defaultBlockState()
+            .setValue(DoorBlock.FACING, Direction.SOUTH)
             .setValue(DoorBlock.HALF, DoubleBlockHalf.LOWER));
-        p.state(-12, 2, 16, Blocks.IRON_DOOR.defaultBlockState()
-            .setValue(DoorBlock.FACING, Direction.EAST)
+        p.state(-13, 2, 17, Blocks.IRON_DOOR.defaultBlockState()
+            .setValue(DoorBlock.FACING, Direction.SOUTH)
             .setValue(DoorBlock.HALF, DoubleBlockHalf.UPPER));
         p.put(-11, 1, 10, Blocks.LECTERN);
         p.put(-15, 1, 9, Blocks.CHEST);
