@@ -10,7 +10,7 @@ import {loadOfficialModelArchives} from './official-autoload.mjs';
 const $=id=>document.getElementById(id);
 const scene=new THREE.Scene();scene.background=new THREE.Color('#192935');scene.fog=new THREE.Fog('#192935',31,80);
 const camera=new THREE.PerspectiveCamera(40,1,.05,140);
-camera.position.set(13.6,10.2,15.0); // inspect ALL six legs instead of clipping front and rear blocks
+camera.position.set(10.8,8.6,12.4); // balanced 3/4 view: full six-leg assembly fills most of stage without cropping
 const renderer=new THREE.WebGLRenderer({canvas:$('bossCanvas'),antialias:true,powerPreference:'high-performance'});
 renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,1.8));
 renderer.outputColorSpace=THREE.SRGBColorSpace;
@@ -100,8 +100,8 @@ function chassisVisual(g){
   if(occupied.has(x+','+z))continue;
   block(g,'box',[x,0,z],[1,1,1],Math.abs(x)===2?'steel':'copper');
  }
- for(const x of [-2,2])for(const z of [-3,3])
-  block(g,'box',[x,1,z],[1,1,1],'dark'); // four corner armor turrets; no six huge brown crates
+ // No decorative cubes above the power network: they obscured the
+ // real mechanical drive and read as unsupported Minecraft chimneys.
  block(g,'box',[0,1,0],[1,1,1],'dark');
  block(g,'box',[0,0,-4],[1,1,1],'teal');
  for(const b of graph.blocks){
