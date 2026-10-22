@@ -109,7 +109,11 @@ public final class CityDistrictGameTests {
             || !level.getBlockState(center.offset(-8,1,-11)).isAir()
             || !dev.reme.mcstudio.npc.life.PublicSafety.holdingSpot(level, inmateSpot)
             || !dev.reme.mcstudio.npc.life.CityJailGate.isGate(level, inmateSpot)
-            || dev.reme.mcstudio.npc.life.CityJailGate.isOpen(level, inmateSpot))
+            || dev.reme.mcstudio.npc.life.CityJailGate.isOpen(level, inmateSpot)
+            || !level.getBlockState(center.offset(-12,1,16)).is(Blocks.IRON_BARS)
+            || !level.getBlockState(center.offset(-13,1,18)).is(Blocks.OAK_DOOR)
+            || !level.getBlockState(center.offset(-13,1,18))
+                .getValue(net.minecraft.world.level.block.DoorBlock.OPEN))
             throw new AssertionError("City lacks actual shops, 13 safe citizens, cashless shoplifter,"
                 + " physically accessible jail or genuine shop alarm: merchants=" + merchants
                 + " guards=" + guards + " payingResidents=" + customers
