@@ -13,7 +13,7 @@ const {chromium}=require('playwright-core');
    const rig=window.__MULTIBODY_RIG__;
    const initial=rig.advance(240);
    rig.setMode('walk');
-   rig.setMotor({rpm:32,torqueLimit:2200,stride:1.15,clearance:.65});
+   rig.setMotor({rpm:32,torqueLimit:2200,stride:.45,clearance:.24});
    const measurements=[];
    for(let i=0;i<12;i++){
     const state=rig.advance(90);
