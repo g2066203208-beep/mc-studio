@@ -22,3 +22,11 @@
 - When the user requests a model inspired by Immersive Vehicles, Blockbench/MTS vehicle construction, a motorcycle, UV atlas, functional vehicle parts, or a real 3D web preview, load `skills/immersive-vehicles-modeling/SKILL.md` first, then the relevant references.
 - Inspect *real OBJ, PNG, and vehicle JSON* and distinguish source-repo assets from actual released JARs. Never pass off generated illustrations or flat screenshots as rotatable 3D models.
 - Run the bundled OBJ inspector and unit tests before claiming the model or new skill validated. Keep unverified game-runtime facts clearly marked.
+
+## Four independent Minecraft mods — mandatory routing (2026-10-22)
+
+- Read [docs/MOD_PROJECT_ROUTING.md](docs/MOD_PROJECT_ROUTING.md) **before coding, merging or packaging any gameplay Mod**. This corrects the earlier practice of putting unrelated functionality into shared `mod/` and/or distributing the wrong JAR.
+- The repository is a **studio monorepo**, NOT a common reme_studio gameplay Mod: **WorldSeam** (mods/worldseam), **PEAK** (target mods/peak), **mechanical Boss** (target mods/mechanicalboss; RPMotion control and viewer/rpms experiments are distinct), **NPC** (target mods/npc). Every project owns its own Mod ID, Gradle build, JAR, resources, tests, installer and runtime validation.
+- **Actual status matters**: WorldSeam and experimental RPMotion already have independent Gradle subprojects on their feature branches; NPC 0.6.7 and PEAK 0.11 still occupy historical mod/ on separate branches and both use mod ID reme_studio. Therefore their existing JARs MUST NOT be installed together. Do not misrepresent NPC/PEAK standalone migration as complete.
+- Do not blindly merge multi-hundred-commit branches into main or clobber unrelated source. Merge only after isolated subprojects can coexist; never overwrite the user's other development streams.
+- `main` still has historical 0.1.0 reme_studio skeleton without NPC commands or egg. Never give this as NPC jar, and never claim absence in main means the feature branch is missing.
