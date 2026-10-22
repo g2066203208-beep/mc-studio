@@ -1,48 +1,32 @@
 package dev.reme.worldseam;
 
-import com.mojang.blaze3d.vertex.VertexConsumer;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 class SeamOffsetVertexConsumerTest {
-    private static class Recording implements VertexConsumer {
-        float x,y,z,u,v;
-        int light,rgba;
-        @Override public VertexConsumer addVertex(float a,float b,float c) {
-            x=a;y=b;z=c;return this;
-        }
-        @Override public VertexConsumer setColor(int r,int g,int b,int a) {
-            rgba=a;return this;
-        }
-        @Override public VertexConsumer setUv(float uu,float vv) {
-            u=uu;v=vv;return this;
-        }
-        @Override public VertexConsumer setUv1(int a,int b){return this;}
-        @Override public VertexConsumer setUv2(int a,int b){
-            light=(b<<16)|a;return this;
-        }
-        @Override public VertexConsumer setNormal(float a,float b,float c){return this;}
-    }
     @Test void liquidVerticesUseExactTranslatedCameraAndDimensionOffset() {
-        Recording rec=new Recording();
-        var shifted=new SeamOffsetVertexConsumer(rec,-12.5f,-192.5f,8.5f);
-        shifted.addVertex(13,128,9).setColor(255,0,0,230)
-            .setUv(0.5f,0.75f).setUv2(12,15);
-        assertEquals(0.5f,rec.x,1e-6f);
-        assertEquals(-64.5f,rec.y,1e-6f);
-        assertEquals(17.5f,rec.z,1e-6f);
-        assertEquals(0.5f,rec.u,1e-6f);
-        assertEquals(0.75f,rec.v,1e-6f);
-        assertEquals(230,rec.rgba);
-        assertEquals((15<<16)|12,rec.light);
+        // Native Nether ceiling lava Y=128 rendered below Overworld floor:
+        // -64-128 = -192 plus camera-relative -0.5 => -192.5.
+        var p=SeamFluidCoordinates.shifted(13,128,9,
+            -12.5f,-192.5f,8.5f);
+        assertEquals(0.5f,p.x(),1e-6f);
+        assertEquals(-64.5f,p.y(),1e-6f);
+        assertEquals(17.5f,p.z(),1e-6f);
     }
-    @Test void separateVerticesDoNotAccumulateOffset() {
-        Recording rec=new Recording();
-        var shifted=new SeamOffsetVertexConsumer(rec,2,3,4);
-        shifted.addVertex(0,0,0);
-        assertEquals(3,rec.y);
-        shifted.addVertex(1,1,1);
-        assertEquals(4,rec.y);
-        assertEquals(3,rec.x);
+    @Test void noCumulativeDriftAcrossVertices() {
+        var p=SeamFluidCoordinates.shifted(0,0,0,2,3,4);
+        assertEquals(2,p.x());
+        assertEquals(3,p.y());
+        var next=SeamFluidCoordinates.shifted(1,1,1,2,3,4);
+        assertEquals(3,next.x());
+        assertEquals(4,next.y());
+        assertEquals(5,next.z());
+    }
+    @Test void endTopToNetherFloorMappingSupportsNegativeCoordinates() {
+        var p=SeamFluidCoordinates.shifted(-16.5f,255.875f,-32.5f,
+            4.5f,-255.875f,1.5f);
+        assertEquals(-12,p.x(),1e-6f);
+        assertEquals(0,p.y(),1e-6f);
+        assertEquals(-31,p.z(),1e-6f);
     }
 }
