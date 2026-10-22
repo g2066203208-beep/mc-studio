@@ -1,9 +1,19 @@
-# HMCL 真正安装/客户端验收门禁 (v0.5.4)
+# HMCL 安装及指令/生成蛋真实客户端验收 (v0.6.6)
 
 本阶段目标是**解决用户截图中 `/npc` 根命令未知**。此前所有 GameTest 都是 GitHub 的服务器环境，不能证明 JAR 已经安装进用户 HMCL 当前实例。真实用户尚未确认已成功运行。
 
-## 安装包
-成功构建后，将 `mod/build/libs/reme_studio-0.5.4-dev.jar` 与 `packaging/Install-REME-NPC.cmd` / `packaging/Install-REME-NPC.ps1` 放在同一 ZIP 根目录。**完整解压**，关闭 Minecraft，双击 `Install-REME-NPC.cmd`，选择 HMCL 当前选中版本的“游戏目录”，明确输入 `INSTALL` 确认。
+
+## 0.6.6-dev：不用命令也能生成 NPC（当前版本）
+- **这是 NPC Mod，不是世界自带的指令**：对应 Minecraft **1.21.1 / NeoForge 21.1.248 / Java 21**，必须确认在游戏 Mods 列表看见 `REME MC Studio`、版本 `0.6.6-dev`。
+- **创造模式**：背包「刷怪蛋」分类查找 `NPC 生成蛋（居民）`，或物品搜索 `NPC`；手持右键地面即可放出有本地家庭位置、背包、身份与 LIVE 作息的 NPC。**不需要作弊、OP、/npc 命令或管理员权限**。
+- **生存模式**：工作台按 `EBE / BPB / EBE` 3×3 合成生成蛋（E=绿宝石、B=面包、P=纸），右键地面生成居民；真实消耗材料及生成蛋，不凭空刷人口。配方见 `data/reme_studio/recipe/npc_spawn_egg.json`。
+- **可选命令**：聊天输入 `/remecheck` 或 `/npc` 可检查已注册，无需 OP；`/npc spawn`、`/npc demo` 以及建造/世界修改指令需要作弊或管理员权限。没有 OP 时不显示受限子命令是 Minecraft 原生权限过滤，属于预期行为。
+- **如果连 `/remecheck` 和 `/npc` 都提示未知**：这一症状不能由「没开作弊」解释。先查看 Mods 列表是否有 `REME MC Studio`；如果没有，打开 HMCL 你正在启动的 **那个 1.21.1 NeoForge 实例** 的「游戏文件夹」，确认该文件夹的 `mods/reme_studio-0.6.6-dev.jar`，**不要放进相邻或未启用版本** 的 mods 文件夹。完整关闭游戏后用本 ZIP 的 `Install-REME-NPC.cmd` 重新安装，原旧 JAR 自动备份，不碰存档。
+- **如果 Mods 列表有但还是未知**：打开**同一实例** 的 `logs/latest.log`，搜索 `REME NPC 0.6.6-dev`、`REME NPC: /npc present on dispatcher`、`COMMAND REGISTRATION MISSING` 和 Java 异常。把日志提供给开发者定位，不要用凭空推测代替证据。
+- **测试范围**：NeoForge GameTest 可验证真正的 ItemStack.useOn 生物蛋生成、权限 0 的根指令存在，Linux Xvfb 图形客户端验证玩家登录、实际指令和物品注册；Windows PowerShell 安装 CI 只使用隔离的假游戏目录，**不能代替用户 HMCL 整合包环境**。
+
+## 安装包（历史流程，以下 0.5.4 证据仅供追溯）
+成功构建后，将 `mod/build/libs/reme_studio-0.6.6-dev.jar` 与 `packaging/Install-REME-NPC.cmd` / `packaging/Install-REME-NPC.ps1` 放在同一 ZIP 根目录。**完整解压**，关闭 Minecraft，双击 `Install-REME-NPC.cmd`，选择 HMCL 当前选中版本的“游戏目录”，明确输入 `INSTALL` 确认。
 
 脚本：
 - 自动解压/读取 JAR 的 `META-INF/neoforge.mods.toml`，验证 modId 必须是 `reme_studio`；
@@ -13,7 +23,7 @@
 
 风险：HMCL 会有版本隔离，不能从桌面路径猜测正确 `mods` 文件夹。脚本**不会**擅自自动猜选版本，也不会修改任何世界存档。PowerShell 静态检查不是 Windows GUI 安装验收，用户必须确认目录。
 
-## 游戏验收
+## 游戏验收（最新 0.6.6 需要按上节额外验收）
 1. 进入 HMCL 当前选中 NeoForge 1.21.1，Mods 页面能找到 REME MC Studio，日志有 `REME NPC 0.5.2: MOD CONSTRUCTED`（基于 v0.5.2 源码的日志文案）。
 2. 新建可作弊创造模式测试世界，进入时应该有 REME NPC 系统消息。
 3. 不需要作弊的 `/remecheck` 必须报告 `/npc registered=true`。
