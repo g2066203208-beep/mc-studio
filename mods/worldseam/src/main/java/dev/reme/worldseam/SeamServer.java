@@ -99,10 +99,21 @@ public final class SeamServer {
                 }
                 double targetBoundaryY = SeamGraph.boundaryY(link.entry(),
                     SeamStackRuntime.bottom(target), SeamStackRuntime.top(target));
+                boolean trace=Boolean.getBoolean("worldseam.stress")
+                    && tick%10==0 && link.near(player.getY(),min,max,3.0);
+                if(trace)LOG.info(
+                    "WORLDSEAM_STRESS_SERVER_TRACE: dim={}, to={}, y={}, yo={}, vy={}, min={}, max={}, targetEdge={}, targetBoundary={}, cachedReady={}, cooldownLeft={}",
+                    dim,link.target(),player.getY(),player.yo,
+                    player.getDeltaMovement().y(),min,max,link.entry(),
+                    targetBoundaryY,SeamReadiness.isReady(player.getUUID(),
+                        dim,link.target(),tick),
+                    Math.max(0,COOLDOWN_TICKS-(tick-lastCross.getOrDefault(
+                        player.getUUID(),Long.MIN_VALUE/2))));
                 // A freshly arrived player must enter the new world before
                 // gravity or position correction can send them back out.
                 if (RETURN_GUARD.blocked(player.getUUID(), dim, link.exit(),
                     player.getY(), min, max)) {
+                    if(trace)LOG.info("WORLDSEAM_STRESS_SERVER_BLOCKED: return guard {} {}",dim,link.exit());
                     double holdY=SeamReturnGuard.safeY(link.exit(),min,max);
                     if (link.exit()==SeamGraph.EdgeSide.BOTTOM
                         && player.getY()<holdY && player.getDeltaMovement().y()<0) {
@@ -124,7 +135,11 @@ public final class SeamServer {
                 SeamCrossing.Decision crossing = SeamCrossing.evaluate(
                     link, player.getY(), player.yo,
                     player.getDeltaMovement().y(), min, max, targetBoundaryY);
-                if (!crossing.crossing()) continue;
+                if (!crossing.crossing()) {
+                    if(trace)LOG.info("WORLDSEAM_STRESS_SERVER_BLOCKED: crossing predicate not met {} -> {}",
+                        dim,link.target());
+                    continue;
+                }
                 if (target == null) {
                     LOG.warn("Skipping seam: missing target dimension {}", link.target());
                     break;
@@ -148,6 +163,8 @@ public final class SeamServer {
                 // before the client has even acknowledged its dual cache.
                 // This was a second repeated-loading hotspot.
                 if (useExperimental && !ready) {
+                    if(trace)LOG.info("WORLDSEAM_STRESS_SERVER_BLOCKED: readiness handshake {} -> {}",
+                        dim,link.target());
                     // Never fall back to a loading screen when user explicitly
                     // requested the no-respawn experiment.
                     double holdY = link.exit() == SeamGraph.EdgeSide.TOP
@@ -163,8 +180,16 @@ public final class SeamServer {
                 // synchronous terrain generation on the render-critical tick.
                 int landingCx=Math.floorDiv(arrival.getX(),16);
                 int landingCz=Math.floorDiv(arrival.getZ(),16);
-                if(!target.hasChunk(landingCx,landingCz)) break;
-                if (!SeamArrival.hasClearance(target, arrival, player)) break;
+                if(!target.hasChunk(landingCx,landingCz)) {
+                    if(trace)LOG.warn("WORLDSEAM_STRESS_SERVER_BLOCKED: missing target chunk {} {} at {}",
+                        landingCx,landingCz,link.target());
+                    break;
+                }
+                if (!SeamArrival.hasClearance(target, arrival, player)) {
+                    if(trace)LOG.warn("WORLDSEAM_STRESS_SERVER_BLOCKED: destination has COLLISION at {} in {}",
+                        arrival,link.target());
+                    break;
+                }
                 boolean success;
                 if (useExperimental) {
                     SeamDirectTransfer.move(player, target,
