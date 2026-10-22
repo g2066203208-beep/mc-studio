@@ -47,9 +47,9 @@ public final class SeamShipCrossing {
                                            int worldMaxY, ChunkReady loaded) {
         if (destination.minY<worldMinY || destination.maxY>worldMaxY) return false;
         int left=(int)Math.floor(destination.minX/16.0);
-        int right=(int)Math.floor(Math.nextDown(destination.maxX)/16.0);
+        int right=(int)Math.ceil(destination.maxX/16.0)-1;
         int front=(int)Math.floor(destination.minZ/16.0);
-        int back=(int)Math.floor(Math.nextDown(destination.maxZ)/16.0);
+        int back=(int)Math.ceil(destination.maxZ/16.0)-1;
         // Bound the preflight and reject enormous craft until a ticketed
         // asynchronous scheduler can reserve their complete footprint.
         if ((long)(right-left+1)*(back-front+1)>256) return false;
