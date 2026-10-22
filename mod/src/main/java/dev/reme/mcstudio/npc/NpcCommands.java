@@ -58,7 +58,7 @@ public final class NpcCommands {
             .executes(ctx -> {
                 ctx.getSource().sendSuccess(() -> Component.literal(
                     "REME NPC " + dev.reme.mcstudio.StudioMod.VERSION
-                        + "：/npc info 查看居民；/npc bed 查看床位；/npc bed assign 对准原版床分配床位；/npc bed clear 解除床位。/npc spawn、/npc demo 需要作弊权限；也可用生成蛋生成居民"),
+                        + "：/npc market 查看真实市集、/npc info 查看生活、/npc bed 查看床位。/npc spawn 和 /npc demo 需要作弊权限；也可使用生成蛋。"),
                     false);
                 return 1;
             })
