@@ -40,6 +40,7 @@ public final class SeamShipFilmE2E {
     private static Method bounding,impulse,uuidGetter;
     private static Class<?> vec;
     private static int x,z;
+    private static UUID viewerId;
     private static int upTicks,downTicks,passes;
     private static double initialMinY,lowMinY=Double.POSITIVE_INFINITY;
     private static final double PLANE=-64.0;
@@ -170,6 +171,7 @@ public final class SeamShipFilmE2E {
             started=server.getTickCount();
             // The camera is an ACTUAL in-game spectator, never a diagram.
             player.setGameMode(GameType.SPECTATOR);
+            viewerId=player.getUUID();
             player.connection.teleport(x+8,-57,z+8,135,13);
             LOG.info("WORLDSEAM_FILM_RECORD_READY: REAL Sable uuid={}, startMinY={}, plane=-64, /fill air Overworld and Nether completed",
                 shipUuid,initialMinY);
@@ -212,6 +214,21 @@ public final class SeamShipFilmE2E {
             if(hull.minY<PLANE && hull.maxY>PLANE)sawStraddle=true;
             lowMinY=Math.min(lowMinY,hull.minY);
             int ticks=(int)(server.getTickCount()-started);
+            // An actual in-game spectator CAMERA follows the real hull.
+            // The Sable rigid body itself is NEVER teleported.
+            // Camera stays in Overworld, shooting into the other dimension.
+            if(ticks%3==0) {
+                ServerPlayer camera=viewerId==null?null:
+                    server.getPlayerList().getPlayer(viewerId);
+                if(camera!=null && camera.serverLevel().dimension()==Level.OVERWORLD) {
+                    double midY=(hull.minY+hull.maxY)*0.5;
+                    double eyeY=Math.max(-60.0,Math.min(-55.0,midY+4.0));
+                    double eyeDiff=(eyeY+1.62)-midY;
+                    float pitch=(float)Math.toDegrees(Math.atan2(
+                        eyeDiff,Math.sqrt(8.0*8.0+8.0*8.0)));
+                    camera.connection.teleport(x+8,eyeY,z+8,135,pitch);
+                }
+            }
             if(state==2) {
                 downTicks++;
                 // Gentle repeated *real impulse*, not teleport or rewriting
