@@ -177,7 +177,11 @@ public final class CivicGameTests {
             || !ResidentBedLife.tick(second, level, level.getGameTime())
             || !second.isSleeping())
             throw new AssertionError("released bed cannot be reused by neighbor");
-        second.stopSleeping();
+        // Removal of the real bed must NOT leave a phantom sleeper/claim.
+        level.setBlock(head, Blocks.AIR.defaultBlockState(), 3);
+        ResidentBedLife.tick(second, level, level.getGameTime());
+        if (second.isSleeping() || second.assignedBedPos() != null)
+            throw new AssertionError("Destroyed bed left NPC sleeping or claiming a nonexistent bed");
         helper.succeed();
     }
 
