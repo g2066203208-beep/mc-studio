@@ -33,7 +33,7 @@ class SeamNeighborMappingTest {
     @Test void sourceHeightAndArithmeticOverflowRejectUnloadedNeighbor() {
         assertNull(SeamNeighborMapping.loadedSourceY(128,-64,128,-63,320,SeamGraph.EdgeSide.TOP));
         assertNull(SeamNeighborMapping.loadedSourceY(
-            Integer.MAX_VALUE,Integer.MIN_VALUE,0,-64,320,SeamGraph.EdgeSide.TOP));
+            1,Integer.MAX_VALUE,0,-64,320,SeamGraph.EdgeSide.TOP));
     }
 
     @Test void continuityAndInverseSymmetryHoldAcrossBothWorlds() {
