@@ -19,7 +19,6 @@ import org.slf4j.Logger;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -192,17 +191,18 @@ public final class SeamServer {
                         arrival,link.target());
                     break;
                 }
-                boolean success;
-                if (useExperimental) {
-                    SeamDirectTransfer.move(player, target,
-                        new Vec3(player.getX(),nextY,player.getZ()),
-                        player.getYRot(),player.getXRot());
-                    success = true;
-                } else {
-                    success = player.teleportTo(target, player.getX(), nextY,
-                        player.getZ(), Set.of(), player.getYRot(), player.getXRot());
+                // Seam continuity is a HARD requirement. If the native
+                // client-world handoff is disabled, refuse the crossing;
+                // NEVER silently fall back to ServerPlayer.teleportTo
+                // (vanilla respawn/loading screen, lost remote world mesh).
+                if (!useExperimental) {
+                    if(trace) LOG.warn("WORLDSEAM_SEAM_BLOCKED: native continuous handoff disabled, loading-screen teleport strictly forbidden");
+                    break;
                 }
-                if (success) {
+                SeamDirectTransfer.move(player,target,
+                    new Vec3(player.getX(),nextY,player.getZ()),
+                    player.getYRot(),player.getXRot());
+                {
                     player.setDeltaMovement(previousVelocity);
                     player.fallDistance = previousFall;
                     lastCross.put(player.getUUID(), tick);
