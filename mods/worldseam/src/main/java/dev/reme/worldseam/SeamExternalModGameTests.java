@@ -85,10 +85,15 @@ public final class SeamExternalModGameTests {
                 "Sable reflection was not compatible with the installed runtime");
             helper.assertTrue(report.straddlingBodies()>0,
                 "Sable created the ship, but no actual native hull straddled the joined world plane yet");
+            helper.assertTrue(SeamShipResidency.active()>0,
+                "A genuine Sable ship touched the boundary but no adjacent-native terrain region ticket exists");
+            var nether=server.getLevel(net.minecraft.world.level.Level.NETHER);
+            helper.assertTrue(nether!=null,
+                "A real Sable ship cannot enter a missing destination dimension");
             com.mojang.logging.LogUtils.getLogger().info(
-                "WORLDSEAM_REAL_SABLE_STRADDLE_OBSERVED: uuid={}, totalLiveHulls={}, straddling={}, physicsBridgeActive={}",
+                "WORLDSEAM_REAL_SABLE_STRADDLE_OBSERVED: uuid={}, totalLiveHulls={}, straddling={}, shipDrivenRemoteRegionTickets={}, physicsBridgeActive={}",
                 actualShip,report.liveBodies(),report.straddlingBodies(),
-                report.physicsBridgeActive());
+                SeamShipResidency.active(),report.physicsBridgeActive());
             // This DOES NOT pass physics impulse, joints or dual world
             // renderer requirements. This is a narrow real-assembly probe.
         });
