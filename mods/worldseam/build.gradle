@@ -77,6 +77,9 @@ neoForge {
         gameTestServer {
             type = "gameTestServer"
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+            if (project.hasProperty('worldseamRequireExternalMods')) {
+                systemProperty 'worldseam.requireExternalMods', 'true'
+            }
         }
 
         data {
