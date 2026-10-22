@@ -253,3 +253,5 @@ Push CI `39518033958` SUCCESS，PR CI `39518039426` SUCCESS。Artifact `12310085
 - `NpcSingleDayGameTests.java`: `-Dreme.npc.singleDay=true` 下跟踪一个实体UUID，真实成熟小麦、实际背包粮食、24个每1000 ticks的`REME_DAYWATCH_HOUR`记录及日终必须吃饭/工作/休息/收割/行走的验收；CI矩阵含加速24,000 tick及同时要求>=1,200秒墙钟的实测。
 - `scripts/test-npc-single-day-gui.sh`: 启动真正的 NeoForge 图形客户端，起新世界，用`/npc spawn DayWatchFarmer`+`/npc farmer`，玩家作为旁观者每约50秒移动到该NPC旁边拍摄，连续24次，输出24张真实渲染PNG和客户端logs；跟24,000 tick GameTest证据区分。
 - 工作流 `.github/workflows/npc-one-day-watch.yml`、`.github/workflows/npc-one-day-gui.yml`；文档 `docs/NPC_DAYWATCH_24H_V067.md`。**必须看到真实CI日志和PNG才能宣称成功**，不是写完代码就完成。旧NPC的“睡觉”仍是假床（回家补精力），如检查显示逻辑漏洞要修。
+
+- 2026-10-22 DayWatch 纠错：首次一日24k tick实际跑56.3s并暴露白天energy=0卡数小时，`LivingPlanner`已实现严重疲劳休息与回升62继续工作，日终断言最大连续0精力 <=200 tick。首次尝试在加速GameTestServer里同时等待20分钟墙钟，约160000 tick提前超时；该CI失败是测试设计错误，已将精确24k game tick与20分钟真实GUI相机采样独立。不允许以第一轮绿色结果代表后续修复通过。
