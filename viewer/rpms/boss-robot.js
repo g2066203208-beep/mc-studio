@@ -160,6 +160,21 @@ function syncVisual(){
   chip.className=item.connected?'':'off';
   return chip;
  }));
+ // This is measured REAL PHYSICS feedback, not a pre-rendered gait strip.
+ $('gaitLegs').replaceChildren(...s.legAngles.map(j=>{
+  const chip=document.createElement('span');
+  const phase=j.detached?'detached':j.gaitPhase||'stand';
+  chip.className='gait-leg gait-'+phase;
+  chip.textContent=j.id+' '+({stance:'支撑',swing:'抬腿',stand:'站立',detached:'断裂'}[phase]||phase)
+    +' · 髋'+Math.round(j.hip*180/Math.PI)+'° / 膝'+Math.round(j.knee*180/Math.PI)+'°';
+  chip.dataset.phase=phase;
+  return chip;
+ }));
+ $('gaitCycle').textContent=s.mode==='stand'?'站立：6 脚承载中':
+  s.mode==='relax'?'动力断开：关节不再提供主动转矩':
+  '步态相位 '+(s.gait.cycle%1*100).toFixed(0)+'% · '
+  +s.gait.stance+' 支撑 / '+s.gait.swing+' 摆动 · '
+  +'实际纵向位移 '+s.position.z.toFixed(3)+' 格';
  $('bodyHeight').textContent=s.bodyBottom.toFixed(2)+' 格';
  $('jointNum').textContent=s.rigidBodies+' / '+s.joints;
  $('feetCount').textContent=s.feet+' / 6';
