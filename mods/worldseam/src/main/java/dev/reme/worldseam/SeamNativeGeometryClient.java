@@ -5,6 +5,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.LightTexture;
 import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.ItemBlockRenderTypes;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.block.RenderShape;
@@ -32,7 +33,8 @@ import java.util.Map;
  * model draws; it is not yet a framebuffer/stencil portal or fluid renderer.
  */
 public final class SeamNativeGeometryClient {
-    static record Cell(int x,int y,int z,BlockState state,int light) {}
+    static record Cell(int x,int y,int z,BlockState state,int light,
+                       boolean drawModel,boolean drawFluid) {}
     /** Immutable native 16^3 segment; clip ONCE before drawing its models. */
     static record Slice(int cx,int cz,int sectionY,List<Cell> cells,AABB bounds) {}
     private static final double NEAR_PLANE_RENDER_RANGE = 80.0;
@@ -149,14 +151,19 @@ public final class SeamNativeGeometryClient {
         for(int y=begin;y<end;y++) {
             for(int z=0;z<16;z++)for(int x=0;x<16;x++) {
                 BlockState state=section.getBlockState(x,y&15,z);
-                if(state.isAir()||state.getRenderShape()!=RenderShape.MODEL)continue;
-                if(isBuried(cache,chunk,x,y,z))continue;
+                boolean model=state.getRenderShape()==RenderShape.MODEL;
+                var fluid=state.getFluidState();
+                boolean visibleModel=model && !isBuried(cache,chunk,x,y,z);
+                boolean visibleFluid=!fluid.isEmpty() &&
+                    isExposedFluid(cache,chunk,x,y,z,fluid.getType());
+                if(!visibleModel && !visibleFluid)continue;
                 pos.set(ox+x,y,oz+z);
                 int block=remote.getBrightness(LightLayer.BLOCK,pos);
                 int sky=remote.getBrightness(LightLayer.SKY,pos);
                 cells.add(new Cell(ox+x,
                     SeamSectionLayout.mappedBlockY(y,sourceBoundary,targetBoundary),
-                    oz+z,state,LightTexture.pack(block,sky)));
+                    oz+z,state,LightTexture.pack(block,sky),
+                    visibleModel,visibleFluid));
             }
         }
         Slice replacement=null;
@@ -221,6 +228,35 @@ public final class SeamNativeGeometryClient {
         return true;
     }
 
+
+    /** Fluid faces are occluded by matching fluids or full solid blocks.
+     * Never synchronously fetch an absent neighbor chunk from the GPU loop. */
+    private static boolean isExposedFluid(
+        net.minecraft.client.multiplayer.ClientChunkCache cache,
+        LevelChunk chunk,int x,int y,int z,
+        net.minecraft.world.level.material.Fluid fluidType) {
+        for(int[] d:NEIGHBORS) {
+            int nx=x+d[0],ny=y+d[1],nz=z+d[2];
+            if(ny<chunk.getMinBuildHeight()||ny>=chunk.getMaxBuildHeight())
+                return true;
+            int cx=chunk.getPos().x+Math.floorDiv(nx,16);
+            int cz=chunk.getPos().z+Math.floorDiv(nz,16);
+            LevelChunk neighbor;
+            if(cx==chunk.getPos().x && cz==chunk.getPos().z)
+                neighbor=chunk;
+            else {
+                if(!cache.hasChunk(cx,cz))return true;
+                neighbor=cache.getChunk(cx,cz,false);
+                if(neighbor==null)return true;
+            }
+            BlockState adjacent=neighbor.getSection(
+                neighbor.getSectionIndex(ny)).getBlockState(
+                Math.floorMod(nx,16),ny&15,Math.floorMod(nz,16));
+            if(adjacent.getFluidState().getType()!=fluidType &&
+                !adjacent.canOcclude())return true;
+        }
+        return false;
+    }
 
     private static void tick(ClientTickEvent.Post event) {
         Minecraft mc=Minecraft.getInstance();
@@ -353,14 +389,32 @@ public final class SeamNativeGeometryClient {
                     double dy=c.y()+.5-camera.y;
                     double dz=c.z()+.5-camera.z;
                     if(dx*dx+dy*dy+dz*dz>MAX_DISTANCE_SQ)continue;
-                    pose.pushPose();
-                    try {
-                        pose.translate(c.x()-camera.x,c.y()-camera.y,c.z()-camera.z);
-                        mc.getBlockRenderer().renderSingleBlock(
-                            c.state(),pose,buffers,c.light(),OverlayTexture.NO_OVERLAY
-                        );
-                    } finally {
-                        pose.popPose();
+                    if(c.drawModel()) {
+                        pose.pushPose();
+                        try {
+                            pose.translate(c.x()-camera.x,c.y()-camera.y,c.z()-camera.z);
+                            mc.getBlockRenderer().renderSingleBlock(
+                                c.state(),pose,buffers,c.light(),OverlayTexture.NO_OVERLAY
+                            );
+                        } finally {
+                            pose.popPose();
+                        }
+                    }
+                    if(c.drawFluid()) {
+                        int nativeY=c.y()-sourceBoundary+targetBoundary;
+                        var fluid=c.state().getFluidState();
+                        var consumer=buffers.getBuffer(
+                            ItemBlockRenderTypes.getRenderLayer(fluid));
+                        // Liquid renderer emits native WORLD-space vertices;
+                        // the offset must preserve X/Z and map only Y,
+                        // without mutating GL model-view for other mods.
+                        var shifted=new SeamOffsetVertexConsumer(consumer,
+                            (float)-camera.x,
+                            (float)(sourceBoundary-targetBoundary-camera.y),
+                            (float)-camera.z);
+                        mc.getBlockRenderer().renderLiquid(
+                            new BlockPos(c.x(),nativeY,c.z()),queuedRemote,
+                            shifted,c.state(),fluid);
                     }
                     lastFrameDrawn++;
                     if(c.state().is(Blocks.END_STONE))lastFrameEndStone++;
