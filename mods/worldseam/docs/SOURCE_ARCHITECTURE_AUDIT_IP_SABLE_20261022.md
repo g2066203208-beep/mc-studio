@@ -106,3 +106,14 @@ Official [Creators-of-Aeronautics/Simulated-Project](https://github.com/Creators
 
 **Additional aerodynamic correctness criterion:** per chart validate dimension-dependent air pressure, lift/drag, buoyancy, projected world propeller force application point, torque, particles/airflow, rotor speed, Create stress, passenger seat ownership and network snapshot continuity. Gravity must also obey chosen chart semantics and not be double-applied by fused Rapier scenes.
 
+
+### 5.1 Implemented test-fixture amendment (NOT YET VERIFIED)
+
+After the source audit, **the actual CI film fixture has now been changed**, using no copied third-party implementation, to place:
+- registered `create:creative_motor` from genuine Create (shaft facing UP, source default configured 16 speed per Create CreativeMotorBlockEntity source);
+- registered `aeronautics:smart_propeller` immediately above the motor, a vertical kinetic pair;
+- both blocks inside the **same actual Sable `assembleBlocks` ship**, while preserving real aerodynamic/kinetic BlockEntities.
+
+`SeamAeronauticsEvidence` reads **the assembled live Sable plot's** real `dev.eriksonn.aeronautics` BlockEntityPropeller actors, checks actual Create `getSpeed()`, actor active state and measured thrust. Film test reports `WORLDSEAM_FILM_AERONAUTICS_DRIVETRAIN`; it **cannot claim Aeronautics power** unless real motor+propeller RPM and native thrust are nonzero. Absence is **a test FAILURE**, not a fallback to an externally moved decorative boat.
+
+Current CI still uses test-imposed force pulses as an *assist* to test body boundary traversal. The **final unassisted Aeronautics propulsion/controls** gate must replace that assistance and prove actual throttle direction changes (down/return), spinning blades, air-pressure behavior, and seat/control continuity. Until then, even a powered-propeller film is only an intermediate integration milestone.
