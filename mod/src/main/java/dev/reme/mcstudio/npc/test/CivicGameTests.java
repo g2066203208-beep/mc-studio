@@ -26,6 +26,7 @@ import dev.reme.mcstudio.npc.life.CivicWorkplaces;
 import dev.reme.mcstudio.npc.life.SafeBuilder;
 import dev.reme.mcstudio.npc.life.LivingWorldActions;
 import dev.reme.mcstudio.npc.life.LivingPlanner;
+import dev.reme.mcstudio.npc.life.MutualAid;
 import dev.reme.mcstudio.npc.life.CaravanRoutes;
 import net.minecraft.world.level.block.entity.ChestBlockEntity;
 import dev.reme.mcstudio.npc.life.SettlementLedger;
@@ -1549,6 +1550,144 @@ public final class CivicGameTests {
         if (!CivicWorkplaces.inspect(level, center).indoorBuilding())
             throw new AssertionError("A real uninterrupted ceiling above a paired door was rejected");
         helper.succeed();
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 100)
+    public static void hungry_neighbor_receives_one_real_surplus_meal_and_remembers_kindness(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos a = helper.absolutePos(new BlockPos(6, 9, 6));
+        PlayerNpcEntity recipient = NpcRegistry.PLAYER_NPC.get().create(level);
+        PlayerNpcEntity donor = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (recipient == null || donor == null) throw new AssertionError("Missing real NPC entities");
+        recipient.moveTo(a.getX() + 0.5, a.getY(), a.getZ() + 0.5, 0, 0);
+        donor.moveTo(a.getX() + 1.5, a.getY(), a.getZ() + 0.5, 0, 0);
+        recipient.setHomePos(a); donor.setHomePos(a.east());
+        recipient.setIdentity(SocietyRules.civilian("neighbors"));
+        donor.setIdentity(SocietyRules.civilian("neighbors"));
+        recipient.setMode(PlayerNpcEntity.Mode.LIVE);
+        donor.setMode(PlayerNpcEntity.Mode.LIVE);
+        recipient.changeNeeds(-70, 0, 0);
+        donor.backpack().addItem(new ItemStack(Items.BREAD, 4));
+        if (!level.addFreshEntity(recipient) || !level.addFreshEntity(donor))
+            throw new AssertionError("Could not instantiate two residents");
+        long tick = MovementPolicy.phase(recipient.getId(), 80);
+        if (!MutualAid.tick(recipient, level, tick)
+            || recipient.backpack().countItem(Items.BREAD) != 1
+            || donor.backpack().countItem(Items.BREAD) != 3
+            || recipient.memory().trust(donor.getUUID()) != 12)
+            throw new AssertionError("Physical neighbor aid was not a conserved one-item transfer");
+        CompoundTag saved = new CompoundTag();
+        recipient.addAdditionalSaveData(saved);
+        PlayerNpcEntity reloaded = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (reloaded == null) throw new AssertionError("Cannot reload recipient");
+        reloaded.readAdditionalSaveData(saved);
+        if (reloaded.backpack().countItem(Items.BREAD) != 1
+            || reloaded.memory().trust(donor.getUUID()) != 12)
+            throw new AssertionError("Real food or social memory vanished after resident NBT save");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 100)
+    public static void neighbor_aid_never_steals_reserved_or_hostile_food_or_overfills_bags(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos a = helper.absolutePos(new BlockPos(6, 9, 6));
+        PlayerNpcEntity hungry = NpcRegistry.PLAYER_NPC.get().create(level);
+        PlayerNpcEntity donor = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (hungry == null || donor == null) throw new AssertionError("Missing NPC entity");
+        hungry.moveTo(a.getX() + 0.5, a.getY(), a.getZ() + 0.5, 0, 0);
+        donor.moveTo(a.getX() + 1.5, a.getY(), a.getZ() + 0.5, 0, 0);
+        hungry.setHomePos(a); donor.setHomePos(a.east());
+        hungry.setIdentity(SocietyRules.civilian("mutual"));
+        donor.setIdentity(SocietyRules.civilian("mutual"));
+        hungry.setMode(PlayerNpcEntity.Mode.LIVE);
+        donor.setMode(PlayerNpcEntity.Mode.LIVE);
+        hungry.changeNeeds(-65, 0, 0);
+        donor.backpack().addItem(new ItemStack(Items.BREAD, 2));
+        if (!level.addFreshEntity(hungry) || !level.addFreshEntity(donor))
+            throw new AssertionError("Could not spawn food test subjects");
+        long tick = MovementPolicy.phase(hungry.getId(), 80);
+        if (MutualAid.tick(hungry, level, tick)
+            || donor.backpack().countItem(Items.BREAD) != 2)
+            throw new AssertionError("Aid stole a neighbor's last two meals");
+        donor.backpack().addItem(new ItemStack(Items.BREAD, 2));
+        donor.setIdentity(SocietyRules.civilian("separate_region"));
+        if (MutualAid.tick(hungry, level, tick)
+            || donor.backpack().countItem(Items.BREAD) != 4)
+            throw new AssertionError("Aid crossed a distinct real social region");
+        donor.setIdentity(SocietyRules.civilian("mutual"));
+        for (int i = 0; i < hungry.backpack().getContainerSize(); i++)
+            hungry.backpack().setItem(i, new ItemStack(Items.DIRT, 64));
+        if (MutualAid.tick(hungry, level, tick)
+            || donor.backpack().countItem(Items.BREAD) != 4)
+            throw new AssertionError("A full recipient inventory lost the donor's real food");
+        hungry.backpack().clearContent();
+        if (!MutualAid.tick(hungry, level, tick)
+            || donor.backpack().countItem(Items.BREAD) != 3)
+            throw new AssertionError("Allowed neighbor failed conservative actual transfer");
+        hungry.backpack().clearContent();
+        if (MutualAid.tick(hungry, level, tick + 80)
+            || donor.backpack().countItem(Items.BREAD) != 3)
+            throw new AssertionError("Unpersisted help cooldown allowed immediately repeated food looting");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 2700)
+    public static void twenty_four_actual_live_npcs_survive_2400_world_ticks(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos corner = helper.absolutePos(new BlockPos(6, 9, 6));
+        // A real loaded, level stone floor in a 48x24x48 isolated test region.
+        // No unchecked chunk generation or fake off-world simulation.
+        for (int x = 0; x < 32; x++) for (int z = 0; z < 32; z++) {
+            BlockPos floor = corner.offset(x, -1, z);
+            level.setBlock(floor, Blocks.STONE.defaultBlockState(), 3);
+            level.setBlock(floor.above(), Blocks.AIR.defaultBlockState(), 3);
+            level.setBlock(floor.above(2), Blocks.AIR.defaultBlockState(), 3);
+        }
+        PlayerNpcEntity[] residents = new PlayerNpcEntity[24];
+        java.util.HashSet<UUID> identities = new java.util.HashSet<>();
+        for (int i = 0; i < residents.length; i++) {
+            PlayerNpcEntity npc = NpcRegistry.PLAYER_NPC.get().create(level);
+            if (npc == null) throw new AssertionError("Living NPC registry unavailable");
+            BlockPos home = corner.offset(2 + (i % 6) * 4, 0, 2 + (i / 6) * 4);
+            npc.moveTo(home.getX() + 0.5, home.getY(), home.getZ() + 0.5, 0, 0);
+            npc.setHomePos(home);
+            npc.setWorkPos(home);
+            npc.setRoamingRadius(16);
+            npc.setIdentity(SocietyRules.civilian("loaded_npc_stress"));
+            npc.setMode(PlayerNpcEntity.Mode.LIVE);
+            npc.setProfession(i % 6 == 0
+                ? PlayerNpcEntity.Profession.GUARD
+                : PlayerNpcEntity.Profession.RESIDENT);
+            npc.backpack().addItem(new ItemStack(Items.BREAD, 3));
+            if (!level.addFreshEntity(npc) || !identities.add(npc.getUUID()))
+                throw new AssertionError("Duplicate UUID or failed NPC spawn");
+            residents[i] = npc;
+        }
+        final long wallStart = System.nanoTime();
+        // Genuine ticking GameTestServer; no direct invocation of the AI
+        // loop, no teleport simulation, and no invented TPS benchmark.
+        helper.runAfterDelay(2400, () -> {
+            int survivors = 0;
+            int changedNeeds = 0;
+            java.util.HashSet<UUID> stillUnique = new java.util.HashSet<>();
+            for (PlayerNpcEntity npc : residents) {
+                if (npc.isAlive() && !npc.isRemoved()) survivors++;
+                if (npc.hunger() != 90 || npc.energy() != 85) changedNeeds++;
+                if (!stillUnique.add(npc.getUUID()))
+                    helper.fail("Repeated NPC UUID during long running simulation", corner);
+                if (npc.memory().relationshipSnapshot().size() > 128)
+                    helper.fail("NPC relationship memory exceeded documented cap", corner);
+            }
+            double wallSeconds = (System.nanoTime() - wallStart) / 1_000_000_000.0;
+            System.out.println("REME_NPC_LONGRUN residentCount=" + residents.length
+                + " observedWorldTicks=2400 survivors=" + survivors
+                + " changedNeeds=" + changedNeeds
+                + " wallSeconds=" + String.format(java.util.Locale.ROOT, "%.2f", wallSeconds)
+                + " (NOT a 200-NPC MSPT benchmark)");
+            if (survivors != residents.length || changedNeeds < 20)
+                helper.fail("Long-lived server NPCs disappeared or never advanced daily needs", corner);
+            else helper.succeed();
+        });
     }
 
     @GameTest(template = "empty", timeoutTicks = 100)
