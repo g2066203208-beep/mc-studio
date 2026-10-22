@@ -491,6 +491,15 @@ public final class SeamVisualE2E {
         // Vanilla fluid tessellation is exercised: one WATER block, one LAVA
         // block, and one WATERLOGGED slab with a simultaneous model+fluid.
         // Avoid the central player clearance and the TNT witness.
+        // A tiny transparent containment ring prevents real flowing water/
+        // lava from flooding the player's automated cross-seam landing path.
+        // The top remains open, exposing the actual native fluid surface.
+        for(int[] fixture:new int[][]{{3,-1},{-3,1}}) {
+            int fx=x+fixture[0],fz=z+fixture[1];
+            for(int[] side:new int[][]{{1,0},{-1,0},{0,1},{0,-1}})
+                nether.setBlock(new BlockPos(fx+side[0],127,fz+side[1]),
+                    Blocks.GLASS.defaultBlockState(),3);
+        }
         nether.setBlock(new BlockPos(x+3,127,z-1),
             Blocks.WATER.defaultBlockState(),3);
         nether.setBlock(new BlockPos(x-3,127,z+1),
