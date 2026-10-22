@@ -188,6 +188,7 @@ public final class SeamGeometryGameTests {
         var netherBlock=new net.minecraft.core.BlockPos(x,127,z);
         var homeBlock=new net.minecraft.core.BlockPos(x,-64,z);
         var oldNether=nether.getBlockState(netherBlock);
+        var oldHidden=nether.getBlockState(netherBlock.above());
         var oldHome=home.getBlockState(homeBlock);
         var overView=new SeamJoinedServerBlockView(home,nether,down);
         var netherView=new SeamJoinedServerBlockView(nether,home,up);
@@ -238,8 +239,7 @@ public final class SeamGeometryGameTests {
         } finally {
             home.setBlock(homeBlock,oldHome,3);
             nether.setBlock(netherBlock,oldNether,3);
-            // Restore Nether hidden native Y128 too: disposable fixture
-            // must not permanently corrupt existing generated Nether.
+            nether.setBlock(netherBlock.above(),oldHidden,3);
         }
     }
 
