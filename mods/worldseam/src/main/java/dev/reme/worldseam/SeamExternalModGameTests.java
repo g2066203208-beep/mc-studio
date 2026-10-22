@@ -132,6 +132,128 @@ public final class SeamExternalModGameTests {
         });
     }
 
+
+    /**
+     * Actual physics MOTION gate, not a static straddle detection:
+     * Create an honest Sable ServerSubLevel via its released public API,
+     * apply a mass-scaled Newton FORCE through its real Rapier pipeline,
+     * then require the SAME UUID's world-space AABB to move downward.
+     * No fake entity movement, direct pose editing, or teleporting.
+     */
+    @GameTest(template="empty",batch="worldseam.real_ship_dynamics",timeoutTicks=160)
+    public static void realSableMustActuallyMoveUnderNativeRapierForce(GameTestHelper helper) {
+        if(!Boolean.getBoolean("worldseam.requireExternalMods")) {
+            helper.succeed();
+            return;
+        }
+        var level=helper.getLevel();
+        var origin=helper.absolutePos(new net.minecraft.core.BlockPos(4,1,4));
+        int x=origin.getX(),z=origin.getZ();
+        // Disposable isolated GameTest fixture: clear a small, real native
+        // vertical fall shaft, not a motion animation or transformed blocks.
+        var pos=new net.minecraft.core.BlockPos.MutableBlockPos();
+        for(int y=-64;y<=-49;y++)
+            for(int dx=-4;dx<=4;dx++)for(int dz=-4;dz<=4;dz++) {
+                pos.set(x+dx,y,z+dz);
+                level.setBlock(pos,net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(),3);
+            }
+        var nativeBlocks=new java.util.ArrayList<net.minecraft.core.BlockPos>();
+        for(int dy=0;dy<=1;dy++)
+            for(int dx=-1;dx<=1;dx++)for(int dz=-1;dz<=1;dz++) {
+                var b=new net.minecraft.core.BlockPos(x+dx,-55+dy,z+dz);
+                level.setBlock(b,net.minecraft.world.level.block.Blocks.STONE.defaultBlockState(),3);
+                nativeBlocks.add(b);
+            }
+        final Object sub;
+        final java.lang.reflect.Method hullMethod,forceMethod;
+        final java.util.UUID uuid;
+        final Class<?> jomlVec;
+        final double massKg,initialY;
+        final long startTime=level.getGameTime();
+        try {
+            Class<?> shape=Class.forName(
+                "dev.ryanhcode.sable.companion.math.BoundingBox3ic");
+            Object cube=Class.forName(
+                "dev.ryanhcode.sable.companion.math.BoundingBox3i")
+                .getConstructor(int.class,int.class,int.class,int.class,int.class,int.class)
+                .newInstance(x-1,-55,z-1,x+1,-54,z+1);
+            sub=Class.forName("dev.ryanhcode.sable.api.SubLevelAssemblyHelper")
+                .getMethod("assembleBlocks",net.minecraft.server.level.ServerLevel.class,
+                    net.minecraft.core.BlockPos.class,Iterable.class,shape)
+                .invoke(null,level,new net.minecraft.core.BlockPos(x,-55,z),
+                    nativeBlocks,cube);
+            if(sub==null)throw new IllegalStateException("Sable did not allocate a real ship");
+            var subType=Class.forName("dev.ryanhcode.sable.sublevel.SubLevel");
+            subType.getMethod("updateBoundingBox").invoke(sub);
+            hullMethod=subType.getMethod("boundingBox");
+            uuid=(java.util.UUID)subType.getMethod("getUniqueId").invoke(sub);
+            var massBody=Class.forName("dev.ryanhcode.sable.api.physics.PhysicsPipelineBody");
+            var massData=massBody.getMethod("getMassTracker").invoke(sub);
+            massKg=((Number)Class.forName("dev.ryanhcode.sable.api.physics.mass.MassData")
+                .getMethod("getMass").invoke(massData)).doubleValue();
+            if(!Double.isFinite(massKg)||massKg<=0)
+                throw new IllegalStateException("Sable returned nonphysical mass "+massKg);
+            Object physics=Class.forName(
+                "dev.ryanhcode.sable.sublevel.system.SubLevelPhysicsSystem")
+                .getMethod("require",net.minecraft.world.level.Level.class)
+                .invoke(null,level);
+            Object pipeline=physics.getClass().getMethod("getPipeline").invoke(physics);
+            Class<?> vector=Class.forName("org.joml.Vector3dc");
+            jomlVec=Class.forName("org.joml.Vector3d");
+            forceMethod=pipeline.getClass().getMethod("applyLinearAndAngularImpulse",
+                massBody,vector,vector,boolean.class);
+            // Keep the actual live Sable pipeline in a final closure for
+            // repeated force while engine substeps are ticking.
+            nativeSableForcePipeline= pipeline;
+            var aabb=hullMethod.invoke(sub);
+            var bbClass=Class.forName(
+                "dev.ryanhcode.sable.companion.math.BoundingBox3dc");
+            initialY=((Number)bbClass.getMethod("minY").invoke(aabb)).doubleValue();
+            if(initialY > -53 || initialY < -57)
+                throw new IllegalStateException("Sable initial real bounds invalid: "+initialY);
+            com.mojang.logging.LogUtils.getLogger().info(
+                "WORLDSEAM_SABLE_NATIVE_MOTION_START: uuid={}, massKg={}, minY={}, fixture=real18BlockRaft",
+                uuid,massKg,initialY);
+        } catch(ReflectiveOperationException | RuntimeException | LinkageError ex) {
+            helper.fail("Native Sable dynamics fixture could not initialize: "+ex);
+            return;
+        }
+        helper.succeedWhen(() -> {
+            try {
+                long elapsed=level.getGameTime()-startTime;
+                var bounds=hullMethod.invoke(sub);
+                double currentY=((Number)Class.forName(
+                    "dev.ryanhcode.sable.companion.math.BoundingBox3dc")
+                    .getMethod("minY").invoke(bounds)).doubleValue();
+                if(!Double.isFinite(currentY))
+                    throw new IllegalStateException("Sable physics produced non-finite position");
+                if(currentY < initialY-0.8) {
+                    com.mojang.logging.LogUtils.getLogger().info(
+                        "WORLDSEAM_REAL_SABLE_NATIVE_FORCE_MOVEMENT_PASS: sameUuid={}, initialMinY={}, observedMinY={}, deltaY={}, elapsedNativeTicks={}, nativeMassKg={}, noTeleports=true",
+                        uuid,initialY,currentY,currentY-initialY,elapsed,massKg);
+                    return;
+                }
+                if(elapsed<60) {
+                    // Sable uses true FORCE in Newtons. Acceleration = F/m,
+                    // not the obsolete fixed "35 N" that barely moved a ship.
+                    Object force=jomlVec.getConstructor(double.class,double.class,double.class)
+                        .newInstance(0.0,-massKg*75.0,0.0);
+                    Object zero=jomlVec.getConstructor(double.class,double.class,double.class)
+                        .newInstance(0.0,0.0,0.0);
+                    forceMethod.invoke(nativeSableForcePipeline,sub,force,zero,true);
+                }
+                helper.assertTrue(false,"Sable native Rapier has not moved its real ship yet: initial="+
+                    initialY+" current="+currentY+" ticks="+elapsed);
+            } catch(ReflectiveOperationException | RuntimeException ex) {
+                helper.fail("Native Sable position/force callback failed: "+ex);
+            }
+        });
+    }
+
+    /** GameTest single server-thread session; only the real optional mod
+        physics suite populates this. Never consulted by production code. */
+    private static Object nativeSableForcePipeline;
+
     @GameTest(template="empty",batch="worldseam.real_external_mods",timeoutTicks=160)
     public static void loadRealSableCreateAndAeronautics(GameTestHelper helper) {
         if(!Boolean.getBoolean("worldseam.requireExternalMods")) {
