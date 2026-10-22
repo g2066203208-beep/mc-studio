@@ -130,6 +130,9 @@ public final class NpcCommands {
                     .executes(ctx -> cityCensus(ctx.getSource())))
                 .then(Commands.literal("audit")
                     .executes(ctx -> cityLiveAudit(ctx.getSource())))
+                .then(Commands.literal("incident")
+                    .requires(source -> source.hasPermission(2))
+                    .executes(ctx -> cityDemoActualIncident(ctx.getSource())))
                 .then(Commands.literal("demo")
                     .requires(source -> source.hasPermission(2))
                     .executes(ctx -> cityDemo(ctx.getSource()))))
@@ -451,6 +454,43 @@ public final class NpcCommands {
             + " 已报警=" + g + " 警察=" + h + " 追捕任务=" + i
             + " 在押=" + j + " 店铺周边警力=" + k
             + "。仅统计周围42格真实加载实体，不伪造抓捕。"), false);
+        return 1;
+    }
+
+    /** Explicit OP test action. Only an actual physically nearby
+     * dishonest civilian, a loaded open shop with REAL food, eyewitness
+     * visibility and atomic real inventories can begin the case. From that
+     * single moment ALL movement, dispatch, arrest, gates and detention
+     * depend exclusively on NPC AI. No scripted spectator teleports of NPCs.
+     */
+    private static int cityDemoActualIncident(CommandSourceStack source)
+        throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        ServerPlayer player = source.getPlayerOrException();
+        var locals = player.serverLevel().getEntitiesOfClass(
+            PlayerNpcEntity.class, player.getBoundingBox().inflate(48),
+            npc -> npc.isAlive() && npc.mode() == PlayerNpcEntity.Mode.LIVE);
+        PlayerNpcEntity thief = locals.stream()
+            .filter(npc -> npc.getTags().contains("reme_city_shoplifter"))
+            .findFirst().orElse(null);
+        PlayerNpcEntity clerk = locals.stream()
+            .filter(npc -> npc.getTags().contains("reme_city_clerk"))
+            .findFirst().orElse(null);
+        if (thief == null || clerk == null
+            || !ConvenienceStoreCrime.takeUnpaidFood(thief, clerk,
+                player.serverLevel(), player.serverLevel().getGameTime())) {
+            source.sendFailure(Component.literal("实体案件触发拒绝：真实小偷/店员不在附近、"
+                + "两者已不在柜台的碰触距离内、未到营业时间，或真实库存/现场视线不满足。"
+                + "此命令绝不将小偷传送回商店，不会复制商品。"));
+            return 0;
+        }
+        long tick=player.serverLevel().getGameTime();
+        System.out.println("REME_NPC_CINEMA_REAL_CASE_STARTED tick=" + tick
+            + " thief=" + thief.getUUID() + " shop=" + clerk.getUUID());
+        source.sendSuccess(() -> Component.literal(
+            "已在真实商店柜台触发一次实际未付款商品转移（管理员可复现测试）。"
+            + "接下来的逃离、报警、追逐、押送和进入牢房完全由NPC的真实运动AI决定。"
+            + "使用 /npc camera chase shoplifter 连续跟拍，"
+            + "或 /npc camera pov guard 附身警卫。"), true);
         return 1;
     }
 
