@@ -16,7 +16,7 @@ export const LEG_COUNT=6;
 export const JOINT_COUNT=12;
 const UPPER_LENGTH=1.65,LOWER_LENGTH=1.75;
 const HIP_Y=-.38;
-export const LEG_COORDS=[-2,0,2].flatMap((z,i)=>[-1,1].map((side)=>({
+export const LEG_COORDS=[-3,0,3].flatMap((z,i)=>[-1,1].map((side)=>({
  x:side*2.9,z,side,row:i,id:(side<0?'L':'R')+(i+1),
  tripod:(i+(side===1?1:0))%2
 })));
@@ -56,7 +56,7 @@ export function createMultibodyBoss(RAPIER,opts={}){
   .setTranslation(0,-.5,0).setFriction(1.75).setRestitution(0));
  // Larger-than-player six-leg machine. All numbers in Minecraft blocks/metres.
  const body=rb(RAPIER,world,0,4.55,0,{massive:true});
- const chest=cuboid(RAPIER,world,body,[5.6,1.15,5.3],[0,0,0],.40);
+ const chest=cuboid(RAPIER,world,body,[5.6,1.15,7.3],[0,0,0],.30);
  const core=cuboid(RAPIER,world,body,[2.3,.85,2.3],[0,.84,0],.42);
  const nose=cuboid(RAPIER,world,body,[1.65,.65,1.1],[0,-.08,-3.0],.55);
  const motorSpecs=LEG_COORDS.map(config=>{
