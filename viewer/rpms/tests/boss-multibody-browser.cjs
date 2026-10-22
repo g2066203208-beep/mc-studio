@@ -49,6 +49,12 @@ const {chromium}=require('playwright-core');
   });
   const moving=gaitTrial.result;
   console.log('GAIT_DIAGNOSTIC_SAMPLES',JSON.stringify(gaitTrial.diagnostics));
+  assert.ok(gaitTrial.diagnostics.every(p=>p.contacts>=3),
+    'REAL SUPPORT REQUIRED: a gait must retain 3+ collision-bearing feet on the ground, not float: '+JSON.stringify(gaitTrial.diagnostics));
+  assert.ok(gaitTrial.diagnostics.every(p=>p.bodyY>3.7&&p.bodyY<4.45),
+    'Body must not levitate or collapse while tripod gait is active: '+JSON.stringify(gaitTrial.diagnostics));
+  assert.ok(gaitTrial.diagnostics.every(p=>p.worstHip<.65&&p.worstKnee<.75),
+    'Physical joint servo must track commands without hitting hard stops: '+JSON.stringify(gaitTrial.diagnostics));
   console.log('ARTICULATED_MARCH',JSON.stringify(moving));
   assert.equal(moving.joints,12);
   const range=Math.max(...moving.legAngles.map(x=>Math.abs(x.hip)));
