@@ -6,6 +6,8 @@ import net.minecraft.commands.arguments.coordinates.BlockPosArgument;
 import dev.reme.mcstudio.npc.life.PlayerMiningActions;
 import dev.reme.mcstudio.npc.life.DailyRoaming;
 import dev.reme.mcstudio.npc.life.PublicSafety;
+import dev.reme.mcstudio.npc.life.CivicWorkplaces;
+import dev.reme.mcstudio.npc.life.ShopCounter;
 import dev.reme.mcstudio.npc.life.FootTrafficData;
 import dev.reme.mcstudio.npc.life.EmergentSettlements;
 import dev.reme.mcstudio.npc.life.SettlementLedger;
@@ -43,7 +45,7 @@ public final class NpcCommands {
                 boolean ready = ctx.getSource().getServer().getCommands()
                     .getDispatcher().getRoot().getChild("npc") != null;
                 ctx.getSource().sendSuccess(() -> Component.literal(
-                    "REME NPC v0.6.3-dev active; /npc registered=" + ready
+                    "REME NPC v0.6.4-dev active; /npc registered=" + ready
                     + ". If /npc spawn is denied, enable cheats or operator privileges."),
                     false);
                 return 1;
@@ -51,7 +53,7 @@ public final class NpcCommands {
         event.getDispatcher().register(Commands.literal("npc")
             .executes(ctx -> {
                 ctx.getSource().sendSuccess(() -> Component.literal(
-                    "REME NPC v0.6.3-dev: /npc info, /npc spawn (cheats required), /npc demo (cheats required)"),
+                    "REME NPC v0.6.4-dev: /npc info, /npc spawn (cheats required), /npc demo (cheats required)"),
                     false);
                 return 1;
             })
@@ -73,6 +75,13 @@ public final class NpcCommands {
             .then(Commands.literal("farmer").executes(ctx -> profession(ctx.getSource(), PlayerNpcEntity.Profession.FARMER)))
             .then(Commands.literal("baker").executes(ctx -> profession(ctx.getSource(), PlayerNpcEntity.Profession.BAKER)))
             .then(Commands.literal("shopkeeper").executes(ctx -> profession(ctx.getSource(), PlayerNpcEntity.Profession.SHOPKEEPER)))
+            .then(Commands.literal("workplace").executes(ctx -> describeWorkplace(ctx.getSource())))
+            .then(Commands.literal("shopstock")
+                .executes(ctx -> shopStockStatus(ctx.getSource()))
+                .then(Commands.literal("set").requires(source -> source.hasPermission(2))
+                    .executes(ctx -> assignShopStock(ctx.getSource())))
+                .then(Commands.literal("clear").requires(source -> source.hasPermission(2))
+                    .executes(ctx -> clearShopStock(ctx.getSource()))))
             .then(Commands.literal("resident").executes(ctx -> profession(ctx.getSource(), PlayerNpcEntity.Profession.RESIDENT)))
             .then(Commands.literal("scout").executes(ctx -> profession(ctx.getSource(), PlayerNpcEntity.Profession.SCOUT)))
             .then(Commands.literal("courier").executes(ctx -> profession(ctx.getSource(), PlayerNpcEntity.Profession.COURIER)))
@@ -92,6 +101,10 @@ public final class NpcCommands {
                         BlockPosArgument.getLoadedBlockPos(ctx, "target")))))
             .then(Commands.literal("minestop").requires(source -> source.hasPermission(2))
                 .executes(ctx -> cancelMining(ctx.getSource())))
+            .then(Commands.literal("buildplan").requires(source -> source.hasPermission(2))
+                .then(Commands.argument("type", StringArgumentType.word())
+                    .executes(ctx -> setBlueprint(ctx.getSource(),
+                        StringArgumentType.getString(ctx, "type")))))
             .then(Commands.literal("buildstart").requires(source -> source.hasPermission(2))
                 .executes(ctx -> construction(ctx.getSource(), true)))
             .then(Commands.literal("buildstop").requires(source -> source.hasPermission(2))
@@ -377,6 +390,31 @@ public final class NpcCommands {
         return 1;
     }
 
+    private static int setBlueprint(CommandSourceStack source, String selected)
+        throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        PlayerNpcEntity npc = closestOwnedNpc(source.getPlayerOrException());
+        if (npc == null) return 0;
+        SafeBuilder.Template kind;
+        try { kind = SafeBuilder.Template.valueOf(selected.toUpperCase(Locale.ROOT)); }
+        catch (IllegalArgumentException ignored) {
+            source.sendFailure(Component.literal(
+                "Unknown building type. Allowed: shelter, shop, bakery."));
+            return 0;
+        }
+        if (npc.buildEnabled()) {
+            source.sendFailure(Component.literal(
+                "Pause the active construction with /npc buildstop before changing templates."));
+            return 0;
+        }
+        npc.setBuildTemplate(kind);
+        source.sendSuccess(() -> Component.literal(
+            "Building blueprint: " + kind + " | "
+            + SafeBuilder.steps(kind) + " real block placements. Prepare actual"
+            + " inventory materials. /npc setwork at build site; /npc buildstart"
+            + " checks empty loaded cells. No buildings spawn for free."), false);
+        return 1;
+    }
+
     private static int construction(CommandSourceStack source, boolean start)
         throws com.mojang.brigadier.exceptions.CommandSyntaxException {
         ServerPlayer player = source.getPlayerOrException();
@@ -387,7 +425,7 @@ public final class NpcCommands {
             source.sendSuccess(() -> Component.literal("Construction paused"), false);
             return 1;
         }
-        if (!SafeBuilder.validateSite(player.serverLevel(), npc.workPos())) {
+        if (!SafeBuilder.validateSite(player.serverLevel(), npc.workPos(), npc.buildTemplate())) {
             source.sendFailure(Component.literal("Build site must be loaded and empty: 5x5 x 3, no entities inside"));
             return 0;
         }
@@ -395,7 +433,7 @@ public final class NpcCommands {
         npc.resetBuildCursor();
         npc.setBuildEnabled(true);
         npc.setMode(PlayerNpcEntity.Mode.LIVE);
-        source.sendSuccess(() -> Component.literal("Started consented 5x5 shelter build at " +
+        source.sendSuccess(() -> Component.literal("Started consented 5x5 " + npc.buildTemplate() + " build at " +
             npc.workPos().toShortString() + "; uses actual cobblestone/planks, cannot clear blocks"), true);
         return 1;
     }
@@ -509,6 +547,73 @@ public final class NpcCommands {
         source.sendSuccess(() -> Component.literal(
             "Guard holding location unset. Existing individual detainees"
             + " retain their finite sentence and automatic release."), true);
+        return 1;
+    }
+
+    private static int describeWorkplace(CommandSourceStack source)
+        throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        PlayerNpcEntity npc = closestOwnedNpc(source.getPlayerOrException());
+        if (npc == null) return 0;
+        var survey = CivicWorkplaces.inspect(source.getLevel(), npc.workPos());
+        source.sendSuccess(() -> Component.literal(
+            npc.getName().getString() + " workplace: "
+            + survey.type() + " | physical stations=" + survey.requiredBlocks()
+            + " | roof=" + survey.roof() + " | door=" + survey.door()
+            + " | finished building=" + survey.indoorBuilding()
+            + " | actual role compatible="
+            + CivicWorkplaces.matchesProfession(survey.type(), npc.profession())
+            + ". Worksite detection does not automatically build a structure or create supplies."), false);
+        return 1;
+    }
+
+    private static int shopStockStatus(CommandSourceStack source)
+        throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        PlayerNpcEntity npc = closestOwnedNpc(source.getPlayerOrException());
+        if (npc == null) return 0;
+        source.sendSuccess(() -> Component.literal(
+            "Shopkeeper=" + (npc.profession() == PlayerNpcEntity.Profession.SHOPKEEPER)
+            + " | assigned stock chest=" + npc.shopStockChest()
+            + " | actual food=" + ShopCounter.stockedFood(npc.backpack())
+            + " | emerald balance=" + npc.backpack().countItem(Items.EMERALD)), false);
+        return 1;
+    }
+
+    private static int assignShopStock(CommandSourceStack source)
+        throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        ServerPlayer player = source.getPlayerOrException();
+        PlayerNpcEntity npc = closestOwnedNpc(player);
+        if (npc == null || npc.profession() != PlayerNpcEntity.Profession.SHOPKEEPER) {
+            source.sendFailure(Component.literal(
+                "Own a SHOPKEEPER NPC within sixteen blocks before assigning stocks"));
+            return 0;
+        }
+        HitResult hit = player.pick(6.0D, 0.0F, false);
+        if (!(hit instanceof BlockHitResult target)
+            || !player.serverLevel().hasChunkAt(target.getBlockPos())
+            || !(player.serverLevel().getBlockEntity(target.getBlockPos())
+                instanceof ChestBlockEntity)
+            || !DailyRoaming.inRange(npc, target.getBlockPos())) {
+            source.sendFailure(Component.literal(
+                "Look at an actual loaded vanilla chest within six blocks"
+                + " and the shopkeeper's home territory. No remote inventories."));
+            return 0;
+        }
+        BlockPos pos = target.getBlockPos();
+        npc.setShopStockChest(pos);
+        source.sendSuccess(() -> Component.literal(
+            "Shop supply chest authorized at " + pos.toShortString()
+            + ". Clerk physically retrieves up to eight existing food items"
+            + " when local carried stock runs low. No goods are generated."), true);
+        return 1;
+    }
+
+    private static int clearShopStock(CommandSourceStack source)
+        throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        PlayerNpcEntity npc = closestOwnedNpc(source.getPlayerOrException());
+        if (npc == null) return 0;
+        npc.setShopStockChest(null);
+        source.sendSuccess(() -> Component.literal(
+            "Automatic shop restock canceled; all existing items remain intact."), false);
         return 1;
     }
 

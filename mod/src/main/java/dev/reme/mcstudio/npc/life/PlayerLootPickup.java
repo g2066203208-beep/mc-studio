@@ -65,7 +65,18 @@ public final class PlayerLootPickup {
                 // but ItemEntity pickup needs <=1.5 blocks in actual entity
                 // geometry. Finish the last meters with vanilla navigation
                 // toward the item entity's precise position.
-                if (npc.distanceToSqr(item) <= 16.0) {
+                if (npc.distanceToSqr(item) <= 16.0
+                    && npc.onGround() && npc.hasLineOfSight(item)) {
+                    // The final 1.5-4 metres are LOS-clear: use vanilla
+                    // MoveControl with precise DOUBLE coordinates and normal
+                    // colliding Mob physics. Long-range pathfinder waypoints
+                    // can quantize at extreme GameTest world coordinates
+                    // (even beyond 16,777,216 where floats lose one block).
+                    // This is never a teleport and never crosses a wall.
+                    npc.getNavigation().stop();
+                    npc.getMoveControl().setWantedPosition(
+                        item.getX(), npc.getY(), item.getZ(), 0.88);
+                } else if (npc.distanceToSqr(item) <= 16.0) {
                     if (npc.getNavigation().isDone()
                         || npc.canRepath(item.blockPosition(), level.getGameTime()))
                         npc.getNavigation().moveTo(item.getX(), item.getY(),

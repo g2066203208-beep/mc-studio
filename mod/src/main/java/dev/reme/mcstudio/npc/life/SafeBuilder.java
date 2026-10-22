@@ -20,30 +20,78 @@ import net.minecraft.world.phys.AABB;
 public final class SafeBuilder {
     private SafeBuilder() {}
 
+    /** Three actual block-for-block construction types. Default SHELTER
+     * preserves previous NBT and player worlds without any migration. No
+     * fake /structure load; every material is consumed from real NPC bag.
+     */
+    public enum Template { SHELTER, SHOP, BAKERY }
+
     private record Step(BlockPos pos, Block block, Item item) {}
 
-    private static Step planned(BlockPos anchor, int index) {
+    private static Step planned(BlockPos anchor, int index, Template blueprint) {
         int cursor = 0;
         for (int y = 0; y <= 2; y++) for (int x = -2; x <= 2; x++)
             for (int z = -2; z <= 2; z++) {
                 boolean wall = Math.abs(x) == 2 || Math.abs(z) == 2;
                 if (y < 2 && !wall) continue;
-                if (y < 2 && x == 0 && z == -2) continue; // walkable door
+                if (y < 2 && x == 0 && z == -2) continue; // entrance arch
                 if (cursor++ != index) continue;
                 boolean roof = y == 2;
-                return new Step(anchor.offset(x, y, z),
-                    roof ? Blocks.OAK_PLANKS : Blocks.COBBLESTONE,
-                    roof ? Items.OAK_PLANKS : Items.COBBLESTONE);
+                Block block;
+                Item item;
+                if (blueprint == Template.SHOP) {
+                    boolean timberCorner = !roof && Math.abs(x) == 2 && Math.abs(z) == 2;
+                    block = roof ? Blocks.SPRUCE_PLANKS :
+                        timberCorner ? Blocks.OAK_LOG : Blocks.OAK_PLANKS;
+                    item = roof ? Items.SPRUCE_PLANKS :
+                        timberCorner ? Items.OAK_LOG : Items.OAK_PLANKS;
+                } else if (blueprint == Template.BAKERY) {
+                    block = roof ? Blocks.OAK_PLANKS : Blocks.BRICKS;
+                    item = roof ? Items.OAK_PLANKS : Items.BRICKS;
+                } else {
+                    block = roof ? Blocks.OAK_PLANKS : Blocks.COBBLESTONE;
+                    item = roof ? Items.OAK_PLANKS : Items.COBBLESTONE;
+                }
+                return new Step(anchor.offset(x, y, z), block, item);
             }
+        if (blueprint == Template.SHELTER) return null;
+        // Place furniture inside the real building through actual vanilla
+        // ItemStack.useOn. Chest and barrel are concrete inventories; a
+        // bakery has functional furnace and crafting table.
+        if (index == cursor)
+            return new Step(anchor.offset(-1, 0, 0),
+                blueprint == Template.SHOP ? Blocks.CHEST : Blocks.FURNACE,
+                blueprint == Template.SHOP ? Items.CHEST : Items.FURNACE);
+        if (index == cursor + 1)
+            return new Step(anchor.offset(1, 0, 0),
+                blueprint == Template.SHOP ? Blocks.BARREL : Blocks.CRAFTING_TABLE,
+                blueprint == Template.SHOP ? Items.BARREL : Items.CRAFTING_TABLE);
+        if (index == cursor + 2)
+            return new Step(anchor.offset(0, 0, -2),
+                Blocks.OAK_DOOR, Items.OAK_DOOR);
         return null;
     }
 
+    public static int steps(Template type) {
+        int count = 0;
+        while (planned(BlockPos.ZERO, count, type) != null) count++;
+        return count;
+    }
+
     public static boolean validateSite(ServerLevel level, BlockPos anchor) {
+        return validateSite(level, anchor, Template.SHELTER);
+    }
+
+    public static boolean validateSite(ServerLevel level, BlockPos anchor, Template type) {
         for (int i = 0; ; i++) {
-            Step step = planned(anchor, i);
+            Step step = planned(anchor, i, type);
             if (step == null) return true;
             if (!level.hasChunkAt(step.pos()) ||
                 !level.getBlockState(step.pos()).isAir()) return false;
+            if (step.block() == Blocks.OAK_DOOR &&
+                (!level.hasChunkAt(step.pos().above())
+                 || !level.getBlockState(step.pos().above()).isAir()))
+                return false;
             if (!level.getEntities((net.minecraft.world.entity.Entity) null,
                 new AABB(step.pos())).isEmpty()) return false;
         }
@@ -57,10 +105,11 @@ public final class SafeBuilder {
             npc.setAction("travelling to assigned house construction");
             return;
         }
-        Step step = planned(anchor, npc.buildCursor());
+        Step step = planned(anchor, npc.buildCursor(), npc.buildTemplate());
         if (step == null) {
             npc.setBuildEnabled(false);
-            npc.setAction("completed tiny shelter with real materials");
+            npc.setAction("completed " + npc.buildTemplate()
+                + " with real block placements and consumed materials");
             return;
         }
         if (!level.hasChunkAt(step.pos())) {

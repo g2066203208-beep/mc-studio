@@ -12,6 +12,7 @@ import dev.reme.mcstudio.npc.life.NaturalResidentSpawn;
 import dev.reme.mcstudio.npc.life.CivicMind;
 import dev.reme.mcstudio.npc.life.CivicSocial;
 import dev.reme.mcstudio.npc.life.ShopCounter;
+import dev.reme.mcstudio.npc.life.SafeBuilder;
 import dev.reme.mcstudio.npc.life.CivicPersistence;
 import dev.reme.mcstudio.npc.life.Commission;
 import dev.reme.mcstudio.npc.life.CharacterProfile;
@@ -102,6 +103,7 @@ public class PlayerNpcEntity extends PathfinderMob {
     @Nullable private BlockPos supplyPos;
     @Nullable private BlockPos caravanPickup;
     @Nullable private BlockPos caravanDropoff;
+    @Nullable private BlockPos shopStockChest;
     @Nullable private UUID escortLeader;
     @Nullable private BlockPos exploreTarget;
     private final Set<Long> recentChunks = new LinkedHashSet<>();
@@ -150,6 +152,7 @@ public class PlayerNpcEntity extends PathfinderMob {
     @Nullable private BlockPos detentionJail;
     private boolean buildEnabled = false;
     private int buildCursor = 0;
+    private SafeBuilder.Template buildTemplate = SafeBuilder.Template.SHELTER;
     private long nextSocialTick = 0;
     @Nullable private UUID ownerUuid;
 
@@ -243,6 +246,10 @@ public class PlayerNpcEntity extends PathfinderMob {
     public void setSupplyPos(@Nullable BlockPos pos) {
         supplyPos = pos == null ? null : pos.immutable();
     }
+    @Nullable public BlockPos shopStockChest() { return shopStockChest; }
+    public void setShopStockChest(@Nullable BlockPos chest) {
+        shopStockChest = chest == null ? null : chest.immutable();
+    }
     @Nullable public BlockPos caravanPickup() { return caravanPickup; }
     @Nullable public BlockPos caravanDropoff() { return caravanDropoff; }
     public void setCaravanPickup(@Nullable BlockPos pos) {
@@ -329,6 +336,14 @@ public class PlayerNpcEntity extends PathfinderMob {
         exploreTarget = pos == null ? null : pos.immutable();
     }
     public int parcelsDelivered() { return parcelsDelivered; }
+    public SafeBuilder.Template buildTemplate() { return buildTemplate; }
+    public void setBuildTemplate(SafeBuilder.Template type) {
+        if (buildTemplate != type) {
+            buildEnabled = false; // switching blueprints cannot replay a half-built building
+            buildCursor = 0;
+            buildTemplate = type;
+        }
+    }
     public boolean buildEnabled() { return buildEnabled; }
     public void setBuildEnabled(boolean enabled) { buildEnabled = enabled; }
     public int buildCursor() { return buildCursor; }
@@ -636,6 +651,7 @@ public class PlayerNpcEntity extends PathfinderMob {
         if (supplyPos != null) tag.putLong("NpcSupplyPos", supplyPos.asLong());
         if (caravanPickup != null) tag.putLong("NpcCaravanPickup", caravanPickup.asLong());
         if (caravanDropoff != null) tag.putLong("NpcCaravanDropoff", caravanDropoff.asLong());
+        if (shopStockChest != null) tag.putLong("NpcShopStockChest", shopStockChest.asLong());
         if (escortLeader != null) tag.putUUID("NpcEscortLeader", escortLeader);
         if (exploreTarget != null) tag.putLong("NpcExploreTarget", exploreTarget.asLong());
         tag.putLongArray("NpcRecentChunks", recentChunks.stream().mapToLong(Long::longValue).toArray());
@@ -666,6 +682,7 @@ public class PlayerNpcEntity extends PathfinderMob {
         tag.putInt("NpcDailyShift", dailyShiftTicks);
         tag.putBoolean("NpcBuildEnabled", buildEnabled);
         tag.putInt("NpcBuildCursor", buildCursor);
+        tag.putString("NpcBuildTemplate", buildTemplate.name());
         tag.putInt("NpcDiligence", personality.diligence());
         tag.putInt("NpcSociability", personality.sociability());
         tag.putInt("NpcCaution", personality.caution());
@@ -730,6 +747,8 @@ public class PlayerNpcEntity extends PathfinderMob {
             ? BlockPos.of(tag.getLong("NpcCaravanPickup")) : null;
         caravanDropoff = tag.contains("NpcCaravanDropoff", Tag.TAG_LONG)
             ? BlockPos.of(tag.getLong("NpcCaravanDropoff")) : null;
+        shopStockChest = tag.contains("NpcShopStockChest", Tag.TAG_LONG)
+            ? BlockPos.of(tag.getLong("NpcShopStockChest")) : null;
         escortLeader = tag.hasUUID("NpcEscortLeader")
             ? tag.getUUID("NpcEscortLeader") : null;
         exploreTarget = tag.contains("NpcExploreTarget", Tag.TAG_LONG)
@@ -782,6 +801,10 @@ public class PlayerNpcEntity extends PathfinderMob {
         nextNavRepathTick = 0;
         buildEnabled = tag.getBoolean("NpcBuildEnabled");
         buildCursor = Math.clamp(tag.getInt("NpcBuildCursor"), 0, 100);
+        try { buildTemplate = SafeBuilder.Template.valueOf(tag.getString("NpcBuildTemplate")); }
+        catch (IllegalArgumentException ignored) {
+            buildTemplate = SafeBuilder.Template.SHELTER;
+        }
         setPersonality(new LivingPlanner.Personality(
             Math.clamp(tag.contains("NpcDiligence") ? tag.getInt("NpcDiligence") : 50, 0, 100),
             Math.clamp(tag.contains("NpcSociability") ? tag.getInt("NpcSociability") : 50, 0, 100),
