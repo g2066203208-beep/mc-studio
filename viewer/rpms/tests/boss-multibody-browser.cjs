@@ -25,7 +25,7 @@ const {chromium}=require('playwright-core');
   const standing=await page.evaluate(()=>window.__MULTIBODY_RIG__.advance(240));
   console.log('ARTICULATED_STAND',JSON.stringify(standing));
   assert.ok(Number.isFinite(standing.bodyBottom),'physics must return a body height');
-  assert.ok(standing.position.y>3.85&&standing.position.y<4.4,'legs must ACTUALLY hold the heavy chassis off the floor: '+standing.position.y);
+  assert.ok(standing.position.y>5.18&&standing.position.y<5.58,'2-voxel real feet must hold chest at ~5.38 world Y: '+standing.position.y);
   assert.ok(Math.abs(standing.velocity.y)<.1,'actual loaded six-leg platform did not settle under gravity');
   assert.ok(Math.abs(standing.position.x)<.25&&Math.abs(standing.position.z)<.25,
     'standing must not drift around as a runaway body');
@@ -51,7 +51,7 @@ const {chromium}=require('playwright-core');
   console.log('GAIT_DIAGNOSTIC_SAMPLES',JSON.stringify(gaitTrial.diagnostics));
   assert.ok(gaitTrial.diagnostics.every(p=>p.contacts>=3),
     'REAL SUPPORT REQUIRED: a gait must retain 3+ collision-bearing feet on the ground, not float: '+JSON.stringify(gaitTrial.diagnostics));
-  assert.ok(gaitTrial.diagnostics.every(p=>p.bodyY>3.7&&p.bodyY<4.45),
+  assert.ok(gaitTrial.diagnostics.every(p=>p.bodyY>5.0&&p.bodyY<5.75),
     'Body must not levitate or collapse while tripod gait is active: '+JSON.stringify(gaitTrial.diagnostics));
   assert.ok(gaitTrial.diagnostics.every(p=>p.worstHip<.65&&p.worstKnee<.75),
     'Physical joint servo must track commands without hitting hard stops: '+JSON.stringify(gaitTrial.diagnostics));
