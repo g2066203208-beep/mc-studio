@@ -344,6 +344,7 @@ public final class SeamNativeGeometryClient {
                 GPU.draw(sections,pose,camera);
                 lastFrameGpuModels=GPU.lastFrameModelsVisible();
                 lastFrameGpuSections=GPU.lastFrameCachedSections();
+                lastFrameEndStone=GPU.lastFrameEndStoneModels();
                 lastFrameGpuCpuNanos=Math.max(0,System.nanoTime()-gpuStart);
                 // All cached sections stay visible with NO per-frame model
                 // selection cap. Only sections still uploading need the
@@ -356,6 +357,7 @@ public final class SeamNativeGeometryClient {
                     slice.sectionY())));
                 lastFrameDrawn=lastFrameGpuModels;
                 if(visible.isEmpty()) {
+                    lastFrameDrawCpuNanos=lastFrameGpuCpuNanos;
                     DRAW_CPU_SAMPLES.add(lastFrameGpuCpuNanos);
                     return;
                 }
@@ -445,6 +447,10 @@ public final class SeamNativeGeometryClient {
     public static int gpuPendingSections() { return GPU.pendingCount(); }
     public static int lastFrameGpuModels() { return lastFrameGpuModels; }
     public static int lastFrameGpuSections() { return lastFrameGpuSections; }
+    public static double lastGpuSceneCoverage() {
+        return lastVisibleSlices==0?0.0:
+            (double)lastFrameGpuSections/lastVisibleSlices;
+    }
     public static long gpuDrawCalls() { return GPU.drawCalls(); }
     public static long gpuUploads() { return GPU.uploads(); }
     public static boolean gpuBackendDisabled() { return gpuDisabled; }
