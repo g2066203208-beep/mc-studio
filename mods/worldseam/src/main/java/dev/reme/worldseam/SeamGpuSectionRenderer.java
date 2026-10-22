@@ -8,6 +8,7 @@ import com.mojang.blaze3d.vertex.VertexBuffer;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.ItemBlockRenderTypes;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.core.BlockPos;
 import net.minecraft.util.RandomSource;
@@ -30,7 +31,7 @@ import java.util.Set;
 
 /**
  * Bounded, per-native-16^3-section persistent GPU mesh cache for the temporary
- * cross-dimensional preview renderer. Each BLOCK model is tessellated only on
+ * cross-dimensional preview renderer. Each native model/fluid is tessellated only on
  * chunk change, not in EVERY FRAME. In subsequent frames all uploaded meshes
  * can be drawn without the old 3500-block budget leaving giant visual holes.
  *
@@ -104,7 +105,8 @@ public final class SeamGpuSectionRenderer {
     /** CPU-side baked quad data uploads are bounded to ONE native section per
      *  frame, while ALL previously uploaded sections remain visible. */
     public void compileVisible(Minecraft mc, ClientLevel remote, List<Section> visible,
-                               Vec3 camera, int sourceBoundary, int targetBoundary) {
+                               Vec3 camera, int sourceBoundary, int targetBoundary,
+                               SeamGraph.EdgeSide remoteEntry) {
         var candidates=new ArrayList<Section>();
         for(var section:visible)
             if(dirty.containsKey(section.key()))candidates.add(section);
@@ -113,7 +115,7 @@ public final class SeamGpuSectionRenderer {
         for(int n=0;n<limit;n++) {
             var candidate=candidates.get(n);
             if(dirty.get(candidate.key())!=candidate)continue;
-            Cached built=compile(mc,remote,candidate,sourceBoundary,targetBoundary);
+            Cached built=compile(mc,remote,candidate,sourceBoundary,targetBoundary,remoteEntry);
             if(built==null)continue;
             Cached old=loaded.put(candidate.key(),built);
             dirty.remove(candidate.key());
@@ -144,7 +146,8 @@ public final class SeamGpuSectionRenderer {
     }
 
     private static Cached compile(Minecraft mc,ClientLevel remote,Section section,
-                                  int sourceBoundary,int targetBoundary) {
+                                  int sourceBoundary,int targetBoundary,
+                                  SeamGraph.EdgeSide remoteEntry) {
         var byteBuffers=new LinkedHashMap<RenderType,ByteBufferBuilder>();
         var builders=new LinkedHashMap<RenderType,BufferBuilder>();
         MultiBufferSource capture = renderType -> builders.computeIfAbsent(
@@ -164,6 +167,10 @@ public final class SeamGpuSectionRenderer {
             // Tessellate against the actual remote ClientLevel instead.
             PoseStack pose=new PoseStack();
             RandomSource random=RandomSource.create();
+            // Across the joined plane, outside-of-target space may contain
+            // real source-world blocks or fluids, not synthetic air.
+            var joined=new SeamJoinedBlockView(
+                remote,mc.level,sourceBoundary,targetBoundary,remoteEntry);
             for(var cell:section.cells()) {
                 // The GPU section is positioned in the source's mapped view,
                 // but all block occlusion, lighting, biome colors, model data
@@ -171,26 +178,37 @@ public final class SeamGpuSectionRenderer {
                 BlockPos nativePos=new BlockPos(cell.x(),
                     SeamSectionLayout.nativeBlockY(cell.y(),
                         sourceBoundary,targetBoundary),cell.z());
-                var blockModel=mc.getBlockRenderer().getBlockModel(cell.state());
-                ModelData modelData=blockModel.getModelData(
-                    remote,nativePos,cell.state(),ModelData.EMPTY);
-                random.setSeed(cell.state().getSeed(nativePos));
-                pose.pushPose();
-                try {
-                    pose.translate(cell.x()-section.originX(),
-                        cell.y()-section.originY(),
-                        cell.z()-section.originZ());
-                    // Chunk RenderTypes use BLOCK vertex format, unlike
-                    // the NEW_ENTITY format of renderSingleBlock items.
-                    for(RenderType type:blockModel.getRenderTypes(
-                        cell.state(),random,modelData)) {
-                        random.setSeed(cell.state().getSeed(nativePos));
-                        mc.getBlockRenderer().renderBatched(
-                            cell.state(),nativePos,remote,pose,
-                            capture.getBuffer(type),true,random,modelData,type);
+                // Real modded models keep native target model data; face
+                // culling and ambient occlusion now see *source* neighbors.
+                if(cell.state().getRenderShape()==
+                    net.minecraft.world.level.block.RenderShape.MODEL) {
+                    var blockModel=mc.getBlockRenderer().getBlockModel(cell.state());
+                    ModelData modelData=blockModel.getModelData(
+                        remote,nativePos,cell.state(),ModelData.EMPTY);
+                    random.setSeed(cell.state().getSeed(nativePos));
+                    pose.pushPose();
+                    try {
+                        pose.translate(cell.x()-section.originX(),
+                            cell.y()-section.originY(),
+                            cell.z()-section.originZ());
+                        for(RenderType type:blockModel.getRenderTypes(
+                            cell.state(),random,modelData)) {
+                            random.setSeed(cell.state().getSeed(nativePos));
+                            mc.getBlockRenderer().renderBatched(
+                                cell.state(),nativePos,joined,pose,
+                                capture.getBuffer(type),true,random,modelData,type);
+                        }
+                    } finally {
+                        pose.popPose();
                     }
-                } finally {
-                    pose.popPose();
+                }
+                // RenderShape.INVISIBLE fluids were previously omitted.
+                // This also tessellates water within a waterlogged block.
+                var fluid=cell.state().getFluidState();
+                if(!fluid.isEmpty()) {
+                    RenderType type=ItemBlockRenderTypes.getRenderLayer(fluid);
+                    mc.getBlockRenderer().renderLiquid(nativePos,joined,
+                        capture.getBuffer(type),cell.state(),fluid);
                 }
             }
             for(var entry:builders.entrySet()) {
