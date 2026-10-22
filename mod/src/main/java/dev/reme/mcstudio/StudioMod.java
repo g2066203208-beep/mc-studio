@@ -16,7 +16,7 @@ import net.neoforged.neoforge.common.NeoForge;
 @Mod(StudioMod.MOD_ID)
 public final class StudioMod {
     public static final String MOD_ID = "reme_studio";
-    public static final String VERSION = "0.7.1-dev";
+    public static final String VERSION = "0.7.2-dev";
 
     public StudioMod(IEventBus modBus) {
         NpcRegistry.register(modBus);
