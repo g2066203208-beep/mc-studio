@@ -253,10 +253,10 @@ public final class SeamGeometryGameTests {
         var vec=net.minecraft.world.phys.Vec3.class;
         var down=SeamContactFrame.between(-64.0,128.0);
         var up=SeamContactFrame.between(128.0,-64.0);
-        var com=new net.minecraft.world.phys.Vec3(0,-65,0);
+        var centerOfMass=new net.minecraft.world.phys.Vec3(0,-65,0);
         var imagePoint=new net.minecraft.world.phys.Vec3(0,127,2);
         var force=new net.minecraft.world.phys.Vec3(10,0,0);
-        var one=down.contactWrench(com,imagePoint,force);
+        var one=down.contactWrench(centerOfMass,imagePoint,force);
         // At the real body's center chart: lever arm r=(0,0,2).
         // r CROSS F=(0,20,0). Naively using image p-COM would
         // produce a FAKE z-torque = -1920. This is the atlas
