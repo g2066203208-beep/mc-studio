@@ -65,8 +65,9 @@ jobs:
             xdotool mousemove 640 403 click 1
             sleep 2
             xdotool mousemove 480 565 click 1
-            # The initial actual Minecraft E2E must complete the old-world
-            # visual/TNT/End tests before the new DEFAULT stack stress starts.
+            # This is a dedicated real Minecraft world: the visual/TNT
+            # history fixture runs independently in worldseam-visual-e2e.
+            # No 1500-tick prelude, so time belongs to repeated crossings.
             for second in $(seq 1 550); do
               if grep -q "WORLDSEAM_STRESS_START" stress-client.log; then break; fi
               if grep -q "WORLDSEAM_STRESS_FAIL" stress-client.log; then break; fi
