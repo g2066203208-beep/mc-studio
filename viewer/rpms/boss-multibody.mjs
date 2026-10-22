@@ -14,10 +14,11 @@ export const DT=1/60;
 export const GRAVITY=-11;
 export const LEG_COUNT=6;
 export const JOINT_COUNT=12;
-const UPPER_LENGTH=1.65,LOWER_LENGTH=1.75;
+// Physical hinge centers exactly coincide with the 2-voxel upper and lower limbs.
+const UPPER_LENGTH=2,LOWER_LENGTH=2;
 const HIP_Y=-.38;
 export const LEG_COORDS=[-3,0,3].flatMap((z,i)=>[-1,1].map((side)=>({
- x:side*2.9,z,side,row:i,id:(side<0?'L':'R')+(i+1),
+ x:side*3,z,side,row:i,id:(side<0?'L':'R')+(i+1),
  tripod:(i+(side===1?1:0))%2
 })));
 const makeV=(x=0,y=0,z=0)=>({x,y,z});
@@ -55,17 +56,25 @@ export function createMultibodyBoss(RAPIER,opts={}){
  const ground=world.createCollider(RAPIER.ColliderDesc.cuboid(50,.5,50)
   .setTranslation(0,-.5,0).setFriction(1.75).setRestitution(0));
  // Larger-than-player six-leg machine. All numbers in Minecraft blocks/metres.
- const body=rb(RAPIER,world,0,4.55,0,{massive:true});
- const chest=cuboid(RAPIER,world,body,[5.6,1.15,7.3],[0,0,0],.30);
- const core=cuboid(RAPIER,world,body,[2.3,.85,2.3],[0,.84,0],.42);
- const nose=cuboid(RAPIER,world,body,[1.65,.65,1.1],[0,-.08,-3.0],.55);
+ // Pixel-perfect voxel chassis: same integer block cells used by the renderer.
+ const body=rb(RAPIER,world,0,6.18,0,{massive:true});
+ const chest=[];
+ for(let x=-2;x<=2;x++)for(let z=-3;z<=3;z++)
+  chest.push(cuboid(RAPIER,world,body,[1,1,1],[x,0,z],.35));
+ const core=cuboid(RAPIER,world,body,[1,1,1],[0,1,0],.42);
+ for(const x of [-2,2])for(const z of [-3,0,3])
+  cuboid(RAPIER,world,body,[1,1,1],[x,1,z],.27);
+ const nose=cuboid(RAPIER,world,body,[1,1,1],[0,0,-4],.50);
  const motorSpecs=LEG_COORDS.map(config=>{
-  const upper=rb(RAPIER,world,config.x,4.55+HIP_Y-UPPER_LENGTH/2,config.z);
-  const lower=rb(RAPIER,world,config.x,4.55+HIP_Y-UPPER_LENGTH-LOWER_LENGTH/2,config.z);
-  cuboid(RAPIER,world,upper,[.68,UPPER_LENGTH,.72],[0,0,0],1.0);
-  cuboid(RAPIER,world,lower,[.53,LOWER_LENGTH,.64],[0,0,0],.90);
-  const sole=cuboid(RAPIER,world,lower,[1.24,.38,1.18],
-    [0,-LOWER_LENGTH/2-.17,0],1.95,2.15);
+  const upper=rb(RAPIER,world,config.x,6.18+HIP_Y-UPPER_LENGTH/2,config.z);
+  const lower=rb(RAPIER,world,config.x,6.18+HIP_Y-UPPER_LENGTH-LOWER_LENGTH/2,config.z);
+  // Each visible integer-lattice block has an EXACT matching 1×1×1 Rapier
+  // collider. This fixes the old 1.65/1.75m collider vs 2-block visual error.
+  for(const y of [-.5,.5]){
+   cuboid(RAPIER,world,upper,[1,1,1],[0,y,0],.38);
+   cuboid(RAPIER,world,lower,[1,1,1],[0,y,0],.30);
+  }
+  const sole=cuboid(RAPIER,world,lower,[1,1,1],[0,-1.5,0],1.05,2.15);
   const axis=makeV(1,0,0);
   const hip=world.createImpulseJoint(
    RAPIER.JointData.revolute(
@@ -174,7 +183,7 @@ export function createMultibodyBoss(RAPIER,opts={}){
  const feetStatus=()=>motors.map(m=>{
   if(m.detached)return {id:m.id,connected:false};
   const p=m.lower.translation(),q=m.lower.rotation();
-  const offset=-LOWER_LENGTH/2-.17, wy=p.y+offset*(1-2*(q.x*q.x+q.z*q.z))-.19;
+  const offset=-1.5, wy=p.y+offset*(1-2*(q.x*q.x+q.z*q.z))-.5;
   return {id:m.id,connected:true,estimatedSoleBottom:wy,touching:Math.abs(wy)<.12};
  });
  const snapshot=()=>{
@@ -199,7 +208,7 @@ export function createMultibodyBoss(RAPIER,opts={}){
    gearRatio,outputRPM:powerBus.bearings.find(b=>b.pathLive)?.outputRPM||0,
    outputTorqueLimit:torque*gearRatio*.9,
    position:nowPos,velocity:body.linvel(),rotation:body.rotation(),
-   bodyBottom:nowPos.y-.575,travel:nowPos.z,
+   bodyBottom:nowPos.y-.5,travel:nowPos.z,
    legAngles:motors.map(m=>({id:m.id,hip:getJointAngle(body,m.upper),knee:getJointAngle(m.upper,m.lower),
     hipTarget:m.hipTarget,kneeTarget:m.kneeTarget,
     deliveredTorque:m.deliveredTorque||0,detached:m.detached}))
