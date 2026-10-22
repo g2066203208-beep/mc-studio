@@ -36,18 +36,24 @@ public final class SeamRenderBuffers {
 
     public MultiBufferSource.BufferSource source() {
         if(ownedSource!=null)return ownedSource;
-        var shared=allocate(SHARED_BYTES);
-        // Keep the most common block render types in independent buffers;
-        // otherwise repeatedly switching between solid/cutout/translucent
-        // would force premature shared-buffer flushes.
-        var fixed=new LinkedHashMap<RenderType,ByteBufferBuilder>();
-        fixed.put(RenderType.solid(),allocate(SOLID_BYTES));
-        fixed.put(RenderType.cutout(),allocate(CUTOUT_BYTES));
-        fixed.put(RenderType.cutoutMipped(),allocate(CUTOUT_MIPPED_BYTES));
-        fixed.put(RenderType.translucent(),allocate(TRANSLUCENT_BYTES));
-        ownedSource=MultiBufferSource.immediateWithBuffers(fixed,shared);
-        creations++;
-        return ownedSource;
+        try {
+            var shared=allocate(SHARED_BYTES);
+            // Separate the most common render types; renderSingleBlock on
+            // resource packs may switch types many times within a frame.
+            var fixed=new LinkedHashMap<RenderType,ByteBufferBuilder>();
+            fixed.put(RenderType.solid(),allocate(SOLID_BYTES));
+            fixed.put(RenderType.cutout(),allocate(CUTOUT_BYTES));
+            fixed.put(RenderType.cutoutMipped(),allocate(CUTOUT_MIPPED_BYTES));
+            fixed.put(RenderType.translucent(),allocate(TRANSLUCENT_BYTES));
+            ownedSource=MultiBufferSource.immediateWithBuffers(fixed,shared);
+            creations++;
+            return ownedSource;
+        } catch (RuntimeException | Error failure) {
+            // Failed initialisation must not strand native off-heap buffers.
+            for(var buffer:ownedBuilders)buffer.close();
+            ownedBuilders.clear();
+            throw failure;
+        }
     }
 
     private ByteBufferBuilder allocate(int bytes) {
