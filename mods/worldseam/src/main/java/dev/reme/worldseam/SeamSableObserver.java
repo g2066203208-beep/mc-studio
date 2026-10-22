@@ -59,7 +59,11 @@ public final class SeamSableObserver {
             var straddled=new HashSet<UUID>();
             String sample="";
             for(ServerLevel home:server.getAllLevels()) {
-                Object container=containerGetter.invoke(null,home);
+                // Invoke Sable's server-only holder bridge directly. Reflection
+                // over SubLevelContainer.getMethods() resolves its CLIENT
+                // overload and triggers Forge invalid-dist crash on dedicated
+                // servers. The live ServerLevel mixin is already a holder.
+                Object container=containerGetter.invoke(home);
                 if(container==null)continue;
                 Object all=allSubLevels.invoke(container);
                 if(!(all instanceof Collection<?> sublevels))continue;
@@ -114,15 +118,21 @@ public final class SeamSableObserver {
         if(attempted)return !failed;
         attempted=true;
         try {
-            Class<?> container=Class.forName("dev.ryanhcode.sable.api.sublevel.SubLevelContainer");
-            Class<?> serverContainer=Class.forName("dev.ryanhcode.sable.api.sublevel.ServerSubLevelContainer");
+            Class<?> holder=Class.forName(
+                "dev.ryanhcode.sable.mixinterface.plot.SubLevelContainerHolder");
+            Class<?> serverContainer=Class.forName(
+                "dev.ryanhcode.sable.api.sublevel.ServerSubLevelContainer");
             Class<?> sub=Class.forName("dev.ryanhcode.sable.sublevel.SubLevel");
-            Class<?> bounds=Class.forName("dev.ryanhcode.sable.companion.math.BoundingBox3dc");
-            containerGetter=container.getMethod("getContainer",ServerLevel.class);
-            allSubLevels=serverContainer.getMethod("getAllSubLevels");
-            boundingBox=sub.getMethod("boundingBox");
-            uniqueId=sub.getMethod("getUniqueId");
-            isRemoved=sub.getMethod("isRemoved");
+            Class<?> bounds=Class.forName(
+                "dev.ryanhcode.sable.companion.math.BoundingBox3dc");
+            // getDeclaredMethod only! getMethod on SubLevelContainer or a
+            // subclass scans inherited public static client overloads and
+            // tries loading ClientLevel on DEDICATED_SERVER (FML crash).
+            containerGetter=holder.getDeclaredMethod("sable$getPlotContainer");
+            allSubLevels=serverContainer.getDeclaredMethod("getAllSubLevels");
+            boundingBox=sub.getDeclaredMethod("boundingBox");
+            uniqueId=sub.getDeclaredMethod("getUniqueId");
+            isRemoved=sub.getDeclaredMethod("isRemoved");
             minX=bounds.getMethod("minX");minY=bounds.getMethod("minY");
             minZ=bounds.getMethod("minZ");maxX=bounds.getMethod("maxX");
             maxY=bounds.getMethod("maxY");maxZ=bounds.getMethod("maxZ");
