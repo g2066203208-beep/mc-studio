@@ -405,6 +405,10 @@ public final class CityDistrictDemo {
             if (i == 0) npc.addTag("reme_city_clerk");
             if (i == 3) npc.addTag("reme_city_guard");
             if (i == 10) npc.addTag("reme_city_park");
+            if (i == 2) npc.addTag("reme_city_baker");
+            if (i == 5) npc.addTag("reme_city_farmer");
+            if (i == 7) npc.addTag("reme_city_office");
+            if (i == 11) npc.addTag("reme_city_courier");
             if (i == 12) npc.addTag("reme_city_shoplifter");
             if (i == 11) {
                 npc.setCaravanPickup(center.offset(9,1,18));
