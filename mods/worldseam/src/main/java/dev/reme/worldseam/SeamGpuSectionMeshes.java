@@ -49,7 +49,7 @@ public final class SeamGpuSectionMeshes {
     private record Key(int cx,int cz,int sy) {}
     private record Compiled(SeamNativeGeometryClient.Slice origin,
                             Map<RenderType,VertexBuffer> vbos,
-                            int cells,int endStone) implements AutoCloseable {
+                            int cells,int endStone,int fluidCells) implements AutoCloseable {
         @Override public void close() {
             for(var vbo:vbos.values())vbo.close();
         }
@@ -85,6 +85,7 @@ public final class SeamGpuSectionMeshes {
     private long evicted;
     private long lastGpuDrawn;
     private long lastGpuCells;
+    private long lastGpuFluidCells;
 
     public static boolean enabled() {
         return Boolean.getBoolean("worldseam.gpuSections");
@@ -227,10 +228,13 @@ public final class SeamGpuSectionMeshes {
                     }
                 }
             }
-            int endCount=0;
-            for(var c:job.slice.cells())if(c.state().is(Blocks.END_STONE))endCount++;
+            int endCount=0,fluidCount=0;
+            for(var c:job.slice.cells()) {
+                if(c.state().is(Blocks.END_STONE))endCount++;
+                if(c.drawFluid())fluidCount++;
+            }
             mesh.put(key,new Compiled(job.slice,Map.copyOf(buffers),
-                job.slice.cells().size(),endCount));
+                job.slice.cells().size(),endCount,fluidCount));
             uploaded++;
             while(mesh.size()>MAX_MESHES) {
                 var first=mesh.entrySet().iterator().next();
@@ -246,7 +250,7 @@ public final class SeamGpuSectionMeshes {
         }
     }
 
-    public void beginFrame() {lastGpuDrawn=0;lastGpuCells=0;}
+    public void beginFrame() {lastGpuDrawn=0;lastGpuCells=0;lastGpuFluidCells=0;}
 
     /** Draw world-accurate cached terrain, preserving each render layer's
      * shader/atlas/depth state, then restoring it before the next layer. */
@@ -280,6 +284,7 @@ public final class SeamGpuSectionMeshes {
         }
         lastGpuDrawn++;
         lastGpuCells+=entry.cells();
+        lastGpuFluidCells+=entry.fluidCells();
         return entry.endStone();
     }
 
@@ -288,6 +293,7 @@ public final class SeamGpuSectionMeshes {
     public long evicted() {return evicted;}
     public long lastGpuDrawn() {return lastGpuDrawn;}
     public long lastGpuCells() {return lastGpuCells;}
+    public long lastGpuFluidCells() {return lastGpuFluidCells;}
     public double p95BakeMs() {return bakeSamples.p95Ms();}
 
     public void clear() {
