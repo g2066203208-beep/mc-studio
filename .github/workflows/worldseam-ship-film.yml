@@ -1,0 +1,60 @@
+name: WorldSeam Genuine Sable Ship Flight Video
+on:
+  pull_request:
+    paths:
+      - "mods/worldseam/**"
+      - ".github/workflows/worldseam-ship-film.yml"
+  workflow_dispatch:
+
+# Only film the latest PR revision.
+concurrency:
+  group: worldseam-genuine-ship-film-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+
+jobs:
+  real-minecraft-video:
+    runs-on: ubuntu-latest
+    timeout-minutes: 32
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install actual Minecraft X11 GPU renderer and native MP4 screen recorder
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y xvfb libgl1-mesa-dri libglx-mesa0 xdotool ffmpeg imagemagick
+      - name: Fetch actual released Sable + Create + Aeronautics + required mods
+        working-directory: mods/worldseam
+        run: |
+          set -euo pipefail
+          python ci/install_real_mods.py run/mods | tee real-ship-release-versions.log
+          test -s real-mod-versions.json
+          test "$(find run/mods -maxdepth 1 -name '*.jar' | wc -l)" -ge 3
+      - name: Record real aircraft in disposable Minecraft world; vanilla /fill air on both sides
+        shell: bash
+        working-directory: mods/worldseam
+        run: |
+          set -euo pipefail
+          xvfb-run -a -s '-screen 0 1280x720x24' bash ci/record_real_sable_ship.sh
+      - name: Upload RAW MP4 plus same-run game log and real Sable UUID/coordinates EVEN ON FAILURE
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: worldseam-real-sable-aircraft-video-and-logs
+          retention-days: 20
+          path: |
+            mods/worldseam/real-ship-*mp4
+            mods/worldseam/real-ship-film-client.log
+            mods/worldseam/real-ship-flight-telemetry.log
+            mods/worldseam/real-ship-ffmpeg.log
+            mods/worldseam/real-ship-release-versions.log
+            mods/worldseam/real-mod-versions.json
+            mods/worldseam/run/logs/latest.log
+          if-no-files-found: ignore
