@@ -20,7 +20,8 @@ const {chromium}=require('playwright-core');
    for(let i=0;i<12;i++){
     const s=rig.advance(60);
     sequence.push({t:s.elapsed,z:s.position.z,x:s.position.x,y:s.position.y,
-      vy:s.velocity.y,contacts:s.supportContacts,stance:s.gait.stance,
+      vy:s.velocity.y,contacts:s.supportContacts,
+      maxFootClearance:Math.max(...s.footMeasurements.filter(f=>f.connected).map(f=>f.estimatedSoleBottom)),stance:s.gait.stance,
       swing:s.gait.swing,maxHingeError:s.maxHingeError,
       hip:s.legAngles[0].hip,hipTarget:s.legAngles[0].hipTarget,
       knee:s.legAngles[0].knee,kneeTarget:s.legAngles[0].kneeTarget});
@@ -36,6 +37,10 @@ const {chromium}=require('playwright-core');
     'Joint anchors disconnected / visual limbs will separate');
   assert.ok(results.sequence.some(v=>Math.abs(v.knee)>.10),
     'Knees do not actually bend under Rapier solved torque');
+  assert.ok(results.sequence.some(v=>v.maxFootClearance>.10),
+    'No foot physically lifts 0.10 blocks above the real Rapier ground, so cannot walk');
+  assert.ok(results.sequence.every(v=>v.contacts>=3),
+    'Tripod walking must keep at least three true collision-height ground supports');
   assert.ok(results.sequence.every(v=>v.y>3.2&&v.y<8),
     'Body falls or flies while walking');
   assert.ok(Math.abs(results.deltaZ)>.22,'NO MEASURABLE WALKING - body must move >0.22 block by legs alone, not a preview animation');
