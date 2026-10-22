@@ -32,9 +32,9 @@ import java.util.Map;
  * model draws; it is not yet a framebuffer/stencil portal or fluid renderer.
  */
 public final class SeamNativeGeometryClient {
-    private record Cell(int x,int y,int z,BlockState state,int light) {}
+    static record Cell(int x,int y,int z,BlockState state,int light) {}
     /** Immutable native 16^3 segment; clip ONCE before drawing its models. */
-    private record Slice(int sectionY,List<Cell> cells,AABB bounds) {}
+    static record Slice(int sectionY,List<Cell> cells,AABB bounds) {}
     private static final double NEAR_PLANE_RENDER_RANGE = 80.0;
     private static int lastVisibleSlices;
     private static int lastCulledSlices;
@@ -49,6 +49,9 @@ public final class SeamNativeGeometryClient {
     private static final SeamRenderSamples REBUILD_CPU_SAMPLES = new SeamRenderSamples(120);
     private static final SeamRenderBudget DRAW_BUDGET = new SeamRenderBudget();
     private static final SeamRenderBuffers OWNED_BUFFERS = new SeamRenderBuffers();
+    private static final SeamGpuSurfaceCache GPU_MESHES=new SeamGpuSurfaceCache();
+    private static final SeamRenderSamples GPU_CPU_SAMPLES=new SeamRenderSamples(120);
+    private static int lastFrameVisibleCells;
     private static volatile long lastFrameDrawCpuNanos;
     private static ClientLevel queuedRemote;
     private static SeamGraph.Link queuedLink;
@@ -281,6 +284,13 @@ public final class SeamNativeGeometryClient {
         // A quiet, still-resident remote world must NOT expire after 2400
         // ticks without packets. Cache lifetime follows the actual remote
         // ClientLevel, not an arbitrary traffic timer.
+        // Prune stale GPU sections after native remote chunk updates and
+        // viewport shifts. Identity-based membership protects against
+        // keeping meshes from a previous version of the same section.
+        var alive=java.util.Collections.newSetFromMap(
+            new java.util.IdentityHashMap<Slice,Boolean>());
+        for(var col:columns.values())alive.addAll(col);
+        GPU_MESHES.prune(alive);
         if (columns.isEmpty() || event.getPoseStack()==null) return;
         // Window pruning and geometry recount already happen in the 20 TPS
         // client tick. Doing another 25-column scan at EVERY render frame
@@ -306,7 +316,23 @@ public final class SeamNativeGeometryClient {
             else lastCulledSlices++;
         }
         lastVisibleSlices=visible.size();
+        lastFrameVisibleCells=0;
+        for(var slice:visible)lastFrameVisibleCells+=slice.cells().size();
         if(visible.isEmpty())return;
+        // Default to persistent native GPU section meshes: no 3500-cell
+        // per-frame truncation. The old model submit loop is kept only as
+        // an explicit debug safety fallback while shader compatibility is
+        // evaluated in version-pinned Minecraft GUI tests.
+        if(!Boolean.getBoolean("worldseam.legacyProxy")) {
+            long before=System.nanoTime();
+            GPU_MESHES.draw(visible,mc,pose,camera.x,camera.y,camera.z);
+            lastFrameDrawn=GPU_MESHES.drawnCells();
+            lastFrameEndStone=GPU_MESHES.drawnEndStone();
+            lastFrameDrawCpuNanos=Math.max(0,System.nanoTime()-before);
+            GPU_CPU_SAMPLES.add(lastFrameDrawCpuNanos);
+            DRAW_CPU_SAMPLES.add(lastFrameDrawCpuNanos);
+            return;
+        }
         MultiBufferSource.BufferSource buffers=OWNED_BUFFERS.source();
 
         // Prioritize true camera-proximal slices while spreading the CPU
@@ -378,6 +404,20 @@ public final class SeamNativeGeometryClient {
     public static int visibleSlices() { return lastVisibleSlices; }
     public static int culledSlices() { return lastCulledSlices; }
     public static int pendingRebuilds() { return BUILD_QUEUE.size(); }
+    public static boolean gpuBackendEnabled() {
+        return !Boolean.getBoolean("worldseam.legacyProxy");
+    }
+    public static int gpuCachedSlices() { return GPU_MESHES.readySlices(); }
+    public static int gpuUploadedThisFrame() { return GPU_MESHES.builtThisFrame(); }
+    public static int gpuDrawCalls() { return GPU_MESHES.drawnLayers(); }
+    public static long gpuEstimatedBytes() { return GPU_MESHES.estimatedBytes(); }
+    public static long gpuCompiledSlices() { return GPU_MESHES.compiledSlices(); }
+    public static long gpuEvictedSlices() { return GPU_MESHES.evictedSlices(); }
+    public static int lastFrameVisibleCells() {return lastFrameVisibleCells;}
+    public static double gpuVisibleCoverage() {
+        return SeamGpuBudget.coverage(lastFrameVisibleCells,lastFrameDrawn);
+    }
+    public static double lastGpuBuildMs(){return GPU_MESHES.lastBuildMs();}
     public static int lastTickRebuildSlices() { return lastTickRebuildSlices; }
     /** All remote fallback paths use WorldSeam-owned GPU buffers only. */
     public static MultiBufferSource.BufferSource fallbackBuffers() {
@@ -396,8 +436,11 @@ public final class SeamNativeGeometryClient {
     public static String scope() { return source.isEmpty() ? "-" : source+">"+target; }
 
     public static void reset() {
+        GPU_MESHES.clear();
+        GPU_CPU_SAMPLES.clear();
         columns.clear();
         blocksBuilt=0;
+        lastFrameVisibleCells=0;
         lastFrameDrawn=0;
         lastFrameEndStone=0;
         lastVisibleSlices=0;
