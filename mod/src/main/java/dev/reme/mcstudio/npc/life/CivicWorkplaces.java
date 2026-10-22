@@ -33,7 +33,10 @@ public final class CivicWorkplaces {
         }
         int chest=0, barrel=0, crafting=0, furnace=0, blast=0, anvil=0,
             farmland=0, composter=0, bed=0, bookshelf=0, lectern=0, bars=0,
-            bell=0, doors=0, roofs=0, visited=0;
+            bell=0, doors=0, visited=0;
+        // Keep independent coverage masks for y+2 and y+3. A few pillars,
+        // furnishings or scattered solids do not make a real ceiling.
+        int[] roofCoverage = new int[2];
         // 5x5x4 = 100 block checks maximum, only on loaded chunks.
         for (int x=-2;x<=2;x++) for(int z=-2;z<=2;z++)
             for(int y=0;y<=3;y++) {
@@ -68,7 +71,8 @@ public final class CivicWorkplaces {
                         == net.minecraft.world.level.block.state.properties.DoubleBlockHalf.UPPER)
                     doors++;
                 if ((y == 2 || y == 3) && Math.abs(x) <= 1
-                    && Math.abs(z) <= 1 && state.isSolid()) roofs++;
+                    && Math.abs(z) <= 1 && state.isSolid())
+                    roofCoverage[y - 2]++;
             }
         Type type=Type.UNASSIGNED;
         if (chest > 0 && barrel > 0) type=Type.SHOP;
@@ -78,10 +82,13 @@ public final class CivicWorkplaces {
         else if (bed > 0 && barrel > 0) type=Type.INN;
         else if (bookshelf > 0 && lectern > 0) type=Type.LIBRARY;
         else if (bell > 0 && bars > 0) type=Type.GUARD_POST;
-        // A roof and real door are separate indicators; do not report a
+        // A full contiguous 3x3 ceiling at ONE height and a real door are
+        // separate indicators; unrelated blocks must not fake a building.
+        // Do not report a
         // full building merely because a two-block shop counter exists.
         return new Survey(type, anchor.immutable(),
-            type == Type.UNASSIGNED ? 0 : 2, roofs >= 3, doors > 0, visited);
+            type == Type.UNASSIGNED ? 0 : 2,
+            roofCoverage[0] == 9 || roofCoverage[1] == 9, doors > 0, visited);
     }
 
     public static boolean matchesProfession(Type type, PlayerNpcEntity.Profession role) {
