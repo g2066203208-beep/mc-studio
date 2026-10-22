@@ -65,8 +65,22 @@ capture_jvm_diagnostics() {
   } >> real-ship-jvm-thread-dump.txt 2>&1
 }
 ready=0; returned=0; failure=0; ready_step=0; last_diag=0
-camera_ui_hidden=0; ready_still=0; descent_still=0
+camera_ui_hidden=0; ready_still=0; descent_still=0; arena_seen=0; arena_step=0
 for step in $(seq 1 240); do
+  if [ "$arena_seen" = 0 ] &&
+     grep -q "WORLDSEAM_FILM_ARENA_READY" real-ship-film-client.log; then
+    arena_seen=1
+    arena_step="$step"
+    echo "WORLDSEAM_FILM_WATCHDOG: real cleared arena ready, starting server progress check"
+  fi
+  if [ "$arena_seen" = 1 ] && [ "$ready" = 0 ] &&
+     [ "$step" -ge "$((arena_step+55))" ] &&
+     ! grep -q "WORLDSEAM_FILM_NATIVE_TICK_HANDSHAKE" real-ship-film-client.log; then
+    echo "WORLDSEAM_FILM_STALL_BEFORE_ASSEMBLY: integrated server stopped tick progress after real /fill"
+    capture_jvm_diagnostics "server-thread-stuck-after-fill-before-assembly"
+    failure=1
+    break
+  fi
   if [[ "$camera_ui_hidden" = 0 ]] &&
      grep -q "WORLDSEAM_FILM_ARENA_READY" real-ship-film-client.log; then
     xdotool key F1 || true
