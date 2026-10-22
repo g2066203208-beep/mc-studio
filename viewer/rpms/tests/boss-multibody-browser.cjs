@@ -114,6 +114,11 @@ const {chromium}=require('playwright-core');
   assert.ok(status.assets.components>=35,'Must show Create gears, motors, shafts, Simulated bearings');
   const voxel=await site.evaluate(()=>window.__BOSS_API__.voxelAudit());
   console.log('MC_VOXEL_BLOCK_AUDIT',JSON.stringify(voxel));
+  const bearingAudit=await site.evaluate(()=>window.__BOSS_API__.bearingAudit());
+  console.log('REAL_HINGE_VS_BEARING_ALIGNMENT',JSON.stringify(bearingAudit));
+  assert.equal(bearingAudit.length,12,'all twelve real hips and knees need visible bearing blocks');
+  assert.ok(bearingAudit.every(x=>x.oneVoxel&&Number.isFinite(x.pivotError)&&x.pivotError<.20),
+    'Simulated bearing face does NOT align to Rapier hip/knee joint: '+JSON.stringify(bearingAudit));
   assert.deepEqual(voxel.offGrid,[], 'no Create/Simulated block may be arbitrarily scaled');
   assert.deepEqual(voxel.overlaps,[], 'Minecraft grid blocks and bearings must not interpenetrate');
   await site.screenshot({path:require('node:path').join(__dirname,'boss-articulated-desktop.png'),fullPage:true});
