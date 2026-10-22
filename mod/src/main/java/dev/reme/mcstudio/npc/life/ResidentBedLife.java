@@ -155,11 +155,19 @@ public final class ResidentBedLife {
             MovementPolicy.due(tick, npc.getId(), 40)) {
             BlockPos access = accessibleSide(level, bed, npc.blockPosition());
             if (access == null) {
-                npc.setAction("bed blocked; looking for an entrance");
-                return true;
+                // A moved furniture block must not hold the entire NPC AI
+                // hostage forever: allow ordinary at-home rest fallback.
+                npc.setAssignedBedPos(null);
+                npc.setAction("bed blocked; releasing claim until next scan");
+                return false;
             }
             if (RoadNavigator.moveToward(npc, level, access, 1.00))
                 npc.setAction("walking to reserved bed");
+            else if (npc.getNavigation().isDone()) {
+                npc.setAssignedBedPos(null);
+                npc.setAction("no valid path to bed; releasing claim");
+                return false;
+            }
         }
         return true; // keep ordinary AI from overwriting a live bed path
     }
