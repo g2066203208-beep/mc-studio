@@ -31,6 +31,12 @@ public final class SeamDirectTransfer {
         player.setYRot(yaw);
         player.setXRot(pitch);
         target.addDuringTeleport(player);
+        // Unlike the vanilla ServerPlayer.teleportTo cross-dimension path,
+        // our no-respawn switch does not automatically rebuild the player's
+        // target-world chunk tracking view. Explicitly register/move the
+        // player in the destination's native ChunkMap so vanilla chunk,
+        // light and entity streaming can continue beyond our 5x5 prefetch.
+        target.getChunkSource().move(player);
 
         // Both payloads travel on the same connection, in ordering: client
         // switches to its preloaded world before normal position correction.
