@@ -216,8 +216,16 @@ export function createMultibodyBoss(RAPIER,opts={}){
  const feetStatus=()=>motors.map(m=>{
   if(m.detached)return {id:m.id,connected:false};
   const p=m.lower.translation(),q=m.lower.rotation();
-  const offset=-1.5, wy=p.y+offset*(1-2*(q.x*q.x+q.z*q.z))-.5;
-  return {id:m.id,connected:true,estimatedSoleBottom:wy,touching:Math.abs(wy)<.12};
+  // Exact projected Y extent of the ACTUAL ORIENTED 1x1x1 foot collider.
+  // The old .5 deduction incorrectly treated a tilted Rapier foot as an
+  // axis-aligned cube and underreported stance contact during walking.
+  const yx=2*(q.x*q.y+q.w*q.z);
+  const yy=1-2*(q.x*q.x+q.z*q.z);
+  const yz=2*(q.y*q.z-q.w*q.x);
+  const halfY=.5*(Math.abs(yx)+Math.abs(yy)+Math.abs(yz));
+  const soleBottom=p.y-1.5*yy-halfY;
+  return {id:m.id,connected:true,estimatedSoleBottom:soleBottom,
+   touching:Math.abs(soleBottom)<.12};
  });
  const snapshot=()=>{
   const feet=feetStatus();
