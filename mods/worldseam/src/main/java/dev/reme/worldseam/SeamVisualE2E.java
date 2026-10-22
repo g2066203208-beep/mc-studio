@@ -215,8 +215,12 @@ public final class SeamVisualE2E {
                 // A few hundred individual remote models passing old tests
                 // is not adequate visual evidence. Require material GPU
                 // surface coverage after allowing additional bake frames.
-                if(meshes<8 || cells<5000)
-                    LOG.error("WORLDSEAM_E2E_FAIL_GPU_COVERAGE: native section mesh upload too slow for a coherent remote world view");
+                if(meshes<8 || cells<5000 || coverage<90.0)
+                    LOG.error("WORLDSEAM_E2E_FAIL_GPU_COVERAGE: only {}% of frustum-visible remote terrain cells reached native GPU mesh; require >=90% for this settled checkpoint",
+                        String.format(java.util.Locale.ROOT,"%.1f",coverage));
+                if(SeamNativeGeometryClient.countNativeFluidCells()>0 &&
+                    SeamNativeGeometryClient.gpuDrawnFluidCells()==0)
+                    LOG.error("WORLDSEAM_E2E_FAIL_GPU_FLUID: native Nether lava/water surfaces exist but NO GPU fluid geometry was drawn");
             }
         } else if (phase==1 && now-startTick>620) {
             phase=2;
