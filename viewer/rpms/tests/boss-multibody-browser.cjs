@@ -32,11 +32,29 @@ const {chromium}=require('playwright-core');
   assert.ok(standing.supportContacts>=4,'at least four feet must touch real Rapier static world floor');
   assert.ok(standing.legAngles.every(x=>Math.abs(x.hip)<.09&&Math.abs(x.knee)<.09),
     'motor must HOLD actual joint angles while chassis weight bears on feet');
-  const moving=await page.evaluate(()=>{
+  const gaitTrial=await page.evaluate(()=>{
    const rig=window.__MULTIBODY_RIG__;
    rig.setMode('march');rig.setMotor({rpm:28,torqueLimit:2200});
-   return rig.advance(240);
+   let result;const diagnostics=[];
+   for(let i=0;i<8;i++){
+    result=rig.advance(30);
+    const available=result.legAngles.filter(x=>!x.detached);
+    const worstHip=Math.max(...available.map(x=>Math.abs(x.hip-x.hipTarget)));
+    const worstKnee=Math.max(...available.map(x=>Math.abs(x.knee-x.kneeTarget)));
+    diagnostics.push({time:result.elapsed,contacts:result.supportContacts,bodyY:result.position.y,
+     worstHip:Math.round(worstHip*1000)/1000,worstKnee:Math.round(worstKnee*1000)/1000,
+     hip:available[0].hip,hipTarget:available[0].hipTarget,knee:available[0].knee,kneeTarget:available[0].kneeTarget});
+   }
+   return {result,diagnostics};
   });
+  const moving=gaitTrial.result;
+  console.log('GAIT_DIAGNOSTIC_SAMPLES',JSON.stringify(gaitTrial.diagnostics));
+  assert.ok(gaitTrial.diagnostics.every(p=>p.contacts>=3),
+    'REAL SUPPORT REQUIRED: a gait must retain 3+ collision-bearing feet on the ground, not float: '+JSON.stringify(gaitTrial.diagnostics));
+  assert.ok(gaitTrial.diagnostics.every(p=>p.bodyY>3.7&&p.bodyY<4.45),
+    'Body must not levitate or collapse while tripod gait is active: '+JSON.stringify(gaitTrial.diagnostics));
+  assert.ok(gaitTrial.diagnostics.every(p=>p.worstHip<.65&&p.worstKnee<.75),
+    'Physical joint servo must track commands without hitting hard stops: '+JSON.stringify(gaitTrial.diagnostics));
   console.log('ARTICULATED_MARCH',JSON.stringify(moving));
   assert.equal(moving.joints,12);
   const range=Math.max(...moving.legAngles.map(x=>Math.abs(x.hip)));
@@ -94,6 +112,10 @@ const {chromium}=require('playwright-core');
   assert.equal(status.bodies,13,'every physical body must have its own separately synchronized visual group');
   assert.ok(status.meshes>65,'Not a true gear and bearing machine; insufficient visible mechanical components: '+status.meshes);
   assert.ok(status.assets.components>=35,'Must show Create gears, motors, shafts, Simulated bearings');
+  const voxel=await site.evaluate(()=>window.__BOSS_API__.voxelAudit());
+  console.log('MC_VOXEL_BLOCK_AUDIT',JSON.stringify(voxel));
+  assert.deepEqual(voxel.offGrid,[], 'no Create/Simulated block may be arbitrarily scaled');
+  assert.deepEqual(voxel.overlaps,[], 'Minecraft grid blocks and bearings must not interpenetrate');
   await site.screenshot({path:require('node:path').join(__dirname,'boss-articulated-desktop.png'),fullPage:true});
   await site.locator('#march').click();
   assert.equal(await site.evaluate(()=>window.__BOSS_API__.snapshot().mode),'march');

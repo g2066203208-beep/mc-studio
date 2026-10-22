@@ -99,6 +99,8 @@ export function createMultibodyBoss(RAPIER,opts={}){
   rpm:b.outputRPM,sourceRPM:b.rpm,torqueMultiplier:b.torqueMultiplier,
   clutchPowered:disconnected.has(b.id)}));
 
+ // Keep the measured-stable low-impulse PD gains. Overdriving the
+ // motor caused large ballistic hops in the real Rapier integration.
  let hipGain=115,kneeGain=92,hipDamping=15,kneeDamping=13;
  let phase=0;
  const setMotor=({rpm,torqueLimit,stiffness,damping,period,ratio}={})=>{
@@ -108,7 +110,7 @@ export function createMultibodyBoss(RAPIER,opts={}){
   if(Number.isFinite(stiffness))hipGain=clamp(stiffness,0,4000);
   if(Number.isFinite(damping))hipDamping=clamp(damping,0,500);
   if(Number.isFinite(period))frequency=clamp(period,.1,3);
-  kneeGain=hipGain*.79;kneeDamping=hipDamping*.84;
+  kneeGain=hipGain*.79;kneeDamping=hipDamping*.81;
   refreshBus();
  };
  const setMode=value=>{
@@ -146,9 +148,13 @@ export function createMultibodyBoss(RAPIER,opts={}){
    const drive=mode==='walk'||mode==='march';
    const wave=Math.sin(phase+(leg.tripod?Math.PI:0));
    const lift=Math.max(0,wave);
-   const stride=mode==='walk'?.44:.28;
-   const hipT=drive?clamp(wave*stride,-.55,.55):0;
-   const kneeT=drive?clamp(.09+.54*lift,0,.84):0;
+   // Two tripod groups alternate: the STANCE tripod stays straight,
+   // so body mass is supported by grounded collision boxes. Only the
+   // SWING tripod bends its knee; the original .54 bend on a lagging
+   // joint shortened both supports and left all soles in the air.
+   const stride=mode==='walk'?.28:.18;
+   const hipT=drive?clamp(wave*stride,-.4,.4):0;
+   const kneeT=drive?clamp(.38*lift,0,.43):0;
    leg.hipTarget=hipT;leg.kneeTarget=kneeT;
    const branch=powerBus.bearings.find(o=>o.id===leg.id);
    // The Create source/shaft/gear/clutch graph is AUTHORITATIVE within its
