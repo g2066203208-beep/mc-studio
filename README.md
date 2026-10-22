@@ -4,6 +4,20 @@
 
 GitHub 是共享开发中心，桌面端与网页端通过同一仓库交接。新会话先读 [交接说明](docs/HANDOFF.md)。远程仓库：[g2066203208-beep/mc-studio](https://github.com/g2066203208-beep/mc-studio)。初始化 PR 已合入 main，[首次云端构建成功](https://github.com/g2066203208-beep/mc-studio/actions/runs/39402002769)，可在该运行页面的 Artifacts 下载 JAR 压缩包。
 
+## 四个独立玩法项目（仓库结构，2026-10-22）
+
+本仓库是 MC Studio **多 Mod 工作室**，而不是一个把所有玩法塞在一起的 Mod。
+完整状态、源分支与不可违反的兼容规则见 [四套独立 Mod 工程路由](docs/MOD_PROJECT_ROUTING.md)。
+
+| 项目 | 开发源与独立化状态 |
+|---|---|
+| WorldSeam 无缝维度 | mods/worldseam/ 已是独立工程，现有源码仍在 WorldSeam 开发分支 |
+| PEAK 攀爬 | 旧 mod/ 代码仍需迁移到独立 mods/peak/，否则与 NPC 使用相同的 reme_studio Mod ID |
+| 机械 Boss | 原生控制原型为独立 mods/rpmotion/，网页模拟为 viewer/rpms/；完整 Boss 游戏 Mod 尚未独立成品 |
+| NPC | 0.6.7 开发分支仍在旧 mod/，需要移入独立 mods/npc/ 并更换 Mod ID 后重新做游戏验证 |
+
+**特别注意：main 的 mod/ 是 0.1.0 历史工程骨架，不能当作 NPC 安装包。已经成功构建过的 NPC/PEAK 分支产物也还不能相互并装，因为两者当前 Mod ID 均为 reme_studio。** 不要把「同仓库合并」误解为「同一个 JAR」。
+
 ## 当前基线
 
 2026-10-20 实机核实：
