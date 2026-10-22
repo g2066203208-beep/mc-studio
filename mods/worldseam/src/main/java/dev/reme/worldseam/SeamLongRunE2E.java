@@ -22,7 +22,7 @@ import java.util.UUID;
  * Create a dedicated DISPOSABLE world using the NEW default dimension order
  * Overworld > Nether > End. Excavate BOTH genuine vertical seams, then
  * traverse Overworld > Nether > End > Nether > Overworld
- * SIX complete rounds (24 real server + client handoffs). No direct
+ * SIXTY complete rounds (240 real server + client handoffs). No direct
  * teleport across dimensions is issued by the driver; it only positions
  * the player 3 blocks INSIDE the current world before testing normal seam
  * motion. Every pass must pass a ready handshake, arrive through the
@@ -31,7 +31,7 @@ import java.util.UUID;
  */
 public final class SeamLongRunE2E {
     private static final Logger LOG=LogUtils.getLogger();
-    private static final int ROUNDS=6;
+    private static final int ROUNDS=60;
     private static final int PASSES=ROUNDS*4;
     private static final int WAIT_READY_TICKS=300;
     private static final int WAIT_CROSS_TICKS=130;
