@@ -77,7 +77,8 @@ public final class CityDistrictGameTests {
             || !level.getBlockState(center.offset(12,2,12)).is(Blocks.WATER_CAULDRON))
             throw new AssertionError("Town's police cell, village alarm or market park is missing");
         List<PlayerNpcEntity> people = level.getEntitiesOfClass(PlayerNpcEntity.class,
-            new AABB(center.offset(-20,0,-20), center.offset(20,10,20)));
+            new AABB(center.getX()-20, center.getY(), center.getZ()-20,
+                center.getX()+21, center.getY()+11, center.getZ()+21));
         long merchants = people.stream().filter(p -> p.profession()
             == PlayerNpcEntity.Profession.SHOPKEEPER
             && p.backpack().countItem(Items.BREAD) > 0).count();
