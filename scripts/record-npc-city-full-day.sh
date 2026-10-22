@@ -78,7 +78,7 @@ trap cleanup EXIT
 
 # Validate actual tick ages for all 13 unique existing entity UUIDs and
 # actual 1200-tick sampled behavior, not fabricated timestamps.
-python3 - <<'PY'
+python3 - <<'PY' | tee client-gui-city-full-day-acceptance.txt
 import re, pathlib, sys, collections
 text=pathlib.Path("client-gui.log").read_text(errors="replace")
 born={}
@@ -117,6 +117,15 @@ fi
 ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1 \
   client-gui-city-real-24000ticks-uncut.mp4 \
   >client-gui-city-full-day-video-duration.txt
+python3 - <<'PY'
+from pathlib import Path
+s=Path("client-gui-city-full-day-video-duration.txt").read_text()
+value=float(s.split("duration=")[1].splitlines()[0])
+if value < 360:
+    raise SystemExit("FAIL: supposed 24000 real game ticks recorded in only "
+                     +str(value)+" seconds; reject fake full-day recording")
+print("REME_NPC_REAL_CITY_DAY_H264 duration_seconds="+str(round(value,2)))
+PY
 # Generate a time-compressed PREVIEW of that same untouched genuine recording,
 # not a slideshow, frame generation, or a simulation.
 ffmpeg -loglevel error -nostdin -y -i client-gui-city-real-24000ticks-uncut.mp4 \
