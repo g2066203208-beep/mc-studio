@@ -56,7 +56,7 @@ public final class SeamGpuSectionRenderer {
         void close() { for(var layer:layers)layer.buffer().close(); }
     }
 
-    public static final int MAX_SECTION_UPLOADS_PER_FRAME=1;
+    public static final int MAX_SECTION_UPLOADS_PER_FRAME=2;
     public static final int MAX_CACHED_SECTIONS=300;
     // Bound the total persistent vertex bytes of the proxy cache independently
     // from model complexity, resource packs and third-party block models.
@@ -111,7 +111,15 @@ public final class SeamGpuSectionRenderer {
         var candidates=new ArrayList<Section>();
         for(var section:visible)
             if(dirty.containsKey(section.key()))candidates.add(section);
-        candidates.sort(Comparator.comparingDouble(s->distanceSq(s.bounds(),camera)));
+        // Compile what the player is currently LOOKING AT first, not
+        // merely what is closest to their feet (which can all be BEHIND
+        // the camera). This matters when 160+ sections are loaded but only
+        // ~half can upload during the first real GUI prewarm window.
+        Vec3 forward=mc.player==null?new Vec3(0,-1,0):
+            mc.player.getLookAngle();
+        candidates.sort(Comparator
+            .comparingInt((Section s)->inFrontOfCamera(s.bounds(),camera,forward)?0:1)
+            .thenComparingDouble(s->distanceSq(s.bounds(),camera)));
         int limit=Math.min(MAX_SECTION_UPLOADS_PER_FRAME,candidates.size());
         for(int n=0;n<limit;n++) {
             var candidate=candidates.get(n);
@@ -137,6 +145,15 @@ public final class SeamGpuSectionRenderer {
             oldest.remove();
             evictions++;
         }
+    }
+
+    private static boolean inFrontOfCamera(AABB box,Vec3 camera,Vec3 forward) {
+        double dx=(box.minX+box.maxX)*0.5-camera.x;
+        double dy=(box.minY+box.maxY)*0.5-camera.y;
+        double dz=(box.minZ+box.maxZ)*0.5-camera.z;
+        // A generous 180-degree front hemisphere lets the camera swivel
+        // naturally without delaying preloading all peripheral sections.
+        return dx*forward.x+dy*forward.y+dz*forward.z>=0.0;
     }
 
     private static double distanceSq(AABB box,Vec3 c) {
