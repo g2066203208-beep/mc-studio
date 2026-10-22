@@ -85,14 +85,16 @@ def install(out):
                 source.hostname == "modrinth.com" or
                 (source.hostname or "").endswith(".modrinth.com")):
             raise RuntimeError("Non-Modrinth binary source rejected: " + asset["url"])
-        sha256 = asset.get("hashes", {}).get("sha256")
-        if not sha256 or not re.fullmatch(r"[a-f0-9]{64}", sha256):
-            raise RuntimeError("No official sha256 provided for " + asset["filename"])
+        # Modrinth provides SHA-512 and SHA-1, not necessarily SHA-256.
+        # Use the strongest official digest, checked on streamed bytes.
+        sha512 = asset.get("hashes", {}).get("sha512")
+        if not sha512 or not re.fullmatch(r"[a-fA-F0-9]{128}", sha512):
+            raise RuntimeError("No official sha512 provided for " + asset["filename"])
         name = str(index).zfill(2) + "-" + re.sub(r"[^a-zA-Z0-9_.-]", "_", asset["filename"])
         dest = out / name
         req = urllib.request.Request(asset["url"], headers={
             "User-Agent": "WorldSeam-Real-Mod-Integration-CI/0.13"})
-        h = hashlib.sha256()
+        h = hashlib.sha512()
         with urllib.request.urlopen(req, timeout=90) as remote, dest.open("wb") as local:
             while True:
                 chunk = remote.read(1024 * 1024)
@@ -102,14 +104,14 @@ def install(out):
                 h.update(chunk)
                 if local.tell() > 60 * 1024 * 1024:
                     raise RuntimeError("Oversize untrusted mod jar: " + name)
-        if h.hexdigest() != sha256:
+        if h.hexdigest().lower() != sha512.lower():
             dest.unlink(missing_ok=True)
-            raise RuntimeError("Downloaded mod checksum mismatch: " + name)
+            raise RuntimeError("Downloaded mod SHA-512 mismatch: " + name)
         manifest.append({
             "version_id": version["id"], "project_id": version["project_id"],
-            "title": version["name"], "filename": name, "sha256": sha256,
+            "title": version["name"], "filename": name, "sha512": sha512,
         })
-        print("WORLDSEAM_REAL_RELEASE_VERIFIED", version["name"], name, sha256, flush=True)
+        print("WORLDSEAM_REAL_RELEASE_VERIFIED", version["name"], name, sha512, flush=True)
         for dep in version.get("dependencies", []):
             if dep.get("dependency_type") != "required":
                 continue
