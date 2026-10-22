@@ -1,5 +1,6 @@
 # WorldSeam：Create Aeronautics / Sable 跨世界物理路线与对照证据（2026-10-22）
 
+> **2026-10-22 / P2 decision: atomic ship transfer REJECTED.** User requires one continuously physical joined world, not a whole-ship teleport. The P1 `SeamSableInterop`, `SeamShipCrossing` and `/worldseam physics enable` implementations were completely removed from the P2 production tree; they are documented below **only as a rejected compatibility experiment**. Current remaining working code is remote fluid/block GPU meshing and read-through neighbor state. IPSable's one-authoritative-body multi-chart Rapier contacts are a **future required engine integration**, not shipped. No Sable physics GameTest has been passed. Do not revive atomic transfers without an explicit separate compatibility mode and real user approval.\n\n
 ## 已核查的可运行上游（非效果推断）
 
 目标为 **Minecraft 1.21.1 / NeoForge 21.1.248 / Java 21**。下列独立项目均需按实际 JAR 和版本进行兼容验收：
@@ -17,7 +18,7 @@
 
 当前 WorldSeam 0.11.2 客户端支持非 Respawn 普通玩家转移、近景 GPU section 缓存和有限 5x5 双维度 chunk 预载，并不持有 Sable 真正的双维度 Rapier 碰撞场景。Sable 结构包含整船 chunks、block entities、动力传动、座椅与乘客；直接 `Entity.changeDimension()` 或复制方块都会破坏它的所有权/物理连续性。
 
-PR #94 提供**安全边界的初步技术接入**：
+[已否决/移除] PR #94 曾提供**非连续的初步技术接入**：
 1. 仅管理员 opt-in，在物理 SubLevel 原点横越 WorldSeam 水平连接面、目标 chunk 全部已加载且原生高度合法时启动；
 2. WorldSeam 不自行拆分/复制/删除 Sable sublevel，交给 AeroPortals 的成熟群组事务迁移处理，失败保留源侧；
 3. 独立守护船内玩家和普通实体，阻止旧版自身的 vanilla 个体迁移把乘客留在另一维度；
