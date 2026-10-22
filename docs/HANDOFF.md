@@ -221,3 +221,11 @@ Push CI `39518033958` SUCCESS，PR CI `39518039426` SUCCESS。Artifact `12310085
 - 同源码 [Build 39700140120](https://github.com/g2066203208-beep/mc-studio/actions/runs/39700140120) **第一次 Maven Central gson POM HTTP429 限流失败，明确不是源码 Java 编译错误；对失败 job 重新运行后 SUCCESS**。GitHub 构建 package `installer-0.6.4-dev` id `12392812051`、解压两层 zip 后实体 JAR `reme_studio-0.6.4-dev.jar` SHA256 `e2a84e8022c8f37f6faf732d47fc28a5eea2f18db03875f94f0a282ddc1d4168`，内部4文件的 HMCL ZIP SHA256 `de6ac3d34f3dd225eed1c1b1bd96abb5e78b54c3930b5bb34020096a1b4c3326`，已用 `jar tf` 检查 `CivicWorkplaces/SafeBuilder/ShopCounter` 类。
 - [实际 MC 客户端 39700140114](https://github.com/g2066203208-beep/mc-studio/actions/runs/39700140114) 在村落/道路成功之后矿工测试失败；[原始截图/日志 12392946959](https://github.com/g2066203208-beep/mc-studio/actions/runs/39700140114/artifacts/12392946959) 中明确可见 **Dev suffocated in a wall**，因为真人玩家测试脚本 `/tp @s ~ ~ ~-6` 被随机地图山体夹死；未执行完矿工验证。修复 `scripts/test-client-gui.sh` 提交 `9b9da0ce6b46d319d3b2aa2d9377867c15abce32` 在隔离临时CI世界传送前铺设实体地面、清理上方安全的空气区域，保留原命令验证方块→air、NPC 背包→圆石、Dev 玩家不能偷物。最新图形验收 [39701206511](https://github.com/g2066203208-beep/mc-studio/actions/runs/39701206511) 发起，还需以其最终 status/logs 为准。
 - 玩家指引、研究和专业下轮 Prompt [docs/NPC_PHYSICAL_TOWNS_V064.md](https://github.com/g2066203208-beep/mc-studio/blob/feature/npc-physical-workplaces-v064/docs/NPC_PHYSICAL_TOWNS_V064.md)。未完成项目：商店/面包房从第一块到整屋完成的长周期实机测试（当前只验证真实第一块和完成蓝图结构）、7种职场中只有部分已有真正工作 AI，不能虚报铁匠/旅店/图书馆实际经营；NPC 当前实体仍 PathfinderMob，只构造了 detached ServerPlayer 原型，离玩家 mod 兼容差很远；自动城市/城堡与200 NPC硬性能门槛尚未实现。构建测试不等于全 modpack 测试。
+
+
+## 2026-10-22 NPC 仓库审计与 0.6.4 回归修复交接
+
+- 仔细核对了 main、draft PR #60（真 ServerPlayer 仍为未联网的隔离原型）、#65（商店/三餐，另有 GameTest 48×24×48 隔离修复）、#72（0.6.4 实体建筑与店员补货）；不可将 PathfinderMob / FakePlayer 短时动作误称原生玩家渲染与通用 Mod 兼容，亦不可把 main 的最小骨架作为最新 NPC 游戏源码。
+- 独立子分支 `fix/npc-v064-reliable-workplaces` 从 `feature/npc-physical-workplaces-v064` 创建，不影响 main 或 WorldSeam/航空学项目。修复了 `CivicWorkplaces` 三块悬空板也可能误判 roof 的问题；新增实体世界 GameTest；恢复旧 v0.6.3 已验证的隔离测试 NBT 准备器。这个 GameTest 前置步骤只能在 CI 测试副本修改结构尺寸。
+- 预期共 50 个 GameTest，CI 真实状态应由新分支 PR Actions 核查；在完成前不得将它们记为通过。Minecraft 客户端图形、222 Mod 和 200 NPC TPS/MSPT 本轮均没有声称已验收。
+- 下一位开发者优先做两项真验收：在 48×24×48 隔离模板上运行全套 50 GameTest 并看日志，随后在真实客户端从 0/N 个材料按序建完 shop 与 bakery，核实每个 BlockItem 使用、家具、上下门、材料减少、日程/交易/补货，以及失效/中断/存档恢复。然后推进真正 ServerPlayer + 网络玩家渲染原型。
