@@ -174,9 +174,12 @@ if [[ "${REME_CITY_VISUAL:-0}" == "1" ]]; then
   say_city '/execute positioned ~-10 ~1 ~-12 run tag @e[type=reme_studio:player_npc,distance=..8,sort=nearest,limit=1] add reme_city_clerk' 3
   say_city '/execute positioned ~-10 ~1 ~12 run tag @e[type=reme_studio:player_npc,distance=..8,sort=nearest,limit=1] add reme_city_guard' 3
   say_city '/execute positioned ~10 ~1 ~8 run tag @e[type=reme_studio:player_npc,distance=..8,sort=nearest,limit=1] add reme_city_park' 3
+  # This is the ACTUAL low-honesty, cashless 13th resident inside mall.
+  say_city '/execute positioned ~-8 ~1 ~-11 run tag @e[type=reme_studio:player_npc,distance=..1,sort=nearest,limit=1] add reme_city_shoplifter' 3
   say_city '/execute if entity @e[type=reme_studio:player_npc,tag=reme_city_clerk] run say REME_CITY_CLERK_ENTITY_EXISTS' 2
   say_city '/execute if entity @e[type=reme_studio:player_npc,tag=reme_city_guard] run say REME_CITY_GUARD_ENTITY_EXISTS' 2
   say_city '/execute if entity @e[type=reme_studio:player_npc,tag=reme_city_park] run say REME_CITY_PARK_ENTITY_EXISTS' 2
+  say_city '/execute if entity @e[type=reme_studio:player_npc,tag=reme_city_shoplifter] run say REME_CITY_SHOPLIFTER_ENTITY_EXISTS' 2
   # Spectator gives a reproducible free-camera vista while leaving
   # all world blocks and authentic NPC entities untouched.
   say_city '/gamemode spectator' 4
@@ -193,6 +196,14 @@ if [[ "${REME_CITY_VISUAL:-0}" == "1" ]]; then
   import -window root client-gui-city-npc-guard-closeup.png
   say_city '/execute at @e[type=reme_studio:player_npc,tag=reme_city_clerk,limit=1] run tp @s ~ ~2 ~4 facing entity @e[type=reme_studio:player_npc,tag=reme_city_clerk,limit=1] eyes' 6
   import -window root client-gui-city-npc-shopkeeper-closeup.png
+  # Follow a REAL individual for multiple game seconds; note that images
+  # prove position/visuals, while unpaid/paid amounts come only from server
+  # inventory-based NeoForge tests and REME_NPC_STORY trace transitions.
+  say_city '/execute at @e[type=reme_studio:player_npc,tag=reme_city_shoplifter,limit=1] run tp @s ~ ~2 ~5 facing entity @e[type=reme_studio:player_npc,tag=reme_city_shoplifter,limit=1] eyes' 8
+  import -window root client-gui-city-shoplifter-t0.png
+  sleep 15
+  say_city '/execute at @e[type=reme_studio:player_npc,tag=reme_city_shoplifter,limit=1] run tp @s ~ ~2 ~5 facing entity @e[type=reme_studio:player_npc,tag=reme_city_shoplifter,limit=1] eyes' 8
+  import -window root client-gui-city-shoplifter-t1.png
   say_city '/npc city audit' 4
   import -window root client-gui-city-live-audit.png
   say_city '/npc market' 4
@@ -217,7 +228,7 @@ if [[ "${REME_CITY_VISUAL:-0}" == "1" ]]; then
     echo "FAIL: real in-client population census did not count living entities"
     exit 1
   fi
-  for tag in CLERK GUARD PARK; do
+  for tag in CLERK GUARD PARK SHOPLIFTER; do
     if ! grep -q "REME_CITY_${tag}_ENTITY_EXISTS" "$log"; then
       echo "FAIL: real tracked NPC ${tag} not found in 3D city world"
       exit 1
