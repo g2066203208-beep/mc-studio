@@ -9,14 +9,14 @@
  * the bodies against gravity and friction to realize them.
  */
 export const STANCE_PORTION=.62;
-export const MAX_SWING_HEIGHT=.64;
-export const STANCE_HEIGHT=4.28;
+export const MAX_SWING_HEIGHT=.24;
+export const STANCE_HEIGHT=4.47;
 const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
 const smooth=t=>t*t*(3-2*t);
 const wrap=t=>((t%1)+1)%1;
 
 /** Solve knee-positive branch for two physical links measured hip-to-foot. */
-export function solveLegIK({forward=0,vertical=-4.28,upper=2,lower=2.5}={}){
+export function solveLegIK({forward=0,vertical=-4.47,upper=2,lower=2.5}={}){
  const radius=Math.hypot(forward,vertical);
  const minReach=Math.abs(upper-lower)+1e-3;
  const maxReach=upper+lower-1e-3;
@@ -39,7 +39,7 @@ export function solveLegIK({forward=0,vertical=-4.28,upper=2,lower=2.5}={}){
  * During swing, the foot returns forward in the air without pushing on ground.
  * The intended lift is not a claim of actual contact loss: Rapier measures it.
  */
-export function planTripodFoot(cycle,tripod,{stride=1.15,clearance=MAX_SWING_HEIGHT,
+export function planTripodFoot(cycle,tripod,{stride=.45,clearance=MAX_SWING_HEIGHT,
    stance=STANCE_PORTION}={}){
  const u=wrap(cycle+(tripod?.5:0));
  let forward,vertical,phase;
