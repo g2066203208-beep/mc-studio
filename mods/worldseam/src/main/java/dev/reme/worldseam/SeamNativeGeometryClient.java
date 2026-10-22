@@ -174,6 +174,22 @@ public final class SeamNativeGeometryClient {
     /** Atomic replacement of one completed slice; keep all other slices. */
     private static void publishSection(long key,int sy,Slice replacement) {
         var old=columns.get(key);
+        // IMPORTANT: remote vanilla Chunk packets often invalidate a section
+        // even when its visible geometry/light has not changed at all.
+        // Replacing an equal immutable Slice changes its object identity,
+        // so the GPU cache deletes its VBO and must compile it AGAIN.
+        // This caused 134/176 GPU uploads to be immediately evicted in the
+        // first real GUI test, with only 25% visible surface coverage.
+        // Retain the old identity whenever the native section is unchanged.
+        if(old!=null)for(var prior:old) {
+            if(prior.sectionY()==sy) {
+                if(replacement!=null &&
+                    SeamStableSnapshot.unchanged(
+                        prior.cells(),replacement.cells()) &&
+                    prior.bounds().equals(replacement.bounds())) return;
+                break;
+            }
+        }
         var next=new ArrayList<Slice>(old==null?1:old.size()+1);
         if(old!=null) {
             for(var prior:old) {
