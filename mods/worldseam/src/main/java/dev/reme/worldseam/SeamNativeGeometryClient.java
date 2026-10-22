@@ -87,6 +87,35 @@ public final class SeamNativeGeometryClient {
         );
     }
 
+    // Source edits can change occlusion and fluid surfaces on TARGET side.
+    // Rebuild only the physically adjacent section and horizontal neighbors.
+    private static long sourceBorderInvalidations;
+
+    public static void onSourceBoundaryBlockChanged(ClientLevel changedLevel,
+                                                     BlockPos changed) {
+        Minecraft mc=Minecraft.getInstance();
+        if(mc.level!=changedLevel || queuedLink==null || queuedRemote==null ||
+           source.isEmpty() || !source.equals(
+               changedLevel.dimension().location().toString())) return;
+        int touchingY=sourceBoundary+
+            (queuedLink.exit()==SeamGraph.EdgeSide.TOP?-1:0);
+        if(changed.getY()!=touchingY)return;
+        if(mc.player==null)return;
+        int cx=Math.floorDiv(changed.getX(),16),cz=Math.floorDiv(changed.getZ(),16);
+        int pcx=Math.floorDiv(mc.player.blockPosition().getX(),16);
+        int pcz=Math.floorDiv(mc.player.blockPosition().getZ(),16);
+        if(Math.abs((long)cx-pcx)>2 || Math.abs((long)cz-pcz)>2)return;
+        int nativeSectionY=Math.floorDiv(targetBoundary-
+            (queuedLink.entry()==SeamGraph.EdgeSide.TOP?1:0),16);
+        BUILD_QUEUE.invalidateWithNeighbors(cx,cz,
+            nativeSectionY*16,nativeSectionY*16+16);
+        sourceBorderInvalidations++;
+    }
+
+    public static long sourceBorderInvalidations() {
+        return sourceBorderInvalidations;
+    }
+
     public static void onChunk(SeamChunkPayload packet, ClientLevel remote) {
         Minecraft mc = Minecraft.getInstance();
         if (mc.level == null || mc.player == null ||
