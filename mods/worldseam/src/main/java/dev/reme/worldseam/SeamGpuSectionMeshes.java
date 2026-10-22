@@ -1,6 +1,8 @@
 package dev.reme.worldseam;
 
 import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.logging.LogUtils;
+import org.slf4j.Logger;
 import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.ByteBufferBuilder;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
@@ -11,6 +13,8 @@ import com.mojang.blaze3d.vertex.VertexFormat;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.RenderType;
+import net.minecraft.client.renderer.ItemBlockRenderTypes;
+import net.minecraft.world.level.block.RenderShape;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.core.BlockPos;
 import net.minecraft.util.RandomSource;
@@ -20,6 +24,8 @@ import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
 
 import java.util.LinkedHashMap;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.List;
 import java.util.Map;
 
@@ -37,16 +43,20 @@ import java.util.Map;
  * experimental path cannot claim full world, sky, shader or Voxy support.
  */
 public final class SeamGpuSectionMeshes {
-    private static final int MAX_MESHES=128;
+    private static final Logger LOG=LogUtils.getLogger();
+    // Covers the entire typical 5x5 visible section ring without
+    // repeatedly evicting an on-screen section, unlike the old 128 cap.
+    private static final int MAX_MESHES=192;
     private static final int MAX_BAKED_CELLS_PER_FRAME=180;
     private static final long MAX_BAKE_CPU_NANOS=4_000_000L;
     private static final RenderType[] LAYERS={
-        RenderType.solid(),RenderType.cutoutMipped(),RenderType.cutout()
+        RenderType.solid(),RenderType.cutoutMipped(),RenderType.cutout(),
+        RenderType.translucent()
     };
     private record Key(int cx,int cz,int sy) {}
     private record Compiled(SeamNativeGeometryClient.Slice origin,
                             Map<RenderType,VertexBuffer> vbos,
-                            int cells,int endStone) implements AutoCloseable {
+                            int cells,int endStone,int fluidCells) implements AutoCloseable {
         @Override public void close() {
             for(var vbo:vbos.values())vbo.close();
         }
@@ -76,12 +86,18 @@ public final class SeamGpuSectionMeshes {
     // number of chunks the active native world has streamed in.
     private final LinkedHashMap<Key,Compiled> mesh=new LinkedHashMap<>();
     private final Map<Key,SeamNativeGeometryClient.Slice> unsupported=new LinkedHashMap<>();
+    // Camera-nearest, pre-sorted visible section set. Evictions MUST not
+    // preferentially discard the very meshes required this frame.
+    private final Set<Key> protectedVisible=new HashSet<>();
     private Building building;
     private final SeamRenderSamples bakeSamples=new SeamRenderSamples(120);
     private long uploaded;
     private long evicted;
+    private long failedSlices;
     private long lastGpuDrawn;
     private long lastGpuCells;
+    private long lastGpuFluidCells;
+    private int lastRenderTypeSetups;
 
     public static boolean enabled() {
         return Boolean.getBoolean("worldseam.gpuSections");
@@ -115,8 +131,27 @@ public final class SeamGpuSectionMeshes {
                             List<SeamNativeGeometryClient.Slice> visible,
                             int sourceBoundary,int targetBoundary) {
         if(!enabled()||remote==null||visible.isEmpty())return;
+        // The caller has sorted visible slices by true camera distance.
+        // Only protect/cache the nearest capacity sections. FIFO eviction
+        // previously thrashed: with 150 visible and a cap of 128, compiling
+        // the farthest section evicted the central closest section, forcing
+        // it to be uploaded AGAIN on the next frame.
+        protectedVisible.clear();
+        int count=Math.min(MAX_MESHES,visible.size());
+        for(int i=0;i<count;i++) {
+            var slice=visible.get(i);
+            protectedVisible.add(new Key(slice.cx(),slice.cz(),slice.sectionY()));
+        }
+        if(building!=null) {
+            var active=building.slice;
+            if(!protectedVisible.contains(new Key(active.cx(),active.cz(),active.sectionY()))) {
+                building.close();
+                building=null;
+            }
+        }
         if(building==null) {
-            for(var slice:visible) {
+            for(int i=0;i<count;i++) {
+                var slice=visible.get(i);
                 Key key=new Key(slice.cx(),slice.cz(),slice.sectionY());
                 Compiled item=mesh.get(key);
                 if(item!=null && item.origin()==slice)continue;
@@ -139,24 +174,43 @@ public final class SeamGpuSectionMeshes {
                 processed++;
                 int nativeY=c.y()-sourceBoundary+targetBoundary;
                 nativePos.set(c.x(),nativeY,c.z());
-                var model=dispatcher.getBlockModel(c.state());
-                job.random.setSeed(c.state().getSeed(nativePos));
-                var available=model.getRenderTypes(c.state(),job.random,ModelData.EMPTY);
-                for(var type:available) {
+                if(c.drawModel()) {
+                    var model=dispatcher.getBlockModel(c.state());
+                    job.random.setSeed(c.state().getSeed(nativePos));
+                    var available=model.getRenderTypes(c.state(),job.random,ModelData.EMPTY);
+                    for(var type:available) {
+                        int index=layerIndex(type);
+                        if(index<0) {
+                            job.unsupported=true;
+                            break;
+                        }
+                        job.random.setSeed(c.state().getSeed(nativePos));
+                        job.pose.pushPose();
+                        try {
+                            job.pose.translate(c.x()-sx,nativeY-sy,c.z()-sz);
+                            dispatcher.renderBatched(c.state(),nativePos,remote,
+                                job.pose,job.builders[index],true,job.random,
+                                ModelData.EMPTY,type);
+                        } finally {
+                            job.pose.popPose();
+                        }
+                    }
+                }
+                // The default fallback skipped ALL lava/water because their
+                // BlockState is INVISIBLE. Real fluid geometry is position-
+                // dependent: use Minecraft's native liquid tessellator with
+                // exactly the source world and native neighbor blocks.
+                var fluid=c.state().getFluidState();
+                if(c.drawFluid()) {
+                    RenderType type=ItemBlockRenderTypes.getRenderLayer(fluid);
                     int index=layerIndex(type);
                     if(index<0) {
                         job.unsupported=true;
-                        break;
-                    }
-                    job.random.setSeed(c.state().getSeed(nativePos));
-                    job.pose.pushPose();
-                    try {
-                        job.pose.translate(c.x()-sx,nativeY-sy,c.z()-sz);
-                        dispatcher.renderBatched(c.state(),nativePos,remote,
-                            job.pose,job.builders[index],true,job.random,
-                            ModelData.EMPTY,type);
-                    } finally {
-                        job.pose.popPose();
+                    } else {
+                        var transformed=new SeamOffsetVertexConsumer(
+                            job.builders[index],-sx,-sy,-sz);
+                        dispatcher.renderLiquid(nativePos,remote,transformed,
+                            c.state(),fluid);
                     }
                 }
                 if(job.unsupported)break;
@@ -166,10 +220,24 @@ public final class SeamGpuSectionMeshes {
                 finish(job);
                 building=null;
             }
-        } catch(RuntimeException | Error problem) {
+        } catch(RuntimeException problem) {
+            // Model and fluid renderers supplied by other Mods may require a
+            // different render context. Never let ONE unsupported remote
+            // BakedModel kill Minecraft; keep its section in the bounded
+            // legacy fallback renderer until that chunk is changed.
+            Key key=new Key(job.slice.cx(),job.slice.cz(),job.slice.sectionY());
+            unsupported.put(key,job.slice);
+            failedSlices++;
+            LOG.warn("WORLDSEAM_GPU_SECTION_FALLBACK: {} {} {}: {}",
+                key.cx(),key.cz(),key.sy(),problem.toString());
             job.close();
             building=null;
-            throw problem;
+        } catch(Error fatal) {
+            // OOME / linkage and other fatal VM errors are not ordinary
+            // custom-model rendering incompatibilities. Do not conceal.
+            job.close();
+            building=null;
+            throw fatal;
         } finally {
             bakeSamples.add(Math.max(0,System.nanoTime()-started));
         }
@@ -205,15 +273,28 @@ public final class SeamGpuSectionMeshes {
                     }
                 }
             }
-            int endCount=0;
-            for(var c:job.slice.cells())if(c.state().is(Blocks.END_STONE))endCount++;
+            int endCount=0,fluidCount=0;
+            for(var c:job.slice.cells()) {
+                if(c.state().is(Blocks.END_STONE))endCount++;
+                if(c.drawFluid())fluidCount++;
+            }
             mesh.put(key,new Compiled(job.slice,Map.copyOf(buffers),
-                job.slice.cells().size(),endCount));
+                job.slice.cells().size(),endCount,fluidCount));
             uploaded++;
             while(mesh.size()>MAX_MESHES) {
-                var first=mesh.entrySet().iterator().next();
-                first.getValue().close();
-                mesh.remove(first.getKey());
+                // Prefer to discard a section outside the current nearest
+                // renderable set, not one the next frame must immediately
+                // recompile. This avoids unbounded VRAM growth and reload
+                // oscillations when the camera sits still at a seam.
+                Key victim=null;
+                for(var cached:mesh.keySet()) {
+                    if(!protectedVisible.contains(cached)) {
+                        victim=cached;
+                        break;
+                    }
+                }
+                if(victim==null)victim=mesh.keySet().iterator().next();
+                mesh.remove(victim).close();
                 evicted++;
             }
         } catch(RuntimeException | Error problem) {
@@ -224,54 +305,113 @@ public final class SeamGpuSectionMeshes {
         }
     }
 
-    public void beginFrame() {lastGpuDrawn=0;lastGpuCells=0;}
+    public void beginFrame() {lastGpuDrawn=0;lastGpuCells=0;lastGpuFluidCells=0;lastRenderTypeSetups=0;frameDraws.clear();}
 
-    /** Draw world-accurate cached terrain, preserving each render layer's
-     * shader/atlas/depth state, then restoring it before the next layer. */
-    public int draw(SeamNativeGeometryClient.Slice slice,PoseStack pose,Vec3 camera,
-                    int sourceBoundary,int targetBoundary) {
-        if(!has(slice))return 0;
-        Compiled entry=mesh.get(new Key(slice.cx(),slice.cz(),slice.sectionY()));
-        int originX=slice.cx()*16,originZ=slice.cz()*16;
-        int mappedSectionY=SeamSectionLayout.mappedSectionMinY(
-            slice.sectionY()*16,sourceBoundary,targetBoundary);
-        Matrix4f matrix=new Matrix4f(pose.last().pose()).translate(
-            (float)(originX-camera.x),(float)(mappedSectionY-camera.y),
-            (float)(originZ-camera.z));
-        for(var type:LAYERS) {
-            VertexBuffer vbo=entry.vbos().get(type);
-            if(vbo==null)continue;
-            type.setupRenderState();
-            try {
-                var shader=RenderSystem.getShader();
-                if(shader==null)throw new IllegalStateException(
-                    "No Minecraft shader for WorldSeam chunk layer "+type);
+    private record DrawCall(SeamNativeGeometryClient.Slice slice,
+                            Compiled compiled) {}
+    // Reused every frame; no per-layer render state setup for each section.
+    private final java.util.ArrayList<DrawCall> frameDraws=new java.util.ArrayList<>(MAX_MESHES);
+
+    /**
+     * Batch all visible native VBOs BY MATERIAL LAYER, exactly once each.
+     * Setting up and clearing the RenderType for every one of 160 sections
+     * previously created hundreds of shader/GL state switches per frame.
+     */
+    public int drawOpaqueAll(List<SeamNativeGeometryClient.Slice> visible,
+                             PoseStack pose,Vec3 camera,
+                             int sourceBoundary,int targetBoundary) {
+        if(!enabled())return 0;
+        frameDraws.clear();
+        int stones=0;
+        for(var slice:visible) {
+            Compiled c=mesh.get(new Key(slice.cx(),slice.cz(),slice.sectionY()));
+            if(c==null || c.origin()!=slice)continue;
+            frameDraws.add(new DrawCall(slice,c));
+            stones+=c.endStone();
+            lastGpuDrawn++;
+            lastGpuCells+=c.cells();
+            lastGpuFluidCells+=c.fluidCells();
+        }
+        for(int layer=0;layer<LAYERS.length-1;layer++) {
+            RenderType type=LAYERS[layer];
+            if(drawBatch(type,frameDraws,false,pose,camera,
+                sourceBoundary,targetBoundary))lastRenderTypeSetups++;
+        }
+        return stones;
+    }
+
+    /**
+     * After all solid (including CPU-fallback) geometry has flushed, draw
+     * translucent VBOs far-to-near with a SINGLE render state transition.
+     * Individual quads within one section still require native distance
+     * sorting; this is not full shader/portal transparency.
+     */
+    public void drawTranslucentAll(PoseStack pose,Vec3 camera,
+                                   int sourceBoundary,int targetBoundary) {
+        if(!enabled() || frameDraws.isEmpty())return;
+        if(drawBatch(RenderType.translucent(),frameDraws,true,pose,camera,
+            sourceBoundary,targetBoundary))lastRenderTypeSetups++;
+    }
+
+    private static boolean drawBatch(RenderType type,List<DrawCall> calls,
+                                  boolean reverse,PoseStack pose,Vec3 camera,
+                                  int sourceBoundary,int targetBoundary) {
+        boolean any=false;
+        for(var call:calls) {
+            if(call.compiled().vbos().containsKey(type)) {
+                any=true;
+                break;
+            }
+        }
+        if(!any)return false;
+        type.setupRenderState();
+        try {
+            var shader=RenderSystem.getShader();
+            if(shader==null)throw new IllegalStateException(
+                "Missing native GPU shader in WorldSeam section layer "+type);
+            Matrix4f projection=RenderSystem.getProjectionMatrix();
+            Matrix4f base=pose.last().pose();
+            int n=calls.size();
+            for(int ordinal=0;ordinal<n;ordinal++) {
+                DrawCall call=calls.get(reverse?n-1-ordinal:ordinal);
+                VertexBuffer vbo=call.compiled().vbos().get(type);
+                if(vbo==null)continue;
+                var slice=call.slice();
+                int y=SeamSectionLayout.mappedSectionMinY(
+                    slice.sectionY()*16,sourceBoundary,targetBoundary);
+                var local=new Matrix4f(base).translate(
+                    (float)(slice.cx()*16-camera.x),
+                    (float)(y-camera.y),
+                    (float)(slice.cz()*16-camera.z));
                 vbo.bind();
                 try {
-                    vbo.drawWithShader(matrix,RenderSystem.getProjectionMatrix(),shader);
+                    vbo.drawWithShader(local,projection,shader);
                 } finally {
                     VertexBuffer.unbind();
                 }
-            } finally {
-                type.clearRenderState();
             }
+        } finally {
+            type.clearRenderState();
         }
-        lastGpuDrawn++;
-        lastGpuCells+=entry.cells();
-        return entry.endStone();
+        return true;
     }
 
     public int count() {return mesh.size();}
     public long uploaded() {return uploaded;}
     public long evicted() {return evicted;}
+    public long failedSlices(){return failedSlices;}
     public long lastGpuDrawn() {return lastGpuDrawn;}
     public long lastGpuCells() {return lastGpuCells;}
+    public long lastGpuFluidCells() {return lastGpuFluidCells;}
+    public int lastRenderTypeSetups(){return lastRenderTypeSetups;}
     public double p95BakeMs() {return bakeSamples.p95Ms();}
 
     public void clear() {
         for(var item:mesh.values())item.close();
         mesh.clear();
         unsupported.clear();
+        protectedVisible.clear();
+        frameDraws.clear();
         if(building!=null)building.close();
         building=null;
         bakeSamples.clear();
