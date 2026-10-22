@@ -212,6 +212,7 @@ public final class CityDistrictDemo {
         // names floating above NPCs. City desk clerks have a true destination.
         p.put(-15, 1, -14, Blocks.LECTERN);
         p.put(-15, 1, -9, Blocks.CRAFTING_TABLE);
+        p.put(-15, 1, -8, Blocks.FURNACE);
         // Actual ceiling/lighting, upper-level windows and carpeted gallery.
         for (int x = -16; x <= -8; x += 4)
             for (int z = -16; z <= -8; z += 4) p.put(x, 7, z, Blocks.SEA_LANTERN);
@@ -320,6 +321,23 @@ public final class CityDistrictDemo {
                 p.put(x, 3, z, x % 2 == 0 ? Blocks.RED_WOOL : Blocks.YELLOW_WOOL);
             }
         }
+        // Actual irrigated cropland, deliberately away from the tree
+        // trunks, paved paths, water cauldron and open-air market.
+        for (int x = 6; x <= 10; x++)
+            for (int z = 13; z <= 15; z++) {
+                if (x == 8 && z == 14) {
+                    p.put(x, 0, z, Blocks.WATER);
+                } else {
+                    p.state(x, 0, z, Blocks.FARMLAND.defaultBlockState()
+                        .setValue(net.minecraft.world.level.block.FarmBlock.MOISTURE, 7));
+                    Block crop = (x + z) % 2 == 0 ? Blocks.WHEAT : Blocks.CARROTS;
+                    p.state(x, 1, z, crop.defaultBlockState()
+                        .setValue(net.minecraft.world.level.block.CropBlock.AGE, 7));
+                }
+            }
+        // Two REAL vanilla chest depots with individual actual wheat stock.
+        p.put(9, 1, 18, Blocks.CHEST);
+        p.put(-4, 1, 15, Blocks.CHEST);
         p.put(15,1,9, Blocks.NOTE_BLOCK);
         p.put(9,1,15, Blocks.BARREL);
     }
@@ -373,7 +391,7 @@ public final class CityDistrictDemo {
                     i == 3 ? -10 : 12));
                 npc.setPoliceJail(center.offset(-13,1,15));
             }
-            else if (i < 7) npc.setWorkPos(center.offset(15,1,12));
+            else if (i < 7) npc.setWorkPos(center.offset(9,1,12));
             else if (i == 7 || i == 8)
                 npc.setWorkPos(center.offset(-14,1,-14));
             else npc.setWorkPos(center.offset(-3,1,-12));
@@ -387,6 +405,10 @@ public final class CityDistrictDemo {
             if (i == 3) npc.addTag("reme_city_guard");
             if (i == 10) npc.addTag("reme_city_park");
             if (i == 12) npc.addTag("reme_city_shoplifter");
+            if (i == 11) {
+                npc.setCaravanPickup(center.offset(9,1,18));
+                npc.setCaravanDropoff(center.offset(-4,1,15));
+            }
             if (i == 7 || i == 8) npc.addTag("reme_city_office_worker");
             npc.setCharacter(i == 12
                 ? new CharacterProfile(8, 30, 50, 25)
@@ -395,6 +417,10 @@ public final class CityDistrictDemo {
                 npc.backpack().addItem(new ItemStack(Items.BREAD, 12));
                 npc.backpack().addItem(new ItemStack(Items.APPLE, 8));
                 npc.backpack().addItem(new ItemStack(Items.EMERALD, 4));
+            } else if (jobs[i] == PlayerNpcEntity.Profession.BAKER) {
+                // Exact material cost: crafting a real bread consumes wheat.
+                npc.backpack().addItem(new ItemStack(Items.WHEAT, 21));
+                npc.backpack().addItem(new ItemStack(Items.BREAD, 2));
             } else if (jobs[i] == PlayerNpcEntity.Profession.FARMER) {
                 npc.backpack().addItem(new ItemStack(Items.CARROT, 18));
                 npc.backpack().addItem(new ItemStack(Items.BREAD, 2));
@@ -407,6 +433,13 @@ public final class CityDistrictDemo {
                 npc.changeNeeds(-52,0,0);
             } else npc.backpack().addItem(new ItemStack(Items.BREAD,3));
             if (level.addFreshEntity(npc)) count++;
+        }
+        // Only the two depot chests just created by THIS operator-owned
+        // showcase get initial cargo. No scan or seizure of player chests.
+        BlockPos pickup = center.offset(9, 1, 18);
+        if (level.getBlockEntity(pickup) instanceof net.minecraft.world.level.block.entity.ChestBlockEntity chest) {
+            chest.setItem(0, new ItemStack(Items.WHEAT, 32));
+            chest.setChanged();
         }
         System.out.println("REME_NPC_STORY stage=city_initial_population"
             + " tick=" + level.getGameTime() + " citizens=" + count
