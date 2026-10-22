@@ -36,6 +36,8 @@ public final class SeamVisualE2E {
     private static boolean dualStableChecked;
     private static boolean liveChangeStarted;
     private static boolean liveChangeVerified;
+    private static boolean borderEditStarted,borderEditVerified;
+    private static long borderInvalidationsAtStart;
     private static boolean stableBaselineTaken;
     private static boolean crossTntSpawned;
     private static boolean crossTntVerified;
@@ -160,6 +162,16 @@ public final class SeamVisualE2E {
                 nether.setBlock(marker,Blocks.DIAMOND_BLOCK.defaultBlockState(),3);
                 LOG.info("WORLDSEAM_E2E_MUTATE_REMOTE_NETHER: changed block at {} while player remains in Overworld",marker);
             });
+        } else if(phase==1 && !borderEditStarted && now-startTick>360) {
+            borderEditStarted=true;
+            borderInvalidationsAtStart=SeamNativeGeometryClient.sourceBorderInvalidations();
+            server.execute(() -> {
+                var overworld=server.getLevel(Level.OVERWORLD);
+                if(overworld==null)return;
+                BlockPos touching=new BlockPos(witnessX+3,-64,witnessZ+3);
+                overworld.setBlock(touching,Blocks.STONE.defaultBlockState(),3);
+                LOG.info("WORLDSEAM_E2E_SOURCE_BOUNDARY_EDIT: placed source-native stone against real Nether Y127 glowstone at {}",touching);
+            });
         } else if (phase==1 && !liveChangeVerified && now-startTick>415) {
             liveChangeVerified=true;
             BlockPos marker=new BlockPos(witnessX+2,126,witnessZ+2);
@@ -172,6 +184,19 @@ public final class SeamVisualE2E {
                 LOG.error("WORLDSEAM_E2E_FAIL_LIVE_BLOCK: native secondary client chunk did not update when target block changed");
             if(client25<25)
                 LOG.error("WORLDSEAM_E2E_FAIL_CLIENT_WINDOW: remote client 5x5 cache missing chunks: {}/25",client25);
+        } else if (phase==1 && !borderEditVerified && now-startTick>445) {
+            borderEditVerified=true;
+            long total=SeamNativeGeometryClient.sourceBorderInvalidations();
+            LOG.info("WORLDSEAM_E2E_SOURCE_NEIGHBOR_INVALIDATION: before={}, after={}",
+                borderInvalidationsAtStart,total);
+            if(total<=borderInvalidationsAtStart)
+                LOG.error("WORLDSEAM_E2E_FAIL_SOURCE_NEIGHBOR_INVALIDATION: actual source-side block update did not invalidate joined Nether GPU seam geometry");
+            server.execute(() -> {
+                var overworld=server.getLevel(Level.OVERWORLD);
+                if(overworld!=null)overworld.setBlock(
+                    new BlockPos(witnessX+3,-64,witnessZ+3),
+                    Blocks.AIR.defaultBlockState(),3);
+            });
         } else if (phase==1 && !stableBaselineTaken && now-startTick>465) {
             stableBaselineTaken=true;
             server.execute(() -> {
