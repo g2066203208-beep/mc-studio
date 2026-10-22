@@ -168,14 +168,8 @@ if [[ "${REME_CITY_VISUAL:-0}" == "1" ]]; then
   say_city '/npc city audit' 4
   import -window root client-gui-city-census.png
   import -window root client-gui-city-street-level.png
-  # Tag three REAL NPCs at their physical shops/guard post/park spawn points,
-  # while the player is still at the city origin. No visual stand-ins.
-  # Named tags are attached to loaded remestudio NPC entities, never armor stands.
-  say_city '/execute positioned ~-10 ~1 ~-12 run tag @e[type=reme_studio:player_npc,distance=..8,sort=nearest,limit=1] add reme_city_clerk' 3
-  say_city '/execute positioned ~-10 ~1 ~12 run tag @e[type=reme_studio:player_npc,distance=..8,sort=nearest,limit=1] add reme_city_guard' 3
-  say_city '/execute positioned ~10 ~1 ~8 run tag @e[type=reme_studio:player_npc,distance=..8,sort=nearest,limit=1] add reme_city_park' 3
-  # This is the ACTUAL low-honesty, cashless 13th resident inside mall.
-  say_city '/execute positioned ~-8 ~1 ~-11 run tag @e[type=reme_studio:player_npc,distance=..1,sort=nearest,limit=1] add reme_city_shoplifter' 3
+  # Identity tags are attached during actual NPC creation in CityDistrictDemo.
+  # A moving customer must NEVER be found by its obsolete spawn coordinate.
   say_city '/execute if entity @e[type=reme_studio:player_npc,tag=reme_city_clerk] run say REME_CITY_CLERK_ENTITY_EXISTS' 2
   say_city '/execute if entity @e[type=reme_studio:player_npc,tag=reme_city_guard] run say REME_CITY_GUARD_ENTITY_EXISTS' 2
   say_city '/execute if entity @e[type=reme_studio:player_npc,tag=reme_city_park] run say REME_CITY_PARK_ENTITY_EXISTS' 2
