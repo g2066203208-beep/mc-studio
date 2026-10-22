@@ -60,6 +60,10 @@ public final class SeamLongRunE2E {
     private static long maxUsedHeap;
     private static int maxNativeChunks;
     private static int maxBufferOwners;
+    private static long lastClientTickNs;
+    private static long slowTickGaps250ms;
+    private static long slowTickGaps1000ms;
+    private static long worstClientTickGapMs;
     private static ArmorStand marker;
 
     private SeamLongRunE2E() {}
@@ -121,6 +125,17 @@ public final class SeamLongRunE2E {
         MinecraftServer server=mc.getSingleplayerServer();
         if(server==null || mc.level==null || mc.player==null)return;
         long tick=mc.player.tickCount;
+        // Keep timing separate from the existing "model CPU submit" metric.
+        // Under software OpenGL the Post event wall-clock separation
+        // includes scheduling/GC/render stalls, but not precise GPU time.
+        long ns=System.nanoTime();
+        if(lastClientTickNs!=0) {
+            long gap=ns-lastClientTickNs;
+            if(gap>250_000_000L)slowTickGaps250ms++;
+            if(gap>1_000_000_000L)slowTickGaps1000ms++;
+            worstClientTickGapMs=Math.max(worstClientTickGapMs,gap/1_000_000L);
+        }
+        lastClientTickNs=ns;
         if(stage==0) {
             // Wait for new default per-world saved stack and chunk residency
             // to sync to the client before attempting End->Nether.
@@ -233,9 +248,10 @@ public final class SeamLongRunE2E {
                 stage=4;
                 stageTick=tick;
                 long wallMs=(System.nanoTime()-elapsedStart)/1_000_000L;
-                LOG.info("WORLDSEAM_STRESS_PASS: crossings={}, clientHandoffs={}, elapsedWallMs={}, peakNativeChunks={}, peakDedicatedRendererOwners={}, peakHeapUsedMiB={}",
+                LOG.info("WORLDSEAM_STRESS_PASS: crossings={}, clientHandoffs={}, elapsedWallMs={}, peakNativeChunks={}, peakDedicatedRendererOwners={}, peakHeapUsedMiB={}, clientTickGapsOver250ms={}, clientTickGapsOver1000ms={}, worstClientTickGapMs={}",
                     pass,SeamClientWorldPool.nativeHandoffCount(),wallMs,
-                    maxNativeChunks,maxBufferOwners,maxUsedHeap/(1024*1024));
+                    maxNativeChunks,maxBufferOwners,maxUsedHeap/(1024*1024),
+                    slowTickGaps250ms,slowTickGaps1000ms,worstClientTickGapMs);
                 server.execute(()->{
                     if(marker!=null) {marker.discard();marker=null;}
                     SeamSettings.get(server).setEnabled(false);
