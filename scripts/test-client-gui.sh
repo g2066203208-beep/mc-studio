@@ -163,6 +163,13 @@ if [[ "${REME_CITY_VISUAL:-0}" == "1" ]]; then
   say_city '/fill ~-20 ~ ~-20 ~20 ~10 ~20 minecraft:air' 5
   say_city '/npc city survey' 4
   import -window root client-gui-city-survey.png
+  # Full-day documentary is a separate, longer REAL NeoForge run. It starts
+  # right after creative ground preparation; bypasses the crime-only short
+  # film, never fakes the passing of 24k actual Minecraft world ticks.
+  if [[ "${REME_CITY_FULL_DAY:-0}" == "1" ]]; then
+    source ../scripts/record-npc-city-full-day.sh
+    exit 0
+  fi
   # Previously filming started well AFTER jail_reached. Capture an UNBROKEN
   # real client video BEFORE the city even spawns its first thief.
   # This is an actual screen recorder, no still-image assembly or fake

@@ -33,6 +33,26 @@ public final class NpcCameraController {
     private static final Map<UUID, Follow> ACTIVE = new HashMap<>();
 
     @Nullable public static PlayerNpcEntity find(ServerPlayer player, String role) {
+        // All 13 residents can be viewed by stable entity identity, not
+        // stale coordinates: /npc camera chase citizen0..citizen12.
+        // This only selects the camera's target, never drives its AI.
+        if (role.startsWith("citizen")) {
+            String suffix = role.substring("citizen".length());
+            try {
+                int index = Integer.parseInt(suffix);
+                if (index >= 0 && index < 13) {
+                    String stableTag = "reme_city_role_" + index;
+                    return player.serverLevel().getEntitiesOfClass(
+                        PlayerNpcEntity.class, player.getBoundingBox().inflate(64),
+                        npc -> npc.isAlive() && npc.getTags().contains(stableTag))
+                        .stream().min(Comparator.comparingDouble(player::distanceToSqr))
+                        .orElse(null);
+                }
+            } catch (NumberFormatException ignored) {
+                // Unknown camera role: refuse rather than select random NPC.
+            }
+            return null;
+        }
         String tag = switch (role) {
             case "shoplifter" -> "reme_city_shoplifter";
             case "clerk" -> "reme_city_clerk";

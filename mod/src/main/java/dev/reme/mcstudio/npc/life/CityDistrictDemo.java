@@ -1,6 +1,8 @@
 package dev.reme.mcstudio.npc.life;
 
 import dev.reme.mcstudio.npc.NpcRegistry;
+import net.minecraft.world.level.block.CropBlock;
+import net.minecraft.world.level.block.entity.ChestBlockEntity;
 import dev.reme.mcstudio.npc.PlayerNpcEntity;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -108,6 +110,10 @@ public final class CityDistrictDemo {
                     + "；请在新测试世界验收，不会强制覆盖被保护区域", placed, 0);
             placed++;
         }
+        // One genuinely stocked vanilla logistics depot, not a virtual
+        // inventory. Courier and bakery transfer finite existing wheat.
+        if (level.getBlockEntity(anchor.offset(-12,1,-12)) instanceof ChestBlockEntity depot)
+            depot.setItem(0, new ItemStack(Items.WHEAT, 24));
         int residents = spawnShowcaseResidents(level, anchor, owner);
         return new Result(true,
             "已在真实 Minecraft 世界建成 41×41 街区：十字双车道、斑马线、路灯、人行道、双层购物中心、两栋住宅、实体床、警局铁栏拘留区、绿地、市集和实际店员/顾客。"
@@ -211,6 +217,8 @@ public final class CityDistrictDemo {
         // Actual ceiling/lighting, upper-level windows and carpeted gallery.
         for (int x = -16; x <= -8; x += 4)
             for (int z = -16; z <= -8; z += 4) p.put(x, 7, z, Blocks.SEA_LANTERN);
+        // Actual baker's workstation (the baker AI explicitly looks for this).
+        p.put(-8, 1, -10, Blocks.CRAFTING_TABLE);
         for (int y = 1; y <= 5; y++)
             p.state(-17, y, -17, Blocks.LADDER.defaultBlockState()
                 .setValue(net.minecraft.world.level.block.LadderBlock.FACING, Direction.EAST));
@@ -229,6 +237,12 @@ public final class CityDistrictDemo {
         door(p, 15, -6, Direction.SOUTH);
         bed(p, 8, -15);
         bed(p, 15, -15);
+        // 12 additional individual vanilla bed pairs, not imaginary beds.
+        // These are residential rooms for the original 13 physical citizens.
+        // Distinct x-columns leave pedestrian aisles down each townhouse.
+        for (int x : new int[]{7, 10, 14, 17})
+            for (int z : new int[]{-16, -13, -9})
+                bed(p, x, z);
         p.put(7, 1, -11, Blocks.CHEST);
         p.put(17, 1, -11, Blocks.BARREL);
         for (int z = -5; z <= -3; z++) {
@@ -307,6 +321,13 @@ public final class CityDistrictDemo {
         }
         p.put(15,1,9, Blocks.NOTE_BLOCK);
         p.put(9,1,15, Blocks.BARREL);
+        // Food growing on true hydrated vanilla farmland next to the
+        // neighborhood marketplace: assigned farmers must actually harvest.
+        for (int x=15;x<=17;x++) for(int z=13;z<=15;z++) {
+            p.put(x,0,z,Blocks.FARMLAND);
+            p.state(x,1,z,Blocks.CARROTS.defaultBlockState()
+                .setValue(CropBlock.AGE, 7));
+        }
     }
 
     /** Demo citizens receive explicitly labeled creative-starting goods. */
@@ -330,6 +351,10 @@ public final class CityDistrictDemo {
             {-8,-11}
         };
         int count=0;
+        int[][] beds = {
+            {8,-15},{7,-16},{7,-13},{7,-9},{10,-16},{10,-13},{10,-9},
+            {15,-15},{14,-16},{14,-13},{14,-9},{17,-16},{17,-13},{17,-9}
+        };
         String region = "city_" + (center.getX()>>4) + "_" + (center.getZ()>>4);
         for (int i=0; i<names.length; i++) {
             PlayerNpcEntity npc = NpcRegistry.PLAYER_NPC.get().create(level);
@@ -338,11 +363,15 @@ public final class CityDistrictDemo {
                 center.getY() + 1, center.getZ() + spawn[i][1] + .5, 0, 0);
             npc.setMode(PlayerNpcEntity.Mode.LIVE);
             npc.setProfession(jobs[i]);
+            CityDayObserver.markSpawn(npc, level.getGameTime());
+            npc.addTag("reme_city_role_" + i);
             npc.setIdentity(SocietyRules.civilian(region));
             npc.setSkinId(i % 6);
             npc.setRoamingRadius(64);
-            npc.setHomePos(center.offset(i%2==0 ? 9 : 15, 1, -12));
-            if (i < 3) npc.setWorkPos(center.offset(-10,1,-12));
+            npc.setHomePos(center.offset(i < 7 ? 9 : 15, 1, -12));
+            npc.setAssignedBedPos(center.offset(beds[i][0],1,beds[i][1]));
+            if (i < 2) npc.setWorkPos(center.offset(-10,1,-12));
+            else if (i == 2) npc.setWorkPos(center.offset(-8,1,-9));
             else if (i < 5) {
                 // One officer's actual street beat covers the shop so
                 // eyewitness reports can reach police. One guards station.
@@ -350,8 +379,13 @@ public final class CityDistrictDemo {
                     i == 3 ? -10 : 12));
                 npc.setPoliceJail(center.offset(-13,1,15));
             }
-            else if (i < 7) npc.setWorkPos(center.offset(15,1,12));
+            else if (i < 7) npc.setWorkPos(center.offset(16,1,14));
             else npc.setWorkPos(center.offset(-3,1,-12));
+            if (i == 11) {
+                npc.setCaravanPickup(center.offset(-12,1,-12));
+                npc.setCaravanDropoff(center.offset(-15,1,9));
+            }
+            if (i == 2) npc.setSupplyPos(center.offset(-12,1,-12));
             if (owner != null) npc.setOwner(owner);
             npc.setCustomName(Component.literal(names[i]));
             npc.setCustomNameVisible(true);
@@ -369,6 +403,9 @@ public final class CityDistrictDemo {
                 npc.backpack().addItem(new ItemStack(Items.BREAD, 12));
                 npc.backpack().addItem(new ItemStack(Items.APPLE, 8));
                 npc.backpack().addItem(new ItemStack(Items.EMERALD, 4));
+            } else if (jobs[i] == PlayerNpcEntity.Profession.BAKER) {
+                npc.backpack().addItem(new ItemStack(Items.WHEAT, 12));
+                npc.backpack().addItem(new ItemStack(Items.BREAD, 2));
             } else if (jobs[i] == PlayerNpcEntity.Profession.FARMER) {
                 npc.backpack().addItem(new ItemStack(Items.CARROT, 18));
                 npc.backpack().addItem(new ItemStack(Items.BREAD, 2));
