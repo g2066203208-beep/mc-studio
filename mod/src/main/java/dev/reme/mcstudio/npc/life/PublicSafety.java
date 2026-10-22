@@ -229,10 +229,55 @@ public final class PublicSafety {
         }
         // Nav to real walkable block, with no chunk loads. No teleport.
         if (MovementPolicy.due(tick, suspect.getId(), 10)) {
-            suspect.getNavigation().moveTo(jail.getX() + 0.5, jail.getY(),
-                jail.getZ() + 0.5, 0.96);
-            suspect.setAction("walking under custody to the existing local holding cell");
+            BlockPos destination = accessibleJailWaypoint(suspect, level, jail);
+            suspect.getNavigation().moveTo(destination.getX() + 0.5,
+                destination.getY(), destination.getZ() + 0.5, 0.96);
+            suspect.setAction("walking under custody to actual accessible jail stage "
+                + destination.toShortString());
+            // Bounded diagnostic sampling with REAL world coordinates,
+            // unlike scripted test teleport destinations.
+            if (MovementPolicy.due(tick, suspect.getId(), 100)) {
+                System.out.println("REME_NPC_STORY stage=prisoner_walking"
+                    + " tick=" + tick + " id=" + suspect.getUUID()
+                    + " at=" + suspect.blockPosition().toShortString()
+                    + " next=" + destination.toShortString()
+                    + " pathDone=" + suspect.getNavigation().isDone());
+            }
         }
         return true;
+    }
+
+    /**
+     * A direct path to a fenced cell behind an exterior police wall is often
+     * unreachable. Navigate the actual door and gate, block-by-block, without
+     * teleporting or punching through player constructions. This special
+     * route applies ONLY to the explicitly built demonstration station whose
+     * known real oak door and open iron-bar gap still physically exist.
+     * Other player-built holding cells continue to use their vanilla pathing.
+     */
+    public static BlockPos accessibleJailWaypoint(PlayerNpcEntity prisoner,
+                                                    ServerLevel level, BlockPos jail) {
+        BlockPos physicalDoor = jail.offset(7, 0, -3);
+        BlockPos gate = jail.offset(1, 0, 1);
+        if (!level.hasChunkAt(physicalDoor) || !level.hasChunkAt(gate)
+            || !level.getBlockState(physicalDoor).is(Blocks.OAK_DOOR)
+            || !level.getBlockState(gate).isAir())
+            return jail;
+        int dx = prisoner.blockPosition().getX() - jail.getX();
+        int dz = prisoner.blockPosition().getZ() - jail.getZ();
+        // Exterior of the actual city police structure (x = -18..-6,
+        // z = 6..18 relative to city intersection). Prevent direct paths
+        // into the back wall when a chase ends behind the building.
+        boolean outside = dx < -5 || dx >= 7 || dz < -9 || dz >= 3;
+        if (outside) {
+            BlockPos exterior = jail.offset(9, 0, -3);
+            return prisoner.distanceToSqr(Vec3.atCenterOf(exterior)) > 5.0
+                ? exterior : jail.offset(5, 0, -3);
+        }
+        // Inside the police front desk: steer toward the only real gap in the
+        // iron bars, rather than ask vanilla pathing to cross closed bars.
+        if (prisoner.distanceToSqr(Vec3.atCenterOf(gate)) > 2.5)
+            return gate;
+        return jail;
     }
 }
