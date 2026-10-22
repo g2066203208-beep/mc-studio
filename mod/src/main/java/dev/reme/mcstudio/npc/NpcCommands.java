@@ -113,6 +113,8 @@ public final class NpcCommands {
                 .executes(ctx -> cityHelp(ctx.getSource()))
                 .then(Commands.literal("survey")
                     .executes(ctx -> citySurvey(ctx.getSource())))
+                .then(Commands.literal("census")
+                    .executes(ctx -> cityCensus(ctx.getSource())))
                 .then(Commands.literal("demo")
                     .requires(source -> source.hasPermission(2))
                     .executes(ctx -> cityDemo(ctx.getSource()))))
@@ -332,6 +334,31 @@ public final class NpcCommands {
         ServerPlayer player = source.getPlayerOrException();
         String result = CityDistrictDemo.survey(player.serverLevel(), player.blockPosition());
         source.sendSuccess(() -> Component.literal(result), false);
+        return 1;
+    }
+
+    private static int cityCensus(CommandSourceStack source)
+        throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        ServerPlayer player = source.getPlayerOrException();
+        var citizens = player.serverLevel().getEntitiesOfClass(
+            PlayerNpcEntity.class, player.getBoundingBox().inflate(42),
+            npc -> npc.isAlive());
+        int shops=0, farmers=0, officers=0, clients=0;
+        for (PlayerNpcEntity npc : citizens) {
+            switch (npc.profession()) {
+                case SHOPKEEPER -> shops++;
+                case FARMER -> farmers++;
+                case GUARD -> officers++;
+                case RESIDENT -> clients++;
+                default -> {}
+            }
+        }
+        final int count=citizens.size(), s=shops, f=farmers, g=officers, c=clients;
+        source.sendSuccess(() -> Component.literal(
+            "城市实体普查：周围42格内真正存活 NPC " + count
+            + "；店员 " + s + "；农夫 " + f + "；警卫 " + g
+            + "；普通居民 " + c + "。这是实时加载的实体统计，"
+            + "不是 /npc city demo 的预期创建数量。"), false);
         return 1;
     }
 
