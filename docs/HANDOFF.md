@@ -239,3 +239,10 @@ Push CI `39518033958` SUCCESS，PR CI `39518039426` SUCCESS。Artifact `12310085
 - `CivicGameTests` 新增 3 项，共 53 个（源码计数）：真实一份食物互助/NBT、禁止跨区域与溢出与连续乞食、24 名 LIVE NPC 在真实 MC 服务端连跑 2400 world ticks。不是 200 NPC 性能结论、不是完整白天黑夜长时游玩或自动建城。
 - `mod_version=0.6.5-dev`，同步 Windows HMCL PowerShell 安装测试文件；GameTest/真实 GUI workflow 加新分支触发，GameTest timeout 提升为22分钟。源/研究/人工说明见 `docs/NPC_MUTUAL_AID_LONGRUN_V065.md`。
 - 必须回查本 PR 的 Java BUILD、纯 Java 18项、NeoForge 53 GameTests、Xvfb GUI 和 Windows installer 真实状态；发现失败逐个修复，不能冒充成功。仍未验证真正联网 `ServerPlayer`、用户222 Mod HMCL、20-200 NPC MSPT。
+
+
+## 2026-10-22 修正 NPC 测试“时间”定义：真正的 50/200 人口墙钟压测
+
+- PR #78 的实际 GameTest 日志 53/53 PASS，24 名真实 AI 实体执行 2400 tick，但 **wallSeconds 仅3.53**；说明 NeoForge 加速 GameTest world tick，不能称作“真实两分钟长测”。基础功能仍是合格的加速行为回归。
+- 新建独立 `test/npc-realwall-soak-v065` 支线，增加 `NpcSoakGameTests.java` 与 `.github/workflows/npc-real-time-soak.yml`，仅显式 JVM 参数 `-Dreme.npc.soak=true` 时要求每组至少300秒真实墙钟+至少12000 world ticks。GitHub CI 自动矩阵 **50 / 200** 名 LIVE NPC 并行独立世界测量，上传服务器 tick 原生环状采样 p50/p95、身份/存活/需求/内存上界证据；普通 GameTest 只作为立即跳过的门控，不消耗五分钟。
+- 独立文档 `docs/NPC_REAL_WALL_SOAK_V065.md` 详细区分游戏真 tick、真实墙钟、Mojmap 1.21.1 原生服务端 tick samples 与正式整合包/客户端 FPS。**未看到新 PR 的 GitHub Action 实际 logs 前不能声称50/200人通过**；勿用 GameTest stdout 第一个绿灯冒充长测。
