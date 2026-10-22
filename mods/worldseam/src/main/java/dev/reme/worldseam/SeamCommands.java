@@ -33,14 +33,6 @@ public final class SeamCommands {
                     .requires(src -> src.hasPermission(2))
                     .then(Commands.literal("enable").executes(ctx -> explosions(ctx,true)))
                     .then(Commands.literal("disable").executes(ctx -> explosions(ctx,false))))
-                .then(Commands.literal("physics")
-                    .then(Commands.literal("status").executes(SeamCommands::physicsStatus))
-                    .then(Commands.literal("enable")
-                        .requires(src -> src.hasPermission(4))
-                        .executes(ctx -> physics(ctx,true)))
-                    .then(Commands.literal("disable")
-                        .requires(src -> src.hasPermission(4))
-                        .executes(ctx -> physics(ctx,false))))
                 .then(Commands.literal("terrain")
                     .requires(src -> src.hasPermission(2))
                     .then(Commands.literal("enable").executes(ctx -> terrain(ctx,true)))
@@ -76,7 +68,6 @@ public final class SeamCommands {
                 + " | experimental no-respawn: " + (config.experimentalNoRespawn() ? "ON" : "OFF")
                 + " | carve new chunks: " + (config.carveNewChunks() ? "ON" : "OFF")
                 + " | cross-seam explosions: " + (config.crossSeamExplosions() ? "ON" : "OFF")
-                + " | Sable ship atomic transfers: " + (config.experimentalSableShips() ? "EXPERIMENTAL ON" : "OFF")
                 + " | dimension edges: " + config.stack().links().size()
                 + " | stack layers: " + config.stack().entries().size() + " | rendering: near-border snapshot prototype (not full world renderer)"
         ), false);
@@ -111,35 +102,6 @@ public final class SeamCommands {
             "WorldSeam native cross-seam blasts " + (enabled ? "ENABLED" : "DISABLED")
             + ". Only sealed-bedrock-free openings; both worlds must be loaded."
             + " Destructive across dimensions. Back up the test world first."
-        ),true);
-        return 1;
-    }
-
-    private static int physicsStatus(CommandContext<CommandSourceStack> ctx) {
-        var src=ctx.getSource();
-        var cfg=SeamSettings.get(src.getServer());
-        src.sendSuccess(() -> Component.literal(
-            "WorldSeam Sable/AeroPortals: "+(cfg.experimentalSableShips()?"ENABLED":"OFF")
-            + " | "+SeamSableInterop.status()
-            + " | whole-ship ATOMIC teleport only: not Atlas straddle physics"
-        ),false);
-        return 1;
-    }
-
-    private static int physics(CommandContext<CommandSourceStack> ctx,boolean on) {
-        var src=ctx.getSource();
-        String status=SeamSableInterop.status();
-        if(on && !status.startsWith("compatible API discovered")) {
-            src.sendFailure(Component.literal(
-                "Cannot enable experimental Sable crossing: "+status+
-                ". Install compatible NeoForge 1.21.1 Sable + AeroPortals."));
-            return 0;
-        }
-        SeamSettings.get(src.getServer()).setExperimentalSableShips(on);
-        src.sendSuccess(() -> Component.literal(
-            "EXPERIMENTAL Sable whole-ship seam transfer "+(on?"ON":"OFF")
-            + ". Not continuous dual-world physics; existing world should be backed up."
-            + " Uses AeroPortals transactional ship/group transfer, NOT vanilla entity teleport."
         ),true);
         return 1;
     }
