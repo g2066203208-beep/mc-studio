@@ -259,7 +259,6 @@ public final class CityDistrictDemo {
         p.state(-12, 2, 16, Blocks.IRON_DOOR.defaultBlockState()
             .setValue(DoorBlock.FACING, Direction.EAST)
             .setValue(DoorBlock.HALF, DoubleBlockHalf.UPPER));
-            }
         p.put(-11, 1, 10, Blocks.LECTERN);
         p.put(-15, 1, 9, Blocks.CHEST);
         p.put(-10, 1, 9, Blocks.CRAFTING_TABLE);
