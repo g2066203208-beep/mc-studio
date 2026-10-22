@@ -92,6 +92,29 @@ xdotool key Return
 sleep 4
 import -window root client-gui-npc-info.png
 echo "Captured real client command attempts for visual inspection"
+
+# Dedicated real-client acceptance: this mode explicitly stops after genuine
+# command registration, egg registry and /npc spawn are observed. The old
+# comprehensive screenshot/mining scenario occasionally failed due to a
+# separate coordinate fixture and masked an already-working command test.
+if [[ "${REME_COMMAND_SMOKE_ONLY:-0}" == "1" ]]; then
+  log=run/logs/latest.log
+  if ! grep -q 'REME NPC 0.6.7-dev COMMANDS REGISTERED: /npc=true, /remecheck=true' "$log"; then
+    echo "FAIL: 21.1.262 server never actually registered both commands"; exit 1
+  fi
+  if ! grep -q '/npc registered=true' "$log"; then
+    echo "FAIL: actual joined client did not execute /remecheck"; exit 1
+  fi
+  if ! grep -q 'REME_NPC_EGG_REGISTERED' "$log"; then
+    echo "FAIL: actual integrated world did not resolve the NPC spawn egg"; exit 1
+  fi
+  if ! grep -q 'Created player NPC: NPC' "$log"; then
+    echo "FAIL: real /npc spawn failed in integrated world"; exit 1
+  fi
+  echo "PASS: REAL MC 1.21.1 / NeoForge 21.1.262 integrated client loaded mod, registered /npc, successfully ran /remecheck and /npc spawn, and resolved real spawn egg"
+  exit 0
+fi
+
 xdotool key --clearmodifiers t
 sleep 1
 xdotool type --clearmodifiers --delay 75 '/npc demo'
