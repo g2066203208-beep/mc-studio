@@ -180,6 +180,12 @@ public final class SeamCommands {
             ", ticketAdds="+SeamShipResidency.added()+
             ", ticketReleases="+SeamShipResidency.removed()+
             ", rejectedByLimit="+SeamShipResidency.rejected()+
+            ", remoteVoxelCandidates(BROAD_PHASE_ONLY)="+
+                SeamSableObserver.remoteCollisionCandidates()+
+            ", remoteVoxelsNotLoaded="+
+                SeamSableObserver.remoteUnloadedBlocks()+
+            ", remoteProbesTruncated="+
+                SeamSableObserver.remoteProbesTruncated()+
             ", physical image-collider bridge=NOT IMPLEMENTED"+
             ", sample="+s.sampleShip()+
             (error.isBlank()?"":", probe error="+error)
