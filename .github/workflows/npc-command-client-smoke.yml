@@ -1,3 +1,7 @@
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
 name: NPC 1.21.1 NeoForge 21.1.262 real client command smoke
 on:
   workflow_dispatch:
