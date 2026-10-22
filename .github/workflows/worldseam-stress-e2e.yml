@@ -36,7 +36,7 @@ jobs:
           xvfb-run -a -s '-screen 0 1280x720x24' bash -c '
             set -euo pipefail
             export LIBGL_ALWAYS_SOFTWARE=1
-            bash ./gradlew runClient -PworldseamStress --no-daemon --console=plain > stress-client.log 2>&1 &
+            bash ./gradlew runClient -PworldseamStress -PworldseamGpuSections --no-daemon --console=plain > stress-client.log 2>&1 &
             pid=$!
             trap "kill $pid 2>/dev/null || true" EXIT
             for step in $(seq 1 185); do
