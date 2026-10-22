@@ -165,6 +165,7 @@ if [[ "${REME_CITY_VISUAL:-0}" == "1" ]]; then
   import -window root client-gui-city-survey.png
   say_city '/npc city demo' 20
   say_city '/npc city census' 4
+  say_city '/npc city audit' 4
   import -window root client-gui-city-census.png
   import -window root client-gui-city-street-level.png
   # Tag three REAL NPCs at their physical shops/guard post/park spawn points,
@@ -192,6 +193,8 @@ if [[ "${REME_CITY_VISUAL:-0}" == "1" ]]; then
   import -window root client-gui-city-npc-guard-closeup.png
   say_city '/execute at @e[type=reme_studio:player_npc,tag=reme_city_clerk,limit=1] run tp @s ~ ~2 ~4 facing entity @e[type=reme_studio:player_npc,tag=reme_city_clerk,limit=1] eyes' 6
   import -window root client-gui-city-npc-shopkeeper-closeup.png
+  say_city '/npc city audit' 4
+  import -window root client-gui-city-live-audit.png
   say_city '/npc market' 4
   import -window root client-gui-city-market-activity.png
   log=run/logs/latest.log
@@ -203,9 +206,12 @@ if [[ "${REME_CITY_VISUAL:-0}" == "1" ]]; then
     echo 'FAIL: GUI /npc city demo did not build true road/mall blocks'
     exit 1
   fi
-  if ! grep -q '实际生活NPC：12' "$log"; then
+  if ! grep -q '实际生活NPC：13' "$log"; then
     echo 'FAIL: GUI real city did not spawn the 12 citizen entities'
     exit 1
+  fi
+  if ! grep -q '城市治安直播统计' "$log"; then
+    echo "FAIL: live in-client police/store register audit missing"; exit 1
   fi
   if ! grep -q '城市实体普查：周围42格内真正存活 NPC' "$log"; then
     echo "FAIL: real in-client population census did not count living entities"
@@ -233,7 +239,7 @@ fi
 # separate coordinate fixture and masked an already-working command test.
 if [[ "${REME_COMMAND_SMOKE_ONLY:-0}" == "1" ]]; then
   log=run/logs/latest.log
-  if ! grep -q 'REME NPC 0.7.0-dev COMMANDS REGISTERED: /npc=true, /remecheck=true' "$log"; then
+  if ! grep -q 'REME NPC 0.7.1-dev COMMANDS REGISTERED: /npc=true, /remecheck=true' "$log"; then
     echo "FAIL: 21.1.262 server never actually registered both commands"; exit 1
   fi
   if ! grep -q '/npc registered=true' "$log"; then
