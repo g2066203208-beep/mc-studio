@@ -111,17 +111,19 @@ function chassisVisual(g){
 function linkVisual(g,length,legId,segment){
  const isUpper=segment==='upper';
  // All visible individual voxel blocks remain exactly one MC block.
- // Rapier physics joint lengths are 1.65/1.75, not yet exact 2-block segments.
+ // Real 1x1 voxel leg blocks are stacked on centers ±.5; bearings at
+ // +1.5 and boots at -1.5 never intersect these solid voxels.
+ // Rapier joint center lengths 1.65/1.75 still require separate geometry calibration.
  for(const y of [-.5,.5])
   block(g,'box',[0,y,0],[1,1,1],isUpper?'teal':'steel',legId);
  if(isUpper){
-  officialModule(g,'simulated:swivel_bearing',[0,1,0],
+  officialModule(g,'simulated:swivel_bearing',[0,1.5,0],
    {axis:'x',facing:'east',scale:1,legId});
   officialModule(g,'create:cogwheel',[1,0,0],{axis:'x',scale:1,legId});
  }else{
-  officialModule(g,'simulated:swivel_bearing',[0,1,0],
+  officialModule(g,'simulated:swivel_bearing',[0,1.5,0],
    {axis:'x',facing:'east',scale:1,legId});
-  block(g,'box',[0,-1,0],[1,1,1],'foot',legId);
+  block(g,'box',[0,-1.5,0],[1,1,1],'foot',legId);
  }
  g.traverse(o=>{if(o.isMesh)o.userData.legId=legId;});
 }
