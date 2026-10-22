@@ -3,7 +3,7 @@ package dev.reme.mcstudio.npc.life;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -19,8 +19,9 @@ public final class ResidentMemory {
     public record Event(long worldTick, UUID actor, Kind kind, String where) {}
 
     private static final int MAX_EVENTS = 48;
+    private static final int MAX_RELATIONSHIPS = 128;
     private final Deque<Event> events = new ArrayDeque<>();
-    private final Map<UUID, Integer> trust = new HashMap<>();
+    private final Map<UUID, Integer> trust = new LinkedHashMap<>();
 
     public void clear() { events.clear(); trust.clear(); }
     public void restoreEvent(long tick, UUID actor, Kind kind, String where) {
@@ -28,8 +29,7 @@ public final class ResidentMemory {
         events.addLast(new Event(tick, actor, kind, where == null ? "" : where));
     }
     public void restoreTrust(UUID actor, int value) {
-        if (trust.size() < 128 || trust.containsKey(actor))
-            trust.put(actor, Math.clamp(value, -100, 100));
+        storeTrust(actor, value);
     }
 
     public void witness(long tick, UUID actor, Kind type, String where) {
@@ -46,7 +46,18 @@ public final class ResidentMemory {
             case ATTACK_WITNESSED -> -40;
             case RUMOR -> -2;
         };
-        trust.put(actor, Math.max(-100, Math.min(100, trust(actor) + change)));
+        storeTrust(actor, trust(actor) + change);
+    }
+
+    private void storeTrust(UUID actor, int value) {
+        if (actor == null) return;
+        if (!trust.containsKey(actor) && trust.size() >= MAX_RELATIONSHIPS) {
+            // Evict oldest observed identity, never let a busy town or a
+            // player swarm grow resident relationship data without bound.
+            UUID oldest = trust.keySet().iterator().next();
+            trust.remove(oldest);
+        }
+        trust.put(actor, Math.clamp(value, -100, 100));
     }
 
     public int trust(UUID actor) { return trust.getOrDefault(actor, 0); }
