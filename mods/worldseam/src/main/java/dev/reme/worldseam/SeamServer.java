@@ -99,7 +99,7 @@ public final class SeamServer {
                 }
                 double targetBoundaryY = SeamGraph.boundaryY(link.entry(),
                     SeamStackRuntime.bottom(target), SeamStackRuntime.top(target));
-                boolean trace=Boolean.getBoolean("worldseam.stress")
+                boolean trace=Boolean.getBoolean("worldseam.traceCrossings")
                     && tick%10==0 && link.near(player.getY(),min,max,3.0);
                 if(trace)LOG.info(
                     "WORLDSEAM_STRESS_SERVER_TRACE: dim={}, to={}, y={}, yo={}, vy={}, min={}, max={}, targetEdge={}, targetBoundary={}, cachedReady={}, cooldownLeft={}",
