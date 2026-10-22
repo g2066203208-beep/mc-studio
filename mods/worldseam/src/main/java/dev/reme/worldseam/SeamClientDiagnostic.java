@@ -47,12 +47,13 @@ public final class SeamClientDiagnostic {
         String cache="已接收区块: "+SeamClientWorldPool.receivedChunks()+
             " | 远端缓存: "+SeamClientWorldPool.remoteWindowChunks()+
             "/25 | 远端模型: "+SeamNativeGeometryClient.visibleBlockCount()+
-            " | 待重建: "+SeamNativeGeometryClient.pendingRebuilds()+
+            " | 待重建段: "+SeamNativeGeometryClient.pendingRebuilds()+
             " | 本帧: "+SeamNativeGeometryClient.lastFrameDrawn()+
             " | 预算: "+SeamNativeGeometryClient.currentModelBudget()+
             " | CPU P95: "+String.format(java.util.Locale.ROOT,"%.1fms",SeamNativeGeometryClient.p95ModelCpuMs())+
             " | 片段: "+SeamNativeGeometryClient.visibleSlices()+"/"+
-            (SeamNativeGeometryClient.visibleSlices()+SeamNativeGeometryClient.culledSlices());
+            (SeamNativeGeometryClient.visibleSlices()+SeamNativeGeometryClient.culledSlices())+
+            " | 重建P95: "+String.format(java.util.Locale.ROOT,"%.1fms",SeamNativeGeometryClient.p95RebuildCpuMs());
         String rawStatus=SeamClientWorldPool.remoteStatus();
         String detail=rawStatus.contains("FAILED")?"目标维度初始化失败，请看日志":
             rawStatus.contains("NO TARGET")?"等待目标维度区块":
