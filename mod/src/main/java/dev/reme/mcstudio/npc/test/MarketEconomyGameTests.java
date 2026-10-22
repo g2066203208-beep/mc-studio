@@ -164,6 +164,37 @@ public final class MarketEconomyGameTests {
     }
 
     @GameTest(template = "empty", timeoutTicks = 120)
+    public static void crowded_real_market_twelve_stocked_meals_feed_only_twelve_of_sixteen_buyers(
+        GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos home = helper.absolutePos(new BlockPos(5, 9, 5));
+        PlayerNpcEntity clerk = spawn(level, home, PlayerNpcEntity.Profession.SHOPKEEPER);
+        work(clerk);
+        clerk.backpack().addItem(new ItemStack(Items.BREAD, 12));
+        int succeeded = 0, refused = 0;
+        for (int i = 0; i < 16; i++) {
+            PlayerNpcEntity buyer = spawn(level, home.east(), PlayerNpcEntity.Profession.RESIDENT);
+            buyer.backpack().addItem(new ItemStack(Items.EMERALD, 1));
+            if (ShopCounter.purchaseByResident(clerk, buyer, level.getGameTime())) {
+                succeeded++;
+                if (buyer.backpack().countItem(Items.BREAD) != 1
+                    || buyer.backpack().countItem(Items.EMERALD) != 0)
+                    throw new AssertionError("Paid purchaser failed to receive ONE existing meal");
+            } else {
+                refused++;
+                if (buyer.backpack().countItem(Items.EMERALD) != 1
+                    || buyer.backpack().countItem(Items.BREAD) != 0)
+                    throw new AssertionError("Sold out shop still charged a real NPC");
+            }
+        }
+        if (succeeded != 12 || refused != 4
+            || clerk.backpack().countItem(Items.EMERALD) != 12
+            || clerk.backpack().countItem(Items.BREAD) != 0)
+            throw new AssertionError("Crowded market minted goods/cash or oversold out-of-stock items");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 120)
     public static void weekly_fair_is_local_social_and_rate_limited(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
         BlockPos at = helper.absolutePos(new BlockPos(5, 9, 5));
