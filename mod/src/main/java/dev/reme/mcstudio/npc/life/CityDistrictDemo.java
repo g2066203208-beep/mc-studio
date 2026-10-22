@@ -398,6 +398,7 @@ public final class CityDistrictDemo {
             if (owner != null) npc.setOwner(owner);
             npc.setCustomName(Component.literal(names[i]));
             npc.setCustomNameVisible(true);
+            npc.addTag("reme_city_citizen");
             // Identity-stable native entity tags survive real navigation.
             // Do NOT infer a moving citizen's identity from old spawn
             // coordinates in the Xvfb client screenshot workflow.
