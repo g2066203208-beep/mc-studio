@@ -504,7 +504,7 @@ public final class SeamVisualE2E {
             Blocks.WATER.defaultBlockState(),3);
         nether.setBlock(new BlockPos(x-3,127,z+1),
             Blocks.LAVA.defaultBlockState(),3);
-        nether.setBlock(new BlockPos(x+3,127,z),
+        nether.setBlock(new BlockPos(x+4,127,z+2),
             Blocks.OAK_SLAB.defaultBlockState().setValue(
                 net.minecraft.world.level.block.SlabBlock.WATERLOGGED,true),3);
         LOG.info("WORLDSEAM_E2E_FLUID_FIXTURES: placed native Nether WATER LAVA and waterlogged slab at roof for real client render");
