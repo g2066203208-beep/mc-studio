@@ -258,6 +258,10 @@ public final class SeamSableInterop {
                 return;
             }
             sample.previousY=y;
+        } catch(IllegalArgumentException invalidGeometry) {
+            // Sable may expose an assembling/uninitialized sub-level with
+            // empty world bounds: skip it, not the other ships in this world.
+            LOG.debug("WorldSeam: ignoring incomplete Sable ship collision bounds",invalidGeometry);
         } catch(InvocationTargetException ex) {
             // Let AeroPortals' crash-safe journal/rollback own failures. A
             // failed plugin call is never retried every game tick.
@@ -265,11 +269,13 @@ public final class SeamSableInterop {
             rejectedTransfers++;
             api=null;
             detection="disabled after AeroPortals transfer exception";
+            SeamSettings.get(server).setExperimentalSableShips(false);
         } catch(ReflectiveOperationException | RuntimeException | LinkageError ex) {
             LOG.error("WORLDSEAM_SABLE_API_ERROR: incompatible physics bridge; disabling for this session",ex);
             detection="disabled after Sable API runtime error";
             api=null;
             rejectedTransfers++;
+            SeamSettings.get(server).setExperimentalSableShips(false);
         }
     }
 }
