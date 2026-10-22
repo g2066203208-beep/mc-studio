@@ -128,10 +128,10 @@ export function createMultibodyBoss(RAPIER,opts={}){
  // Keep the measured-stable low-impulse PD gains. Overdriving the
  // motor caused large ballistic hops in the real Rapier integration.
  let hipGain=115,kneeGain=92,hipDamping=15,kneeDamping=13;
- let phase=0,stepStride=1.15,stepClearance=.64;
+ let phase=0,stepStride=.45,stepClearance=.24;
  const setMotor=({rpm,torqueLimit,stiffness,damping,period,ratio,stride,clearance}={})=>{
-  if(Number.isFinite(stride))stepStride=clamp(stride,.1,1.8);
-  if(Number.isFinite(clearance))stepClearance=clamp(clearance,.05,.85);
+  if(Number.isFinite(stride))stepStride=clamp(stride,.10,.75);
+  if(Number.isFinite(clearance))stepClearance=clamp(clearance,.05,.40);
   if([1,2,4].includes(Number(ratio)))gearRatio=Number(ratio);
   if(Number.isFinite(rpm))commandRPM=clamp(rpm,0,96);
   if(Number.isFinite(torqueLimit))torque=clamp(torqueLimit,0,5500);
@@ -186,7 +186,12 @@ export function createMultibodyBoss(RAPIER,opts={}){
    const stride=mode==='walk'?.28:.18;
    const hipT=trajectory?trajectory.hip:drive?clamp(wave*stride,-.4,.4):0;
    const kneeT=trajectory?trajectory.knee:drive?clamp(.38*lift,0,.43):0;
-   leg.hipTarget=hipT;leg.kneeTarget=kneeT;
+   // Keep physical servo targets smooth on a large inertial rig.
+   // Jumping straight from upright locked knees to a full swing created
+   // ballistic tipping even though the joint anchors remained intact.
+   const maxChange=mode==='walk'?.011:Infinity;
+   leg.hipTarget=clamp(hipT,leg.hipTarget-maxChange,leg.hipTarget+maxChange);
+   leg.kneeTarget=clamp(kneeT,leg.kneeTarget-maxChange,leg.kneeTarget+maxChange);
    leg.gaitPhase=trajectory?.phase||(drive?(lift>0?'swing':'stance'):'hold');
    leg.footTarget=trajectory?.target||null;
    const branch=powerBus.bearings.find(o=>o.id===leg.id);
@@ -195,11 +200,11 @@ export function createMultibodyBoss(RAPIER,opts={}){
    const budget=branch?.pathLive ? torque*branch.torqueMultiplier : 0;
    leg.deliveredTorque=budget;
    if(mode!=='relax'&&budget>0){
-    servoTorque(body,leg.upper,hipT,hipGain,hipDamping,budget);
+    servoTorque(body,leg.upper,leg.hipTarget,hipGain,hipDamping,budget);
     // A powered knee servo mounted on the upper/lower leg is a separate
     // simplified electrical/mechanical coupling, NOT a proven Create shaft
     // through a moving SubLevel. Explicitly report that limitation in UI.
-    servoTorque(leg.upper,leg.lower,kneeT,kneeGain,kneeDamping,budget*.85);
+    servoTorque(leg.upper,leg.lower,leg.kneeTarget,kneeGain,kneeDamping,budget*.85);
    }
   }
  };
