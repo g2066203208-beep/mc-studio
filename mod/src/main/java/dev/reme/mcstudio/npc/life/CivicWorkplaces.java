@@ -67,7 +67,8 @@ public final class CivicWorkplaces {
                         net.minecraft.world.level.block.DoorBlock.HALF)
                         == net.minecraft.world.level.block.state.properties.DoubleBlockHalf.UPPER)
                     doors++;
-                if (y == 3 && state.isSolid()) roofs++;
+                if ((y == 2 || y == 3) && Math.abs(x) <= 1
+                    && Math.abs(z) <= 1 && state.isSolid()) roofs++;
             }
         Type type=Type.UNASSIGNED;
         if (chest > 0 && barrel > 0) type=Type.SHOP;
