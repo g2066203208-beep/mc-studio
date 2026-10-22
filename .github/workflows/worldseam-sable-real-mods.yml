@@ -55,7 +55,12 @@ jobs:
             echo 'Failed: Sable real sublevel reflection API not verified'
             exit 1
           fi
-          echo 'WorldSeam real third-party mod GameTest passed. Native continuous Rapier two-chart solver still NOT implemented.'
+          if ! grep -q 'WORLDSEAM_REAL_SABLE_SHIP_ASSEMBLED' real-sable-gametest.log ||
+             ! grep -q 'WORLDSEAM_REAL_SABLE_STRADDLE_OBSERVED' real-sable-gametest.log; then
+            echo 'Failed: never physically assembled a genuine Sable sublevel or observed its moving hull touching the join'
+            exit 1
+          fi
+          echo 'WorldSeam real released-mod GameTest assembled and observed an actual Sable hull crossing the seam. Native dual-chart Rapier contacts still NOT implemented.'
 
       - name: Publish logs and version hashes, never redistribute third-party jars
         uses: actions/upload-artifact@v4
