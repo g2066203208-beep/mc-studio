@@ -77,6 +77,10 @@ public final class LivingWorldActions {
             CivicContracts.post(npc, Commission.Goods.BREAD, 2,
                 npc.character().empathy() >= 75 ? 3 : 2);
         }
+        // Help emerges from neighbors with actual surplus before the foodless
+        // fallback: never summon supplies or seize the player's private chest.
+        // This is phasically budgeted and commits both resident inventories.
+        if (MutualAid.tick(npc, level, tick)) return;
         // A meal is a real high-priority survival task. Work and patrol
         // cannot consume the entire tick budget while starving residents
         // or during their scheduled breakfast/lunch/supper windows.
