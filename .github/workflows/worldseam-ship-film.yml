@@ -54,6 +54,8 @@ jobs:
             mods/worldseam/real-ship-film-client.log
             mods/worldseam/real-ship-flight-telemetry.log
             mods/worldseam/real-ship-ffmpeg.log
+            mods/worldseam/real-ship-jvm-thread-dump.txt
+            mods/worldseam/real-ship-*.jpg
             mods/worldseam/real-ship-release-versions.log
             mods/worldseam/real-mod-versions.json
             mods/worldseam/run/logs/latest.log
