@@ -19,9 +19,9 @@ import java.util.UUID;
  * Actual integrated CLIENT + integrated SERVER long-running regression.
  * Opt-in only: -Dworldseam.e2e=true -Dworldseam.stress=true.
  *
- * After the standard historical-save screenshot run, switch the disposable
- * save to the NEW default Overworld > Nether > End order. Excavate TWO real
- * vertical seams, then traverse End > Nether > Overworld > Nether > End
+ * Create a dedicated DISPOSABLE world using the NEW default dimension order
+ * Overworld > Nether > End. Excavate BOTH genuine vertical seams, then
+ * traverse Overworld > Nether > End > Nether > Overworld
  * SIX complete rounds (24 real server + client handoffs). No direct
  * teleport across dimensions is issued by the driver; it only positions
  * the player 3 blocks INSIDE the current world before testing normal seam
@@ -39,9 +39,9 @@ public final class SeamLongRunE2E {
     private static final String END="minecraft:the_end";
     private static final String NETHER="minecraft:the_nether";
     private static final String OVERWORLD="minecraft:overworld";
-    private static final String[] FROM={END,NETHER,OVERWORLD,NETHER};
-    private static final String[] TO={NETHER,OVERWORLD,NETHER,END};
-    private static final boolean[] UP={true,true,false,false};
+    private static final String[] FROM={OVERWORLD,NETHER,END,NETHER};
+    private static final String[] TO={NETHER,END,NETHER,OVERWORLD};
+    private static final boolean[] UP={false,false,true,true};
 
     private static volatile boolean enabled;
     private static volatile boolean triggerSent;
@@ -90,19 +90,32 @@ public final class SeamLongRunE2E {
         server.execute(()->{
             var settings=SeamSettings.get(server);
             settings.setStack(SeamStack.defaults(),server);
+            var overworld=server.getLevel(Level.OVERWORLD);
             var nether=server.getLevel(Level.NETHER);
             var end=server.getLevel(Level.END);
-            if(nether==null||end==null) {
+            if(overworld==null||nether==null||end==null) {
                 LOG.error("WORLDSEAM_STRESS_FAIL: missing target levels");
                 enabled=false;
                 return;
             }
-            // Real 9x9 excavation of BOTH Nether planes; no hand-painted
-            // fake "remote dimension". End top is natural empty sky, but
-            // explicitly clear any top-layer blocks in this disposable save.
+            // In-game world modification, NOT fake rendering: remove real
+            // bedrock and stone in a 9x9 corridor at each touching plane.
+            // This code is enabled ONLY in a disposable GitHub CI save.
             int excavated=0;
             var at=new BlockPos.MutableBlockPos();
             for(int dx=-4;dx<=4;dx++)for(int dz=-4;dz<=4;dz++){
+                for(int y=-64;y<=-54;y++) {
+                    at.set(x+dx,y,z+dz);
+                    if(!overworld.getBlockState(at).isAir()
+                        && overworld.setBlock(at,Blocks.AIR.defaultBlockState(),3))
+                        excavated++;
+                }
+                for(int y=120;y<=127;y++) {
+                    at.set(x+dx,y,z+dz);
+                    if(!nether.getBlockState(at).isAir()
+                        && nether.setBlock(at,Blocks.AIR.defaultBlockState(),3))
+                        excavated++;
+                }
                 for(int y=0;y<=9;y++) {
                     at.set(x+dx,y,z+dz);
                     if(!nether.getBlockState(at).isAir()
@@ -116,15 +129,25 @@ public final class SeamLongRunE2E {
                         excavated++;
                 }
             }
-            LOG.info("WORLDSEAM_STRESS_BOTH_SHAFTS_OPEN: cleared={} native blocks across Nether floor, Nether roof (earlier E2E), and End top; default stack=Overworld > Nether > End",excavated);
+            LOG.info("WORLDSEAM_STRESS_BOTH_SHAFTS_OPEN: cleared={} native blocks across Overworld bottom, Nether roof/floor and End top; default stack=Overworld > Nether > End",excavated);
         });
     }
 
     private static void tick(ClientTickEvent.Post ignored) {
-        if(!enabled)return;
         Minecraft mc=Minecraft.getInstance();
         MinecraftServer server=mc.getSingleplayerServer();
         if(server==null || mc.level==null || mc.player==null)return;
+        // Real Minecraft world joined, native player initialized. The
+        // dedicated long-run begins WITHOUT waiting for legacy visual E2E.
+        if(!enabled) {
+            if(stage==0 && mc.player.tickCount>=70 &&
+                mc.level.dimension()==Level.OVERWORLD) {
+                begin(server,mc.player.getUUID(),
+                    mc.player.blockPosition().getX(),
+                    mc.player.blockPosition().getZ());
+            }
+            return;
+        }
         long tick=mc.player.tickCount;
         // Keep timing separate from the existing "model CPU submit" metric.
         // Under software OpenGL the Post event wall-clock separation
