@@ -143,8 +143,16 @@ sleep 1
 xdotool type --clearmodifiers --delay 35 '/kill @e[type=reme_studio:player_npc]'
 xdotool key Return
 sleep 3
-# Guarantee the fresh miner and target stand on the same walkable platform,
-# regardless of random world seed, mountain/cliff or initial spawn elevation.
+# Isolate the observer AND miner. Earlier random test worlds had a hillside
+# at z-6. Teleporting Dev into it caused an ACTUAL "suffocated in a wall"
+# death, which was falsely reported as failed NPC mining. First clear headroom
+# across BOTH future positions; only then put an actual solid floor underneath.
+# This destructive preparation is restricted to this disposable CI world.
+xdotool key --clearmodifiers t
+sleep 1
+xdotool type --clearmodifiers --delay 35 '/fill ~-3 ~ ~-9 ~5 ~3 ~5 minecraft:air'
+xdotool key Return
+sleep 3
 xdotool key --clearmodifiers t
 sleep 1
 xdotool type --clearmodifiers --delay 35 '/fill ~-2 ~-1 ~-8 ~4 ~-1 ~4 minecraft:stone'
