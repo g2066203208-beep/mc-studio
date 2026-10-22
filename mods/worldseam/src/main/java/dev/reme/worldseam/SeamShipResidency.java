@@ -29,7 +29,7 @@ public final class SeamShipResidency {
     private static final long GRACE_TICKS=20;
     private static final double APPROACH_MARGIN=16.0;
     private static final TicketType<UUID> SHIP_TICKET=TicketType.create(
-        "worldseam_sable_adjacent_terrain",Comparator.naturalOrder());
+        "worldseam_sable_adjacent_terrain",Comparator.<UUID>naturalOrder());
 
     private static MinecraftServer lastServer;
     private static final Map<UUID,Resident> sessions=new HashMap<>();
