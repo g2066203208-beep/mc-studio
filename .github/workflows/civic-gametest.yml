@@ -16,6 +16,8 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
+      - name: Prepare correctly isolated Minecraft GameTest arenas
+        run: python3 scripts/prepare-gametest-arena.py
       - name: Run Minecraft 1.21.1 NeoForge GameTest server
         working-directory: mod
         run: ./gradlew runGameTestServer --no-daemon --stacktrace
