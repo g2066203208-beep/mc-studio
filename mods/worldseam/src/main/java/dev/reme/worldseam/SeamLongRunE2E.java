@@ -1,0 +1,290 @@
+package dev.reme.worldseam;
+
+import com.mojang.logging.LogUtils;
+import net.minecraft.client.Minecraft;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.decoration.ArmorStand;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
+import net.neoforged.neoforge.client.event.ClientTickEvent;
+import net.neoforged.neoforge.common.NeoForge;
+import org.slf4j.Logger;
+import java.util.UUID;
+
+/**
+ * Actual integrated CLIENT + integrated SERVER long-running regression.
+ * Opt-in only: -Dworldseam.e2e=true -Dworldseam.stress=true.
+ *
+ * After the standard historical-save screenshot run, switch the disposable
+ * save to the NEW default Overworld > Nether > End order. Excavate TWO real
+ * vertical seams, then traverse End > Nether > Overworld > Nether > End
+ * SIX complete rounds (24 real server + client handoffs). No direct
+ * teleport across dimensions is issued by the driver; it only positions
+ * the player 3 blocks INSIDE the current world before testing normal seam
+ * motion. Every pass must pass a ready handshake, arrive through the
+ * real SeamServer game loop, stream far native chunks and spawn a real
+ * client-visible ArmorStand in the destination level.
+ */
+public final class SeamLongRunE2E {
+    private static final Logger LOG=LogUtils.getLogger();
+    private static final int ROUNDS=6;
+    private static final int PASSES=ROUNDS*4;
+    private static final int WAIT_READY_TICKS=300;
+    private static final int WAIT_CROSS_TICKS=130;
+    private static final int ENTITY_WAIT_TICKS=110;
+    private static final String END="minecraft:the_end";
+    private static final String NETHER="minecraft:the_nether";
+    private static final String OVERWORLD="minecraft:overworld";
+    private static final String[] FROM={END,NETHER,OVERWORLD,NETHER};
+    private static final String[] TO={NETHER,OVERWORLD,NETHER,END};
+    private static final boolean[] UP={true,true,false,false};
+
+    private static volatile boolean enabled;
+    private static volatile boolean triggerSent;
+    private static volatile boolean markerSpawned;
+    private static volatile boolean serverConfirmed;
+    private static volatile boolean serverReady;
+    private static int stage;
+    private static int pass;
+    private static long stageTick;
+    private static UUID player;
+    private static int x,z;
+    private static int lastClientHandoffs;
+    private static long elapsedStart;
+    private static long maxClientHandoffNanos;
+    private static long maxUsedHeap;
+    private static int maxNativeChunks;
+    private static int maxBufferOwners;
+    private static ArmorStand marker;
+
+    private SeamLongRunE2E() {}
+
+    public static void install() {
+        if(Boolean.getBoolean("worldseam.e2e") &&
+            Boolean.getBoolean("worldseam.stress"))
+            NeoForge.EVENT_BUS.addListener(SeamLongRunE2E::tick);
+    }
+
+    public static void begin(MinecraftServer server,UUID id,int shaftX,int shaftZ) {
+        if(!Boolean.getBoolean("worldseam.stress") || enabled)return;
+        player=id;
+        x=shaftX;
+        z=shaftZ;
+        enabled=true;
+        pass=0;
+        stage=0;
+        stageTick=0;
+        elapsedStart=System.nanoTime();
+        lastClientHandoffs=SeamClientWorldPool.nativeHandoffCount();
+        LOG.warn("WORLDSEAM_STRESS_START: actual integrated NeoForge GUI; {} physical crossings across End/Nether/Overworld in disposable world",PASSES);
+        server.execute(()->{
+            var settings=SeamSettings.get(server);
+            settings.setStack(SeamStack.defaults(),server);
+            var nether=server.getLevel(Level.NETHER);
+            var end=server.getLevel(Level.END);
+            if(nether==null||end==null) {
+                LOG.error("WORLDSEAM_STRESS_FAIL: missing target levels");
+                enabled=false;
+                return;
+            }
+            // Real 9x9 excavation of BOTH Nether planes; no hand-painted
+            // fake "remote dimension". End top is natural empty sky, but
+            // explicitly clear any top-layer blocks in this disposable save.
+            int excavated=0;
+            var at=new BlockPos.MutableBlockPos();
+            for(int dx=-4;dx<=4;dx++)for(int dz=-4;dz<=4;dz++){
+                for(int y=0;y<=9;y++) {
+                    at.set(x+dx,y,z+dz);
+                    if(!nether.getBlockState(at).isAir()
+                        && nether.setBlock(at,Blocks.AIR.defaultBlockState(),3))
+                        excavated++;
+                }
+                for(int y=248;y<=255;y++) {
+                    at.set(x+dx,y,z+dz);
+                    if(!end.getBlockState(at).isAir()
+                        && end.setBlock(at,Blocks.AIR.defaultBlockState(),3))
+                        excavated++;
+                }
+            }
+            LOG.info("WORLDSEAM_STRESS_BOTH_SHAFTS_OPEN: cleared={} native blocks across Nether floor, Nether roof (earlier E2E), and End top; default stack=Overworld > Nether > End",excavated);
+        });
+    }
+
+    private static void tick(ClientTickEvent.Post ignored) {
+        if(!enabled)return;
+        Minecraft mc=Minecraft.getInstance();
+        MinecraftServer server=mc.getSingleplayerServer();
+        if(server==null || mc.level==null || mc.player==null)return;
+        long tick=mc.player.tickCount;
+        if(stage==0) {
+            // Wait for new default per-world saved stack and chunk residency
+            // to sync to the client before attempting End->Nether.
+            if(stageTick==0)stageTick=tick;
+            if(tick-stageTick<50)return;
+            prepare(server,tick);
+            return;
+        }
+        if(stage==1) {
+            if(tick-stageTick>WAIT_READY_TICKS) {
+                fail("READY_TIMEOUT pass="+pass+" from="+from()+" to="+to()+" client="+mc.level.dimension().location());
+                return;
+            }
+            if(tick%10==0 && !triggerSent) {
+                server.execute(()->{
+                    ServerPlayer p=server.getPlayerList().getPlayer(player);
+                    if(p==null || !p.serverLevel().dimension().location().toString().equals(from()))return;
+                    if(!SeamReadiness.isReady(player,from(),to(),
+                        server.overworld().getGameTime()))return;
+                    if(triggerSent)return;
+                    triggerSent=true;
+                    int bound=boundary();
+                    double starting=UP[pass%4]?bound-0.25:bound+0.25;
+                    p.connection.teleport(p.getX(),starting,p.getZ(),
+                        p.getYRot(),UP[pass%4]?-90:90);
+                    p.getAbilities().flying=false;
+                    p.onUpdateAbilities();
+                    p.setDeltaMovement(new Vec3(0,UP[pass%4]?0.23:-0.23,0));
+                    LOG.info("WORLDSEAM_STRESS_TRIGGER: pass={} {} -> {} boundary={} velocity={} native_ready=true",
+                        pass+1,from(),to(),bound,UP[pass%4]?0.23:-0.23);
+                });
+            }
+            if(triggerSent) {
+                stage=2;
+                stageTick=tick;
+            }
+            return;
+        }
+        if(stage==2) {
+            if(tick-stageTick>WAIT_CROSS_TICKS) {
+                fail("CROSS_TIMEOUT pass="+pass+" expected="+to()+" got="+mc.level.dimension().location());
+                return;
+            }
+            if(mc.level.dimension().location().toString().equals(to())
+                && SeamClientWorldPool.nativeHandoffCount()>lastClientHandoffs) {
+                int handoffs=SeamClientWorldPool.nativeHandoffCount();
+                lastClientHandoffs=handoffs;
+                stage=3;
+                stageTick=tick;
+                markerSpawned=false;
+                serverConfirmed=false;
+                server.execute(()->{
+                    ServerPlayer p=server.getPlayerList().getPlayer(player);
+                    if(p==null || !p.serverLevel().dimension().location().toString().equals(to())) {
+                        LOG.error("WORLDSEAM_STRESS_FAIL_SERVER_CLIENT_MISMATCH: pass {}",pass+1);
+                        return;
+                    }
+                    serverConfirmed=true;
+                    if(marker!=null)marker.discard();
+                    marker=new ArmorStand(p.serverLevel(),p.getX()+2,p.getY()+1,p.getZ());
+                    marker.setNoGravity(true);
+                    if(!p.serverLevel().addFreshEntity(marker)) {
+                        LOG.error("WORLDSEAM_STRESS_FAIL_ENTITY_SPAWN: pass={}",pass+1);
+                        return;
+                    }
+                    markerSpawned=true;
+                });
+            }
+            return;
+        }
+        if(stage==3) {
+            if(tick-stageTick>ENTITY_WAIT_TICKS) {
+                fail("ENTITY_TRACKING_TIMEOUT pass="+pass+" dimension="+mc.level.dimension().location());
+                return;
+            }
+            // Test true vanilla entity packets in the ACTIVE client's
+            // native world. This catches no-respawn handoff entity loading
+            // regressions that old chunk-only E2E never exercised.
+            if(!serverConfirmed || !markerSpawned || tick-stageTick<12)return;
+            boolean clientEntity=!mc.level.getEntitiesOfClass(
+                ArmorStand.class,new AABB(
+                    mc.player.getX()-5,mc.player.getY()-5,mc.player.getZ()-5,
+                    mc.player.getX()+6,mc.player.getY()+7,mc.player.getZ()+6)
+                ).isEmpty();
+            int chunks=mc.level.getChunkSource().getLoadedChunksCount();
+            int owners=SeamClientWorldPool.dedicatedRendererActive();
+            long memory=Runtime.getRuntime().totalMemory()-Runtime.getRuntime().freeMemory();
+            maxUsedHeap=Math.max(maxUsedHeap,memory);
+            maxNativeChunks=Math.max(maxNativeChunks,chunks);
+            maxBufferOwners=Math.max(maxBufferOwners,owners);
+            if(!clientEntity)return;
+            if(owners>2) {
+                fail("BUFFER_LEAK activeOwners="+owners+" after "+(pass+1)+" crossings");
+                return;
+            }
+            if(chunks<9) {
+                fail("CHUNK_DROPOUT activeChunks="+chunks+" pass="+(pass+1));
+                return;
+            }
+            LOG.info("WORLDSEAM_STRESS_PROGRESS: pass={}/{}, {} -> {}, activeChunks={}, markerEntityClient=true, activeRendererOwners={}, heapUsedMiB={}, renderCpuP95Ms={}, rebuildCpuP95Ms={}",
+                pass+1,PASSES,from(),to(),chunks,owners,memory/(1024*1024),
+                String.format(java.util.Locale.ROOT,"%.3f",SeamNativeGeometryClient.p95ModelCpuMs()),
+                String.format(java.util.Locale.ROOT,"%.3f",SeamNativeGeometryClient.p95RebuildCpuMs()));
+            pass++;
+            if(pass==PASSES) {
+                stage=4;
+                stageTick=tick;
+                long wallMs=(System.nanoTime()-elapsedStart)/1_000_000L;
+                LOG.info("WORLDSEAM_STRESS_PASS: crossings={}, clientHandoffs={}, elapsedWallMs={}, peakNativeChunks={}, peakDedicatedRendererOwners={}, peakHeapUsedMiB={}",
+                    pass,SeamClientWorldPool.nativeHandoffCount(),wallMs,
+                    maxNativeChunks,maxBufferOwners,maxUsedHeap/(1024*1024));
+                server.execute(()->{
+                    if(marker!=null) {marker.discard();marker=null;}
+                    SeamSettings.get(server).setEnabled(false);
+                });
+                return;
+            }
+            prepare(server,tick);
+        } else if(stage==4 && tick-stageTick>50) {
+            if(SeamStackClient.enabled() ||
+                SeamClientWorldPool.remoteHasDedicatedBuffers() ||
+                SeamNativeGeometryClient.ownBuffersActive()) {
+                fail("CLEANUP_FAILED after long-run crossing");
+                return;
+            }
+            LOG.info("WORLDSEAM_STRESS_PASS_CLEANUP: enabled=false remoteBuffers=false proxyBuffers=false completed={}",pass);
+            enabled=false;
+        }
+    }
+
+    private static String from(){return FROM[pass%4];}
+    private static String to(){return TO[pass%4];}
+    private static int boundary(){return UP[pass%4]?
+        (from().equals(END)?256:128):
+        (from().equals(OVERWORLD)?-64:0);}
+
+    private static void prepare(MinecraftServer server,long tick) {
+        stage=1;
+        stageTick=tick;
+        triggerSent=false;
+        markerSpawned=false;
+        serverConfirmed=false;
+        String desired=from();
+        int b=boundary();
+        server.execute(()->{
+            ServerPlayer p=server.getPlayerList().getPlayer(player);
+            if(p==null || !p.serverLevel().dimension().location().toString().equals(desired)) {
+                LOG.error("WORLDSEAM_STRESS_FAIL_STAGE: expected source {}, actual {} at pass {}",
+                    desired,p==null?"missing":p.serverLevel().dimension().location(),pass+1);
+                return;
+            }
+            if(marker!=null) {marker.discard();marker=null;}
+            p.getAbilities().flying=true;
+            p.onUpdateAbilities();
+            p.setDeltaMovement(Vec3.ZERO);
+            p.fallDistance=0;
+            double standby=UP[pass%4]?b-3.0:b+3.0;
+            p.connection.teleport(x+0.5,standby,z+0.5,0,UP[pass%4]?-90:90);
+            LOG.info("WORLDSEAM_STRESS_STAGE: pass={}/{}, native source={}, destination={}, x={}, z={}, y={}, upper={}",
+                pass+1,PASSES,desired,to(),x,z,standby,UP[pass%4]);
+        });
+    }
+
+    private static void fail(String explanation) {
+        LOG.error("WORLDSEAM_STRESS_FAIL: {}",explanation);
+        enabled=false;
+    }
+}
