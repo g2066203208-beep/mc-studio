@@ -79,6 +79,16 @@ if [[ "${REME_CITY_VISUAL:-0}" == "1" ]]; then
   xdotool type --clearmodifiers --delay 25 '/time set day'
   xdotool key Return
   sleep 3
+  xdotool key --clearmodifiers t
+  sleep 1
+  xdotool type --clearmodifiers --delay 25 '/weather clear 999999'
+  xdotool key Return
+  sleep 3
+  xdotool key --clearmodifiers t
+  sleep 1
+  xdotool type --clearmodifiers --delay 25 '/gamerule doWeatherCycle false'
+  xdotool key Return
+  sleep 3
   import -window root client-gui-city-creative-fixture.png
 fi
 xdotool key --clearmodifiers t
@@ -145,13 +155,17 @@ if [[ "${REME_CITY_VISUAL:-0}" == "1" ]]; then
     xdotool key Return
     sleep "${2:-3}"
   }
-  # The initial /npc spawn is part of command-smoke coverage; never use
-  # those NPCs as evidence of simulated autonomous urban growth.
+  # The initial /npc spawn is part of command-smoke coverage. Remove only
+  # that one test entity from this disposable scratch-world before founding
+  # the district; otherwise the subsequent 12-citizen census shows 13.
+  say_city '/kill @e[type=reme_studio:player_npc,distance=..15]' 3
   say_city '/fill ~-20 ~-1 ~-20 ~20 ~-1 ~20 minecraft:stone' 5
   say_city '/fill ~-20 ~ ~-20 ~20 ~10 ~20 minecraft:air' 5
   say_city '/npc city survey' 4
   import -window root client-gui-city-survey.png
   say_city '/npc city demo' 20
+  say_city '/npc city census' 4
+  import -window root client-gui-city-census.png
   import -window root client-gui-city-street-level.png
   # Tag three REAL NPCs at their physical shops/guard post/park spawn points,
   # while the player is still at the city origin. No visual stand-ins.
@@ -191,6 +205,10 @@ if [[ "${REME_CITY_VISUAL:-0}" == "1" ]]; then
   fi
   if ! grep -q '实际生活NPC：12' "$log"; then
     echo 'FAIL: GUI real city did not spawn the 12 citizen entities'
+    exit 1
+  fi
+  if ! grep -q '城市实体普查：周围42格内真正存活 NPC' "$log"; then
+    echo "FAIL: real in-client population census did not count living entities"
     exit 1
   fi
   for tag in CLERK GUARD PARK; do
