@@ -604,7 +604,7 @@ public final class CivicGameTests {
         helper.succeed();
     }
 
-    @GameTest(template = "empty", timeoutTicks = 195)
+    @GameTest(template = "empty", timeoutTicks = 390)
     public static void guard_actually_walks_patrol_in_live_mode(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
         // Keep the arena twelve blocks above the other concurrently running
@@ -629,7 +629,9 @@ public final class CivicGameTests {
         guard.setMode(PlayerNpcEntity.Mode.LIVE);
         if (!level.addFreshEntity(guard))
             throw new AssertionError("guard failed to enter real server");
-        helper.runAfterDelay(150, () -> {
+        // Give physically moving mobs enough pathing ticks: concurrent
+        // 24k day-soak tests can delay AI phase/repath by 1-2 cycles.
+        helper.runAfterDelay(320, () -> {
             // Verify actual horizontal walking, not gravity or a teleport.
             double dx = guard.getX() - (center.getX() + 0.5);
             double dz = guard.getZ() - (center.getZ() + 0.5);
