@@ -1,0 +1,52 @@
+name: NPC REAL playable police arrest-to-jail screen recording
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - fix/npc-real-jail-escort-camera-v072
+permissions:
+  contents: read
+concurrency:
+  group: npc-full-police-movie-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+jobs:
+  record-real-client-story:
+    runs-on: ubuntu-latest
+    timeout-minutes: 16
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Verify exact NeoForge 1.21.1 native game version
+        shell: bash
+        run: |
+          grep -Fxq 'minecraft_version=1.21.1' mod/gradle.properties
+          grep -Fxq 'neo_version=21.1.262' mod/gradle.properties
+      - name: Install real graphical client input and native video recorder
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq xvfb xdotool imagemagick openbox ffmpeg
+      - name: Physically start REAL shop theft and film entire live NPC police response
+        env:
+          REME_CITY_VISUAL: '1'
+          REME_CITY_STORY_MOVIE: '1'
+          REME_COMMAND_SMOKE_ONLY: '0'
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout --signal=INT --kill-after=15s 730s \
+            xvfb-run -a -s "-screen 0 1280x720x24" \
+            bash scripts/test-client-gui.sh
+      - name: Always upload complete native RGB frames, unedited H264 and JVM logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: npc-real-firstperson-and-chase-full-police-to-locked-jail
+          if-no-files-found: warn
+          path: |
+            mod/client-gui-city-*.mp4
+            mod/client-gui-city-*.png
+            mod/client-gui-city-story-video.log
+            mod/run/logs/latest.log
+            mod/run/logs/debug.log
+            mod/client-gui.log
