@@ -44,13 +44,16 @@ public final class SeamSableObserver {
 
     public static void tick(MinecraftServer server,long tick,boolean worldSeamEnabled) {
         if(tick%INTERVAL_TICKS!=0)return;
+        SeamShipResidency.beginTick(server);
         boolean installed=ModList.get().isLoaded("sable");
         if(!worldSeamEnabled || !installed) {
+            SeamShipResidency.clear();
             latest=new Snapshot(installed,false,0,0,tick,"",0);
             return;
         }
         try {
             if(!initialize()) {
+                SeamShipResidency.clear();
                 latest=new Snapshot(true,false,0,0,tick,"",0);
                 return;
             }
@@ -88,6 +91,12 @@ public final class SeamSableObserver {
                         if(dest==null)continue;
                         double homeY=SeamGraph.boundaryY(link.exit(),
                             SeamStackRuntime.bottom(home),SeamStackRuntime.top(home));
+                        // A physics ship can reach the plane without a
+                        // passenger nearby. Request the REAL neighbor's
+                        // terrain *ahead* of collision time, via an ordinary
+                        // bounded region ticket, without synchronous loads.
+                        if(SeamShipResidency.nearing(hull,homeY))
+                            SeamShipResidency.touch(id,dest,hull,homeY,tick);
                         if(hull.minY>=homeY || hull.maxY<=homeY)continue;
                         double destY=SeamGraph.boundaryY(link.entry(),
                             SeamStackRuntime.bottom(dest),SeamStackRuntime.top(dest));
@@ -101,6 +110,7 @@ public final class SeamSableObserver {
                     }
                 }
             }
+            SeamShipResidency.prune(tick);
             latest=new Snapshot(true,true,bodies,straddled.size(),tick,sample,charted);
             if(!straddled.isEmpty() && !previouslyStraddling)
                 LOG.warn("WORLDSEAM_SABLE_STRADDLE_DETECTED: {} real ships touching two dimension charts. NO unified Rapier contact bridge is installed; do NOT claim physics continuity. sample={}",
@@ -110,6 +120,7 @@ public final class SeamSableObserver {
             failed=true;
             problem=ex.getClass().getSimpleName()+": "+ex.getMessage();
             LOG.warn("WORLDSEAM_SABLE_READ_ONLY_PROBE_UNAVAILABLE: Sable API adapter unavailable; no changes to ships were attempted",ex);
+            SeamShipResidency.clear();
             latest=new Snapshot(true,false,0,0,tick,"",0);
         }
     }
