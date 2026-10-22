@@ -52,6 +52,8 @@ public final class SeamClientDiagnostic {
             " | GPU段: "+SeamNativeGeometryClient.lastFrameGpuSections()+
             "/"+SeamNativeGeometryClient.visibleSlices()+
             " | GPU实际块: "+SeamNativeGeometryClient.lastFrameGpuModels()+
+            " | GPU内存约: "+String.format(java.util.Locale.ROOT,"%.1fMiB",
+                SeamNativeGeometryClient.gpuCachedVertexBytes()/1048576.0)+
             " | 旧路径预算: "+SeamNativeGeometryClient.currentModelBudget()+
             " | CPU P95: "+String.format(java.util.Locale.ROOT,"%.1fms",SeamNativeGeometryClient.p95ModelCpuMs())+
             " | 片段: "+SeamNativeGeometryClient.visibleSlices()+"/"+
