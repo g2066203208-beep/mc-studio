@@ -49,9 +49,39 @@ ffmpeg -hide_banner -loglevel warning -nostdin -y \
 film_pid=$!
 xdotool mousemove 480 565 click 1
 
-ready=0; returned=0; failure=0
+# Capture JVM thread stacks if the real integrated client/server stalls.
+# An MP4 of a stuck image is diagnostic evidence, NOT a successful flight.
+capture_jvm_diagnostics() {
+  local label="$1"
+  {
+    echo "=== native-flight watchdog: $label ==="
+    date -u
+    jcmd -l || true
+    ps -eo pid,ppid,stat,pcpu,pmem,etime,comm,args | grep -E 'java|Minecraft|gradle|ffmpeg' | head -n 45 || true
+    for pid in $(jcmd -l | awk '/net\\.neoforged\\.devlaunch|net\\.minecraft|DevLaunch|net\\.neoforged\\.fmlloader/{print $1}' | head -n 3); do
+      echo "=== JVM PID $pid threads ==="
+      timeout 14 jcmd "$pid" Thread.print -l || true
+    done
+  } >> real-ship-jvm-thread-dump.txt 2>&1
+}
+ready=0; returned=0; failure=0; ready_step=0; last_diag=0
 for step in $(seq 1 240); do
-  if grep -q "WORLDSEAM_FILM_RECORD_READY" real-ship-film-client.log; then ready=1; fi
+  if grep -q "WORLDSEAM_FILM_RECORD_READY" real-ship-film-client.log; then
+    if [ "$ready" = 0 ]; then ready_step="$step"; fi
+    ready=1
+  fi
+  if [ "$ready" = 1 ] && [ "$step" -ge "$((ready_step+45))" ] &&
+     ! grep -q "WORLDSEAM_FILM_FRAME" real-ship-film-client.log; then
+    echo "WORLDSEAM_FILM_STALLED: no real server-tick movement telemetry 45 seconds after Sable assembly; exporting Java thread stacks"
+    capture_jvm_diagnostics "no-server-ticks-after-assembly"
+    failure=1
+    break
+  fi
+  if [ "$ready" = 1 ] && [ "$step" -ge "$((ready_step+90))" ] &&
+     [ "$last_diag" = 0 ]; then
+    capture_jvm_diagnostics "flight-not-complete-90s"
+    last_diag=1
+  fi
   if grep -q "WORLDSEAM_FILM_PASS_REAL_SHIP_RETURN" real-ship-film-client.log; then
     returned=1
     sleep 7 # show clearly recognizable final aircraft for viewer
