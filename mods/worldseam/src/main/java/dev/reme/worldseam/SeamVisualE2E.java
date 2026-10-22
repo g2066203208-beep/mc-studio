@@ -83,7 +83,7 @@ public final class SeamVisualE2E {
                 SeamNativeGeometryClient.bufferCreations(),
                 SeamNativeGeometryClient.bufferFlushes());
             if(SeamNativeGeometryClient.gpuBackendEnabled()) {
-                LOG.info("WORLDSEAM_E2E_GPU_NATIVE_MESH: readySlices={}, uploads={}, drawnCellModels={}, visibleCellModels={}, coverage={}, drawCalls={}, estimatedMiB={}, evictions={}, currentBuildMs={}",
+                LOG.info("WORLDSEAM_E2E_GPU_NATIVE_MESH: readySlices={}, uploads={}, drawnCellModels={}, visibleCellModels={}, coverage={}, drawCalls={}, estimatedMiB={}, evictions={}, currentBuildMs={}, uploadCpuP95Ms={}, drawCpuP95Ms={}",
                     SeamNativeGeometryClient.gpuCachedSlices(),
                     SeamNativeGeometryClient.gpuCompiledSlices(),
                     SeamNativeGeometryClient.lastFrameDrawn(),
@@ -92,7 +92,9 @@ public final class SeamVisualE2E {
                     SeamNativeGeometryClient.gpuDrawCalls(),
                     SeamNativeGeometryClient.gpuEstimatedBytes()/1048576,
                     SeamNativeGeometryClient.gpuEvictedSlices(),
-                    String.format(java.util.Locale.ROOT,"%.3f",SeamNativeGeometryClient.lastGpuBuildMs()));
+                    String.format(java.util.Locale.ROOT,"%.3f",SeamNativeGeometryClient.lastGpuBuildMs()),
+                    String.format(java.util.Locale.ROOT,"%.3f",SeamNativeGeometryClient.p95GpuUploadMs()),
+                    String.format(java.util.Locale.ROOT,"%.3f",SeamNativeGeometryClient.p95GpuDrawMs()));
                 if(SeamNativeGeometryClient.gpuCachedSlices()<1 ||
                     SeamNativeGeometryClient.gpuCompiledSlices()<1 ||
                     SeamNativeGeometryClient.gpuEstimatedBytes()>96L*1024*1024)
