@@ -262,8 +262,12 @@ public final class CityDistrictDemo {
         p.put(-11, 1, 10, Blocks.LECTERN);
         p.put(-15, 1, 9, Blocks.CHEST);
         p.put(-10, 1, 9, Blocks.CRAFTING_TABLE);
-        p.put(-5, 1, 12, Blocks.STONE_BRICKS);
-        p.put(-5, 2, 12, Blocks.BELL);
+        // Keep the EAST station door and its approach genuinely walkable.
+        // Earlier -5,1,12 STONE_BRICKS blocked the only native entrance:
+        // prisoner reached the outside south wall but could never get in.
+        // Alarm is moved along the facade away from the route.
+        p.put(-5, 1, 9, Blocks.STONE_BRICKS);
+        p.put(-5, 2, 9, Blocks.BELL);
         // Real audible alarm *near the mall*, not only 24 blocks away at
         // headquarters. The store clerk can trigger it after an actual
         // first-hand theft and nearby on-foot guard dispatch.
