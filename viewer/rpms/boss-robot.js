@@ -65,7 +65,17 @@ function officialModule(parent,id,pos,{scale=1,axis='x',facing='east',legId=null
  const frame=new THREE.Group();frame.position.set(...pos);frame.scale.setScalar(scale);
  frame.userData.fullVoxelModule={id};
  parent.add(frame);
- const old=createPreviewModel({id,axis,facing});
+ // Structural Create blocks MUST look like one solid Minecraft cube even
+ // before the original JSON/PNG arrives. The generic mechanical preview
+ // builds a hollow decorative casing and creates floating separated bricks.
+ const plainVoxelMaterial={
+  'create:brass_casing':'brass',
+  'create:andesite_casing':'teal',
+  'create:industrial_iron_block':'steel'
+ };
+ const old=plainVoxelMaterial[id]
+  ?new THREE.Mesh(hullGeom,mats[plainVoxelMaterial[id]])
+  :createPreviewModel({id,axis,facing});
  old.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;if(legId)o.userData.legId=legId;}});
  frame.add(old);
  modules.push({id,frame,old,axis,facing,legId});
