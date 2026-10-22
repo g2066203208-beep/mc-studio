@@ -25,10 +25,25 @@ function Read-ModId([string]$Path) {
   } finally { if ($zip) { $zip.Dispose() } }
 }
 Add-Type -AssemblyName System.IO.Compression.FileSystem
+# The main mc-studio project also uses modId=reme_studio yet contains NO
+# NPC commands. A valid mod ID alone is NOT evidence that this is an NPC JAR.
+function Has-Npc-Commands([string]$Path) {
+  $zip = $null
+  try {
+    $zip = [System.IO.Compression.ZipFile]::OpenRead($Path)
+    return ($null -ne $zip.GetEntry("dev/reme/mcstudio/npc/NpcCommands.class") -and
+            $null -ne $zip.GetEntry("dev/reme/mcstudio/npc/NpcItems.class") -and
+            $null -ne $zip.GetEntry("dev/reme/mcstudio/StudioMod.class"))
+  } catch {
+    return $false
+  } finally {
+    if ($zip) { $zip.Dispose() }
+  }
+}
 Add-Type -AssemblyName System.Windows.Forms
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $jar = Get-ChildItem -Path $root -Filter "reme_studio-*.jar" -File |
-  Where-Object { Read-ModId $_.FullName } | Sort-Object Name -Descending | Select-Object -First 1
+  Where-Object { (Read-ModId $_.FullName) -and (Has-Npc-Commands $_.FullName) } | Sort-Object Name -Descending | Select-Object -First 1
 if (-not $jar) { Fail "The reme_studio-*.jar is missing from this installer folder. Extract the ZIP completely before running Install-REME-NPC.cmd." }
 Write-Host "REME NPC installer: $($jar.Name)" -ForegroundColor Cyan
 Write-Host "Package SHA256: $((Get-FileHash -Algorithm SHA256 $jar.FullName).Hash)"
@@ -64,6 +79,11 @@ if ($CheckOnly) {
   Write-Host "REME jars found here: $($installed.Count)"
   foreach ($candidate in $installed) {
     Write-Host "Present: $($candidate.Name)"
+    if (-not (Has-Npc-Commands $candidate.FullName)) {
+      Write-Host "DIAGNOSIS: This JAR uses the REME mod ID but has NO NpcCommands.class. It is the wrong studio/main build, NOT a usable NPC Mod." -ForegroundColor Red
+    } else {
+      Write-Host "Verified: actual NpcCommands.class and NpcItems.class present." -ForegroundColor Green
+    }
     Write-Host "SHA256: $((Get-FileHash -LiteralPath $candidate.FullName -Algorithm SHA256).Hash)"
   }
   if ($installed.Count -eq 0) {
