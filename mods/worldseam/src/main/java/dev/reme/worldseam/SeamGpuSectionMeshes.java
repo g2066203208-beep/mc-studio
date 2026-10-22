@@ -288,40 +288,62 @@ public final class SeamGpuSectionMeshes {
 
     public void beginFrame() {lastGpuDrawn=0;lastGpuCells=0;lastGpuFluidCells=0;}
 
-    /** Draw world-accurate cached terrain, preserving each render layer's
-     * shader/atlas/depth state, then restoring it before the next layer. */
+    /**
+     * Render only opaque layers first, across ALL visible sections.
+     * Translucent faces must be submitted later, after every solid block
+     * and fallback proxy mesh, otherwise liquids can appear in front of
+     * opaque terrain in an unrelated chunk section.
+     */
     public int draw(SeamNativeGeometryClient.Slice slice,PoseStack pose,Vec3 camera,
                     int sourceBoundary,int targetBoundary) {
         if(!has(slice))return 0;
         Compiled entry=mesh.get(new Key(slice.cx(),slice.cz(),slice.sectionY()));
+        for(int i=0;i<LAYERS.length-1;i++)drawLayer(slice,entry,LAYERS[i],
+            pose,camera,sourceBoundary,targetBoundary);
+        lastGpuDrawn++;
+        lastGpuCells+=entry.cells();
+        lastGpuFluidCells+=entry.fluidCells();
+        return entry.endStone();
+    }
+
+    /** Call in BACK-TO-FRONT section order AFTER all opaque and CPU draws.
+     * Translucent quads within a section are not yet dynamically sorted;
+     * future native section renderers must provide view-dependent sorting. */
+    public void drawTranslucent(SeamNativeGeometryClient.Slice slice,
+                                PoseStack pose,Vec3 camera,
+                                int sourceBoundary,int targetBoundary) {
+        if(!has(slice))return;
+        Compiled entry=mesh.get(new Key(slice.cx(),slice.cz(),slice.sectionY()));
+        drawLayer(slice,entry,RenderType.translucent(),
+            pose,camera,sourceBoundary,targetBoundary);
+    }
+
+    private static void drawLayer(SeamNativeGeometryClient.Slice slice,
+                                  Compiled entry,RenderType type,
+                                  PoseStack pose,Vec3 camera,
+                                  int sourceBoundary,int targetBoundary) {
+        VertexBuffer vbo=entry.vbos().get(type);
+        if(vbo==null)return;
         int originX=slice.cx()*16,originZ=slice.cz()*16;
         int mappedSectionY=SeamSectionLayout.mappedSectionMinY(
             slice.sectionY()*16,sourceBoundary,targetBoundary);
         Matrix4f matrix=new Matrix4f(pose.last().pose()).translate(
             (float)(originX-camera.x),(float)(mappedSectionY-camera.y),
             (float)(originZ-camera.z));
-        for(var type:LAYERS) {
-            VertexBuffer vbo=entry.vbos().get(type);
-            if(vbo==null)continue;
-            type.setupRenderState();
+        type.setupRenderState();
+        try {
+            var shader=RenderSystem.getShader();
+            if(shader==null)throw new IllegalStateException(
+                "No Minecraft shader for WorldSeam chunk layer "+type);
+            vbo.bind();
             try {
-                var shader=RenderSystem.getShader();
-                if(shader==null)throw new IllegalStateException(
-                    "No Minecraft shader for WorldSeam chunk layer "+type);
-                vbo.bind();
-                try {
-                    vbo.drawWithShader(matrix,RenderSystem.getProjectionMatrix(),shader);
-                } finally {
-                    VertexBuffer.unbind();
-                }
+                vbo.drawWithShader(matrix,RenderSystem.getProjectionMatrix(),shader);
             } finally {
-                type.clearRenderState();
+                VertexBuffer.unbind();
             }
+        } finally {
+            type.clearRenderState();
         }
-        lastGpuDrawn++;
-        lastGpuCells+=entry.cells();
-        lastGpuFluidCells+=entry.fluidCells();
-        return entry.endStone();
     }
 
     public int count() {return mesh.size();}
