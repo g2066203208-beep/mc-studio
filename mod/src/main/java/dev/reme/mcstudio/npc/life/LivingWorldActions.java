@@ -33,6 +33,10 @@ public final class LivingWorldActions {
             return;
         }
         long tick = level.getGameTime();
+        // Track each individual demo citizen's ACTUAL loaded server state
+        // once per 1200 ticks, including true bed sleeping/prison movement.
+        // Does not change AI movement, inventory or load chunks.
+        CityDayObserver.observe(npc, level, tick);
         // Prison and fear checks run BEFORE ordinary AI, so a detained or
         // attacked sleeper must release the vanilla occupied bed immediately.
         if (npc.isSleeping() && (npc.isDetained(tick) || npc.isAfraid(tick)))
