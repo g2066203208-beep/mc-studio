@@ -10,13 +10,13 @@ import {loadOfficialModelArchives} from './official-autoload.mjs';
 const $=id=>document.getElementById(id);
 const scene=new THREE.Scene();scene.background=new THREE.Color('#192935');scene.fog=new THREE.Fog('#192935',31,80);
 const camera=new THREE.PerspectiveCamera(40,1,.05,140);
-camera.position.set(7.9,6.5,9.0); // near enough to appreciate actual moving mechanical joints
+camera.position.set(13.8,10.1,15.8); // full 11-block-wide six-leg chassis and ground contact in view
 const renderer=new THREE.WebGLRenderer({canvas:$('bossCanvas'),antialias:true,powerPreference:'high-performance'});
 renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,1.8));
 renderer.outputColorSpace=THREE.SRGBColorSpace;
 renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 const orbit=new OrbitControls(camera,renderer.domElement);
-orbit.enableDamping=true;orbit.target.set(0,2.6,0);orbit.minDistance=5.5;orbit.maxDistance=52;
+orbit.enableDamping=true;orbit.target.set(0,3.25,0);orbit.minDistance=7;orbit.maxDistance=52;
 orbit.maxPolarAngle=Math.PI/2.06;
 scene.add(new THREE.HemisphereLight('#edf6ff','#506570',2.25));
 const sun=new THREE.DirectionalLight('#ffe6bd',3.1);sun.position.set(9,20,13);sun.castShadow=true;
@@ -316,7 +316,7 @@ function resize(){
  const el=$('canvasWrap'),w=el.clientWidth,h=el.clientHeight;
  if(w<5||h<5)return;
  renderer.setSize(w,h,false);camera.aspect=w/h;
- if(w<560&&camera.position.distanceTo(orbit.target)<13.2)camera.position.set(11.1,8.2,12.2);
+ if(w<560&&camera.position.distanceTo(orbit.target)<17)camera.position.set(15,11.2,17);
  camera.updateProjectionMatrix();
 }
 window.addEventListener('resize',resize);const ro=new ResizeObserver(resize);ro.observe($('canvasWrap'));
