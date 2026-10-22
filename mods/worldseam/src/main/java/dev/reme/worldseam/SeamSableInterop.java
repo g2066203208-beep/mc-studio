@@ -114,7 +114,15 @@ public final class SeamSableInterop {
             return;
         }
         resolve();
-        if(api==null)return;
+        if(api==null) {
+            // A saved world with missing/updated Sable may not resume
+            // experimental physics transfer on the next launch. Explicitly
+            // disarm rather than partially running a broken bridge.
+            SeamSettings.get(server).setExperimentalSableShips(false);
+            observed.clear();
+            shipVolumes.clear();
+            return;
+        }
         if(tick%2==0) {
             shipVolumes.clear();
             for(ServerLevel source:server.getAllLevels()) {
@@ -253,8 +261,10 @@ public final class SeamSableInterop {
         } catch(InvocationTargetException ex) {
             // Let AeroPortals' crash-safe journal/rollback own failures. A
             // failed plugin call is never retried every game tick.
-            LOG.error("WORLDSEAM_SABLE_TRANSFER_FAILED: source ship remains owner until AeroPortals recovery",ex.getCause());
+            LOG.error("WORLDSEAM_SABLE_TRANSFER_FAILED: inspect AeroPortals recovery journal before enabling again",ex.getCause());
             rejectedTransfers++;
+            api=null;
+            detection="disabled after AeroPortals transfer exception";
         } catch(ReflectiveOperationException | RuntimeException | LinkageError ex) {
             LOG.error("WORLDSEAM_SABLE_API_ERROR: incompatible physics bridge; disabling for this session",ex);
             detection="disabled after Sable API runtime error";
