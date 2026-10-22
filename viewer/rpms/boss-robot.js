@@ -10,13 +10,13 @@ import {loadOfficialModelArchives} from './official-autoload.mjs';
 const $=id=>document.getElementById(id);
 const scene=new THREE.Scene();scene.background=new THREE.Color('#192935');scene.fog=new THREE.Fog('#192935',31,80);
 const camera=new THREE.PerspectiveCamera(40,1,.05,140);
-camera.position.set(7.9,6.5,9.0); // near enough to appreciate actual moving mechanical joints
+camera.position.set(11.7,8.9,13.7); // frame whole six-footed body with 1–2 blocks of margin
 const renderer=new THREE.WebGLRenderer({canvas:$('bossCanvas'),antialias:true,powerPreference:'high-performance'});
 renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,1.8));
 renderer.outputColorSpace=THREE.SRGBColorSpace;
 renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 const orbit=new OrbitControls(camera,renderer.domElement);
-orbit.enableDamping=true;orbit.target.set(0,2.6,0);orbit.minDistance=5.5;orbit.maxDistance=52;
+orbit.enableDamping=true;orbit.target.set(0,3.25,0);orbit.minDistance=7;orbit.maxDistance=52;
 orbit.maxPolarAngle=Math.PI/2.06;
 scene.add(new THREE.HemisphereLight('#edf6ff','#506570',2.25));
 const sun=new THREE.DirectionalLight('#ffe6bd',3.1);sun.position.set(9,20,13);sun.castShadow=true;
@@ -65,7 +65,17 @@ function officialModule(parent,id,pos,{scale=1,axis='x',facing='east',legId=null
  const frame=new THREE.Group();frame.position.set(...pos);frame.scale.setScalar(scale);
  frame.userData.fullVoxelModule={id};
  parent.add(frame);
- const old=createPreviewModel({id,axis,facing});
+ // Structural Create blocks MUST look like one solid Minecraft cube even
+ // before the original JSON/PNG arrives. The generic mechanical preview
+ // builds a hollow decorative casing and creates floating separated bricks.
+ const plainVoxelMaterial={
+  'create:brass_casing':'brass',
+  'create:andesite_casing':'teal',
+  'create:industrial_iron_block':'steel'
+ };
+ const old=plainVoxelMaterial[id]
+  ?new THREE.Mesh(hullGeom,mats[plainVoxelMaterial[id]])
+  :createPreviewModel({id,axis,facing});
  old.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;if(legId)o.userData.legId=legId;}});
  frame.add(old);
  modules.push({id,frame,old,axis,facing,legId});
@@ -98,12 +108,12 @@ function chassisVisual(g){
   .map(b=>b.pos[0]+','+b.pos[2]));
  for(let x=-2;x<=2;x++)for(let z=-3;z<=3;z++){
   if(occupied.has(x+','+z))continue;
-  block(g,'box',[x,0,z],[1,1,1],Math.abs(x)===2?'steel':'copper');
+  officialModule(g,Math.abs(x)===2?'create:industrial_iron_block':'create:brass_casing',[x,0,z]);
  }
  for(const x of [-2,2])for(const z of [-3,0,3])
-  block(g,'box',[x,1,z],[1,1,1],'copper');
- block(g,'box',[0,1,0],[1,1,1],'dark');
- block(g,'box',[0,0,-4],[1,1,1],'teal');
+  officialModule(g,'create:industrial_iron_block',[x,1,z]);
+ officialModule(g,'create:brass_casing',[0,1,0]);
+ officialModule(g,'create:andesite_casing',[0,0,-4]);
  for(const b of graph.blocks){
   const [x,y,z]=b.pos;
   const id=b.id,driven=id==='create:shaft'||id==='create:large_cogwheel';
@@ -116,9 +126,9 @@ function linkVisual(g,length,legId,segment){
  // All visible individual voxel blocks remain exactly one MC block.
  // Real 1x1 voxel leg blocks are stacked on centers ±.5; bearings at
  // +1.5 and boots at -1.5 never intersect these solid voxels.
- // Rapier joint center lengths 1.65/1.75 still require separate geometry calibration.
+ // Rapier segment lengths and hinge anchors are now precisely 2 voxel units.
  for(const y of [-.5,.5])
-  block(g,'box',[0,y,0],[1,1,1],isUpper?'teal':'steel',legId);
+  officialModule(g,isUpper?'create:andesite_casing':'create:industrial_iron_block',[0,y,0],{legId});
  if(isUpper){
   officialModule(g,'simulated:swivel_bearing',[0,1.5,0],
    {axis:'x',facing:'east',scale:1,legId});
@@ -126,7 +136,7 @@ function linkVisual(g,length,legId,segment){
  }else{
   officialModule(g,'simulated:swivel_bearing',[0,1.5,0],
    {axis:'x',facing:'east',scale:1,legId});
-  block(g,'box',[0,-1.5,0],[1,1,1],'foot',legId);
+  officialModule(g,'create:andesite_casing',[0,-1.5,0],{legId});
  }
  g.traverse(o=>{if(o.isMesh)o.userData.legId=legId;});
 }
@@ -306,7 +316,7 @@ function resize(){
  const el=$('canvasWrap'),w=el.clientWidth,h=el.clientHeight;
  if(w<5||h<5)return;
  renderer.setSize(w,h,false);camera.aspect=w/h;
- if(w<560&&camera.position.distanceTo(orbit.target)<13.2)camera.position.set(11.1,8.2,12.2);
+ if(w<560&&camera.position.distanceTo(orbit.target)<17)camera.position.set(15,11.2,17);
  camera.updateProjectionMatrix();
 }
 window.addEventListener('resize',resize);const ro=new ResizeObserver(resize);ro.observe($('canvasWrap'));

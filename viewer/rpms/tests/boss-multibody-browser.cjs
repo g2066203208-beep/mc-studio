@@ -25,8 +25,12 @@ const {chromium}=require('playwright-core');
   const standing=await page.evaluate(()=>window.__MULTIBODY_RIG__.advance(240));
   console.log('ARTICULATED_STAND',JSON.stringify(standing));
   assert.ok(Number.isFinite(standing.bodyBottom),'physics must return a body height');
-  assert.ok(standing.position.y>3.85&&standing.position.y<4.4,'legs must ACTUALLY hold the heavy chassis off the floor: '+standing.position.y);
+  assert.ok(standing.position.y>5.18&&standing.position.y<5.58,'2-voxel real feet must hold chest at ~5.38 world Y: '+standing.position.y);
   assert.ok(Math.abs(standing.velocity.y)<.1,'actual loaded six-leg platform did not settle under gravity');
+  assert.equal(standing.modelUnits.upperVoxelLength,2,'each upper mechanical leg must contain two real MC cubes');
+  assert.equal(standing.modelUnits.lowerVoxelLength,2,'each lower mechanical leg must contain two real MC cubes');
+  assert.equal(standing.modelUnits.hipGridX,3,'six hip hinges must be placed on integer Minecraft block coordinates');
+  assert.ok(standing.maxHingeError<.08,'real joints do not line up with the Minecraft voxel ends: '+JSON.stringify(standing.hingeErrors));
   assert.ok(Math.abs(standing.position.x)<.25&&Math.abs(standing.position.z)<.25,
     'standing must not drift around as a runaway body');
   assert.ok(standing.supportContacts>=4,'at least four feet must touch real Rapier static world floor');
@@ -49,9 +53,11 @@ const {chromium}=require('playwright-core');
   });
   const moving=gaitTrial.result;
   console.log('GAIT_DIAGNOSTIC_SAMPLES',JSON.stringify(gaitTrial.diagnostics));
+  assert.ok(moving.maxHingeError<.18,
+    'hinge anchors physically separated after motion; visual/physical mismatch: '+JSON.stringify(moving.hingeErrors));
   assert.ok(gaitTrial.diagnostics.every(p=>p.contacts>=3),
     'REAL SUPPORT REQUIRED: a gait must retain 3+ collision-bearing feet on the ground, not float: '+JSON.stringify(gaitTrial.diagnostics));
-  assert.ok(gaitTrial.diagnostics.every(p=>p.bodyY>3.7&&p.bodyY<4.45),
+  assert.ok(gaitTrial.diagnostics.every(p=>p.bodyY>5.0&&p.bodyY<5.75),
     'Body must not levitate or collapse while tripod gait is active: '+JSON.stringify(gaitTrial.diagnostics));
   assert.ok(gaitTrial.diagnostics.every(p=>p.worstHip<.65&&p.worstKnee<.75),
     'Physical joint servo must track commands without hitting hard stops: '+JSON.stringify(gaitTrial.diagnostics));
