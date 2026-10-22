@@ -146,6 +146,14 @@ public class PlayerNpcEntity extends PathfinderMob {
     @Nullable private Commission commission;
     private long lastAttackReport = -10000L;
     private long nextRaidTick = 0L;
+    // One real unpaid shop item and its firsthand owner's case. Persisted:
+    // reloading cannot reset a thief into an apparently law-abiding shopper.
+    @Nullable private UUID unpaidMerchant;
+    @Nullable private UUID unpaidIncident;
+    private long unpaidUntil = 0L;
+    private boolean shopCrimeReported = false;
+    private long nextShopCrimeTick = 0L;
+    private boolean shopShiftActive = false;
     // Bounded local police case. No global suspect scans or arbitrary arrests.
     @Nullable private UUID policeSuspect;
     private long policeAlertUntil = 0L;
@@ -427,6 +435,33 @@ public class PlayerNpcEntity extends PathfinderMob {
         detainedUntil = 0L;
     }
     public void postponeRaid(long tick) { nextRaidTick = Math.max(nextRaidTick, tick); }
+    @Nullable public UUID unpaidMerchant() { return unpaidMerchant; }
+    @Nullable public UUID unpaidIncident() { return unpaidIncident; }
+    public boolean hasUnpaidShopItem(long tick) {
+        return unpaidMerchant != null && unpaidIncident != null && tick < unpaidUntil;
+    }
+    public boolean unpaidFrom(UUID merchant, long tick) {
+        return merchant != null && merchant.equals(unpaidMerchant) && hasUnpaidShopItem(tick);
+    }
+    public boolean shopCrimeReported() { return shopCrimeReported; }
+    public void markShopCrimeReported() { shopCrimeReported = true; }
+    public void markUnpaidShopItem(UUID merchant, UUID incident, long tick) {
+        unpaidMerchant = merchant;
+        unpaidIncident = incident;
+        unpaidUntil = tick + 3600L;
+        shopCrimeReported = false;
+        nextShopCrimeTick = Math.max(nextShopCrimeTick, tick + 24000L);
+    }
+    public void clearUnpaidShopItem() {
+        unpaidMerchant = null;
+        unpaidIncident = null;
+        unpaidUntil = 0L;
+        shopCrimeReported = false;
+    }
+    public long nextShopCrimeTick() { return nextShopCrimeTick; }
+    public void postponeShopCrime(long tick) { nextShopCrimeTick = Math.max(nextShopCrimeTick, tick); }
+    public boolean shopShiftActive() { return shopShiftActive; }
+    public void setShopShiftActive(boolean active) { shopShiftActive = active; }
     /** Non-player assault also has consequences: victim fear and personal
      * memory. Only called after an ACTUAL transfer of existing cargo.
      */
@@ -681,6 +716,12 @@ public class PlayerNpcEntity extends PathfinderMob {
         tag.putInt("NpcRoamingRadius", roamingRadius);
         tag.putInt("NpcSkinId", skinId());
         tag.putLong("NpcNextRaidTick", nextRaidTick);
+        if (unpaidMerchant != null) tag.putUUID("NpcUnpaidMerchant", unpaidMerchant);
+        if (unpaidIncident != null) tag.putUUID("NpcUnpaidIncident", unpaidIncident);
+        tag.putLong("NpcUnpaidUntil", unpaidUntil);
+        tag.putBoolean("NpcUnpaidReported", shopCrimeReported);
+        tag.putLong("NpcNextShopCrimeTick", nextShopCrimeTick);
+        tag.putBoolean("NpcShopShiftActive", shopShiftActive);
         if (policeSuspect != null) tag.putUUID("NpcPoliceSuspect", policeSuspect);
         tag.putLong("NpcPoliceAlertUntil", policeAlertUntil);
         if (policeJail != null) tag.putLong("NpcPoliceJail", policeJail.asLong());
@@ -787,6 +828,15 @@ public class PlayerNpcEntity extends PathfinderMob {
         miningTarget = tag.contains("NpcMiningTarget", Tag.TAG_LONG)
             ? BlockPos.of(tag.getLong("NpcMiningTarget")) : null;
         nextRaidTick = Math.max(0L, tag.getLong("NpcNextRaidTick"));
+        unpaidMerchant = tag.hasUUID("NpcUnpaidMerchant")
+            ? tag.getUUID("NpcUnpaidMerchant") : null;
+        unpaidIncident = tag.hasUUID("NpcUnpaidIncident")
+            ? tag.getUUID("NpcUnpaidIncident") : null;
+        unpaidUntil = Math.max(0L, tag.getLong("NpcUnpaidUntil"));
+        shopCrimeReported = tag.getBoolean("NpcUnpaidReported");
+        nextShopCrimeTick = Math.max(0L, tag.getLong("NpcNextShopCrimeTick"));
+        shopShiftActive = tag.getBoolean("NpcShopShiftActive");
+        if (unpaidUntil <= level().getGameTime()) clearUnpaidShopItem();
         policeSuspect = tag.hasUUID("NpcPoliceSuspect")
             ? tag.getUUID("NpcPoliceSuspect") : null;
         policeAlertUntil = Math.max(0L, tag.getLong("NpcPoliceAlertUntil"));
