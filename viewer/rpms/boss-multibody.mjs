@@ -9,13 +9,14 @@
  * NO kinematic body motion, per-frame world-space body translation, fake
  * animation pose setting, anti-gravity, or hidden leg-independent thrust.
  */
+import {buildCreatePowerBus} from './boss-powertrain.mjs';
 export const DT=1/60;
 export const GRAVITY=-11;
 export const LEG_COUNT=6;
 export const JOINT_COUNT=12;
 const UPPER_LENGTH=1.65,LOWER_LENGTH=1.75;
 const HIP_Y=-.38;
-export const LEG_COORDS=[-2,0,2].flatMap((z,i)=>[-1,1].map((side)=>({
+export const LEG_COORDS=[-3,0,3].flatMap((z,i)=>[-1,1].map((side)=>({
  x:side*2.9,z,side,row:i,id:(side<0?'L':'R')+(i+1),
  tripod:(i+(side===1?1:0))%2
 })));
@@ -55,7 +56,7 @@ export function createMultibodyBoss(RAPIER,opts={}){
   .setTranslation(0,-.5,0).setFriction(1.75).setRestitution(0));
  // Larger-than-player six-leg machine. All numbers in Minecraft blocks/metres.
  const body=rb(RAPIER,world,0,4.55,0,{massive:true});
- const chest=cuboid(RAPIER,world,body,[5.6,1.15,5.3],[0,0,0],.40);
+ const chest=cuboid(RAPIER,world,body,[5.6,1.15,7.3],[0,0,0],.30);
  const core=cuboid(RAPIER,world,body,[2.3,.85,2.3],[0,.84,0],.42);
  const nose=cuboid(RAPIER,world,body,[1.65,.65,1.1],[0,-.08,-3.0],.55);
  const motorSpecs=LEG_COORDS.map(config=>{
@@ -82,6 +83,22 @@ export function createMultibodyBoss(RAPIER,opts={}){
  });
  const motors=motorSpecs;
  let mode='stand',elapsed=0,steps=0,commandRPM=18,torque=135,gearRatio=2,frequency=.76;
+ // The controller MAY NOT create actuator torque unless Create's integer
+ // grid shaft/cog/clutch graph actually reaches this physical joint.
+ const disconnected=new Set();
+ let powerBus=buildCreatePowerBus({rpm:commandRPM,gearRatio});
+ const refreshBus=()=>{powerBus=buildCreatePowerBus({
+  rpm:commandRPM,gearRatio,enabled:mode!=='relax',disconnected:[...disconnected]
+ });return powerBus;};
+ const disconnectBranch=(id,off=true)=>{
+  if(!LEG_COORDS.some(x=>x.id===id))throw Error('Unknown motor branch '+id);
+  if(off)disconnected.add(id);else disconnected.delete(id);
+  refreshBus();
+ };
+ const allDriveStatus=()=>powerBus.bearings.map(b=>({id:b.id,connected:b.pathLive,
+  rpm:b.outputRPM,sourceRPM:b.rpm,torqueMultiplier:b.torqueMultiplier,
+  clutchPowered:disconnected.has(b.id)}));
+
  let hipGain=115,kneeGain=92,hipDamping=15,kneeDamping=13;
  let phase=0;
  const setMotor=({rpm,torqueLimit,stiffness,damping,period,ratio}={})=>{
@@ -92,11 +109,13 @@ export function createMultibodyBoss(RAPIER,opts={}){
   if(Number.isFinite(damping))hipDamping=clamp(damping,0,500);
   if(Number.isFinite(period))frequency=clamp(period,.1,3);
   kneeGain=hipGain*.79;kneeDamping=hipDamping*.84;
+  refreshBus();
  };
  const setMode=value=>{
   if(!['stand','march','walk','relax'].includes(value))throw Error('Unknown physical control mode');
   mode=value;
   if(mode==='stand')phase=0;
+  refreshBus(); // "断电" actually cuts mechanical power; no decorative free source.
  };
  const servoTorque=(parent,child,target,kp,kd,limit)=>{
   // Rapier 0.17.3's motor maximum-force setter is not exposed in WASM.
@@ -119,7 +138,9 @@ export function createMultibodyBoss(RAPIER,opts={}){
  const applyController=()=>{
   // Motor command = target relative hinge angle, NOT a visual pose.
   // Controlled by Create-like motor RPM and phase timings.
-  if(mode==='walk'||mode==='march')phase+=DT*Math.PI*2*(commandRPM/gearRatio/60);
+  const motorSpeed=powerBus.bearings.find(b=>b.pathLive)?.outputRPM||0;
+  if((mode==='walk'||mode==='march')&&motorSpeed)
+   phase+=DT*Math.PI*2*(Math.abs(motorSpeed)/60);
   for(const leg of motors){
    if(leg.detached)continue;
    const drive=mode==='walk'||mode==='march';
@@ -129,9 +150,17 @@ export function createMultibodyBoss(RAPIER,opts={}){
    const hipT=drive?clamp(wave*stride,-.55,.55):0;
    const kneeT=drive?clamp(.09+.54*lift,0,.84):0;
    leg.hipTarget=hipT;leg.kneeTarget=kneeT;
-   if(mode!=='relax'&&torque>0){
-    servoTorque(body,leg.upper,hipT,hipGain,hipDamping,torque*gearRatio*.9);
-    servoTorque(leg.upper,leg.lower,kneeT,kneeGain,kneeDamping,torque*gearRatio*.9*.85);
+   const branch=powerBus.bearings.find(o=>o.id===leg.id);
+   // The Create source/shaft/gear/clutch graph is AUTHORITATIVE within its
+   // supported subset. A broken/disabled branch creates NO hinge torque.
+   const budget=branch?.pathLive ? torque*branch.torqueMultiplier : 0;
+   leg.deliveredTorque=budget;
+   if(mode!=='relax'&&budget>0){
+    servoTorque(body,leg.upper,hipT,hipGain,hipDamping,budget);
+    // A powered knee servo mounted on the upper/lower leg is a separate
+    // simplified electrical/mechanical coupling, NOT a proven Create shaft
+    // through a moving SubLevel. Explicitly report that limitation in UI.
+    servoTorque(leg.upper,leg.lower,kneeT,kneeGain,kneeDamping,budget*.85);
    }
   }
  };
@@ -149,17 +178,25 @@ export function createMultibodyBoss(RAPIER,opts={}){
    solver:'Rapier WebAssembly',source:'actual-13-body-12-revolute-wasm',
    mode,elapsed:+elapsed.toFixed(2),steps,gravity:GRAVITY,
    mass:allBodies.reduce((a,b)=>a+b.mass(),0),
+   powertrain:{source:powerBus.motor,sourcePowered:powerBus.motor.powered,
+    connectedBranches:powerBus.bearings.filter(b=>b.pathLive).length,
+    inputs:allDriveStatus(),blocks:powerBus.blocks.length,
+    links:powerBus.graph.summary.links,capacitySU:powerBus.capacitySU,
+    loadSU:powerBus.loadSU,overloaded:powerBus.overloaded,
+    assumptions:powerBus.assumptions},
    bodyMass:body.mass(),
    feet:feet.filter(x=>x.connected).length,
    supportContacts:feet.filter(x=>x.touching).length,
    footMeasurements:feet,
    joints:motors.filter(x=>!x.detached).length*2,
    rigidBodies:allBodies.length,torqueLimit:torque,motorRPM:commandRPM,
-   gearRatio,outputRPM:commandRPM/gearRatio,outputTorqueLimit:torque*gearRatio*.9,
+   gearRatio,outputRPM:powerBus.bearings.find(b=>b.pathLive)?.outputRPM||0,
+   outputTorqueLimit:torque*gearRatio*.9,
    position:nowPos,velocity:body.linvel(),rotation:body.rotation(),
    bodyBottom:nowPos.y-.575,travel:nowPos.z,
    legAngles:motors.map(m=>({id:m.id,hip:getJointAngle(body,m.upper),knee:getJointAngle(m.upper,m.lower),
-    hipTarget:m.hipTarget,kneeTarget:m.kneeTarget,detached:m.detached}))
+    hipTarget:m.hipTarget,kneeTarget:m.kneeTarget,
+    deliveredTorque:m.deliveredTorque||0,detached:m.detached}))
   };
  };
  const advance=(n=1)=>{
@@ -179,15 +216,17 @@ export function createMultibodyBoss(RAPIER,opts={}){
   world.removeImpulseJoint(leg.hip,true);
   world.removeImpulseJoint(leg.knee,true);
   leg.detached=true;
+  disconnectBranch(id,true); // destroyed hip motor network branch goes dead
   body.wakeUp();leg.upper.wakeUp();leg.lower.wakeUp();
   return true;
  };
  const impulse=(v)=>body.applyImpulseAtPoint(v,
   {x:body.translation().x,y:body.translation().y+.6,z:body.translation().z+1.4},true);
- const motorEnergy=()=>torque*Math.abs(commandRPM)*(mode==='relax'?0:1);
+ const motorEnergy=()=>torque*Math.abs(commandRPM)*powerBus.live/6;
  return {RAPIER,world,ground,body,upperLength:UPPER_LENGTH,lowerLength:LOWER_LENGTH,
   motors,chest,core,nose,allBodies,advance,snapshot,removeLeg,
-  setMode,setMotor,impulse,motorEnergy,
+  setMode,setMotor,disconnectBranch,allDriveStatus,impulse,motorEnergy,
+  get powerBus(){return powerBus},
   get mode(){return mode},
   get torque(){return torque}
  };
