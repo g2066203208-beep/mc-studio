@@ -43,6 +43,7 @@ public final class SeamNativeGeometryClient {
     private static final Logger LOG=LogUtils.getLogger();
     private static final SeamGpuSectionRenderer GPU=new SeamGpuSectionRenderer();
     private static boolean gpuDisabled=Boolean.getBoolean("worldseam.legacyBlockPreview");
+    private static volatile boolean gpuReloadPending;
     private static int lastFrameGpuModels;
     private static int lastFrameGpuSections;
     private static long lastFrameGpuCpuNanos;
@@ -235,8 +236,20 @@ public final class SeamNativeGeometryClient {
     }
 
 
+    /** Resource packs change baked block UVs and RenderTypes. Reload GPU meshes
+     *  on the real Minecraft client thread; never destroy VBOs on a worker. */
+    public static void invalidateGpuOnReload() {
+        gpuReloadPending=true;
+    }
+
     private static void tick(ClientTickEvent.Post event) {
         Minecraft mc=Minecraft.getInstance();
+        if(gpuReloadPending) {
+            gpuReloadPending=false;
+            GPU.release();
+            for(var col:columns.values())
+                for(var slice:col)GPU.changed(slice.gpuSection());
+        }
         if(source.isEmpty()) return;
         if(mc.level==null || mc.player==null ||
             !mc.level.dimension().location().toString().equals(source) ||
@@ -506,6 +519,7 @@ public final class SeamNativeGeometryClient {
         queuedLink=null;
         BUILD_QUEUE.clear();
         GPU.release();
+        gpuReloadPending=false;
         lastFrameGpuModels=0;
         lastFrameGpuSections=0;
         lastFrameGpuCpuNanos=0;
