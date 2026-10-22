@@ -118,6 +118,9 @@ public final class NpcCommands {
                     .executes(ctx -> cityCensus(ctx.getSource())))
                 .then(Commands.literal("audit")
                     .executes(ctx -> cityLiveAudit(ctx.getSource())))
+                .then(Commands.literal("filmcrime")
+                    .requires(source -> source.hasPermission(2))
+                    .executes(ctx -> filmCityCrime(ctx.getSource())))
                 .then(Commands.literal("demo")
                     .requires(source -> source.hasPermission(2))
                     .executes(ctx -> cityDemo(ctx.getSource()))))
@@ -369,6 +372,59 @@ public final class NpcCommands {
     /** Real-time on-location audit; numbers come from live entity state,
      * never inferred from the script or generated city template.
      */
+    /**
+     * Operator-only VISUAL TEST trigger in a disposable real MC world.
+     * This explicitly STAGES an actual item theft, NOT a naturally chosen
+     * random criminal act. It never spawns loot, teleports NPCs, files a
+     * fabricated report, or directly invokes police arrest.
+     *
+     * After the unpaid inventory exchange, normal tick-driven AI must
+     * walk out, report a true eyewitness incident, chase, and reach jail.
+     */
+    private static int filmCityCrime(CommandSourceStack source)
+        throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        ServerPlayer player = source.getPlayerOrException();
+        var actors = player.serverLevel().getEntitiesOfClass(
+            PlayerNpcEntity.class, player.getBoundingBox().inflate(42),
+            npc -> npc.isAlive() && npc.mode() == PlayerNpcEntity.Mode.LIVE);
+        PlayerNpcEntity thief = actors.stream()
+            .filter(npc -> npc.getTags().contains("reme_city_shoplifter"))
+            .findFirst().orElse(null);
+        PlayerNpcEntity clerk = actors.stream()
+            .filter(npc -> npc.getTags().contains("reme_city_clerk"))
+            .findFirst().orElse(null);
+        if (thief == null || clerk == null) {
+            source.sendFailure(Component.literal(
+                "录像场景没有真正的店员/逃单居民，请先在全新测试世界 /npc city demo"));
+            return 0;
+        }
+        long now = player.serverLevel().getGameTime();
+        if (thief.hasUnpaidShopItem(now)) {
+            source.sendFailure(Component.literal("小偷已携未付款商品，不能导演重复盗窃"));
+            return 0;
+        }
+        if (thief.isDetained(now)) {
+            source.sendFailure(Component.literal("小偷已被真实警卫拘留，不能伪造第二次犯罪"));
+            return 0;
+        }
+        if (!dev.reme.mcstudio.npc.life.ConvenienceStoreCrime.takeUnpaidFood(
+                thief, clerk, player.serverLevel(), now)) {
+            source.sendFailure(Component.literal(
+                "真实盗窃未发生：小偷必须真的走到开门店员面前且双方能相互看见，货物不足/关店/距离不足均拒绝；不会强制传送"));
+            return 0;
+        }
+        final String thiefId = thief.getUUID().toString();
+        final String sellerId = clerk.getUUID().toString();
+        source.sendSuccess(() -> Component.literal(
+            "TEST-TRIGGER ONLY：已从实际店员库存转移1份真实食品而未付款。"
+            + "小偷=" + thiefId + " 店员=" + sellerId
+            + "，后续离店、目击报警、警察追赶、步行押送和进牢全部由真实世界AI执行。"), true);
+        System.out.println("REME_NPC_FILM staged_real_goods_theft=1"
+            + " thief=" + thiefId + " seller=" + sellerId
+            + " tick=" + now + " NO_TELEPORT=1");
+        return 1;
+    }
+
     private static int cityLiveAudit(CommandSourceStack source)
         throws com.mojang.brigadier.exceptions.CommandSyntaxException {
         ServerPlayer p = source.getPlayerOrException();
