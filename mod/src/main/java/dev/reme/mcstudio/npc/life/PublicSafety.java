@@ -108,8 +108,12 @@ public final class PublicSafety {
     /** Returns true if guard investigation owns its movement this tick. */
     public static boolean tickGuard(PlayerNpcEntity guard, ServerLevel level, long tick) {
         if (guard.profession() != PlayerNpcEntity.Profession.GUARD
-            || guard.mode() != PlayerNpcEntity.Mode.LIVE
-            || guard.policeSuspect() == null) return false;
+            || guard.mode() != PlayerNpcEntity.Mode.LIVE) return false;
+        // Do not abandon a prisoner after the handcuff event. Escort goal
+        // owns on-foot navigation until the REAL holding spot is reached.
+        if (guard.escortedPrisoner() != null)
+            return tickEscortGuard(guard, level, tick);
+        if (guard.policeSuspect() == null) return false;
         if (tick >= guard.policeAlertUntil()) {
             guard.clearPoliceCase();
             return false;
@@ -158,6 +162,51 @@ public final class PublicSafety {
         suspect.setAction("nonlethally arrested by nearby guard; walking to authorized holding spot");
         guard.setAction("arrested reported raider at close range; escorting to jail area");
         guard.clearPoliceCase();
+        guard.assignPrisonerEscort(suspect.getUUID(), tick + CUSTODY_TICKS);
+        return true;
+    }
+
+    /** Realistic close-range foot escort after actual lawful arrest. */
+    private static boolean tickEscortGuard(PlayerNpcEntity guard, ServerLevel level, long tick) {
+        if (tick >= guard.escortUntil()) {
+            guard.clearPrisonerEscort();
+            return false;
+        }
+        var found = level.getEntity(guard.escortedPrisoner());
+        if (!(found instanceof PlayerNpcEntity prisoner) || !prisoner.isAlive()
+            || !prisoner.isDetained(tick)
+            || !level.hasChunkAt(prisoner.blockPosition())) {
+            guard.clearPrisonerEscort();
+            return false;
+        }
+        BlockPos jail = prisoner.detentionJail();
+        if (jail == null || !holdingSpot(level, jail)
+            || !DailyRoaming.inRange(guard, jail)) {
+            guard.clearPrisonerEscort();
+            guard.setAction("prison escort cancelled: jail removed or out of jurisdiction");
+            return false;
+        }
+        guard.setTarget(null);
+        boolean prisonerAtCell = prisoner.distanceToSqr(Vec3.atCenterOf(jail)) <= 2.5;
+        if (prisonerAtCell && guard.distanceToSqr(prisoner) <= 36) {
+            guard.getNavigation().stop();
+            guard.setAction("on-foot escort completed: prisoner reached REAL iron-bar cell");
+            System.out.println("REME_NPC_STORY stage=jail_reached tick=" + tick
+                + " guard=" + guard.getUUID() + " prisoner=" + prisoner.getUUID()
+                + " cell=" + jail.toShortString());
+            guard.clearPrisonerEscort();
+            return true;
+        }
+        if (!MovementPolicy.due(tick, guard.getId(), 10)) return true;
+        if (guard.distanceToSqr(prisoner) > 5.0) {
+            RoadNavigator.moveToward(guard, level, prisoner.blockPosition(), 0.98);
+            guard.setAction("escorting handcuffed resident ON FOOT along loaded streets");
+        } else {
+            // Keep safe body-distance, do not physically block the inmate's
+            // own vanilla pathfinder at a 1-block door or bar opening.
+            guard.getNavigation().stop();
+            guard.setAction("escorting resident beside real local jail corridor");
+        }
         return true;
     }
 
