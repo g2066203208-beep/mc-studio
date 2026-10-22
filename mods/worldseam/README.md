@@ -1,5 +1,45 @@
 # WorldSeam · 界缝
 
+## v0.12.0-dev — 航空学/Sable 整船跨维「安全接入」实验阶段
+
+**不是已经实现双维度连续物理船体穿越。** 目前首先解决整船对象不能当成普通原版实体
+`changeDimension` 迁移的问题。本阶段提供一个**默认关闭**的可选接入层：仅当
+NeoForge 1.21.1 同时安装 Sable 与 AeroPortals 且运行时 API 匹配时，WorldSeam 才能
+把物理船交给 AeroPortals 的 `PortalTeleport.dispatchResult` 做整船原子转移。
+
+- `/worldseam physics status`：显示可选依赖与转移统计，无须开启。
+- `/worldseam physics enable`、`/worldseam physics disable`：仅管理员 4 级可操作；
+  需先运行 `/worldseam enable`，只在**可丢弃的全新测试存档**开启。
+- 接缝源/目标坐标 X/Z 保持 1:1，不采用普通下界传送门的 8:1 缩放。检测
+  物理 SubLevel 原点越过水平连接面后，在目标维度区块已经自然加载且原生高度合法时
+  触发试验性整组转移。目标船体覆盖超过 256 个 Chunk 的巨型载具暂时拒绝；
+  不在服务端 tick 同步生成一大片目标地形。
+- 接入只调用 AeroPortals 已有的群组预检查、乘客与附属物搬运、恢复日志和回滚路径，
+  不在 WorldSeam 中自行复制船体方块或构建第二份 Rapier 刚体。
+  对未知/缺失 API 禁止转移并报告，不对正式存档偷偷做回退传送。
+- **实际接入范围的限制**：当前移动是过界时的*原子换维*，不是船身分布在两个
+  世界里同时存在的**连续双侧碰撞**；传送时乘客仍由 AeroPortals 自身处理，
+  它可能触发原版加载界面；没有对载具方向/惯性、约束链、跨维热载、资源包、
+  Iris、Voxy、Sodium 和 Sable 完整整合进行真实游戏验收。对于危险的大型拼装车、
+  动力机械及 100+ 方块高载具，现阶段不能宣称安全可用。
+
+**参考与许可证审查（仅调用接口，没有复制外部源码）**：
+- [AeroPortals](https://github.com/breakinblocks/AeroPortals), MIT：
+  `portal/PortalTeleport.java`、`portal/SableBridge.java`、`docs/API.md`；
+  真正的原子搬运包含持久恢复日志、链接机械、乘客、连接物群组验证。
+- [IPSable](https://github.com/r2smith141/IPSable), 以其仓库声明为准：
+  `IplSceneOwnership`、`SableSubLevelDimension`、`IplPortalRimManager`；
+  Atlas World 物理宿主维度、双侧图像接触碰撞，是后续真正无缝的必要研究方向。
+- [Sable](https://github.com/STRELENA1/sable), Polyform Shield：
+  只读取了 `SubLevelContainer`、`ServerSubLevel` 和维度物理规则，
+  不能擅自复制内部实现。
+
+**验收计划**：当前独立 WorldSeam CI 能覆盖本 Mod 无 Sable 的构建与几何单测；
+跨越游戏中真正 Sable 2.x 船体的 NeoForge GUI、乘客、Create 动力、跨维约束、
+进出维度 100 次、断线重连和物理姿态验收**仍未完成**。因此不应将本分支当最终发布版。
+
+---
+
 ## v0.11.2 开发修复：远端地形改用世界区块模型绘制
 
 在独立 WorldSeam 的 GPU section cache（v0.11.1/PR #86）上进一步修正：
