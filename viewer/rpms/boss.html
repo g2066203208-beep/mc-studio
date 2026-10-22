@@ -40,8 +40,25 @@
     <option value="2" selected>2:1 · 扭矩倍增</option>
     <option value="4">4:1 · 高扭矩低速</option>
    </select>
-   <small style="color:#90adba">齿轮箱按 90% 效率将输入转速换成输出转速与真实铰链转矩上限；为浏览器物理机制，不是原版 Create 完整 SU 系统。</small>
+   <small style="color:#90adba">动力连接按 Create 6.0.10 主轴、垂直大齿轮、离合器规则逐块计算；2:1/4:1 齿比和膝关节跨运动机构供能仍是浏览器简化模型。</small>
   </div>
+  <div class="subhead">实际动力线路 · 整数方块拓扑</div>
+  <section id="transmissionPanel" class="power-audit" aria-live="polite">
+   <div class="power-head"><span>创造马达 → 主轴 → 6 齿轮分支</span><b id="driveSource">读取中…</b></div>
+   <div class="power-metrics">
+    <span>已连通关节 <strong id="driveConnected">—</strong></span>
+    <span>原版规则连接 <strong id="driveLinks">—</strong></span>
+    <span>动力容量／估算负载 <strong id="driveStress">—</strong></span>
+   </div>
+   <div id="legPowerStatus" class="leg-power" role="status">等待创建物理关节…</div>
+   <div class="power-buttons">
+    <button id="powerCut" type="button">切断马达</button>
+    <button id="powerRestore" type="button">接通马达</button>
+    <button id="clutchCut" type="button">断开左前离合器</button>
+    <button id="clutchRestore" type="button">恢复左前离合器</button>
+   </div>
+   <small>关掉动力源或分支，真实 Rapier 关节将停止获得主动转矩。齿轮网络是 Create 规则的网页子集，并非运行原版 Java 模组。</small>
+  </section>
   <div class="subhead">物理破坏与试验</div>
   <button id="removeOne" class="action danger">拆断一条腿 <span>两个真实物理铰链断开</span></button>
   <button id="removeAll" class="action danger">拆断所有腿 <span>机身失去支撑</span></button>
