@@ -12,6 +12,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -29,6 +30,9 @@ import java.util.UUID;
 public final class SeamSableInterop {
     private static final Logger LOG=LogUtils.getLogger();
     private static final Map<UUID,Observed> observed=new HashMap<>();
+    private static final Map<UUID,Long> lastMoved=new HashMap<>();
+    private static final Map<ServerLevel,List<SeamShipCrossing.Bounds>> shipVolumes=
+        new IdentityHashMap<>();
     private static Api api;
     private static boolean attempted;
     private static String detection="Not checked";
@@ -97,17 +101,22 @@ public final class SeamSableInterop {
         if(server!=currentServer) {
             currentServer=server;
             observed.clear();
+            lastMoved.clear();
+            shipVolumes.clear();
             api=null;
             attempted=false;
             detection="Not checked";
         }
         if(!enabled) {
             observed.clear();
+            lastMoved.clear();
+            shipVolumes.clear();
             return;
         }
         resolve();
         if(api==null)return;
         if(tick%2==0) {
+            shipVolumes.clear();
             for(ServerLevel source:server.getAllLevels()) {
                 List<?> ships=loadedShips(source);
                 if(ships==null)continue;
@@ -119,8 +128,26 @@ public final class SeamSableInterop {
                 }
             }
         }
-        if(tick%200==0)
+        if(tick%200==0) {
             observed.entrySet().removeIf(e->tick-e.getValue().lastSeen>STALE_TICKS);
+            lastMoved.entrySet().removeIf(e->tick-e.getValue()>RETRY_DELAY_TICKS*4);
+        }
+    }
+
+    /**
+     * Prevent the vanilla player seam switch from separating riders or people
+     * standing inside a Sable sub-level from its physical owner. AeroPortals
+     * owns the complete rider group when this experimental mode is active.
+     */
+    public static boolean playerInsideShip(ServerLevel level,Vec3 point) {
+        if(api==null)return false;
+        for(var box:shipVolumes.getOrDefault(level,List.of())) {
+            if(point.x>=box.minX() && point.x<=box.maxX() &&
+               point.z>=box.minZ() && point.z<=box.maxZ() &&
+               point.y>=box.minY()-1.5 && point.y<=box.maxY()+2.0)
+                return true;
+        }
+        return false;
     }
 
     private static List<?> loadedShips(ServerLevel source) {
@@ -162,6 +189,10 @@ public final class SeamSableInterop {
             Object point=invoke(pose,"position");
             double x=component(point,"x"),y=component(point,"y"),z=component(point,"z");
             String src=source.dimension().location().toString();
+            // Include even stationary ships in the rider ownership guard.
+            var worldBounds=bounds(ship);
+            shipVolumes.computeIfAbsent(source,k->new ArrayList<>()).add(worldBounds);
+            if(tick-lastMoved.getOrDefault(id,Long.MIN_VALUE/2)<RETRY_DELAY_TICKS)return;
             Observed sample=observed.get(id);
             if(sample==null || !src.equals(sample.dimension)) {
                 observed.put(id,new Observed(src,y,tick));
@@ -183,7 +214,7 @@ public final class SeamSableInterop {
                     sample.previousY,y,vy,sourceBoundary,targetBoundary);
                 if(crossing==null)continue;
                 var dest=new Vec3(x,crossing.destinationY(),z);
-                var area=bounds(ship).shiftedY(targetBoundary-sourceBoundary);
+                var area=worldBounds.shiftedY(targetBoundary-sourceBoundary);
                 BlockPos min=BlockPos.containing(area.minX(),area.minY(),area.minZ());
                 BlockPos max=BlockPos.containing(
                     Math.nextDown(area.maxX()),Math.nextDown(area.maxY()),
@@ -206,6 +237,7 @@ public final class SeamSableInterop {
                     null,source,ship,request));
                 if(moved) {
                     successfulTransfers++;
+                    lastMoved.put(id,tick);
                     observed.remove(id);
                     LOG.info("WORLDSEAM_SABLE_ATOMIC_TRANSFER: ship={} {} -> {} y={} (not progressive dual-side physics)",
                         id,src,link.target(),dest.y());
