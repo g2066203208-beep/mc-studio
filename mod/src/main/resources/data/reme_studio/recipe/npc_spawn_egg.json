@@ -7,12 +7,19 @@
     "EBE"
   ],
   "key": {
-    "E": "minecraft:emerald",
-    "B": "minecraft:bread",
-    "P": "minecraft:paper"
+    "E": {
+      "item": "minecraft:emerald"
+    },
+    "B": {
+      "item": "minecraft:bread"
+    },
+    "P": {
+      "item": "minecraft:paper"
+    }
   },
   "result": {
     "id": "reme_studio:npc_spawn_egg",
     "count": 1
-  }
+  },
+  "show_notification": true
 }
