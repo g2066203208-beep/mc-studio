@@ -49,6 +49,10 @@ public final class SeamClientDiagnostic {
             "/25 | 远端模型: "+SeamNativeGeometryClient.visibleBlockCount()+
             " | 待重建段: "+SeamNativeGeometryClient.pendingRebuilds()+
             " | 本帧: "+SeamNativeGeometryClient.lastFrameDrawn()+
+            " | 网格: "+SeamNativeGeometryClient.gpuCachedSlices()+
+            " | 覆盖率: "+(int)(SeamNativeGeometryClient.gpuVisibleCoverage()*100)+"%"+
+            " | GPU预计: "+SeamNativeGeometryClient.gpuEstimatedBytes()/1048576+"MiB"+
+            " | DrawCalls: "+SeamNativeGeometryClient.gpuDrawCalls()+
             " | 预算: "+SeamNativeGeometryClient.currentModelBudget()+
             " | CPU P95: "+String.format(java.util.Locale.ROOT,"%.1fms",SeamNativeGeometryClient.p95ModelCpuMs())+
             " | 片段: "+SeamNativeGeometryClient.visibleSlices()+"/"+
