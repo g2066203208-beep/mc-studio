@@ -22,6 +22,8 @@ import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
 
 import java.util.LinkedHashMap;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.List;
 import java.util.Map;
 
@@ -39,7 +41,9 @@ import java.util.Map;
  * experimental path cannot claim full world, sky, shader or Voxy support.
  */
 public final class SeamGpuSectionMeshes {
-    private static final int MAX_MESHES=128;
+    // Covers the entire typical 5x5 visible section ring without
+    // repeatedly evicting an on-screen section, unlike the old 128 cap.
+    private static final int MAX_MESHES=192;
     private static final int MAX_BAKED_CELLS_PER_FRAME=180;
     private static final long MAX_BAKE_CPU_NANOS=4_000_000L;
     private static final RenderType[] LAYERS={
@@ -79,6 +83,9 @@ public final class SeamGpuSectionMeshes {
     // number of chunks the active native world has streamed in.
     private final LinkedHashMap<Key,Compiled> mesh=new LinkedHashMap<>();
     private final Map<Key,SeamNativeGeometryClient.Slice> unsupported=new LinkedHashMap<>();
+    // Camera-nearest, pre-sorted visible section set. Evictions MUST not
+    // preferentially discard the very meshes required this frame.
+    private final Set<Key> protectedVisible=new HashSet<>();
     private Building building;
     private final SeamRenderSamples bakeSamples=new SeamRenderSamples(120);
     private long uploaded;
@@ -119,8 +126,27 @@ public final class SeamGpuSectionMeshes {
                             List<SeamNativeGeometryClient.Slice> visible,
                             int sourceBoundary,int targetBoundary) {
         if(!enabled()||remote==null||visible.isEmpty())return;
+        // The caller has sorted visible slices by true camera distance.
+        // Only protect/cache the nearest capacity sections. FIFO eviction
+        // previously thrashed: with 150 visible and a cap of 128, compiling
+        // the farthest section evicted the central closest section, forcing
+        // it to be uploaded AGAIN on the next frame.
+        protectedVisible.clear();
+        int count=Math.min(MAX_MESHES,visible.size());
+        for(int i=0;i<count;i++) {
+            var slice=visible.get(i);
+            protectedVisible.add(new Key(slice.cx(),slice.cz(),slice.sectionY()));
+        }
+        if(building!=null) {
+            var active=building.slice;
+            if(!protectedVisible.contains(new Key(active.cx(),active.cz(),active.sectionY()))) {
+                building.close();
+                building=null;
+            }
+        }
         if(building==null) {
-            for(var slice:visible) {
+            for(int i=0;i<count;i++) {
+                var slice=visible.get(i);
                 Key key=new Key(slice.cx(),slice.cz(),slice.sectionY());
                 Compiled item=mesh.get(key);
                 if(item!=null && item.origin()==slice)continue;
@@ -237,9 +263,19 @@ public final class SeamGpuSectionMeshes {
                 job.slice.cells().size(),endCount,fluidCount));
             uploaded++;
             while(mesh.size()>MAX_MESHES) {
-                var first=mesh.entrySet().iterator().next();
-                first.getValue().close();
-                mesh.remove(first.getKey());
+                // Prefer to discard a section outside the current nearest
+                // renderable set, not one the next frame must immediately
+                // recompile. This avoids unbounded VRAM growth and reload
+                // oscillations when the camera sits still at a seam.
+                Key victim=null;
+                for(var cached:mesh.keySet()) {
+                    if(!protectedVisible.contains(cached)) {
+                        victim=cached;
+                        break;
+                    }
+                }
+                if(victim==null)victim=mesh.keySet().iterator().next();
+                mesh.remove(victim).close();
                 evicted++;
             }
         } catch(RuntimeException | Error problem) {
@@ -300,6 +336,7 @@ public final class SeamGpuSectionMeshes {
         for(var item:mesh.values())item.close();
         mesh.clear();
         unsupported.clear();
+        protectedVisible.clear();
         if(building!=null)building.close();
         building=null;
         bakeSamples.clear();
