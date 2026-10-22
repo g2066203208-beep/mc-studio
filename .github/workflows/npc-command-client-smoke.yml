@@ -5,11 +5,13 @@ on:
     branches:
       - fix/npc-neoforge-211262-runtime-v067
       - feat/npc-real-bed-lifecycle-v068
+      - feat/npc-economy-market-fair-v069
   pull_request:
     branches:
       - fix/npc-command-access-v066
       - fix/npc-neoforge-211262-runtime-v067
       - fix/npc-real-home-rest-v067
+      - feat/npc-real-bed-lifecycle-v068
 
 permissions:
   contents: read
@@ -29,7 +31,7 @@ jobs:
         run: |
           grep -Fxq 'minecraft_version=1.21.1' mod/gradle.properties
           grep -Fxq 'neo_version=21.1.262' mod/gradle.properties
-          grep -Fxq 'mod_version=0.6.8-dev' mod/gradle.properties
+          grep -Fxq 'mod_version=0.6.9-dev' mod/gradle.properties
       - name: Install real Linux virtual display and input automation
         run: sudo apt-get update -qq && sudo apt-get install -y -qq xvfb xdotool imagemagick openbox
       - name: Launch REAL NeoForge graphical Minecraft; enter integrated world; run /remecheck and /npc spawn
