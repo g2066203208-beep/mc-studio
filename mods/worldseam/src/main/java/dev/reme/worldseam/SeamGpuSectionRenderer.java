@@ -72,6 +72,7 @@ public final class SeamGpuSectionRenderer {
     private int lastFrameCachedSections,lastFrameUncachedSections;
     private int lastFrameModelsVisible;
     private int lastFrameEndStoneModels;
+    private int lastFrameFluidCells;
 
     public void changed(Section section) {
         dirty.put(section.key(),section);
@@ -248,6 +249,7 @@ public final class SeamGpuSectionRenderer {
         lastFrameUncachedSections=0;
         lastFrameModelsVisible=0;
         lastFrameEndStoneModels=0;
+        lastFrameFluidCells=0;
         var projection=RenderSystem.getProjectionMatrix();
 
         // Order by RENDER TYPE before submitting GPU draws. The first
@@ -311,9 +313,12 @@ public final class SeamGpuSectionRenderer {
             // report the submitted mesh instead of the new dirty cell list.
             var submittedCells=cached.section().cells();
             lastFrameModelsVisible+=submittedCells.size();
-            for(var cell:submittedCells)
+            for(var cell:submittedCells) {
                 if(cell.state().is(net.minecraft.world.level.block.Blocks.END_STONE))
                     lastFrameEndStoneModels++;
+                if(!cell.state().getFluidState().isEmpty())
+                    lastFrameFluidCells++;
+            }
         }
     }
 
@@ -324,6 +329,7 @@ public final class SeamGpuSectionRenderer {
     public int lastFrameUncachedSections(){return lastFrameUncachedSections;}
     public int lastFrameModelsVisible(){return lastFrameModelsVisible;}
     public int lastFrameEndStoneModels(){return lastFrameEndStoneModels;}
+    public int lastFrameFluidCells(){return lastFrameFluidCells;}
     public long uploads(){return uploads;}
     public long drawCalls(){return drawCalls;}
     public long compilations(){return compilations;}
