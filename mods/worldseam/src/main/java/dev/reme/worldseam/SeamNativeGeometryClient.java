@@ -434,6 +434,8 @@ public final class SeamNativeGeometryClient {
         return SeamGpuBudget.coverage(lastFrameVisibleCells,lastFrameDrawn);
     }
     public static double lastGpuBuildMs(){return GPU_MESHES.lastBuildMs();}
+    public static double p95GpuUploadMs(){return GPU_MESHES.p95GpuUploadMs();}
+    public static double p95GpuDrawMs(){return GPU_MESHES.p95GpuDrawMs();}
     public static int lastTickRebuildSlices() { return lastTickRebuildSlices; }
     /** All remote fallback paths use WorldSeam-owned GPU buffers only. */
     public static MultiBufferSource.BufferSource fallbackBuffers() {
