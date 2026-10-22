@@ -164,11 +164,16 @@ export function createMultibodyBoss(RAPIER,opts={}){
    const budget=branch?.pathLive ? torque*branch.torqueMultiplier : 0;
    leg.deliveredTorque=budget;
    if(mode!=='relax'&&budget>0){
-    servoTorque(body,leg.upper,hipT,hipGain,hipDamping,budget);
+    // The stronger active gait gains are unsuitable while motionless:
+    // static ground contacts should use the proven stable, softer servo.
+    const active=drive;
+    const kpH=active?hipGain:115,kdH=active?hipDamping:15;
+    const kpK=active?kneeGain:92,kdK=active?kneeDamping:13;
+    servoTorque(body,leg.upper,hipT,kpH,kdH,budget);
     // A powered knee servo mounted on the upper/lower leg is a separate
     // simplified electrical/mechanical coupling, NOT a proven Create shaft
     // through a moving SubLevel. Explicitly report that limitation in UI.
-    servoTorque(leg.upper,leg.lower,kneeT,kneeGain,kneeDamping,budget*.85);
+    servoTorque(leg.upper,leg.lower,kneeT,kpK,kdK,budget*.85);
    }
   }
  };
