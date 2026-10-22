@@ -1,0 +1,104 @@
+name: NPC standalone 1.21.1 NeoForge build and real gameplay
+on:
+  push:
+    branches: [feat/npc-standalone-mod-067]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build-and-gametest:
+    if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'feat/npc-standalone')
+    runs-on: ubuntu-latest
+    timeout-minutes: 24
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Verify project separation and all mod namespace metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fxq 'mod_id=reme_npc' mods/npc/gradle.properties
+          grep -Fxq 'minecraft_version=1.21.1' mods/npc/gradle.properties
+          grep -Fxq 'neo_version=21.1.262' mods/npc/gradle.properties
+          test -e mods/npc/src/main/java/dev/reme/npcstudio/NpcMod.java
+          test -e mods/npc/src/main/java/dev/reme/npcstudio/npc/NpcCommands.java
+          test -e mods/npc/src/main/java/dev/reme/npcstudio/npc/NpcItems.java
+          test -e mods/npc/src/main/resources/data/reme_npc/recipe/npc_spawn_egg.json
+          if grep -R -n -E 'dev\.reme\.mcstudio|reme_studio' mods/npc/src/main --include='*.java' --include='*.json'; then
+            echo 'ERROR: NPC still refers to old shared package or mod namespace' >&2
+            exit 1
+          fi
+      - name: Build independently of all other mods
+        working-directory: mods/npc
+        run: ./gradlew test build --no-daemon --stacktrace
+      - name: Assert independent installable JAR identity, game item and command code
+        shell: bash
+        run: |
+          set -euo pipefail
+          jar=mods/npc/build/libs/reme_npc-0.6.7-dev.jar
+          test -s "$jar"
+          jar tf "$jar" | grep -Fx 'dev/reme/npcstudio/NpcMod.class'
+          jar tf "$jar" | grep -Fx 'dev/reme/npcstudio/npc/NpcCommands.class'
+          jar tf "$jar" | grep -Fx 'dev/reme/npcstudio/npc/NpcItems.class'
+          jar tf "$jar" | grep -Fx 'assets/reme_npc/lang/zh_cn.json'
+          jar tf "$jar" | grep -Fx 'data/reme_npc/recipe/npc_spawn_egg.json'
+          ! jar tf "$jar" | grep -q 'dev/reme/mcstudio/'
+          unzip -p "$jar" META-INF/neoforge.mods.toml | grep -F 'modId="reme_npc"'
+          unzip -p "$jar" META-INF/neoforge.mods.toml | grep -F 'versionRange="[21.1.262,)"'
+      - name: Prepare isolated 48x24x48 NPC GameTest fixtures
+        run: python3 mods/npc/scripts/prepare-gametest-arena.py
+      - name: Run 54 real NeoForge GameTests
+        working-directory: mods/npc
+        run: ./gradlew runGameTestServer --no-daemon --stacktrace
+      - name: Save independent NPC JAR
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reme-npc-0.6.7-dev-standalone
+          path: mods/npc/build/libs/reme_npc-0.6.7-dev.jar
+          if-no-files-found: error
+      - name: Save actual GameTest logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: npc-standalone-gametest-logs
+          path: |
+            mods/npc/run/logs/*.log
+            mods/npc/runs/**/logs/*.log
+          if-no-files-found: warn
+  real-client-smoke:
+    if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'feat/npc-standalone')
+    runs-on: ubuntu-latest
+    timeout-minutes: 16
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Install actual virtual Minecraft graphics/input
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq xvfb xdotool imagemagick openbox
+      - name: Actually create a singleplayer world and exercise reme_npc /npc + spawn egg
+        env:
+          REME_COMMAND_SMOKE_ONLY: '1'
+        shell: bash
+        run: |
+          timeout --signal=INT --kill-after=15s 700s \
+            xvfb-run -a -s "-screen 0 1280x720x24" \
+            bash mods/npc/scripts/test-client-gui.sh
+      - name: Save real Minecraft GUI screenshots and integrated server logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: npc-standalone-real-client-evidence
+          path: |
+            mods/npc/client-gui-*.png
+            mods/npc/client-gui.log
+            mods/npc/run/logs/*.log
+            mods/npc/runs/**/logs/*.log
+          if-no-files-found: warn
