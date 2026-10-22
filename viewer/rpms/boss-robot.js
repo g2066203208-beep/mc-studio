@@ -228,13 +228,29 @@ function setModeButton(mode){
 }
 for(const mode of ['stand','march','walk','relax'])$(mode).addEventListener('click',()=>{
  if(!engine)return;
- engine.setMode(mode);setModeButton(mode);
- setMessage({
+ // The user's visible slider must be able to reproduce the gait that
+ // was actually tested in the Rapier CI (28 RPM, 2200 N·m).
+ // Do not silently drive joints with a torque unavailable in the UI.
+ let presetApplied=false;
+ if(mode==='march'||mode==='walk'){
+  const rpm=Math.max(28,Number($('motorRPM').value));
+  const torque=Math.max(2200,Number($('motorTorque').value));
+  if(rpm!==Number($('motorRPM').value)||torque!==Number($('motorTorque').value)){
+   $('motorRPM').value=String(rpm);$('rpmLabel').textContent=rpm+' RPM';
+   $('motorTorque').value=String(torque);$('torqueLabel').textContent=torque+' N·m';
+   engine.setMotor({rpm,torqueLimit:torque});
+   updateRatioLabel();
+   presetApplied=true;
+  }
+ }
+ engine.setMode(mode);setModeButton(mode);syncVisual();
+ setMessage((presetApplied?'已公开切换到真实物理测试的 28 RPM / 2,200 N·m 基础驱动配置。':'')+({
+
   stand:'六足髋膝伺服器正在真实受力保持站立；腿承重不足时身体会塌。',
   march:'两组三角支撑腿交替抬腿：12 个真实物理关节驱动，关节角度由求解器更新。',
   walk:'前进步态实验：改变关节角度与足底摩擦产生实际运动，不保证未经调参就能稳定直线走。',
   relax:'已断电：不再向关节施加主动转矩，真实重力将使腿和身体失稳。'
- }[mode]);
+ }[mode]));
 });
 $('motorRPM').addEventListener('input',e=>{
  const rpm=Number(e.target.value);$('rpmLabel').textContent=rpm+' RPM';engine?.setMotor({rpm});updateRatioLabel();
