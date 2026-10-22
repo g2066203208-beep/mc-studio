@@ -190,6 +190,13 @@ if [[ "${REME_CITY_VISUAL:-0}" == "1" ]]; then
   import -window root client-gui-city-npc-guard-closeup.png
   say_city '/execute at @e[type=reme_studio:player_npc,tag=reme_city_clerk,limit=1] run tp @s ~ ~2 ~4 facing entity @e[type=reme_studio:player_npc,tag=reme_city_clerk,limit=1] eyes' 6
   import -window root client-gui-city-npc-shopkeeper-closeup.png
+  # Start unmodified REAL X11 screen capture. This is actual GUI video,
+  # not assembled still screenshots nor a staged engine animation.
+  ffmpeg -loglevel error -nostdin -y -f x11grab -video_size 1280x720 \
+    -framerate 6 -i "$DISPLAY" -c:v libx264 -preset ultrafast -crf 27 \
+    -pix_fmt yuv420p -movflags +faststart \
+    client-gui-city-physical-npc-follow.mp4 >client-gui-city-ffmpeg.log 2>&1 &
+  VIDEO_PID=$!
   # REAL MOD CAMERA: the target UUID is retained across frames. The
   # spectator alone moves continuously; NPC AI is not teleported/paused.
   say_city '/npc camera chase shoplifter' 8
@@ -204,6 +211,8 @@ if [[ "${REME_CITY_VISUAL:-0}" == "1" ]]; then
   sleep 8
   import -window root client-gui-city-guard-native-possession-t1.png
   say_city '/npc camera stop' 3
+  kill -INT "$VIDEO_PID" 2>/dev/null || true
+  wait "$VIDEO_PID" || true
   say_city '/npc city audit' 4
   import -window root client-gui-city-live-audit.png
   say_city '/npc market' 4
@@ -220,6 +229,9 @@ if [[ "${REME_CITY_VISUAL:-0}" == "1" ]]; then
   if ! grep -q '实际生活NPC：13' "$log"; then
     echo 'FAIL: GUI real city did not spawn the 12 citizen entities'
     exit 1
+  fi
+  if ! test -s client-gui-city-physical-npc-follow.mp4; then
+    echo "FAIL: no genuine H264 recording of Minecraft NPC pursuit/follow"; exit 1
   fi
   if ! grep -q '已连续跟踪真实NPC' "$log"; then
     echo "FAIL: true integrated spectator camera never attached to actual resident"; exit 1
