@@ -184,6 +184,10 @@ public final class SeamNativeGeometryClient {
             return;
         }
         int ox=cx<<4,oz=cz<<4;
+        ClientLevel sourceLevel=Minecraft.getInstance().level;
+        SeamJoinedBlockView joined=sourceLevel==null?null:
+            new SeamJoinedBlockView(remote,sourceLevel,
+                sourceBoundary,targetBoundary,link.entry());
         var cells=new ArrayList<Cell>(512);
         BlockPos.MutableBlockPos pos=new BlockPos.MutableBlockPos();
         for(int y=begin;y<end;y++) {
@@ -193,7 +197,7 @@ public final class SeamNativeGeometryClient {
                 // Preserve fluid-only and waterlogged native voxels.
                 if(state.getRenderShape()!=RenderShape.MODEL &&
                    state.getFluidState().isEmpty())continue;
-                if(isBuried(cache,chunk,x,y,z))continue;
+                if(isBuried(cache,chunk,x,y,z,joined))continue;
                 pos.set(ox+x,y,oz+z);
                 int block=remote.getBrightness(LightLayer.BLOCK,pos);
                 int sky=remote.getBrightness(LightLayer.SKY,pos);
@@ -245,11 +249,19 @@ public final class SeamNativeGeometryClient {
      */
     private static boolean isBuried(
         net.minecraft.client.multiplayer.ClientChunkCache cache,
-        LevelChunk chunk,int x,int y,int z) {
+        LevelChunk chunk,int x,int y,int z,SeamJoinedBlockView joined) {
         for(int[] d:NEIGHBORS) {
             int nx=x+d[0],ny=y+d[1],nz=z+d[2];
-            if(ny<chunk.getMinBuildHeight()||ny>=chunk.getMaxBuildHeight())
-                return false;
+            if(ny<chunk.getMinBuildHeight()||ny>=chunk.getMaxBuildHeight()) {
+                // An OUTER target-world face can be buried by a REAL source
+                // world neighbor beyond the seam. Old code incorrectly
+                // assumed air and displayed phantom flat ceiling/floor faces.
+                if(joined==null)return false;
+                BlockPos neighbor=new BlockPos(
+                    (chunk.getPos().x<<4)+nx,ny,(chunk.getPos().z<<4)+nz);
+                if(!joined.getBlockState(neighbor).canOcclude())return false;
+                continue;
+            }
             int cx=chunk.getPos().x+Math.floorDiv(nx,16);
             int cz=chunk.getPos().z+Math.floorDiv(nz,16);
             LevelChunk neighbor;
