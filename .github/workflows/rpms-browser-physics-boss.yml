@@ -30,6 +30,9 @@ jobs:
         run: |
           node --check viewer/rpms/boss-physics.mjs
           node --check viewer/rpms/boss-multibody.mjs
+          node --check viewer/rpms/boss-powertrain.mjs
+          node --check viewer/rpms/tests/boss-powertrain.test.mjs
+          node viewer/rpms/tests/boss-powertrain.test.mjs
           node --check viewer/rpms/tests/boss-multibody-browser.cjs
           node --check viewer/rpms/boss.js
           node --check viewer/rpms/tests/boss-browser-physics.cjs
