@@ -71,6 +71,28 @@ public final class ResidentBedLife {
         return true;
     }
 
+    /** A deliberate player bed assignment has the same safety rules as AI. */
+    public static boolean claimSpecificBed(PlayerNpcEntity npc, ServerLevel level,
+                                           BlockPos head) {
+        BlockPos home = npc.homePos();
+        if (home == null || !level.hasChunkAt(home)
+            || Math.abs(head.getY() - home.getY()) > SEARCH_VERTICAL
+            || Math.abs(head.getX() - home.getX()) > SEARCH_RADIUS
+            || Math.abs(head.getZ() - home.getZ()) > SEARCH_RADIUS
+            || !valid(level, head) || occupied(level, head)
+            || claimedByOther(npc, level, head)
+            || accessibleSide(level, head, npc.blockPosition()) == null)
+            return false;
+        if (npc.isSleeping()) npc.stopSleeping();
+        npc.setAssignedBedPos(head);
+        return true;
+    }
+
+    public static void forgetBed(PlayerNpcEntity npc) {
+        if (npc.isSleeping()) npc.stopSleeping();
+        npc.setAssignedBedPos(null);
+    }
+
     private static boolean assignedBedAvailable(PlayerNpcEntity npc,
                                                  ServerLevel level, BlockPos bed) {
         return valid(level, bed) && !occupied(level, bed)
