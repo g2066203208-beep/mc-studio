@@ -153,6 +153,15 @@ if [[ "${REME_CITY_VISUAL:-0}" == "1" ]]; then
   import -window root client-gui-city-survey.png
   say_city '/npc city demo' 20
   import -window root client-gui-city-street-level.png
+  # Tag three REAL NPCs at their physical shops/guard post/park spawn points,
+  # while the player is still at the city origin. No visual stand-ins.
+  # Named tags are attached to loaded remestudio NPC entities, never armor stands.
+  say_city '/execute positioned ~-10 ~1 ~-12 run tag @e[type=reme_studio:player_npc,distance=..8,sort=nearest,limit=1] add reme_city_clerk' 3
+  say_city '/execute positioned ~-10 ~1 ~12 run tag @e[type=reme_studio:player_npc,distance=..8,sort=nearest,limit=1] add reme_city_guard' 3
+  say_city '/execute positioned ~10 ~1 ~8 run tag @e[type=reme_studio:player_npc,distance=..8,sort=nearest,limit=1] add reme_city_park' 3
+  say_city '/execute if entity @e[type=reme_studio:player_npc,tag=reme_city_clerk] run say REME_CITY_CLERK_ENTITY_EXISTS' 2
+  say_city '/execute if entity @e[type=reme_studio:player_npc,tag=reme_city_guard] run say REME_CITY_GUARD_ENTITY_EXISTS' 2
+  say_city '/execute if entity @e[type=reme_studio:player_npc,tag=reme_city_park] run say REME_CITY_PARK_ENTITY_EXISTS' 2
   # Spectator gives a reproducible free-camera vista while leaving
   # all world blocks and authentic NPC entities untouched.
   say_city '/gamemode spectator' 4
@@ -160,6 +169,15 @@ if [[ "${REME_CITY_VISUAL:-0}" == "1" ]]; then
   import -window root client-gui-city-aerial-northwest.png
   say_city '/tp @s ~48 ~ ~ facing ~-20 ~-14 ~20' 12
   import -window root client-gui-city-aerial-northeast.png
+  # HARD visual acceptance: camera is teleported next to the ACTUAL loaded
+  # tracked resident, faces the entity's eyes and records a close-up.
+  # 'at' changes the source coordinates, not its identity (@s = our player).
+  say_city '/execute at @e[type=reme_studio:player_npc,tag=reme_city_park,limit=1] run tp @s ~ ~2 ~5 facing entity @e[type=reme_studio:player_npc,tag=reme_city_park,limit=1] eyes' 6
+  import -window root client-gui-city-npc-park-closeup.png
+  say_city '/execute at @e[type=reme_studio:player_npc,tag=reme_city_guard,limit=1] run tp @s ~ ~2 ~4 facing entity @e[type=reme_studio:player_npc,tag=reme_city_guard,limit=1] eyes' 6
+  import -window root client-gui-city-npc-guard-closeup.png
+  say_city '/execute at @e[type=reme_studio:player_npc,tag=reme_city_clerk,limit=1] run tp @s ~ ~2 ~4 facing entity @e[type=reme_studio:player_npc,tag=reme_city_clerk,limit=1] eyes' 6
+  import -window root client-gui-city-npc-shopkeeper-closeup.png
   say_city '/npc market' 4
   import -window root client-gui-city-market-activity.png
   log=run/logs/latest.log
@@ -175,6 +193,18 @@ if [[ "${REME_CITY_VISUAL:-0}" == "1" ]]; then
     echo 'FAIL: GUI real city did not spawn the 12 citizen entities'
     exit 1
   fi
+  for tag in CLERK GUARD PARK; do
+    if ! grep -q "REME_CITY_${tag}_ENTITY_EXISTS" "$log"; then
+      echo "FAIL: real tracked NPC ${tag} not found in 3D city world"
+      exit 1
+    fi
+  done
+  for role in park guard shopkeeper; do
+    test -s "client-gui-city-npc-${role}-closeup.png" || {
+      echo "FAIL: no actual in-client NPC closeup screenshot for ${role}"
+      exit 1
+    }
+  done
   echo "PASS: real NeoForge 1.21.1 GUI visual city world generated streets, two-floor mall, houses, police post and NPCs."
   exit 0
 fi
