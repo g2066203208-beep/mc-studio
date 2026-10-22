@@ -1,5 +1,24 @@
 # WorldSeam · 界缝
 
+## v0.11.2 开发修复：远端地形改用世界区块模型绘制
+
+在独立 WorldSeam 的 GPU section cache（v0.11.1/PR #86）上进一步修正：
+过去虽然把网格存进 VBO，但填充 VBO 仍调用 `renderSingleBlock`，
+这走的是**物品式单方块渲染**，不会按真正的目标 `ClientLevel` 邻块剔面、
+世界环境遮蔽（AO）、生物群系着色和分 RenderType 模型数据绘制，
+造成许多不必要内部面片、显存压力及非原版地形外观。
+现在 section 构建走 NeoForge 1.21.1 的 `renderBatched`，
+按原生目标 BlockPos 查询邻块/光照/模型数据，再用映射后坐标将 VBO
+摆到源维度观察位置。增加负高度、自定义接缝高度的坐标往返单测。
+对不能正常编译的 GPU 模型保留旧缓冲回退，不把回退称为画面验收成功。
+
+**验收必须看**：独立 Gradle JUnit、NeoForge 编译、GUI E2E 中 GPU
+有效覆盖与真实截图，以及反复穿越时完整地形、FPS、内存与原生区块数量。
+这次没有实现跨维流体网格、方块实体、普通实体、天空、阴影、深度遮挡合成、
+Sodium/Iris/Voxy/Sable 兼容；相关功能仍未达到正式发布门槛。
+
+---
+
 **独立的 Minecraft 跨维度世界底层 Mod**（仍处实验阶段）。
 
 - Minecraft：1.21.1

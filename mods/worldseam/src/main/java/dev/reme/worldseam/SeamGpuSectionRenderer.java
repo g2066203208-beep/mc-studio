@@ -8,9 +8,12 @@ import com.mojang.blaze3d.vertex.VertexBuffer;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.core.BlockPos;
+import net.minecraft.util.RandomSource;
+import net.neoforged.neoforge.client.model.data.ModelData;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.client.renderer.culling.Frustum;
@@ -19,6 +22,7 @@ import org.joml.Matrix4f;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -60,6 +64,8 @@ public final class SeamGpuSectionRenderer {
     public static final long MAX_CACHED_VERTEX_BYTES=128L*1024*1024;
     private final Map<Key,Cached> loaded=new LinkedHashMap<>();
     private final Map<Key,Section> dirty=new LinkedHashMap<>();
+    // Cached VBOs are not proof that a shader actually drew them this frame.
+    private final Set<Key> fullyDrawnLastFrame=new HashSet<>();
     private long compilations,uploads,drawCalls,evictions;
     private long cachedVertexBytes;
     private int lastFrameCachedSections,lastFrameUncachedSections;
@@ -97,7 +103,8 @@ public final class SeamGpuSectionRenderer {
 
     /** CPU-side baked quad data uploads are bounded to ONE native section per
      *  frame, while ALL previously uploaded sections remain visible. */
-    public void compileVisible(Minecraft mc,List<Section> visible,Vec3 camera) {
+    public void compileVisible(Minecraft mc, ClientLevel remote, List<Section> visible,
+                               Vec3 camera, int sourceBoundary, int targetBoundary) {
         var candidates=new ArrayList<Section>();
         for(var section:visible)
             if(dirty.containsKey(section.key()))candidates.add(section);
@@ -106,7 +113,7 @@ public final class SeamGpuSectionRenderer {
         for(int n=0;n<limit;n++) {
             var candidate=candidates.get(n);
             if(dirty.get(candidate.key())!=candidate)continue;
-            Cached built=compile(mc,candidate);
+            Cached built=compile(mc,remote,candidate,sourceBoundary,targetBoundary);
             if(built==null)continue;
             Cached old=loaded.put(candidate.key(),built);
             dirty.remove(candidate.key());
@@ -136,7 +143,8 @@ public final class SeamGpuSectionRenderer {
         return dx*dx+dy*dy+dz*dz;
     }
 
-    private static Cached compile(Minecraft mc,Section section) {
+    private static Cached compile(Minecraft mc,ClientLevel remote,Section section,
+                                  int sourceBoundary,int targetBoundary) {
         var byteBuffers=new LinkedHashMap<RenderType,ByteBufferBuilder>();
         var builders=new LinkedHashMap<RenderType,BufferBuilder>();
         MultiBufferSource capture = renderType -> builders.computeIfAbsent(
@@ -148,15 +156,39 @@ public final class SeamGpuSectionRenderer {
             });
         var layers=new ArrayList<Layer>();
         try {
+            // The previous renderSingleBlock path treated every terrain block
+            // as an INVENTORY MODEL: it emitted hidden faces, missed native AO,
+            // used item tint instead of biome/world tint and ignored the
+            // chunk RenderType and model data. Dense terrain could overrun
+            // the 128 MiB cache and leave the neighboring world fragmented.
+            // Tessellate against the actual remote ClientLevel instead.
             PoseStack pose=new PoseStack();
+            RandomSource random=RandomSource.create();
             for(var cell:section.cells()) {
+                // The GPU section is positioned in the source's mapped view,
+                // but all block occlusion, lighting, biome colors, model data
+                // and pseudorandom variants must use the TARGET's native Y.
+                BlockPos nativePos=new BlockPos(cell.x(),
+                    SeamSectionLayout.nativeBlockY(cell.y(),
+                        sourceBoundary,targetBoundary),cell.z());
+                var blockModel=mc.getBlockRenderer().getBlockModel(cell.state());
+                ModelData modelData=blockModel.getModelData(
+                    remote,nativePos,cell.state(),ModelData.EMPTY);
+                random.setSeed(cell.state().getSeed(nativePos));
                 pose.pushPose();
                 try {
                     pose.translate(cell.x()-section.originX(),
                         cell.y()-section.originY(),
                         cell.z()-section.originZ());
-                    mc.getBlockRenderer().renderSingleBlock(cell.state(),
-                        pose,capture,cell.light(),OverlayTexture.NO_OVERLAY);
+                    // Chunk RenderTypes use BLOCK vertex format, unlike
+                    // the NEW_ENTITY format of renderSingleBlock items.
+                    for(RenderType type:blockModel.getRenderTypes(
+                        cell.state(),random,modelData)) {
+                        random.setSeed(cell.state().getSeed(nativePos));
+                        mc.getBlockRenderer().renderBatched(
+                            cell.state(),nativePos,remote,pose,
+                            capture.getBuffer(type),true,random,modelData,type);
+                    }
                 } finally {
                     pose.popPose();
                 }
@@ -204,15 +236,12 @@ public final class SeamGpuSectionRenderer {
         // prototype switched texture, shader and blend states hundreds of
         // times each frame (one switch per section x layer). Grouping cuts
         // these expensive switches to one per actual RenderType.
+        fullyDrawnLastFrame.clear();
+        var completedLayerCounts=new HashMap<Key,Integer>();
         var passes=new LinkedHashMap<RenderType,List<DrawTask>>();
         for(var section:visible) {
             var cached=loaded.get(section.key());
-            if(cached==null) {lastFrameUncachedSections++;continue;}
-            lastFrameCachedSections++;
-            lastFrameModelsVisible+=section.cells().size();
-            for(var c:section.cells())
-                if(c.state().is(net.minecraft.world.level.block.Blocks.END_STONE))
-                    lastFrameEndStoneModels++;
+            if(cached==null || cached.layers().isEmpty()) continue;
             for(var layer:cached.layers())
                 passes.computeIfAbsent(layer.renderType(),k->new ArrayList<>())
                     .add(new DrawTask(section,layer));
@@ -241,15 +270,36 @@ public final class SeamGpuSectionRenderer {
                     task.layer().buffer().bind();
                     task.layer().buffer().drawWithShader(matrix,projection,shader);
                     drawCalls++;
+                    completedLayerCounts.merge(section.key(),1,Integer::sum);
                 }
             } finally {
                 VertexBuffer.unbind();
                 type.clearRenderState();
             }
         }
+        // A section passes the GUI coverage gate only after ALL its actual
+        // layer VBOs were submitted. A zero-layer mesh or missing shader
+        // instead keeps the safe fallback active, not a false green light.
+        for(var section:visible) {
+            var cached=loaded.get(section.key());
+            if(cached==null || cached.layers().isEmpty() ||
+                completedLayerCounts.getOrDefault(section.key(),0)<cached.layers().size()) {
+                lastFrameUncachedSections++;
+                continue;
+            }
+            fullyDrawnLastFrame.add(section.key());
+            lastFrameCachedSections++;
+            // When a section changes, its OLD mesh stays until re-uploaded:
+            // report the submitted mesh instead of the new dirty cell list.
+            var submittedCells=cached.section().cells();
+            lastFrameModelsVisible+=submittedCells.size();
+            for(var cell:submittedCells)
+                if(cell.state().is(net.minecraft.world.level.block.Blocks.END_STONE))
+                    lastFrameEndStoneModels++;
+        }
     }
 
-    public boolean ready(Key key){return loaded.containsKey(key);}
+    public boolean ready(Key key){return fullyDrawnLastFrame.contains(key);}
     public int cachedCount(){return loaded.size();}
     public int pendingCount(){return dirty.size();}
     public int lastFrameCachedSections(){return lastFrameCachedSections;}
@@ -266,6 +316,7 @@ public final class SeamGpuSectionRenderer {
         for(var cached:loaded.values())cached.close();
         loaded.clear();
         dirty.clear();
+        fullyDrawnLastFrame.clear();
         cachedVertexBytes=0;
         lastFrameCachedSections=lastFrameUncachedSections=lastFrameModelsVisible=0;
         lastFrameEndStoneModels=0;

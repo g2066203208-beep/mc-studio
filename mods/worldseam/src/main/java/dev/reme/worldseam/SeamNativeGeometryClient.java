@@ -316,7 +316,8 @@ public final class SeamNativeGeometryClient {
                 for(var slice:col)
                     pendingVisible.add(slice.gpuSection());
             try {
-                GPU.compileVisible(mc,pendingVisible,mc.player.position());
+                GPU.compileVisible(mc,queuedRemote,pendingVisible,mc.player.position(),
+                    sourceBoundary,targetBoundary);
             } catch(RuntimeException | Error ex) {
                 LOG.error("WorldSeam GPU tick pre-upload failed; falling back to safe section preview",ex);
                 gpuDisabled=true;
@@ -374,7 +375,8 @@ public final class SeamNativeGeometryClient {
                 long gpuStart=System.nanoTime();
                 var sections=new ArrayList<Section>(visible.size());
                 for(var slice:visible)sections.add(slice.gpuSection());
-                GPU.compileVisible(mc,sections,camera);
+                GPU.compileVisible(mc,queuedRemote,sections,camera,
+                    sourceBoundary,targetBoundary);
                 GPU.draw(sections,pose,camera);
                 lastFrameGpuModels=GPU.lastFrameModelsVisible();
                 lastFrameGpuSections=GPU.lastFrameCachedSections();
