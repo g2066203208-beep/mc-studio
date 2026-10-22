@@ -107,9 +107,12 @@ public final class ResidentBedLife {
             && !npc.isAfraid(tick) && !npc.isDetained(tick);
         if (npc.isSleeping()) {
             BlockPos sleeping = npc.getSleepingPos().orElse(null);
-            if (!wantsSleep || !valid(level, sleeping)) {
+            boolean destroyed = !valid(level, sleeping);
+            if (!wantsSleep || destroyed) {
                 npc.stopSleeping();
-                npc.setAction("woke up from real bed");
+                if (destroyed) npc.setAssignedBedPos(null);
+                npc.setAction(destroyed ? "bed removed; awake and finding new home"
+                    : "woke up from real bed");
                 return false;
             }
             npc.getNavigation().stop();
