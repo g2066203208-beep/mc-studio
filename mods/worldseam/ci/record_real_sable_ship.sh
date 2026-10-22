@@ -1,0 +1,94 @@
+#!/usr/bin/env bash
+# Genuine, never synthesized Minecraft 1.21.1 frames, NeoForge+Create+Sable.
+# This CI-only harness MUST record failure evidence if native two-way crossing
+# does not happen. Raw /fill air commands execute inside integrated server.
+set -euo pipefail
+export LIBGL_ALWAYS_SOFTWARE=1
+
+bash ./gradlew runClient -PworldseamShipFilm --no-daemon --console=plain > real-ship-film-client.log 2>&1 &
+minecraft_pid=$!
+film_pid=""
+cleanup() {
+  if [[ -n "$film_pid" ]]; then
+    kill -INT "$film_pid" 2>/dev/null || true
+    wait "$film_pid" 2>/dev/null || true
+  fi
+  kill "$minecraft_pid" 2>/dev/null || true
+}
+trap cleanup EXIT
+
+echo "WORLDSEAM_FILM_LAUNCH: genuine Minecraft window under Xvfb"
+for step in $(seq 1 180); do
+  if grep -q "Reloading ResourceManager" real-ship-film-client.log; then break; fi
+  if ! kill -0 "$minecraft_pid" 2>/dev/null; then
+    tail -n 70 real-ship-film-client.log
+    exit 1
+  fi
+  sleep 1
+done
+sleep 22
+xdotool search --name Minecraft getwindowname 2>/dev/null || true
+# Click genuine Minecraft first-run welcome, then Singleplayer/Create World.
+xdotool mousemove 640 568 click 1
+sleep 8
+xdotool mousemove 640 336 click 1
+sleep 8
+xdotool mousemove 640 540 click 1
+sleep 8
+# On New World UI: enable cheats and CREATE a disposable real game world.
+xdotool mousemove 640 403 click 1
+sleep 2
+
+# The capture starts BEFORE Minecraft world loading. Do not replace or
+# composite frames or drop crashes; failure attempts are still viewable.
+ffmpeg -hide_banner -loglevel warning -nostdin -y \
+  -f x11grab -framerate 10 -video_size 1280x720 -i "$DISPLAY" \
+  -vf "scale=854:480" -c:v libx264 -preset ultrafast \
+  -crf 30 -pix_fmt yuv420p -movflags +faststart \
+  real-ship-attempt-UNVERIFIED.mp4 > real-ship-ffmpeg.log 2>&1 &
+film_pid=$!
+xdotool mousemove 480 565 click 1
+
+ready=0; returned=0; failure=0
+for step in $(seq 1 240); do
+  if grep -q "WORLDSEAM_FILM_RECORD_READY" real-ship-film-client.log; then ready=1; fi
+  if grep -q "WORLDSEAM_FILM_PASS_REAL_SHIP_RETURN" real-ship-film-client.log; then
+    returned=1
+    sleep 7 # show clearly recognizable final aircraft for viewer
+    break
+  fi
+  if grep -q "WORLDSEAM_FILM_FAIL_REAL_SHIP_CROSSING" real-ship-film-client.log; then
+    failure=1
+    sleep 5 # preserve the genuine crashed/failed image on tape
+    break
+  fi
+  if ! kill -0 "$minecraft_pid" 2>/dev/null; then
+    echo "WORLDSEAM_FILM_MINECRAFT_EXITED_BEFORE_RETURN"
+    break
+  fi
+  sleep 1
+done
+
+kill -INT "$film_pid" 2>/dev/null || true
+wait "$film_pid" 2>/dev/null || true
+film_pid=""
+test -s real-ship-attempt-UNVERIFIED.mp4 ||
+  { echo 'REAL_SHIP_FILM_CAPTURE_FAILED'; tail -n 60 real-ship-ffmpeg.log; exit 1; }
+ffprobe -v error -show_entries format=duration -of default=nw=1 \
+  real-ship-attempt-UNVERIFIED.mp4 || true
+grep -E 'WORLDSEAM_FILM_(REAL_VANILLA_COMMAND|RECORD_READY|FRAME|REAL_SHIP_DOWN|PASS_REAL_SHIP_RETURN|FAIL_REAL_SHIP_CROSSING)' \
+  real-ship-film-client.log > real-ship-flight-telemetry.log || true
+test "$ready" -eq 1 || {
+  echo 'WORLDSEAM_FILM_FAIL: actual Sable aircraft never assembled or game world never started'
+  tail -n 95 real-ship-film-client.log
+  exit 1
+}
+if [[ "$returned" -ne 1 || "$failure" -eq 1 ]]; then
+  echo "WORLDSEAM_FILM_FAIL: recorded genuine aircraft flight attempt, but no verified bidirectional physical crossing. The MP4 is explicitly UNVERIFIED."
+  tail -n 75 real-ship-flight-telemetry.log
+  exit 1
+fi
+# Only successful, completely real two-direction native impulse motion
+# may ever receive this name. It still does NOT prove dual-world contacts.
+mv real-ship-attempt-UNVERIFIED.mp4 real-ship-bidirectional-REAL-GAME.mp4
+echo 'WORLDSEAM_FILM_PASS: real recorded single-UUID Sable physical aircraft crossed seam and returned, with real /fill air arena and native Rapier impulses'
