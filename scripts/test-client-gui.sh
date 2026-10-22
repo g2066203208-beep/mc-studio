@@ -163,6 +163,57 @@ if [[ "${REME_CITY_VISUAL:-0}" == "1" ]]; then
   say_city '/fill ~-20 ~ ~-20 ~20 ~10 ~20 minecraft:air' 5
   say_city '/npc city survey' 4
   import -window root client-gui-city-survey.png
+  # Dedicated reproducible CINEMATIC: start recording before the first
+  # genuinely unpaid stock transaction. The only admin-controlled event
+  # is the purchase refusal/theft itself; afterwards no command teleports
+  # any NPC, guard, customer, goods or jail blocks.
+  if [[ "${REME_CITY_STORY_MOVIE:-0}" == "1" ]]; then
+    ffmpeg -loglevel error -nostdin -y -f x11grab -video_size 1280x720 \\
+      -framerate 8 -i "$DISPLAY" -c:v libx264 -preset ultrafast -crf 25 \\
+      -pix_fmt yuv420p -movflags +faststart \\
+      client-gui-city-police-full-chase-real-minecraft.mp4 \\
+      >client-gui-city-story-video.log 2>&1 &
+    MOVIE_PID=$!
+    say_city '/npc city demo' 1
+    say_city '/npc city incident' 2
+    import -window root client-gui-city-real-case-trigger.png
+    say_city '/gamemode spectator' 2
+    say_city '/npc camera chase shoplifter' 3
+    import -window root client-gui-city-true-chase-t0.png
+    sleep 12
+    import -window root client-gui-city-true-chase-t12.png
+    sleep 12
+    import -window root client-gui-city-true-chase-t24.png
+    sleep 12
+    import -window root client-gui-city-true-chase-t36.png
+    sleep 12
+    import -window root client-gui-city-true-chase-t48.png
+    say_city '/npc camera stop' 2
+    say_city '/npc camera pov guard' 3
+    import -window root client-gui-city-real-guard-possession.png
+    sleep 7
+    say_city '/npc camera stop' 2
+    kill -INT "$MOVIE_PID" 2>/dev/null || true
+    wait "$MOVIE_PID" || true
+    log=run/logs/latest.log
+    if ! grep -q 'REME_NPC_CINEMA_REAL_CASE_STARTED' "$log"; then
+      echo 'FAIL: no genuine money-free shop stock transfer triggered in actual world'; exit 1
+    fi
+    if ! grep -q 'REME_NPC_STORY stage=nonlethal_arrest' "$log"; then
+      echo 'FAIL: live police never actually caught thief'; exit 1
+    fi
+    if ! grep -q 'REME_NPC_STORY stage=jail_reached' "$log"; then
+      echo 'FAIL: live thief never walked into physical jail'; exit 1
+    fi
+    if ! grep -q 'REME_NPC_STORY stage=jail_gate_locked' "$log"; then
+      echo 'FAIL: physical iron bar cell gate never closed'; exit 1
+    fi
+    test -s client-gui-city-police-full-chase-real-minecraft.mp4 || {
+      echo 'FAIL: no actual X11 GUI frame video recording was preserved'; exit 1;
+    }
+    echo 'PASS: REAL client cinematic, actual theft, autonomous foot chase, jail arrival and physical gate closure'
+    exit 0
+  fi
   say_city '/npc city demo' 20
   say_city '/npc city census' 4
   say_city '/npc city audit' 4
