@@ -917,6 +917,9 @@ public final class NpcCommands {
             " | hunger " + npc.hunger() + " energy " + npc.energy()
             + " social " + npc.socialNeed() + " | " + npc.profession()
             + " | intent " + npc.intent() + " (" + npc.intentReason() + ")"
+            + " | bed " + (npc.assignedBedPos() == null ? "unassigned"
+                : npc.assignedBedPos().toShortString())
+            + " | sleeping " + npc.isSleeping()
             + " | action " + npc.lastAction()
             + " | trust " + npc.memory().trust(player.getUUID())
             + " | " + npc.identity().nation() + "/" + npc.identity().faction()
