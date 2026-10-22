@@ -34,6 +34,8 @@ jobs:
           echo "MOD_VERSION=$VERSION" >> "$GITHUB_ENV"
       - name: Verify installer source and mod metadata
         run: python3 scripts/test-installer.py "mod/build/libs/reme_studio-${MOD_VERSION}.jar"
+      - name: Verify real NPC command classes, vanilla egg and exact latest NeoForge 1.21.1 requirement in RELEASE jar
+        run: python3 scripts/verify-npc-release-jar.py "mod/build/libs/reme_studio-${MOD_VERSION}.jar"
       - name: Package Windows HMCL one-click installer
         run: |
           folder="dist/REME-NPC-HMCL-${MOD_VERSION}"
