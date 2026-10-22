@@ -21,10 +21,11 @@ public final class NpcPoseSelection {
             npc.profession() == PlayerNpcEntity.Profession.COURIER
                 && npc.backpack().countItem(Items.WHEAT) > 0,
             intent == LivingPlanner.Intent.SOCIALIZE,
-            RestPolicy.shouldRest(intent,
-                npc.profession() == PlayerNpcEntity.Profession.GUARD,
-                npc.energy())
-                && RestPolicy.atHome(npc.blockPosition(), npc.homePos())
+            (npc.isSleeping() || (
+                RestPolicy.shouldRest(intent,
+                    npc.profession() == PlayerNpcEntity.Profession.GUARD,
+                    npc.energy())
+                && RestPolicy.atHome(npc.blockPosition(), npc.homePos())))
                 && !npc.isAfraid(tick)
         );
     }
