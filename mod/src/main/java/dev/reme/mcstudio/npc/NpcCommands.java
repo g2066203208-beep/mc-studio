@@ -10,6 +10,7 @@ import dev.reme.mcstudio.npc.life.CivicWorkplaces;
 import dev.reme.mcstudio.npc.life.ShopCounter;
 import dev.reme.mcstudio.npc.life.ResidentBedLife;
 import dev.reme.mcstudio.npc.life.NeighborhoodMarket;
+import dev.reme.mcstudio.npc.life.CityDistrictDemo;
 import net.minecraft.world.level.block.BedBlock;
 import net.minecraft.world.level.block.state.properties.BedPart;
 import dev.reme.mcstudio.npc.life.FootTrafficData;
@@ -108,6 +109,15 @@ public final class NpcCommands {
                 .executes(ctx -> settlementInfo(ctx.getSource())))
             .then(Commands.literal("market")
                 .executes(ctx -> marketStatus(ctx.getSource())))
+            .then(Commands.literal("city")
+                .executes(ctx -> cityHelp(ctx.getSource()))
+                .then(Commands.literal("survey")
+                    .executes(ctx -> citySurvey(ctx.getSource())))
+                .then(Commands.literal("census")
+                    .executes(ctx -> cityCensus(ctx.getSource())))
+                .then(Commands.literal("demo")
+                    .requires(source -> source.hasPermission(2))
+                    .executes(ctx -> cityDemo(ctx.getSource()))))
             .then(Commands.literal("mine").requires(source -> source.hasPermission(2))
                 .then(Commands.argument("target", BlockPosArgument.blockPos())
                     .executes(ctx -> authorizeMining(ctx.getSource(),
@@ -310,6 +320,63 @@ public final class NpcCommands {
         return 1;
     }
 
+
+    private static int cityHelp(CommandSourceStack source) {
+        source.sendSuccess(() -> Component.literal(
+            "NPC 城市工作室：/npc city survey 检查当前位置的41×41平坦空地；"
+            + "/npc city demo 仅OP允许，在全新平坦测试世界真正放置城市方块和12个居民。"
+            + "演示不会自动填平、破坏现有建筑；NPC自主生存建设仍属另一系统。"), false);
+        return 1;
+    }
+
+    private static int citySurvey(CommandSourceStack source)
+        throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        ServerPlayer player = source.getPlayerOrException();
+        String result = CityDistrictDemo.survey(player.serverLevel(), player.blockPosition());
+        source.sendSuccess(() -> Component.literal(result), false);
+        return 1;
+    }
+
+    private static int cityCensus(CommandSourceStack source)
+        throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        ServerPlayer player = source.getPlayerOrException();
+        var citizens = player.serverLevel().getEntitiesOfClass(
+            PlayerNpcEntity.class, player.getBoundingBox().inflate(42),
+            npc -> npc.isAlive());
+        int shops=0, farmers=0, officers=0, clients=0;
+        for (PlayerNpcEntity npc : citizens) {
+            switch (npc.profession()) {
+                case SHOPKEEPER -> shops++;
+                case FARMER -> farmers++;
+                case GUARD -> officers++;
+                case RESIDENT -> clients++;
+                default -> {}
+            }
+        }
+        final int count=citizens.size(), s=shops, f=farmers, g=officers, c=clients;
+        source.sendSuccess(() -> Component.literal(
+            "城市实体普查：周围42格内真正存活 NPC " + count
+            + "；店员 " + s + "；农夫 " + f + "；警卫 " + g
+            + "；普通居民 " + c + "。这是实时加载的实体统计，"
+            + "不是 /npc city demo 的预期创建数量。"), false);
+        return 1;
+    }
+
+    private static int cityDemo(CommandSourceStack source)
+        throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        ServerPlayer player = source.getPlayerOrException();
+        CityDistrictDemo.Result result = CityDistrictDemo.build(
+            player.serverLevel(), player.blockPosition(), player);
+        if (!result.success()) {
+            source.sendFailure(Component.literal("城市演示拒绝施工：" + result.reason()));
+            return 0;
+        }
+        source.sendSuccess(() -> Component.literal(
+            result.reason() + "；真实方块：" + result.blocks()
+            + "；实际生活NPC：" + result.citizens()
+            + "。可用 /npc market、/npc city 查看经济和城镇系统。"), true);
+        return 1;
+    }
 
     private static int demo(CommandSourceStack source)
         throws com.mojang.brigadier.exceptions.CommandSyntaxException {

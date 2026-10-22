@@ -54,6 +54,43 @@ echo "Clicked Create New World with commands enabled"
 sleep 95
 import -window root client-gui-world.png
 echo "Captured in-world attempt (must inspect picture; not automatically proof of world entry)"
+# The city visual test is a disposable OP creative showcase, not a survival
+# combat test. Real prior run proved creepers can kill the operator BEFORE
+# city commands execute; make the player invulnerable and clear hostiles now.
+# This is ONLY set for the dedicated new scratch-world city screenshot run.
+if [[ "${REME_CITY_VISUAL:-0}" == "1" ]]; then
+  xdotool key --clearmodifiers t
+  sleep 1
+  xdotool type --clearmodifiers --delay 25 '/gamemode creative'
+  xdotool key Return
+  sleep 3
+  xdotool key --clearmodifiers t
+  sleep 1
+  xdotool type --clearmodifiers --delay 25 '/difficulty peaceful'
+  xdotool key Return
+  sleep 3
+  xdotool key --clearmodifiers t
+  sleep 1
+  xdotool type --clearmodifiers --delay 25 '/gamerule doMobSpawning false'
+  xdotool key Return
+  sleep 3
+  xdotool key --clearmodifiers t
+  sleep 1
+  xdotool type --clearmodifiers --delay 25 '/time set day'
+  xdotool key Return
+  sleep 3
+  xdotool key --clearmodifiers t
+  sleep 1
+  xdotool type --clearmodifiers --delay 25 '/weather clear 999999'
+  xdotool key Return
+  sleep 3
+  xdotool key --clearmodifiers t
+  sleep 1
+  xdotool type --clearmodifiers --delay 25 '/gamerule doWeatherCycle false'
+  xdotool key Return
+  sleep 3
+  import -window root client-gui-city-creative-fixture.png
+fi
 xdotool key --clearmodifiers t
 sleep 1
 xdotool type --clearmodifiers --delay 80 '/remecheck'
@@ -106,13 +143,97 @@ sleep 3
 import -window root client-gui-npc-market.png
 echo "Captured real client command attempts for visual inspection"
 
+# This branch's actual 3D city screenshot acceptance runs in a fresh
+# disposable Minecraft single-player save only. The ADMIN manually flattens
+# its scratch fixture using genuine vanilla /fill commands; /npc city demo
+# itself NEVER bulldozes or edits pre-existing terrain.
+if [[ "${REME_CITY_VISUAL:-0}" == "1" ]]; then
+  say_city() {
+    xdotool key --clearmodifiers t
+    sleep 1
+    xdotool type --clearmodifiers --delay 25 "$1"
+    xdotool key Return
+    sleep "${2:-3}"
+  }
+  # The initial /npc spawn is part of command-smoke coverage. Remove only
+  # that one test entity from this disposable scratch-world before founding
+  # the district; otherwise the subsequent 12-citizen census shows 13.
+  say_city '/kill @e[type=reme_studio:player_npc,distance=..15]' 3
+  say_city '/fill ~-20 ~-1 ~-20 ~20 ~-1 ~20 minecraft:stone' 5
+  say_city '/fill ~-20 ~ ~-20 ~20 ~10 ~20 minecraft:air' 5
+  say_city '/npc city survey' 4
+  import -window root client-gui-city-survey.png
+  say_city '/npc city demo' 20
+  say_city '/npc city census' 4
+  import -window root client-gui-city-census.png
+  import -window root client-gui-city-street-level.png
+  # Tag three REAL NPCs at their physical shops/guard post/park spawn points,
+  # while the player is still at the city origin. No visual stand-ins.
+  # Named tags are attached to loaded remestudio NPC entities, never armor stands.
+  say_city '/execute positioned ~-10 ~1 ~-12 run tag @e[type=reme_studio:player_npc,distance=..8,sort=nearest,limit=1] add reme_city_clerk' 3
+  say_city '/execute positioned ~-10 ~1 ~12 run tag @e[type=reme_studio:player_npc,distance=..8,sort=nearest,limit=1] add reme_city_guard' 3
+  say_city '/execute positioned ~10 ~1 ~8 run tag @e[type=reme_studio:player_npc,distance=..8,sort=nearest,limit=1] add reme_city_park' 3
+  say_city '/execute if entity @e[type=reme_studio:player_npc,tag=reme_city_clerk] run say REME_CITY_CLERK_ENTITY_EXISTS' 2
+  say_city '/execute if entity @e[type=reme_studio:player_npc,tag=reme_city_guard] run say REME_CITY_GUARD_ENTITY_EXISTS' 2
+  say_city '/execute if entity @e[type=reme_studio:player_npc,tag=reme_city_park] run say REME_CITY_PARK_ENTITY_EXISTS' 2
+  # Spectator gives a reproducible free-camera vista while leaving
+  # all world blocks and authentic NPC entities untouched.
+  say_city '/gamemode spectator' 4
+  say_city '/tp @s ~-24 ~23 ~-24 facing ~20 ~-14 ~20' 15
+  import -window root client-gui-city-aerial-northwest.png
+  say_city '/tp @s ~48 ~ ~ facing ~-20 ~-14 ~20' 12
+  import -window root client-gui-city-aerial-northeast.png
+  # HARD visual acceptance: camera is teleported next to the ACTUAL loaded
+  # tracked resident, faces the entity's eyes and records a close-up.
+  # 'at' changes the source coordinates, not its identity (@s = our player).
+  say_city '/execute at @e[type=reme_studio:player_npc,tag=reme_city_park,limit=1] run tp @s ~ ~2 ~5 facing entity @e[type=reme_studio:player_npc,tag=reme_city_park,limit=1] eyes' 6
+  import -window root client-gui-city-npc-park-closeup.png
+  say_city '/execute at @e[type=reme_studio:player_npc,tag=reme_city_guard,limit=1] run tp @s ~ ~2 ~4 facing entity @e[type=reme_studio:player_npc,tag=reme_city_guard,limit=1] eyes' 6
+  import -window root client-gui-city-npc-guard-closeup.png
+  say_city '/execute at @e[type=reme_studio:player_npc,tag=reme_city_clerk,limit=1] run tp @s ~ ~2 ~4 facing entity @e[type=reme_studio:player_npc,tag=reme_city_clerk,limit=1] eyes' 6
+  import -window root client-gui-city-npc-shopkeeper-closeup.png
+  say_city '/npc market' 4
+  import -window root client-gui-city-market-activity.png
+  log=run/logs/latest.log
+  if ! grep -q '场地通过：41×41空地' "$log"; then
+    echo 'FAIL: GUI /npc city survey did not certify the actual flat loaded world'
+    exit 1
+  fi
+  if ! grep -q '已在真实 Minecraft 世界建成 41×41 街区' "$log"; then
+    echo 'FAIL: GUI /npc city demo did not build true road/mall blocks'
+    exit 1
+  fi
+  if ! grep -q '实际生活NPC：12' "$log"; then
+    echo 'FAIL: GUI real city did not spawn the 12 citizen entities'
+    exit 1
+  fi
+  if ! grep -q '城市实体普查：周围42格内真正存活 NPC' "$log"; then
+    echo "FAIL: real in-client population census did not count living entities"
+    exit 1
+  fi
+  for tag in CLERK GUARD PARK; do
+    if ! grep -q "REME_CITY_${tag}_ENTITY_EXISTS" "$log"; then
+      echo "FAIL: real tracked NPC ${tag} not found in 3D city world"
+      exit 1
+    fi
+  done
+  for role in park guard shopkeeper; do
+    test -s "client-gui-city-npc-${role}-closeup.png" || {
+      echo "FAIL: no actual in-client NPC closeup screenshot for ${role}"
+      exit 1
+    }
+  done
+  echo "PASS: real NeoForge 1.21.1 GUI visual city world generated streets, two-floor mall, houses, police post and NPCs."
+  exit 0
+fi
+
 # Dedicated real-client acceptance: this mode explicitly stops after genuine
 # command registration, egg registry and /npc spawn are observed. The old
 # comprehensive screenshot/mining scenario occasionally failed due to a
 # separate coordinate fixture and masked an already-working command test.
 if [[ "${REME_COMMAND_SMOKE_ONLY:-0}" == "1" ]]; then
   log=run/logs/latest.log
-  if ! grep -q 'REME NPC 0.6.9-dev COMMANDS REGISTERED: /npc=true, /remecheck=true' "$log"; then
+  if ! grep -q 'REME NPC 0.7.0-dev COMMANDS REGISTERED: /npc=true, /remecheck=true' "$log"; then
     echo "FAIL: 21.1.262 server never actually registered both commands"; exit 1
   fi
   if ! grep -q '/npc registered=true' "$log"; then
