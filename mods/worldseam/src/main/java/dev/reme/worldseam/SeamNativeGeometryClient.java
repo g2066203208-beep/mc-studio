@@ -289,6 +289,27 @@ public final class SeamNativeGeometryClient {
                 count+=slice.cells().size();
             blocksBuilt=count;
         }
+        // PREBUILD persistent GPU meshes during the bounded 20TPS client
+        // update, rather than tying completion rate to an extremely slow
+        // software-OpenGL render FPS. RenderLevelStage only draws meshes
+        // already uploaded, while the fallback fills the remaining holes.
+        // We are on the Minecraft client/render thread here: no GL worker
+        // calls, no vanilla RenderBuffers or active-world state mutation.
+        if(!gpuDisabled && !columns.isEmpty() &&
+            SeamSectionLayout.nearPlane(mc.player.getY(),
+                sourceBoundary,NEAR_PLANE_RENDER_RANGE)) {
+            var pendingVisible=new ArrayList<Section>();
+            for(var col:columns.values())
+                for(var slice:col)
+                    pendingVisible.add(slice.gpuSection());
+            try {
+                GPU.compileVisible(mc,pendingVisible,mc.player.position());
+            } catch(RuntimeException | Error ex) {
+                LOG.error("WorldSeam GPU tick pre-upload failed; falling back to safe section preview",ex);
+                gpuDisabled=true;
+                GPU.release();
+            }
+        }
     }
 
     private static void render(RenderLevelStageEvent event) {
