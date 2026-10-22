@@ -32,21 +32,23 @@ const {chromium}=require('playwright-core');
   assert.ok(standing.supportContacts>=4,'at least four feet must touch real Rapier static world floor');
   assert.ok(standing.legAngles.every(x=>Math.abs(x.hip)<.09&&Math.abs(x.knee)<.09),
     'motor must HOLD actual joint angles while chassis weight bears on feet');
-  const moving=await page.evaluate(()=>{
+  const gaitTrial=await page.evaluate(()=>{
    const rig=window.__MULTIBODY_RIG__;
    rig.setMode('march');rig.setMotor({rpm:28,torqueLimit:2200});
-   let result;
+   let result;const diagnostics=[];
    for(let i=0;i<8;i++){
     result=rig.advance(30);
     const available=result.legAngles.filter(x=>!x.detached);
     const worstHip=Math.max(...available.map(x=>Math.abs(x.hip-x.hipTarget)));
     const worstKnee=Math.max(...available.map(x=>Math.abs(x.knee-x.kneeTarget)));
-    console.log('GAIT_DEBUG',JSON.stringify({time:result.elapsed,contacts:result.supportContacts,bodyY:result.position.y,
+    diagnostics.push({time:result.elapsed,contacts:result.supportContacts,bodyY:result.position.y,
      worstHip:Math.round(worstHip*1000)/1000,worstKnee:Math.round(worstKnee*1000)/1000,
-     hip:available[0].hip,hipTarget:available[0].hipTarget,knee:available[0].knee,kneeTarget:available[0].kneeTarget}));
+     hip:available[0].hip,hipTarget:available[0].hipTarget,knee:available[0].knee,kneeTarget:available[0].kneeTarget});
    }
-   return result;
+   return {result,diagnostics};
   });
+  const moving=gaitTrial.result;
+  console.log('GAIT_DIAGNOSTIC_SAMPLES',JSON.stringify(gaitTrial.diagnostics));
   console.log('ARTICULATED_MARCH',JSON.stringify(moving));
   assert.equal(moving.joints,12);
   const range=Math.max(...moving.legAngles.map(x=>Math.abs(x.hip)));
