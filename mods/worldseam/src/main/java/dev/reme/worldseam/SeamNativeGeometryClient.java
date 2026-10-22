@@ -450,6 +450,14 @@ public final class SeamNativeGeometryClient {
     public static int gpuUploadedSections() { return GPU_SECTIONS.count(); }
     public static long gpuDrawnSections() { return GPU_SECTIONS.lastGpuDrawn(); }
     public static long gpuDrawnCellEquivalent() { return GPU_SECTIONS.lastGpuCells(); }
+    public static long gpuDrawnFluidCells() { return GPU_SECTIONS.lastGpuFluidCells(); }
+    /** Number of non-occluded native fluid surfaces in the current remote geometry. */
+    public static int countNativeFluidCells() {
+        int count=0;
+        for(var col:columns.values())for(var slice:col)
+            for(var cell:slice.cells())if(cell.drawFluid())count++;
+        return count;
+    }
     public static double p95GpuMeshBakeMs() { return GPU_SECTIONS.p95BakeMs(); }
     public static int culledSlices() { return lastCulledSlices; }
     public static int pendingRebuilds() { return BUILD_QUEUE.size(); }
