@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 import RAPIER from '@dimforge/rapier3d-compat';
 import {createMultibodyBoss,DT,LEG_COORDS} from './boss-multibody.mjs';
+import {buildCreatePowerBus} from './boss-powertrain.mjs';
 import {createPreviewModel} from './procedural-models.mjs';
 import {MinecraftJarModels} from './authentic-models.mjs';
 import {loadOfficialModelArchives} from './official-autoload.mjs';
@@ -140,6 +141,17 @@ function syncVisual(){
   mesh.position.set(t.x,t.y,t.z);mesh.quaternion.set(r.x,r.y,r.z,r.w);
  }
  const s=engine.snapshot();
+ const bus=s.powertrain;
+ $('driveSource').textContent=bus.sourcePowered?'马达供电 '+bus.source.rpm+' RPM':'动力已断开';
+ $('driveConnected').textContent=bus.connectedBranches+' / 6';
+ $('driveLinks').textContent=bus.links+' 条';
+ $('driveStress').textContent=Math.round(bus.capacitySU)+' / '+Math.round(bus.loadSU)+' SU*';
+ $('legPowerStatus').replaceChildren(...bus.inputs.map(item=>{
+  const chip=document.createElement('span');
+  chip.textContent=item.id+' '+(item.connected?item.rpm.toFixed(1)+' RPM':'断电');
+  chip.className=item.connected?'':'off';
+  return chip;
+ }));
  $('bodyHeight').textContent=s.bodyBottom.toFixed(2)+' 格';
  $('jointNum').textContent=s.rigidBodies+' / '+s.joints;
  $('feetCount').textContent=s.feet+' / 6';
@@ -150,7 +162,7 @@ function syncVisual(){
  $('distance').textContent=s.travel.toFixed(2)+' 格';
  $('velocity').textContent=s.velocity.y.toFixed(2)+' m/s';
  $('steps').textContent=s.steps+' 个物理步长';
- $('worldState').textContent=s.mode.toUpperCase()+' · '+s.joints+' 动力铰链 · '+s.rigidBodies+' 动态刚体 · '+s.supportContacts+' 脚近地';
+ $('worldState').textContent=s.mode.toUpperCase()+' · '+s.joints+' 铰链 · '+bus.connectedBranches+'/6 传动支路有动力 · '+s.supportContacts+' 脚近地';
 }
 function setMessage(message){$('statusMessage').textContent=message;}
 function createRig(){
@@ -232,6 +244,27 @@ $('gearRatio').addEventListener('change',e=>{
  updateRatioLabel();syncVisual();
 });
 
+
+$('powerCut').addEventListener('click',()=>{
+ if(!engine)return;
+ engine.setMode('relax');setModeButton('relax');
+ syncVisual();setMessage('动力源已断电：6 条 Create 传动支路失去 RPM，真实髋膝关节驱动转矩归零。');
+});
+$('powerRestore').addEventListener('click',()=>{
+ if(!engine)return;
+ engine.setMode('stand');setModeButton('stand');
+ syncVisual();setMessage('动力源已重新接通：只对齿轮／离合器网络中仍然连通的关节供能。');
+});
+$('clutchCut').addEventListener('click',()=>{
+ if(!engine)return;
+ engine.disconnectBranch('L1',true);syncVisual();
+ setMessage('左前 Create 离合器接通红石并断开机械轴：L1 关节驱动转矩真实归零。');
+});
+$('clutchRestore').addEventListener('click',()=>{
+ if(!engine)return;
+ engine.disconnectBranch('L1',false);syncVisual();
+ setMessage('左前离合器解除红石：Create 动力网络恢复连接。');
+});
 function removeLeg(id){
  if(!engine)return false;
  const ok=engine.removeLeg(id);
@@ -293,13 +326,17 @@ function animate(now=0){
  if(engine){
   const operating=engine.snapshot();
   for(const {group,axis} of spinning){
-   // Small/large gear speed visibly differs; the actual joint force is
-   // applied by the genuine Rapier angular-impulse actuator, not visuals.
-   const isLarge=group.children.some(c=>c.userData?.id==='create:large_cogwheel');
-   const big=group.position.x===0;
-   const factor=big?.5:1,sign=big?1:-1;
-   const a=operating.steps*DT*operating.motorRPM*2*Math.PI/60*factor*sign;
-   group.rotation[axis]=a;
+   // Preview animation now uses the SAME energized Create connectivity as
+   // the REAL Rapier joint torque controller. A broken source or clutch
+   // cannot leave an unrelated decorative wheel spinning.
+   const bus=operating.powertrain;
+   const idx=Math.max(0,Math.min(2,Math.round((group.position.z+2)/2)));
+   const branch=(group.position.x<0?'L':'R')+(idx+1);
+   const output=bus.inputs.find(b=>b.id===branch);
+   const commanded=group.position.x===0
+    ?(bus.sourcePowered?bus.source.rpm:0)
+    :(output?.connected?output.rpm:0);
+   group.rotation[axis]=operating.steps*DT*commanded*2*Math.PI/60;
   }
  }
  orbit.update();
@@ -310,7 +347,10 @@ window.__BOSS_API__={
  get ready(){return ready},get engine(){return engine},get error(){return $('engineState').dataset.error||null},
  snapshot:()=>engine?.snapshot(),advance:n=>{const s=engine.advance(n);syncVisual();return s;},
  mode:m=>{engine.setMode(m);setModeButton(m)},
- motor:o=>engine.setMotor(o),removeLeg,removeAllFeet:()=>{$('removeAll').click()},
+ motor:o=>{engine.setMotor(o);syncVisual();},
+ disconnectBranch:(id,cut)=>{engine.disconnectBranch(id,cut);syncVisual();},
+ getPowertrain:()=>engine?.snapshot().powertrain,
+ removeLeg,removeAllFeet:()=>{$('removeAll').click()},
  reset:createRig,physicsBodies:()=>visualBodies.length,visibleMeshes:()=>{let n=0;root?.traverse(o=>{if(o.isMesh&&o.visible)n++});return n;},
  getAssetStatus:()=>({officialTypes:[...assetCache.keys()],officialMeshes:officialCount,components:modules.length}),
  render:syncVisual
