@@ -68,11 +68,11 @@ public final class CityDistrictGameTests {
             || !level.getBlockState(center.offset(-13,1,-12)).is(Blocks.BARREL)
             || !(level.getBlockEntity(center.offset(-12,1,-12)) instanceof ChestBlockEntity))
             throw new AssertionError("Mall is a façade without a physical second floor and shop storage");
-        if (!level.getBlockState(center.offset(8,1,-15)).is(Blocks.RED_BED)
-            || !level.getBlockState(center.offset(8,1,-15))
+        if (!level.getBlockState(center.offset(7,1,-17)).is(Blocks.RED_BED)
+            || !level.getBlockState(center.offset(7,1,-17))
                 .getValue(BedBlock.PART).equals(BedPart.HEAD)
-            || !level.getBlockState(center.offset(15,1,-15)).is(Blocks.RED_BED))
-            throw new AssertionError("Two townhouses lack physical vanilla resident beds");
+            || !level.getBlockState(center.offset(17,1,-11)).is(Blocks.RED_BED))
+            throw new AssertionError("Two townhouses lack actual vanilla beds");
         if (!level.getBlockState(center.offset(-12,2,15)).is(Blocks.IRON_BARS)
             || !level.getBlockState(center.offset(-5,2,9)).is(Blocks.BELL)
             || !level.getBlockState(center.offset(-5,1,12)).isAir()
@@ -102,6 +102,25 @@ public final class CityDistrictGameTests {
                     + track + "=" + tracked);
         }
         BlockPos inmateSpot = center.offset(-13, 1, 15);
+        java.util.Set<Long> usedBeds=new java.util.HashSet<>();
+        for (PlayerNpcEntity npc:people) {
+            BlockPos head=npc.assignedBedPos();
+            if (head==null
+                || !level.getBlockState(head).is(Blocks.RED_BED)
+                || level.getBlockState(head).getValue(BedBlock.PART)!=BedPart.HEAD
+                || !usedBeds.add(head.asLong()))
+                throw new AssertionError("City inhabitant shares/misses an actual head bed "
+                    +npc.getName().getString()+" bed="+head);
+        }
+        if(usedBeds.size()!=13
+            || !level.getBlockState(center.offset(-15,1,-14)).is(Blocks.LECTERN)
+            || !level.getBlockState(center.offset(-15,1,-9)).is(Blocks.CRAFTING_TABLE)
+            || !level.getBlockState(center.offset(8,1,13)).is(Blocks.CARROTS)
+            && !level.getBlockState(center.offset(8,1,13)).is(Blocks.WHEAT)
+            || !(level.getBlockEntity(center.offset(9,1,18)) instanceof ChestBlockEntity pickup)
+            || pickup.countItem(Items.WHEAT)!=32
+            || !(level.getBlockEntity(center.offset(-4,1,15)) instanceof ChestBlockEntity))
+            throw new AssertionError("13 unique real beds, office, bakery, farm and actual courier depots required");
         if (merchants < 2 || guards < 2 || customers < 3
             || realDishonestShoppers != 1
             || people.size() != 13

@@ -12,6 +12,7 @@ import dev.reme.mcstudio.npc.life.ResidentBedLife;
 import dev.reme.mcstudio.npc.life.NeighborhoodMarket;
 import dev.reme.mcstudio.npc.life.ConvenienceStoreCrime;
 import dev.reme.mcstudio.npc.life.CityDistrictDemo;
+import dev.reme.mcstudio.npc.life.CityDayJournal;
 import net.minecraft.world.level.block.BedBlock;
 import net.minecraft.world.level.block.state.properties.BedPart;
 import dev.reme.mcstudio.npc.life.FootTrafficData;
@@ -130,6 +131,13 @@ public final class NpcCommands {
                     .executes(ctx -> cityCensus(ctx.getSource())))
                 .then(Commands.literal("audit")
                     .executes(ctx -> cityLiveAudit(ctx.getSource())))
+                .then(Commands.literal("day")
+                    .executes(ctx -> cityDayStatus(ctx.getSource()))
+                    .then(Commands.literal("status")
+                        .executes(ctx -> cityDayStatus(ctx.getSource())))
+                    .then(Commands.literal("start")
+                        .requires(s -> s.hasPermission(2))
+                        .executes(ctx -> cityDayStart(ctx.getSource()))))
                 .then(Commands.literal("demo")
                     .requires(source -> source.hasPermission(2))
                     .executes(ctx -> cityDemo(ctx.getSource()))))
@@ -410,6 +418,22 @@ public final class NpcCommands {
     /** Real-time on-location audit; numbers come from live entity state,
      * never inferred from the script or generated city template.
      */
+    private static int cityDayStart(CommandSourceStack source)
+        throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        ServerPlayer player=source.getPlayerOrException();
+        String answer=CityDayJournal.start(player.serverLevel(),player.blockPosition());
+        source.sendSuccess(()->Component.literal(answer),false);
+        return answer.startsWith("已开始") ? 1 : 0;
+    }
+
+    private static int cityDayStatus(CommandSourceStack source)
+        throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        ServerPlayer player=source.getPlayerOrException();
+        String answer=CityDayJournal.status(player.serverLevel());
+        source.sendSuccess(()->Component.literal(answer),false);
+        return 1;
+    }
+
     private static int cityLiveAudit(CommandSourceStack source)
         throws com.mojang.brigadier.exceptions.CommandSyntaxException {
         ServerPlayer p = source.getPlayerOrException();

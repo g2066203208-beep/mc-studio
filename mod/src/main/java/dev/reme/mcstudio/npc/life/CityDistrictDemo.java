@@ -208,6 +208,11 @@ public final class CityDistrictDemo {
             p.put(-10, 1, z, Blocks.LIME_CARPET);
             p.put(-9, 1, z, Blocks.GLOWSTONE);
         }
+        // A physical office desk and a real crafting workbench, not merely
+        // names floating above NPCs. City desk clerks have a true destination.
+        p.put(-15, 1, -14, Blocks.LECTERN);
+        p.put(-15, 1, -9, Blocks.CRAFTING_TABLE);
+        p.put(-15, 1, -8, Blocks.FURNACE);
         // Actual ceiling/lighting, upper-level windows and carpeted gallery.
         for (int x = -16; x <= -8; x += 4)
             for (int z = -16; z <= -8; z += 4) p.put(x, 7, z, Blocks.SEA_LANTERN);
@@ -227,10 +232,21 @@ public final class CityDistrictDemo {
             Blocks.GLASS, Blocks.DEEPSLATE_TILES);
         door(p, 9, -6, Direction.SOUTH);
         door(p, 15, -6, Direction.SOUTH);
-        bed(p, 8, -15);
-        bed(p, 15, -15);
-        p.put(7, 1, -11, Blocks.CHEST);
-        p.put(17, 1, -11, Blocks.BARREL);
+        // Thirteen separate vanilla beds (7 western + 6 eastern), laid
+        // along actual two-block-high walkable corridors. One person never
+        // shares the same vanilla bed with another city resident.
+        for (int slot = 0; slot < 7; slot++) {
+            int bedX = slot < 4 ? 7 : 10;
+            int bedZ = -17 + (slot % 4) * 3;
+            bed(p, bedX, bedZ);
+        }
+        for (int slot = 0; slot < 6; slot++) {
+            int bedX = slot < 3 ? 14 : 17;
+            int bedZ = -17 + (slot % 3) * 3;
+            bed(p, bedX, bedZ);
+        }
+        p.put(8, 1, -9, Blocks.CHEST);
+        p.put(16, 1, -9, Blocks.BARREL);
         for (int z = -5; z <= -3; z++) {
             p.put(9, 0, z, Blocks.POLISHED_ANDESITE);
             p.put(15, 0, z, Blocks.POLISHED_ANDESITE);
@@ -305,6 +321,23 @@ public final class CityDistrictDemo {
                 p.put(x, 3, z, x % 2 == 0 ? Blocks.RED_WOOL : Blocks.YELLOW_WOOL);
             }
         }
+        // Actual irrigated cropland, deliberately away from the tree
+        // trunks, paved paths, water cauldron and open-air market.
+        for (int x = 6; x <= 10; x++)
+            for (int z = 13; z <= 15; z++) {
+                if (x == 8 && z == 14) {
+                    p.put(x, 0, z, Blocks.WATER);
+                } else {
+                    p.state(x, 0, z, Blocks.FARMLAND.defaultBlockState()
+                        .setValue(net.minecraft.world.level.block.FarmBlock.MOISTURE, 7));
+                    Block crop = (x + z) % 2 == 0 ? Blocks.WHEAT : Blocks.CARROTS;
+                    p.state(x, 1, z, crop.defaultBlockState()
+                        .setValue(net.minecraft.world.level.block.CropBlock.AGE, 7));
+                }
+            }
+        // Two REAL vanilla chest depots with individual actual wheat stock.
+        p.put(9, 1, 18, Blocks.CHEST);
+        p.put(-4, 1, 15, Blocks.CHEST);
         p.put(15,1,9, Blocks.NOTE_BLOCK);
         p.put(9,1,15, Blocks.BARREL);
     }
@@ -342,6 +375,14 @@ public final class CityDistrictDemo {
             npc.setSkinId(i % 6);
             npc.setRoamingRadius(64);
             npc.setHomePos(center.offset(i%2==0 ? 9 : 15, 1, -12));
+            // Stable one-human-one-real-bed ownership in the demo. Do not
+            // reserve the same physical head for two households.
+            int slot = i / 2;
+            int bedX = i % 2 == 0 ? (slot < 4 ? 7 : 10)
+                : (slot < 3 ? 14 : 17);
+            int bedZ = i % 2 == 0 ? -17 + (slot % 4) * 3
+                : -17 + (slot % 3) * 3;
+            npc.setAssignedBedPos(center.offset(bedX, 1, bedZ));
             if (i < 3) npc.setWorkPos(center.offset(-10,1,-12));
             else if (i < 5) {
                 // One officer's actual street beat covers the shop so
@@ -350,18 +391,30 @@ public final class CityDistrictDemo {
                     i == 3 ? -10 : 12));
                 npc.setPoliceJail(center.offset(-13,1,15));
             }
-            else if (i < 7) npc.setWorkPos(center.offset(15,1,12));
+            else if (i < 7) npc.setWorkPos(center.offset(9,1,12));
+            else if (i == 7 || i == 8)
+                npc.setWorkPos(center.offset(-14,1,-14));
             else npc.setWorkPos(center.offset(-3,1,-12));
             if (owner != null) npc.setOwner(owner);
             npc.setCustomName(Component.literal(names[i]));
             npc.setCustomNameVisible(true);
+            npc.addTag("reme_city_citizen");
             // Identity-stable native entity tags survive real navigation.
             // Do NOT infer a moving citizen's identity from old spawn
             // coordinates in the Xvfb client screenshot workflow.
             if (i == 0) npc.addTag("reme_city_clerk");
             if (i == 3) npc.addTag("reme_city_guard");
             if (i == 10) npc.addTag("reme_city_park");
+            if (i == 2) npc.addTag("reme_city_baker");
+            if (i == 5) npc.addTag("reme_city_farmer");
+            if (i == 7) npc.addTag("reme_city_office");
+            if (i == 11) npc.addTag("reme_city_courier");
             if (i == 12) npc.addTag("reme_city_shoplifter");
+            if (i == 11) {
+                npc.setCaravanPickup(center.offset(9,1,18));
+                npc.setCaravanDropoff(center.offset(-4,1,15));
+            }
+            if (i == 7 || i == 8) npc.addTag("reme_city_office_worker");
             npc.setCharacter(i == 12
                 ? new CharacterProfile(8, 30, 50, 25)
                 : CharacterProfile.fromSeed(i+234));
@@ -369,6 +422,10 @@ public final class CityDistrictDemo {
                 npc.backpack().addItem(new ItemStack(Items.BREAD, 12));
                 npc.backpack().addItem(new ItemStack(Items.APPLE, 8));
                 npc.backpack().addItem(new ItemStack(Items.EMERALD, 4));
+            } else if (jobs[i] == PlayerNpcEntity.Profession.BAKER) {
+                // Exact material cost: crafting a real bread consumes wheat.
+                npc.backpack().addItem(new ItemStack(Items.WHEAT, 21));
+                npc.backpack().addItem(new ItemStack(Items.BREAD, 2));
             } else if (jobs[i] == PlayerNpcEntity.Profession.FARMER) {
                 npc.backpack().addItem(new ItemStack(Items.CARROT, 18));
                 npc.backpack().addItem(new ItemStack(Items.BREAD, 2));
@@ -381,6 +438,13 @@ public final class CityDistrictDemo {
                 npc.changeNeeds(-52,0,0);
             } else npc.backpack().addItem(new ItemStack(Items.BREAD,3));
             if (level.addFreshEntity(npc)) count++;
+        }
+        // Only the two depot chests just created by THIS operator-owned
+        // showcase get initial cargo. No scan or seizure of player chests.
+        BlockPos pickup = center.offset(9, 1, 18);
+        if (level.getBlockEntity(pickup) instanceof net.minecraft.world.level.block.entity.ChestBlockEntity chest) {
+            chest.setItem(0, new ItemStack(Items.WHEAT, 32));
+            chest.setChanged();
         }
         System.out.println("REME_NPC_STORY stage=city_initial_population"
             + " tick=" + level.getGameTime() + " citizens=" + count

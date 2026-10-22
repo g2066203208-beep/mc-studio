@@ -38,6 +38,10 @@ public final class NpcCameraController {
             case "clerk" -> "reme_city_clerk";
             case "guard" -> "reme_city_guard";
             case "park" -> "reme_city_park";
+            case "office" -> "reme_city_office";
+            case "farmer" -> "reme_city_farmer";
+            case "baker" -> "reme_city_baker";
+            case "courier" -> "reme_city_courier";
             case "nearest" -> null;
             default -> "";
         };

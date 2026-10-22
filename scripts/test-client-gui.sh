@@ -58,7 +58,7 @@ echo "Captured in-world attempt (must inspect picture; not automatically proof o
 # combat test. Real prior run proved creepers can kill the operator BEFORE
 # city commands execute; make the player invulnerable and clear hostiles now.
 # This is ONLY set for the dedicated new scratch-world city screenshot run.
-if [[ "${REME_CITY_VISUAL:-0}" == "1" ]]; then
+if [[ "${REME_CITY_VISUAL:-0}" == "1" || "${REME_CITY_DAY_VIDEO:-0}" == "1" ]]; then
   xdotool key --clearmodifiers t
   sleep 1
   xdotool type --clearmodifiers --delay 25 '/gamemode creative'
@@ -147,7 +147,7 @@ echo "Captured real client command attempts for visual inspection"
 # disposable Minecraft single-player save only. The ADMIN manually flattens
 # its scratch fixture using genuine vanilla /fill commands; /npc city demo
 # itself NEVER bulldozes or edits pre-existing terrain.
-if [[ "${REME_CITY_VISUAL:-0}" == "1" ]]; then
+if [[ "${REME_CITY_VISUAL:-0}" == "1" || "${REME_CITY_DAY_VIDEO:-0}" == "1" ]]; then
   say_city() {
     xdotool key --clearmodifiers t
     sleep 1
@@ -163,6 +163,87 @@ if [[ "${REME_CITY_VISUAL:-0}" == "1" ]]; then
   say_city '/fill ~-20 ~ ~-20 ~20 ~10 ~20 minecraft:air' 5
   say_city '/npc city survey' 4
   import -window root client-gui-city-survey.png
+  if [[ "${REME_CITY_DAY_VIDEO:-0}" == "1" ]]; then
+    # Full-day visual acceptance is NOT a staged series of /time set jumps.
+    # Run a native integrated server with actual tick-rate 80 (real entity
+    # ticks still happen) until its own per-UUID 24,000 tick journal finishes.
+    # The resulting ONE-TAKE MP4 has time-lapse motion, not generated frames.
+    say_city '/npc city demo' 7
+    say_city '/time set 0' 2
+    say_city '/tick rate 80' 2
+    ffmpeg -loglevel error -nostdin -y -f x11grab -video_size 1280x720 \
+      -framerate 4 -i "$DISPLAY" -c:v libx264 -preset ultrafast \
+      -crf 31 -pix_fmt yuv420p -movflags +faststart \
+      client-gui-city-full-24000-game-ticks.mp4 \
+      >client-gui-city-full-day-ffmpeg.log 2>&1 &
+    DAY_VIDEO_PID=$!
+    say_city '/npc city day start' 2
+    say_city '/gamemode spectator' 2
+    say_city '/npc camera chase clerk' 2
+    # 20-second intervals capture continuous actual world simulation while
+    # the day journal records every actor/occupation every 400 native ticks.
+    # Alternate UUID-stable native spectator targets across career types.
+    FINISHED=0
+    for i in $(seq 1 85); do
+      if grep -q 'REME_NPC_CITY_DAY_FINISH' client-gui.log; then
+        FINISHED=1
+        break
+      fi
+      case "$i" in
+        4) say_city '/npc camera chase office' 2 ;;
+        8) say_city '/npc camera chase baker' 2 ;;
+        12) say_city '/npc camera chase farmer' 2 ;;
+        16) say_city '/npc camera chase courier' 2 ;;
+        20) say_city '/npc camera chase guard' 2 ;;
+        24) say_city '/npc camera chase shoplifter' 2 ;;
+        30) say_city '/npc camera chase park' 2 ;;
+        36) say_city '/npc camera chase clerk' 2 ;;
+        42) say_city '/npc camera chase office' 2 ;;
+        48) say_city '/npc camera chase baker' 2 ;;
+        54) say_city '/npc camera chase guard' 2 ;;
+        60) say_city '/npc camera chase park' 2 ;;
+      esac
+      if (( i % 5 == 0 )); then
+        import -window root "client-gui-city-full-day-sample-${i}.png"
+      fi
+      sleep 20
+    done
+    kill -INT "$DAY_VIDEO_PID" 2>/dev/null || true
+    wait "$DAY_VIDEO_PID" || true
+    # Don't disguise a timed-out client as a full Minecraft day. Validate the
+    # actual game-time / person log; video file size alone proves nothing.
+    if [[ "$FINISHED" != "1" ]]; then
+      echo "FAIL: real 24,000 Minecraft game-tick film unfinished"; exit 1
+    fi
+    python3 - <<'PY'
+import pathlib, re, subprocess, sys
+log=pathlib.Path("client-gui.log").read_text(errors="replace")
+m=re.search(r"REME_NPC_CITY_DAY_FINISH ticks=(\d+).*residents=(\d+) sampled=(\d+) missing=(\d+) active=(\d+) inert=(\d+)",log)
+if not m: sys.exit("FAIL: no actual integrated-world complete-day report")
+tick,people,samples,missing,active,inert=map(int,m.groups())
+if tick < 24000 or people!=13 or samples<55 or missing!=0 or active!=13 or inert!=0:
+    sys.exit("FAIL: city day never fully represented ALL 13: "+repr(m.groups()))
+actors=re.findall(r"REME_NPC_CITY_DAY_PERSON name=",log)
+if len(actors)!=13: sys.exit("FAIL: not exactly 13 actual per-person day histories: "+str(len(actors)))
+movie=pathlib.Path("client-gui-city-full-24000-game-ticks.mp4")
+if not movie.is_file() or movie.stat().st_size<300000:
+    sys.exit("FAIL: no authentic full-day raw frame H264 recording")
+probe=subprocess.run(["ffprobe","-v","error","-show_entries","format=duration",
+                      "-of","default=nw=1:nk=1",str(movie)],
+                      check=True,text=True,capture_output=True)
+if float(probe.stdout.strip())<120:
+    sys.exit("FAIL: game-day movie suspiciously short")
+print("REME_NPC_REAL_CLIENT_FULL_DAY_VIDEO_OK gameTicks="+str(tick)
+      +" citizens="+str(people)+" sampled="+str(samples)
+      +" active="+str(active)+" missing="+str(missing)
+      +" movieSeconds="+probe.stdout.strip())
+PY
+    say_city '/tick rate 20' 2
+    say_city '/npc city day status' 3
+    import -window root client-gui-city-full-day-finished.png
+    echo "PASS: unbroken 24,000 real server tick daytime+nighttime world video with every NPC UUID tracked"
+    exit 0
+  fi
   # Previously filming started well AFTER jail_reached. Capture an UNBROKEN
   # real client video BEFORE the city even spawns its first thief.
   # This is an actual screen recorder, no still-image assembly or fake
@@ -337,7 +418,7 @@ fi
 # separate coordinate fixture and masked an already-working command test.
 if [[ "${REME_COMMAND_SMOKE_ONLY:-0}" == "1" ]]; then
   log=run/logs/latest.log
-  if ! grep -q 'REME NPC 0.7.1-dev COMMANDS REGISTERED: /npc=true, /remecheck=true' "$log"; then
+  if ! grep -q 'REME NPC 0.7.2-dev COMMANDS REGISTERED: /npc=true, /remecheck=true' "$log"; then
     echo "FAIL: 21.1.262 server never actually registered both commands"; exit 1
   fi
   if ! grep -q '/npc registered=true' "$log"; then

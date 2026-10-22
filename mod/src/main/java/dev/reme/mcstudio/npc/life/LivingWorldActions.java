@@ -33,6 +33,9 @@ public final class LivingWorldActions {
             return;
         }
         long tick = level.getGameTime();
+        // No per-tick global scans or camera packets. The explicitly enabled
+        // city day recorder performs ONE bounded local sample / 400 ticks.
+        CityDayJournal.observe(npc, level, tick);
         // Prison and fear checks run BEFORE ordinary AI, so a detained or
         // attacked sleeper must release the vanilla occupied bed immediately.
         if (npc.isSleeping() && (npc.isDetained(tick) || npc.isAfraid(tick)))
@@ -121,6 +124,7 @@ public final class LivingWorldActions {
         // Scheduled work owns the clerk's walking and counter goal during
         // working hours; EAT/bed/flight still take priority.
         if (ShopCounter.tick(npc, level, tick)) return;
+        if (CityOfficeWork.tick(npc, level, tick)) return;
         if (PlayerMiningActions.tick(npc, level)) return;
         // Follow the genuine item-entity drops from this NPC's authorized
         // break, rather than treating ground loot as virtual inventory.
