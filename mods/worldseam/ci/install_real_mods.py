@@ -127,7 +127,9 @@ def install(out):
                 all_versions.append(dependency)
                 version_set.add(dependency["id"])
                 project_set.add(dependency["project_id"])
-    (out.parent / "real-mod-versions.json").write_text(
+    # run/mods is the NeoForge game dir; CI expects the audit manifest at
+    # the mod PROJECT root, never inside run/, and never in a JAR.
+    (out.parent.parent / "real-mod-versions.json").write_text(
         json.dumps(manifest, indent=2, ensure_ascii=False) + "\n")
     print(f"WORLDSEAM_REAL_MODS_INSTALLED: {len(manifest)} genuine verified NeoForge jars")
 
