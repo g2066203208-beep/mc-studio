@@ -208,6 +208,10 @@ public final class CityDistrictDemo {
             p.put(-10, 1, z, Blocks.LIME_CARPET);
             p.put(-9, 1, z, Blocks.GLOWSTONE);
         }
+        // A physical office desk and a real crafting workbench, not merely
+        // names floating above NPCs. City desk clerks have a true destination.
+        p.put(-15, 1, -14, Blocks.LECTERN);
+        p.put(-15, 1, -9, Blocks.CRAFTING_TABLE);
         // Actual ceiling/lighting, upper-level windows and carpeted gallery.
         for (int x = -16; x <= -8; x += 4)
             for (int z = -16; z <= -8; z += 4) p.put(x, 7, z, Blocks.SEA_LANTERN);
@@ -227,10 +231,21 @@ public final class CityDistrictDemo {
             Blocks.GLASS, Blocks.DEEPSLATE_TILES);
         door(p, 9, -6, Direction.SOUTH);
         door(p, 15, -6, Direction.SOUTH);
-        bed(p, 8, -15);
-        bed(p, 15, -15);
-        p.put(7, 1, -11, Blocks.CHEST);
-        p.put(17, 1, -11, Blocks.BARREL);
+        // Thirteen separate vanilla beds (7 western + 6 eastern), laid
+        // along actual two-block-high walkable corridors. One person never
+        // shares the same vanilla bed with another city resident.
+        for (int slot = 0; slot < 7; slot++) {
+            int bedX = slot < 4 ? 7 : 10;
+            int bedZ = -17 + (slot % 4) * 3;
+            bed(p, bedX, bedZ);
+        }
+        for (int slot = 0; slot < 6; slot++) {
+            int bedX = slot < 3 ? 14 : 17;
+            int bedZ = -17 + (slot % 3) * 3;
+            bed(p, bedX, bedZ);
+        }
+        p.put(8, 1, -9, Blocks.CHEST);
+        p.put(16, 1, -9, Blocks.BARREL);
         for (int z = -5; z <= -3; z++) {
             p.put(9, 0, z, Blocks.POLISHED_ANDESITE);
             p.put(15, 0, z, Blocks.POLISHED_ANDESITE);
@@ -342,6 +357,14 @@ public final class CityDistrictDemo {
             npc.setSkinId(i % 6);
             npc.setRoamingRadius(64);
             npc.setHomePos(center.offset(i%2==0 ? 9 : 15, 1, -12));
+            // Stable one-human-one-real-bed ownership in the demo. Do not
+            // reserve the same physical head for two households.
+            int slot = i / 2;
+            int bedX = i % 2 == 0 ? (slot < 4 ? 7 : 10)
+                : (slot < 3 ? 14 : 17);
+            int bedZ = i % 2 == 0 ? -17 + (slot % 4) * 3
+                : -17 + (slot % 3) * 3;
+            npc.setAssignedBedPos(center.offset(bedX, 1, bedZ));
             if (i < 3) npc.setWorkPos(center.offset(-10,1,-12));
             else if (i < 5) {
                 // One officer's actual street beat covers the shop so
@@ -351,6 +374,8 @@ public final class CityDistrictDemo {
                 npc.setPoliceJail(center.offset(-13,1,15));
             }
             else if (i < 7) npc.setWorkPos(center.offset(15,1,12));
+            else if (i == 7 || i == 8)
+                npc.setWorkPos(center.offset(-14,1,-14));
             else npc.setWorkPos(center.offset(-3,1,-12));
             if (owner != null) npc.setOwner(owner);
             npc.setCustomName(Component.literal(names[i]));
@@ -362,6 +387,7 @@ public final class CityDistrictDemo {
             if (i == 3) npc.addTag("reme_city_guard");
             if (i == 10) npc.addTag("reme_city_park");
             if (i == 12) npc.addTag("reme_city_shoplifter");
+            if (i == 7 || i == 8) npc.addTag("reme_city_office_worker");
             npc.setCharacter(i == 12
                 ? new CharacterProfile(8, 30, 50, 25)
                 : CharacterProfile.fromSeed(i+234));
