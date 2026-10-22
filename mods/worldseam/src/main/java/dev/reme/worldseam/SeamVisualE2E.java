@@ -85,6 +85,9 @@ public final class SeamVisualE2E {
                 (!SeamNativeGeometryClient.ownBuffersActive() ||
                  SeamNativeGeometryClient.bufferFlushes()<1))
                 LOG.error("WORLDSEAM_E2E_FAIL_RENDER_BUFFER_ISOLATION: remote terrain was drawn without owned flushed buffers");
+            if(SeamNativeGeometryClient.bufferCreations()>1)
+                LOG.error("WORLDSEAM_E2E_FAIL_RENDER_BUFFER_CHURN: same active seam allocated buffer pool {} times instead of reusing it",
+                    SeamNativeGeometryClient.bufferCreations());
             if(SeamNativeGeometryClient.lastTickRebuildSlices()>4)
                 LOG.error("WORLDSEAM_E2E_FAIL_REBUILD_BUDGET: geometry builder exceeded four native sections per tick");
             server.execute(() -> {
