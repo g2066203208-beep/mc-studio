@@ -23,8 +23,13 @@ public final class WorldSeamMod {
             SeamClientWorldPool.install();
             SeamNativeGeometryClient.install();
             SeamClientDiagnostic.install();
-            SeamVisualE2E.install();
-            SeamLongRunE2E.install();
+            if (Boolean.getBoolean("worldseam.stress")) {
+                // A dedicated long-run world: do not spend the first 1500+
+                // ticks running the unrelated historical-stack visual E2E.
+                SeamLongRunE2E.install();
+            } else {
+                SeamVisualE2E.install();
+            }
             SeamStackClient.install();
             SeamWorldCreation.install();
         }
