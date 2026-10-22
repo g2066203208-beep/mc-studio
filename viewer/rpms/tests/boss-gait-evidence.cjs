@@ -8,7 +8,8 @@ const {chromium}=require('playwright-core');
   page.on('pageerror',e=>console.error('PAGE_ERROR',e.message));
   await page.goto('http://127.0.0.1:8033/rpms/boss-multibody-smoke.html',{waitUntil:'domcontentloaded'});
   await page.waitForFunction(()=>window.__MULTIBODY_READY__||window.__MULTIBODY_ERROR__,null,{timeout:90000});
-  assert.equal(await page.evaluate(()=>window.__MULTIBODY_ERROR__),null,'Real Rapier joint initialization');
+  const initError=await page.evaluate(()=>window.__MULTIBODY_ERROR__||null);
+  assert.equal(initError,null,'Real Rapier joint initialization');
   const results=await page.evaluate(()=>{
    const rig=window.__MULTIBODY_RIG__;
    rig.advance(240);
