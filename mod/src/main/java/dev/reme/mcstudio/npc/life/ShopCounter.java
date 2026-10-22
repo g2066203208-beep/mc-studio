@@ -90,7 +90,10 @@ public final class ShopCounter {
         // Business opens at Minecraft 06:00 (dayTime=0) and closes
         // at 17:00 (dayTime=11000), regardless of a passing social planner.
         // Being at a real counter is also mandatory: no remote selling.
-        return onShift(shop) && shop.energy() > 20 && !shop.isAfraid(shop.level().getGameTime())
+        return onShift(shop) && shop.energy() > 20
+            && shop.intent() != LivingPlanner.Intent.SLEEP
+            && shop.intent() != LivingPlanner.Intent.ESCAPE
+            && !shop.isAfraid(shop.level().getGameTime())
             && !shop.isDetained(shop.level().getGameTime());
     }
 
@@ -267,6 +270,8 @@ public final class ShopCounter {
         if (clerk.profession() != PlayerNpcEntity.Profession.SHOPKEEPER
             || clerk.mode() != PlayerNpcEntity.Mode.LIVE) return false;
         boolean scheduled = onShift(clerk) && !clerk.isSleeping()
+            && clerk.intent() != LivingPlanner.Intent.SLEEP
+            && clerk.intent() != LivingPlanner.Intent.ESCAPE
             && !clerk.isDetained(tick) && !clerk.isAfraid(tick)
             && clerk.energy() > 20;
         // No replay on every game tick; one structured open/close event.
