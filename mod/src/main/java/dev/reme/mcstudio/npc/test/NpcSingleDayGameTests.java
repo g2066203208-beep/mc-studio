@@ -99,6 +99,8 @@ public final class NpcSingleDayGameTests {
         final int[] eatTicks = {0}, workTicks = {0}, restTicks = {0};
         final int[] harvestedTicks = {0}, navigationTicks = {0};
         final int[] hungerMin = {farmer.hunger()}, hungerMax = {farmer.hunger()};
+        final int[] energyMin = {farmer.energy()}, currentZeroEnergyStreak = {0};
+        final int[] maxZeroEnergyStreak = {0};
         final int[] lastBread = {farmer.backpack().countItem(Items.BREAD)};
         final int[] eaten = {0};
         final Set<BlockPos> positions = new HashSet<>();
@@ -125,6 +127,12 @@ public final class NpcSingleDayGameTests {
             if (action.startsWith("harvested and replanted")) harvestedTicks[0]++;
             if (!farmer.getNavigation().isDone()) navigationTicks[0]++;
             hungerMin[0] = Math.min(hungerMin[0], farmer.hunger());
+            energyMin[0] = Math.min(energyMin[0], farmer.energy());
+            if (farmer.energy() == 0) {
+                currentZeroEnergyStreak[0]++;
+                maxZeroEnergyStreak[0] = Math.max(
+                    maxZeroEnergyStreak[0], currentZeroEnergyStreak[0]);
+            } else currentZeroEnergyStreak[0] = 0;
             hungerMax[0] = Math.max(hungerMax[0], farmer.hunger());
             int bread = farmer.backpack().countItem(Items.BREAD);
             if (bread < lastBread[0]) eaten[0] += lastBread[0] - bread;
@@ -171,19 +179,22 @@ public final class NpcSingleDayGameTests {
                     + " hourlySamples=%d distinctPositions=%d eatIntentTicks=%d"
                     + " workIntentTicks=%d sleepIntentTicks=%d harvestActionTicks=%d"
                     + " navigationTicks=%d breadConsumed=%d hungerMin=%d"
-                    + " hungerMax=%d alive=%s completedDay=%s",
+                    + " hungerMax=%d energyMin=%d maxZeroEnergyStreak=%d"
+                    + " alive=%s completedDay=%s",
                 subjectId, elapsed, wall / 1e9, hourlyChecks[0],
                 positions.size(), eatTicks[0], workTicks[0], restTicks[0],
                 harvestedTicks[0], navigationTicks[0], eaten[0],
-                hungerMin[0], hungerMax[0], farmer.isAlive(),
+                hungerMin[0], hungerMax[0], energyMin[0],
+                maxZeroEnergyStreak[0], farmer.isAlive(),
                 elapsed >= 24000);
             System.out.println(result);
             if (hourlyChecks[0] != 24 || positions.size() < 2
                 || eatTicks[0] == 0 || workTicks[0] == 0
                 || restTicks[0] == 0 || eaten[0] == 0
-                || harvestedTicks[0] == 0)
-                helper.fail("One-day observed citizen did not eat/work/rest/"
-                    + "harvest/move across 24 hourly logs; inspect REME_DAYWATCH_HOUR", center);
+                || harvestedTicks[0] == 0 || maxZeroEnergyStreak[0] > 200)
+                helper.fail("One-day farmer failed physical life cycle: missing"
+                    + " eating/work/rest/crops/movement OR stayed at zero energy"
+                    + " for >200 ticks; inspect REME_DAYWATCH_HOUR", center);
             else helper.succeed();
         });
     }
