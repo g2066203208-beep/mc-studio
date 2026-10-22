@@ -92,6 +92,10 @@ public final class PublicSafety {
                 dispatched++;
             }
         }
+        // The village bell is a real player-built bell, not a global police
+        // siren. Ring only after a verified firsthand incident was actually
+        // delivered to at least one local guard.
+        if (dispatched > 0) TownEvents.ringAlarm(level, victim.blockPosition());
         return dispatched;
     }
 

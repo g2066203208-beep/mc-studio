@@ -14,7 +14,7 @@ import java.util.UUID;
  * Save/load adapters belong to the Minecraft integration layer.
  */
 public final class ResidentMemory {
-    public enum Kind { GREETING, GIFT, HELPED, THEFT_WITNESSED, ATTACK_WITNESSED, RUMOR }
+    public enum Kind { GREETING, GIFT, HELPED, TRADE, THEFT_WITNESSED, ATTACK_WITNESSED, RUMOR }
 
     public record Event(long worldTick, UUID actor, Kind kind, String where) {}
 
@@ -42,6 +42,7 @@ public final class ResidentMemory {
             case GREETING -> 1;
             case GIFT -> 5;
             case HELPED -> 12;
+            case TRADE -> 2;
             case THEFT_WITNESSED -> -25;
             case ATTACK_WITNESSED -> -40;
             case RUMOR -> -2;

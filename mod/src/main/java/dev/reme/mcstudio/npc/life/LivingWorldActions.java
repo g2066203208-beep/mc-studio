@@ -97,6 +97,9 @@ public final class LivingWorldActions {
         // fallback: never summon supplies or seize the player's private chest.
         // This is phasically budgeted and commits both resident inventories.
         if (MutualAid.tick(npc, level, tick)) return;
+        // Citizens with a genuine emerald can now visit actual staffed shops.
+        // Emergency food and reciprocal aid retain priority over shopping.
+        if (NeighborhoodMarket.tickCustomer(npc, level, tick)) return;
         // A meal is a real high-priority survival task. Work and patrol
         // cannot consume the entire tick budget while starving residents
         // or during their scheduled breakfast/lunch/supper windows.
@@ -133,6 +136,12 @@ public final class LivingWorldActions {
                 CaravanRoutes.tick(npc, level);
             return; // don't let generic roaming cancel caravan navigation
         }
+        // Shopkeepers may spend already earned emeralds on local farmers'
+        // actual carrots. No synthetic wage or invisible inventory edits.
+        if (NeighborhoodMarket.tickSupplier(npc, level, tick)) return;
+        // A weekly local fair gives residents a reason to meet and share real
+        // witnessed stories, but survival, bed, crime and paid jobs come first.
+        if (NeighborhoodMarket.tickFair(npc, level, tick)) return;
         if (SocietyActions.tick(npc, level, tick)) return;
         if (DailyRoaming.tick(npc, level, tick)) return;
         if (npc.profession() == PlayerNpcEntity.Profession.GUARD &&

@@ -1,3 +1,13 @@
+# 新版提示：v0.6.9-dev 市集与居民经济
+
+- **当前 NPC 功能开发 PR：#93**（`feat/npc-economy-market-fair-v069`）；继承 PR #92 的原生床位系统，新增真物资的自动 NPC 交易、市集、警钟与演奏，玩家可输入 `/npc market`。
+- 打包版本必须是 `0.6.9-dev`，Minecraft 1.21.1 / NeoForge 21.1.262+（符合 1.21.1 元数据）/ Java21，实际具体 JAR 以最新成功 Build Actions Artifacts 为准；主分支的 REME 骨架不是此完整 NPC Mod。
+- 选择 HMCL **实际启动实例** 的 mods 文件夹，移除旧 `reme_studio` 同 ID JAR，先备份世界再测试。不同工作室中 PEAK 和 NPC 当前都用 `reme_studio`，不能同时加载，不要假装已经解决全部六工作室模块隔离。
+- GitHub GameTest 和虚拟 Xvfb 图形客户端不能替代用户自己的大型整合包，运行失败需附 `logs/latest.log` 与 Mod 菜单，特别是 `/remecheck` 和 `/npc market` 是否真的存在。
+- 版本 0.6.8 / 0.6.7 的旧诊断保留下方，帮助旧档排障。
+
+---
+
 # 最新 v0.6.8（真实床位与 NPC 指令，2026-10-22）
 
 - 工作分支：`feat/npc-real-bed-lifecycle-v068`，PR #92。正式主分支尚未整合。
