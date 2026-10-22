@@ -251,6 +251,15 @@ public final class CityDistrictDemo {
                 if (x == -12 && z == 16) continue;
                 for (int y = 1; y <= 3; y++) p.put(x, y, z, Blocks.IRON_BARS);
             }
+        // Unlike the earlier open gap, a REAL initially locked two-block
+        // iron door holds the cell until an escort unlocks it.
+        p.state(-12, 1, 16, Blocks.IRON_DOOR.defaultBlockState()
+            .setValue(DoorBlock.FACING, Direction.EAST)
+            .setValue(DoorBlock.HALF, DoubleBlockHalf.LOWER));
+        p.state(-12, 2, 16, Blocks.IRON_DOOR.defaultBlockState()
+            .setValue(DoorBlock.FACING, Direction.EAST)
+            .setValue(DoorBlock.HALF, DoubleBlockHalf.UPPER));
+            }
         p.put(-11, 1, 10, Blocks.LECTERN);
         p.put(-15, 1, 9, Blocks.CHEST);
         p.put(-10, 1, 9, Blocks.CRAFTING_TABLE);
