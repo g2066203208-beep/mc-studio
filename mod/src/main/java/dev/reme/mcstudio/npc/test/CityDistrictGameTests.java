@@ -89,9 +89,21 @@ public final class CityDistrictGameTests {
         long customers = people.stream().filter(p -> p.profession()
             == PlayerNpcEntity.Profession.RESIDENT
             && p.backpack().countItem(Items.EMERALD) > 0).count();
-        if (merchants < 2 || guards < 2 || customers < 3)
-            throw new AssertionError("City lacks actual autonomous stores, guards or paid shoppers: "
-                + merchants + "/" + guards + "/" + customers);
+        long realDishonestShoppers = people.stream().filter(p ->
+            p.profession() == PlayerNpcEntity.Profession.RESIDENT
+            && p.character().honesty() <= 20).count();
+        BlockPos inmateSpot = center.offset(-13, 1, 15);
+        if (merchants < 2 || guards < 2 || customers < 3
+            || realDishonestShoppers != 1
+            || people.size() != 13
+            || !level.getBlockState(center.offset(-4,2,-10)).is(Blocks.BELL)
+            || !level.getBlockState(center.offset(-8,1,-11)).isAir()
+            || !dev.reme.mcstudio.npc.life.PublicSafety.holdingSpot(level, inmateSpot)
+            || !level.getBlockState(center.offset(-12,1,16)).isAir())
+            throw new AssertionError("City lacks actual shops, 13 safe citizens, cashless shoplifter,"
+                + " physically accessible jail or genuine shop alarm: merchants=" + merchants
+                + " guards=" + guards + " payingResidents=" + customers
+                + " dishonest=" + realDishonestShoppers + " total=" + people.size());
         // Once created, a city cannot silently overprint an existing world.
         CityDistrictDemo.Result refused = CityDistrictDemo.build(level, center, null);
         if (refused.success() || refused.blocks() != 0 || refused.citizens() != 0)
