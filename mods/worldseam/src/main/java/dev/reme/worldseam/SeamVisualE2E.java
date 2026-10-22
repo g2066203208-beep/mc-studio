@@ -295,19 +295,11 @@ public final class SeamVisualE2E {
                 else LOG.error("WORLDSEAM_E2E_FAIL_END_SERVER: player not in End");
             });
         } else if (phase==9 && now-startTick>1500) {
-            if(Boolean.getBoolean("worldseam.stress")) {
-                // The ordinary one-way screenshot and TNT test already ran.
-                // Continue in the SAME ACTUAL integrated client for 24 more
-                // native crossings with default Overworld > Nether > End.
-                phase=12;
-                SeamLongRunE2E.begin(server,playerId,witnessX,witnessZ);
-            } else {
-                phase=10;
-                server.execute(() -> {
-                    SeamSettings.get(server).setEnabled(false);
-                    LOG.info("WORLDSEAM_E2E_DISABLE_REQUESTED: toggle WorldSeam OFF without modifying the saved stack");
-                });
-            }
+            phase=10;
+            server.execute(() -> {
+                SeamSettings.get(server).setEnabled(false);
+                LOG.info("WORLDSEAM_E2E_DISABLE_REQUESTED: toggle WorldSeam OFF without modifying the saved stack");
+            });
         } else if (phase==10 && now-startTick>1540) {
             phase=11;
             String status=SeamClientWorldPool.remoteStatus();
