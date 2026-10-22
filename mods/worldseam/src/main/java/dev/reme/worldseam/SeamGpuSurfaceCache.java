@@ -8,6 +8,10 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexBuffer;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.core.BlockPos;
+import net.minecraft.util.RandomSource;
+import net.neoforged.neoforge.client.model.data.ModelData;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.texture.OverlayTexture;
@@ -111,7 +115,8 @@ public final class SeamGpuSurfaceCache {
      * renderSingleBlock selects ITEM/ENTITY formats for many model types.
      */
     private Entry compile(SeamNativeGeometryClient.Slice slice,
-                          Minecraft mc) {
+                          Minecraft mc,ClientLevel remote,
+                          int sourceBoundary,int targetBoundary) {
         var buffers=new LinkedHashMap<RenderType,BufferBuilder>();
         var allocations=new ArrayList<ByteBufferBuilder>();
         var layers=new ArrayList<Layer>();
@@ -140,9 +145,27 @@ public final class SeamGpuSurfaceCache {
                 pose.pushPose();
                 try {
                     pose.translate(cell.x()-ox,cell.y()-oy,cell.z()-oz);
-                    mc.getBlockRenderer().renderSingleBlock(
-                        cell.state(),pose,source,cell.light(),
-                        OverlayTexture.NO_OVERLAY);
+                    // TRUE WORLD BLOCK TESSELLATION (as opposed to old
+                    // renderSingleBlock ITEM appearance): query the actual
+                    // remote ClientLevel, native face-occlusion, ambient
+                    // occlusion, biome tint, model data and chunk layers.
+                    // This avoids uploading hidden cube faces for each
+                    // visible voxel and reduces memory/fragment artifacts.
+                    BlockPos real=new BlockPos(cell.x(),
+                        cell.y()-sourceBoundary+targetBoundary,cell.z());
+                    var model=mc.getBlockRenderer().getBlockModel(cell.state());
+                    ModelData modelData=model.getModelData(
+                        remote,real,cell.state(),ModelData.EMPTY);
+                    RandomSource random=RandomSource.create(
+                        cell.state().getSeed(real));
+                    for(var layer:model.getRenderTypes(
+                            cell.state(),random,modelData)) {
+                        random.setSeed(cell.state().getSeed(real));
+                        VertexConsumer buffer=source.getBuffer(layer);
+                        mc.getBlockRenderer().renderBatched(
+                            cell.state(),real,remote,pose,buffer,
+                            true,random,modelData,layer);
+                    }
                 } finally {
                     pose.popPose();
                 }
@@ -185,8 +208,9 @@ public final class SeamGpuSurfaceCache {
     }
 
     public void draw(List<SeamNativeGeometryClient.Slice> visible,
-                     Minecraft mc,PoseStack pose,
-                     double cameraX,double cameraY,double cameraZ) {
+                     Minecraft mc,ClientLevel remote,
+                     int sourceBoundary,int targetBoundary,
+                     PoseStack pose,double cameraX,double cameraY,double cameraZ) {
         frame++;
         builtThisFrame=0;
         drawnCells=0;
@@ -203,7 +227,8 @@ public final class SeamGpuSurfaceCache {
             if(builtThisFrame>=MAX_UPLOAD_SLICES_PER_FRAME)break;
             if(!SeamGpuBudget.shouldCompile(cells,budget,builtThisFrame))break;
             long started=System.nanoTime();
-            Entry item=compile(slice,mc);
+            Entry item=compile(
+                slice,mc,remote,sourceBoundary,targetBoundary);
             lastBuildNanos=Math.max(0,System.nanoTime()-started);
             ensureSpace(item.estimatedBytes);
             entries.put(slice,item);
