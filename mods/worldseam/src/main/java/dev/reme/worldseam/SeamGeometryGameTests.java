@@ -101,4 +101,72 @@ public final class SeamGeometryGameTests {
             "WORLDSEAM_SHIP_CHART_GAME_TEST_PASS: native MC AABB 64-wide hull, inverse chart planes, no cloned body");
         h.succeed();
     }
+    @GameTest(template="empty",batch="worldseam.native_terrain_probe",timeoutTicks=200)
+    public static void remoteNativeVoxelContactNeverConfusesLogicalNetherRoof(GameTestHelper h) {
+        var nether=h.getLevel().getServer().getLevel(net.minecraft.world.level.Level.NETHER);
+        if(nether==null){h.fail("Missing real Nether ServerLevel");return;}
+        var center=h.absolutePos(new net.minecraft.core.BlockPos(1,1,1));
+        int x=center.getX(),z=center.getZ();
+        // It is legitimate to synchronously prepare a TEST fixture at
+        // setup time. Runtime probe itself must NEVER generate chunks.
+        nether.getChunk(Math.floorDiv(x,16),Math.floorDiv(z,16));
+        var at=new net.minecraft.core.BlockPos(x,127,z);
+        var hidden=at.above();
+        var old=nether.getBlockState(at);
+        var oldHidden=nether.getBlockState(hidden);
+        var image=new AABB(x+0.2,127.25,z+0.2,x+0.8,127.4,z+0.8);
+        try {
+            nether.setBlock(at,net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(),3);
+            nether.setBlock(hidden,net.minecraft.world.level.block.Blocks.STONE.defaultBlockState(),3);
+            var clear=SeamShipRemoteContactProbe.scan(nether,image);
+            if(!clear.complete()||clear.hasCandidate()) {
+                h.fail("Hidden Nether Y128 blocks incorrectly treated as physical contact in logical Nether top at 128");
+                return;
+            }
+            // A FULL native stone at Y127 must be a candidate for ONE
+            // real ship whose other half is in the Overworld.
+            nether.setBlock(at,net.minecraft.world.level.block.Blocks.STONE.defaultBlockState(),3);
+            var solid=SeamShipRemoteContactProbe.scan(nether,image);
+            if(!solid.complete()||solid.solidCandidates()!=1) {
+                h.fail("Failed to read real Nether Y127 collision voxels");
+                return;
+            }
+            // Test Minecraft's actual slab VoxelShape against sub-block
+            // placement, not just BlockState.isSolid or canOcclude.
+            var topSlab=net.minecraft.world.level.block.Blocks.STONE_SLAB.defaultBlockState()
+                .setValue(net.minecraft.world.level.block.SlabBlock.TYPE,
+                    net.minecraft.world.level.block.state.properties.SlabType.TOP);
+            nether.setBlock(at,topSlab,3);
+            if(SeamShipRemoteContactProbe.scan(nether,image).hasCandidate()) {
+                h.fail("Top half-slab outside hull incorrectly counted as contact");
+                return;
+            }
+            var bottomSlab=net.minecraft.world.level.block.Blocks.STONE_SLAB.defaultBlockState()
+                .setValue(net.minecraft.world.level.block.SlabBlock.TYPE,
+                    net.minecraft.world.level.block.state.properties.SlabType.BOTTOM);
+            nether.setBlock(at,bottomSlab,3);
+            if(!SeamShipRemoteContactProbe.scan(nether,image).hasCandidate()) {
+                h.fail("Bottom half-slab VoxelShape was not sampled");
+                return;
+            }
+            var huge=new AABB(x-90,125,z-90,x+90,128,z+90);
+            if(!SeamShipRemoteContactProbe.scan(nether,huge).truncated()) {
+                h.fail("Oversize ship broadphase must be bounded, never claim unloaded area is clear");
+                return;
+            }
+            var far=new AABB(x+80000,127,z+80000,x+80001,128,z+80001);
+            var missing=SeamShipRemoteContactProbe.scan(nether,far);
+            if(missing.complete()||missing.missingChunks()==0) {
+                h.fail("Missing far native chunks must be reported, never force loaded or treated as air");
+                return;
+            }
+            com.mojang.logging.LogUtils.getLogger().info(
+                "WORLDSEAM_REAL_REMOTE_VOXEL_CONTACT_PASS: loaded native Nether stone, upper/lower slab VoxelShape, ignore hidden Nether Y128, no synchronous loads");
+            h.succeed();
+        } finally {
+            nether.setBlock(at,old,3);
+            nether.setBlock(hidden,oldHidden,3);
+        }
+    }
+
 }
