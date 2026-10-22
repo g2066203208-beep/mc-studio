@@ -304,60 +304,90 @@ public final class SeamGpuSectionMeshes {
         }
     }
 
-    public void beginFrame() {lastGpuDrawn=0;lastGpuCells=0;lastGpuFluidCells=0;}
+    public void beginFrame() {lastGpuDrawn=0;lastGpuCells=0;lastGpuFluidCells=0;frameDraws.clear();}
+
+    private record DrawCall(SeamNativeGeometryClient.Slice slice,
+                            Compiled compiled) {}
+    // Reused every frame; no per-layer render state setup for each section.
+    private final java.util.ArrayList<DrawCall> frameDraws=new java.util.ArrayList<>(MAX_MESHES);
 
     /**
-     * Render only opaque layers first, across ALL visible sections.
-     * Translucent faces must be submitted later, after every solid block
-     * and fallback proxy mesh, otherwise liquids can appear in front of
-     * opaque terrain in an unrelated chunk section.
+     * Batch all visible native VBOs BY MATERIAL LAYER, exactly once each.
+     * Setting up and clearing the RenderType for every one of 160 sections
+     * previously created hundreds of shader/GL state switches per frame.
      */
-    public int draw(SeamNativeGeometryClient.Slice slice,PoseStack pose,Vec3 camera,
-                    int sourceBoundary,int targetBoundary) {
-        if(!has(slice))return 0;
-        Compiled entry=mesh.get(new Key(slice.cx(),slice.cz(),slice.sectionY()));
-        for(int i=0;i<LAYERS.length-1;i++)drawLayer(slice,entry,LAYERS[i],
-            pose,camera,sourceBoundary,targetBoundary);
-        lastGpuDrawn++;
-        lastGpuCells+=entry.cells();
-        lastGpuFluidCells+=entry.fluidCells();
-        return entry.endStone();
+    public int drawOpaqueAll(List<SeamNativeGeometryClient.Slice> visible,
+                             PoseStack pose,Vec3 camera,
+                             int sourceBoundary,int targetBoundary) {
+        if(!enabled())return 0;
+        frameDraws.clear();
+        int stones=0;
+        for(var slice:visible) {
+            Compiled c=mesh.get(new Key(slice.cx(),slice.cz(),slice.sectionY()));
+            if(c==null || c.origin()!=slice)continue;
+            frameDraws.add(new DrawCall(slice,c));
+            stones+=c.endStone();
+            lastGpuDrawn++;
+            lastGpuCells+=c.cells();
+            lastGpuFluidCells+=c.fluidCells();
+        }
+        for(int layer=0;layer<LAYERS.length-1;layer++) {
+            RenderType type=LAYERS[layer];
+            drawBatch(type,frameDraws,false,pose,camera,
+                sourceBoundary,targetBoundary);
+        }
+        return stones;
     }
 
-    /** Call in BACK-TO-FRONT section order AFTER all opaque and CPU draws.
-     * Translucent quads within a section are not yet dynamically sorted;
-     * future native section renderers must provide view-dependent sorting. */
-    public void drawTranslucent(SeamNativeGeometryClient.Slice slice,
-                                PoseStack pose,Vec3 camera,
-                                int sourceBoundary,int targetBoundary) {
-        if(!has(slice))return;
-        Compiled entry=mesh.get(new Key(slice.cx(),slice.cz(),slice.sectionY()));
-        drawLayer(slice,entry,RenderType.translucent(),
-            pose,camera,sourceBoundary,targetBoundary);
+    /**
+     * After all solid (including CPU-fallback) geometry has flushed, draw
+     * translucent VBOs far-to-near with a SINGLE render state transition.
+     * Individual quads within one section still require native distance
+     * sorting; this is not full shader/portal transparency.
+     */
+    public void drawTranslucentAll(PoseStack pose,Vec3 camera,
+                                   int sourceBoundary,int targetBoundary) {
+        if(!enabled() || frameDraws.isEmpty())return;
+        drawBatch(RenderType.translucent(),frameDraws,true,pose,camera,
+            sourceBoundary,targetBoundary);
     }
 
-    private static void drawLayer(SeamNativeGeometryClient.Slice slice,
-                                  Compiled entry,RenderType type,
-                                  PoseStack pose,Vec3 camera,
+    private static void drawBatch(RenderType type,List<DrawCall> calls,
+                                  boolean reverse,PoseStack pose,Vec3 camera,
                                   int sourceBoundary,int targetBoundary) {
-        VertexBuffer vbo=entry.vbos().get(type);
-        if(vbo==null)return;
-        int originX=slice.cx()*16,originZ=slice.cz()*16;
-        int mappedSectionY=SeamSectionLayout.mappedSectionMinY(
-            slice.sectionY()*16,sourceBoundary,targetBoundary);
-        Matrix4f matrix=new Matrix4f(pose.last().pose()).translate(
-            (float)(originX-camera.x),(float)(mappedSectionY-camera.y),
-            (float)(originZ-camera.z));
+        boolean any=false;
+        for(var call:calls) {
+            if(call.compiled().vbos().containsKey(type)) {
+                any=true;
+                break;
+            }
+        }
+        if(!any)return;
         type.setupRenderState();
         try {
             var shader=RenderSystem.getShader();
             if(shader==null)throw new IllegalStateException(
-                "No Minecraft shader for WorldSeam chunk layer "+type);
-            vbo.bind();
-            try {
-                vbo.drawWithShader(matrix,RenderSystem.getProjectionMatrix(),shader);
-            } finally {
-                VertexBuffer.unbind();
+                "Missing native GPU shader in WorldSeam section layer "+type);
+            Matrix4f projection=RenderSystem.getProjectionMatrix();
+            Matrix4f base=pose.last().pose();
+            int n=calls.size();
+            for(int ordinal=0;ordinal<n;ordinal++) {
+                DrawCall call=calls.get(reverse?n-1-ordinal:ordinal);
+                VertexBuffer vbo=call.compiled().vbos().get(type);
+                if(vbo==null)continue;
+                var slice=call.slice();
+                int y=SeamSectionLayout.mappedSectionMinY(
+                    slice.sectionY()*16,sourceBoundary,targetBoundary);
+                var local=new Matrix4f(base).translate(
+                    (float)(slice.cx()*16-camera.x),
+                    (float)(y-camera.y),
+                    (float)(slice.cz()*16-camera.z));
+                vbo.bind();
+                try {
+                    vbo.drawWithShader(local,projection,shader);
+                } finally {
+                    VertexBuffer.unbind();
+                }
             }
         } finally {
             type.clearRenderState();
@@ -378,6 +408,7 @@ public final class SeamGpuSectionMeshes {
         mesh.clear();
         unsupported.clear();
         protectedVisible.clear();
+        frameDraws.clear();
         if(building!=null)building.close();
         building=null;
         bakeSamples.clear();
