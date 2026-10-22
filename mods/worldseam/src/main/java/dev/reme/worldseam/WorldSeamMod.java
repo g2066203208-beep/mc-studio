@@ -24,6 +24,7 @@ public final class WorldSeamMod {
             SeamNativeGeometryClient.install();
             SeamClientDiagnostic.install();
             SeamVisualE2E.install();
+            SeamLongRunE2E.install();
             SeamStackClient.install();
             SeamWorldCreation.install();
         }
