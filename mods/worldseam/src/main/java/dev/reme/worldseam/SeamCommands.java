@@ -176,6 +176,10 @@ public final class SeamCommands {
             ", API compatible="+s.compatible()+
             ", loaded native hulls="+s.liveBodies()+
             ", straddling two charts="+s.straddlingBodies()+
+            ", remote ship chunk tickets="+SeamShipResidency.active()+
+            ", ticketAdds="+SeamShipResidency.added()+
+            ", ticketReleases="+SeamShipResidency.removed()+
+            ", rejectedByLimit="+SeamShipResidency.rejected()+
             ", physical image-collider bridge=NOT IMPLEMENTED"+
             ", sample="+s.sampleShip()+
             (error.isBlank()?"":", probe error="+error)
