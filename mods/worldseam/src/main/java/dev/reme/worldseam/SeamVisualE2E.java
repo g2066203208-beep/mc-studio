@@ -109,6 +109,10 @@ public final class SeamVisualE2E {
             if(SeamNativeGeometryClient.countFluidCells()<2 ||
                SeamNativeGeometryClient.lastFrameGpuFluidCells()<1)
                 LOG.error("WORLDSEAM_E2E_FAIL_GPU_FLUID_SCENE: real target water/lava/waterlogged sections not drawn");
+            LOG.info("WORLDSEAM_E2E_LOGICAL_PLANE_NEIGHBORS: realCrossPlaneBlockLookups={}, NetherLogicalRoof128BelowVanillaBuildCeiling256=true",
+                SeamNativeGeometryClient.logicalPlaneNeighborReads());
+            if(SeamNativeGeometryClient.logicalPlaneNeighborReads()<1)
+                LOG.error("WORLDSEAM_E2E_FAIL_LOGICAL_PLANE_NEIGHBORS: Nether native mesher still considers blocks above Y128 within its own world");
             // The old screen had only a few thousand cherry-picked blocks.
             // This is a REAL client-frame coverage gate, not a packet count:
             // more than half the frustum-visible complete GPU sections must
