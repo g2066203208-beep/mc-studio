@@ -29,3 +29,8 @@
 - `/npc bed clear` 解除当前自己拥有 NPC 的床位，正在睡觉会起床；自然搜索仍可在之后重新选择合适床位。
 - 夜间观察 NPC 实际走到床旁、水平躺下，`/npc info` 应显示 `sleeping true`，床的 `OCCUPIED` 由 Minecraft 原生睡眠更新；白天自然起床。
 - 若看不到 `/npc`，首先确认 HMCL 当前实例 Mods 列表中真的载入 **0.6.8-dev**、Java 21 和 NeoForge **21.1.262 或符合元数据的更高 21.1.x**，不要把 CI 测试机通过当作玩家本机已经加载成功。
+
+## 扩展原生 GameTest（同分支）
+- `CivicGameTests.crowded_village_cannot_double_claim_eight_real_beds`：原生世界放置 8 张床，创建 16 名真实 NPC，强制核查仅有 8 个不同床位预约，没有双人同时认领。
+- `BedFullDayGameTests.one_real_resident_actually_sleeps_and_wakes_over_a_whole_day`：世界中放置原生双格床、一个真人形 NPC 与食物，以 **真正 ServerLevel 24,000 tick** 观察是否出现睡下、醒来、白天行为和真实床 OCCUPIED 状态；完全不手工模拟调用 NPC.tick。工作流是 22 分钟限额，不能把 24,000 游戏 tick 偷换成现实 24 小时。
+- 所有测试未看原始 CI 状态与日志前不自称通过，失败须修复后重跑。
