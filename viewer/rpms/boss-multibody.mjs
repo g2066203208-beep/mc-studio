@@ -99,11 +99,9 @@ export function createMultibodyBoss(RAPIER,opts={}){
   rpm:b.outputRPM,sourceRPM:b.rpm,torqueMultiplier:b.torqueMultiplier,
   clutchPowered:disconnected.has(b.id)}));
 
- // A 13-body standing machine is a closed force-chain when feet contact
- // static ground. The earlier gains (115/15) allowed >1rad phase lag, which
- // picked up all SIX soles and looked like floating. Give each physical
- // servo enough stiffness and critical-ish damping for load bearing.
- let hipGain=430,kneeGain=340,hipDamping=68,kneeDamping=55;
+ // Keep the measured-stable low-impulse PD gains. Overdriving the
+ // motor caused large ballistic hops in the real Rapier integration.
+ let hipGain=115,kneeGain=92,hipDamping=15,kneeDamping=13;
  let phase=0;
  const setMotor=({rpm,torqueLimit,stiffness,damping,period,ratio}={})=>{
   if([1,2,4].includes(Number(ratio)))gearRatio=Number(ratio);
@@ -164,16 +162,11 @@ export function createMultibodyBoss(RAPIER,opts={}){
    const budget=branch?.pathLive ? torque*branch.torqueMultiplier : 0;
    leg.deliveredTorque=budget;
    if(mode!=='relax'&&budget>0){
-    // The stronger active gait gains are unsuitable while motionless:
-    // static ground contacts should use the proven stable, softer servo.
-    const active=drive;
-    const kpH=active?hipGain:115,kdH=active?hipDamping:15;
-    const kpK=active?kneeGain:92,kdK=active?kneeDamping:13;
-    servoTorque(body,leg.upper,hipT,kpH,kdH,budget);
+    servoTorque(body,leg.upper,hipT,hipGain,hipDamping,budget);
     // A powered knee servo mounted on the upper/lower leg is a separate
     // simplified electrical/mechanical coupling, NOT a proven Create shaft
     // through a moving SubLevel. Explicitly report that limitation in UI.
-    servoTorque(leg.upper,leg.lower,kneeT,kpK,kdK,budget*.85);
+    servoTorque(leg.upper,leg.lower,kneeT,kneeGain,kneeDamping,budget*.85);
    }
   }
  };
