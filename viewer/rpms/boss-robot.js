@@ -10,7 +10,7 @@ import {loadOfficialModelArchives} from './official-autoload.mjs';
 const $=id=>document.getElementById(id);
 const scene=new THREE.Scene();scene.background=new THREE.Color('#192935');scene.fog=new THREE.Fog('#192935',31,80);
 const camera=new THREE.PerspectiveCamera(40,1,.05,140);
-camera.position.set(7.9,6.5,9.0); // near enough to appreciate actual moving mechanical joints
+camera.position.set(13.6,10.2,15.0); // inspect ALL six legs instead of clipping front and rear blocks
 const renderer=new THREE.WebGLRenderer({canvas:$('bossCanvas'),antialias:true,powerPreference:'high-performance'});
 renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,1.8));
 renderer.outputColorSpace=THREE.SRGBColorSpace;
@@ -100,8 +100,8 @@ function chassisVisual(g){
   if(occupied.has(x+','+z))continue;
   block(g,'box',[x,0,z],[1,1,1],Math.abs(x)===2?'steel':'copper');
  }
- for(const x of [-2,2])for(const z of [-3,0,3])
-  block(g,'box',[x,1,z],[1,1,1],'copper');
+ for(const x of [-2,2])for(const z of [-3,3])
+  block(g,'box',[x,1,z],[1,1,1],'dark'); // four corner armor turrets; no six huge brown crates
  block(g,'box',[0,1,0],[1,1,1],'dark');
  block(g,'box',[0,0,-4],[1,1,1],'teal');
  for(const b of graph.blocks){
@@ -113,19 +113,24 @@ function chassisVisual(g){
 }
 function linkVisual(g,length,legId,segment){
  const isUpper=segment==='upper';
- // All visible individual voxel blocks remain exactly one MC block.
- // Real 1x1 voxel leg blocks are stacked on centers ±.5; bearings at
- // +1.5 and boots at -1.5 never intersect these solid voxels.
- // Rapier joint center lengths 1.65/1.75 still require separate geometry calibration.
- for(const y of [-.5,.5])
-  block(g,'box',[0,y,0],[1,1,1],isUpper?'teal':'steel',legId);
+ // IMPORTANT: The original drawing had an unsupported bearing at y=1.5
+ // above two stacked y=-.5/+ .5 blocks. The real hip/knee hinge is only
+ // 0.825/0.875 from the rigid-body center; that made bearings FLOAT away
+ // from the physical joint, even though Three.js mesh-count tests passed.
+ // A Simulated swivel-bearing is now the TOP Minecraft lattice cell
+ // (+.5), with a mechanically adjacent structural block at (-.5).
+ // The hinge is near the bearing's upper face at y=1, rather than 0.7
+ // blocks beneath a separate floating bearing.
+ block(g,'box',[0,-.5,0],[1,1,1],isUpper?'teal':'steel',legId);
+ officialModule(g,'simulated:swivel_bearing',[0,.5,0],
+  {axis:'x',facing:'east',scale:1,legId});
  if(isUpper){
-  officialModule(g,'simulated:swivel_bearing',[0,1.5,0],
-   {axis:'x',facing:'east',scale:1,legId});
-  officialModule(g,'create:cogwheel',[1,0,0],{axis:'x',scale:1,legId});
+  // Gear is adjacent to the lower link block in the SAME integer lattice.
+  officialModule(g,'create:cogwheel',[1,-.5,0],
+   {axis:'x',scale:1,legId});
  }else{
-  officialModule(g,'simulated:swivel_bearing',[0,1.5,0],
-   {axis:'x',facing:'east',scale:1,legId});
+  // Plain Minecraft 1-block sole (P1 visual). This is not yet a
+  // calibrated Sable foot collision shape; do not claim exact overlap.
   block(g,'box',[0,-1.5,0],[1,1,1],'foot',legId);
  }
  g.traverse(o=>{if(o.isMesh)o.userData.legId=legId;});
