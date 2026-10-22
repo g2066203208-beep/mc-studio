@@ -191,7 +191,13 @@ public final class PublicSafety {
             return false;
         }
         guard.setTarget(null);
-        boolean prisonerAtCell = CityJailRoute.actuallyInCell(prisoner, jail);
+        // Authenticated city iron-gate cells require crossing the ENTIRE
+        // doorway. For user-built open holding spots (no gate), preserve
+        // the original 2.5-block proximity rule: approaching from the
+        // north/west must not deadlock harmless village detentions.
+        boolean prisonerAtCell = CityJailGate.isGate(level, jail)
+            ? CityJailRoute.actuallyInCell(prisoner, jail)
+            : prisoner.distanceToSqr(Vec3.atCenterOf(jail)) <= 2.5;
         if (prisonerAtCell && guard.distanceToSqr(prisoner) <= 36) {
             guard.getNavigation().stop();
             guard.setAction("on-foot escort completed: prisoner reached REAL iron-bar cell");
@@ -229,7 +235,10 @@ public final class PublicSafety {
             return false;
         }
         suspect.setTarget(null);
-        if (CityJailRoute.actuallyInCell(suspect, jail)) {
+        boolean actuallyHeld = CityJailGate.isGate(level, jail)
+            ? CityJailRoute.actuallyInCell(suspect, jail)
+            : suspect.distanceToSqr(Vec3.atCenterOf(jail)) <= 2.5;
+        if (actuallyHeld) {
             CityJailGate.setOpen(level, jail, false);
             suspect.getNavigation().stop();
             suspect.setAction("held at designated iron-bar holding spot until release");
