@@ -1,0 +1,128 @@
+name: WorldSeam Long-Run Real Minecraft Stress
+on:
+  pull_request:
+    paths:
+      - "mods/worldseam/src/**"
+      - "mods/worldseam/build.gradle"
+      - "mods/worldseam/gradle.properties"
+      - ".github/workflows/worldseam-stress-e2e.yml"
+  push:
+    branches: [feat/worldseam-standalone]
+    paths:
+      - "mods/worldseam/src/**"
+      - "mods/worldseam/build.gradle"
+      - "mods/worldseam/gradle.properties"
+      - ".github/workflows/worldseam-stress-e2e.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  long-run-client:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Install real OpenGL software driver and GUI input tools
+        run: sudo apt-get update -qq && sudo apt-get install -y xvfb libgl1-mesa-dri libglx-mesa0 xdotool imagemagick x11-apps
+      - name: Launch actual NeoForge client and perform 24 real physical passages
+        shell: bash
+        working-directory: mods/worldseam
+        run: |
+          set -euo pipefail
+          xvfb-run -a -s '-screen 0 1280x720x24' bash -c '
+            set -euo pipefail
+            export LIBGL_ALWAYS_SOFTWARE=1
+            bash ./gradlew runClient -PworldseamStress --no-daemon --console=plain > stress-client.log 2>&1 &
+            pid=$!
+            trap "kill $pid 2>/dev/null || true" EXIT
+            for step in $(seq 1 185); do
+              if grep -q "Reloading ResourceManager" stress-client.log; then break; fi
+              if ! kill -0 $pid 2>/dev/null; then
+                tail -n 100 stress-client.log
+                exit 1
+              fi
+              sleep 1
+            done
+            sleep 22
+            xdotool mousemove 640 568 click 1
+            sleep 8
+            xdotool mousemove 640 336 click 1
+            sleep 8
+            xdotool mousemove 640 540 click 1
+            sleep 8
+            xdotool mousemove 640 480 click 1
+            sleep 3
+            xwd -root -silent | convert xwd:- -resize 800x450 -quality 55 stress-stack-editor.jpg
+            if ! grep -q "WORLDSEAM_CREATE_STACK_UI_OPEN.*minecraft:overworld > minecraft:the_nether > minecraft:the_end" stress-client.log; then
+              echo "Default new-world stack GUI failed"; tail -n 100 stress-client.log; exit 1
+            fi
+            xdotool key Escape
+            sleep 3
+            xdotool mousemove 640 403 click 1
+            sleep 2
+            xdotool mousemove 480 565 click 1
+            # The initial actual Minecraft E2E must complete the old-world
+            # visual/TNT/End tests before the new DEFAULT stack stress starts.
+            for second in $(seq 1 550); do
+              if grep -q "WORLDSEAM_STRESS_START" stress-client.log; then break; fi
+              if grep -q "WORLDSEAM_STRESS_FAIL" stress-client.log; then break; fi
+              if ! kill -0 "$pid" 2>/dev/null; then
+                echo "Native Minecraft process exited before stress began"
+                tail -n 90 stress-client.log; exit 1
+              fi
+              sleep 1
+            done
+            if ! grep -q "WORLDSEAM_STRESS_START" stress-client.log; then
+              echo "Long-run real Minecraft stress did not start"
+              tail -n 100 stress-client.log; exit 1
+            fi
+            xwd -root -silent | convert xwd:- -resize 800x450 -quality 60 stress-start.jpg
+            for milestone in 4 12 20 24; do
+              found=0
+              for second in $(seq 1 650); do
+                if grep -q "WORLDSEAM_STRESS_PROGRESS: pass=$milestone/24" stress-client.log; then found=1; break; fi
+                if grep -q "WORLDSEAM_STRESS_FAIL" stress-client.log; then break; fi
+                if ! kill -0 "$pid" 2>/dev/null; then
+                  echo "Minecraft crashed during repeated crossings"; tail -n 120 stress-client.log; exit 1
+                fi
+                sleep 1
+              done
+              if [ "$found" != 1 ]; then
+                echo "Minecraft failed to complete $milestone/24 repeated crossings"
+                grep -E "WORLDSEAM_STRESS_|Exception|OutOfMemoryError" stress-client.log | tail -n 80 || true
+                exit 1
+              fi
+              xwd -root -silent | convert xwd:- -resize 800x450 -quality 63 "stress-crossing-$milestone.jpg"
+              # Native process RSS is not a GPU time measurement.
+              ps -eo pid,etime,rss,comm,args | grep -E "net.minecraft.client.main.Main|net.neoforged.devlaunch.Main" | grep -v grep | tail -n 3 || true
+            done
+            sleep 8
+            if ! grep -q "WORLDSEAM_STRESS_PASS: crossings=24," stress-client.log ||
+               ! grep -q "WORLDSEAM_STRESS_PASS_CLEANUP" stress-client.log; then
+              echo "Stress or resource cleanup never proved complete"; tail -n 100 stress-client.log; exit 1
+            fi
+            if grep -E "WORLDSEAM_STRESS_FAIL|WORLDSEAM_E2E_FAIL|Mixin apply failed|InvalidMixinException|Exception during client tick|OutOfMemoryError|NoSuchMethodError|Crash report saved" stress-client.log; then
+              echo "Real Minecraft stress found a crash or regression"; exit 1
+            fi
+            montage stress-start.jpg stress-crossing-4.jpg stress-crossing-12.jpg stress-crossing-20.jpg stress-crossing-24.jpg -tile 3x2 -geometry +0+0 -quality 65 stress-sequence.jpg
+            echo "WORLDSEAM_STRESS_VERIFIED_ALL_24_REAL_HANDOFFS"
+            grep -E "WORLDSEAM_STRESS_(START|BOTH_SHAFTS_OPEN|PROGRESS|PASS|PASS_CLEANUP)" stress-client.log | tail -n 35
+          '
+      - name: Persist screenshots, crash diagnostics, native logs and full stress evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: worldseam-longrun-real-client-evidence
+          path: |
+            mods/worldseam/stress-client.log
+            mods/worldseam/stress-*.jpg
+            mods/worldseam/run/crash-reports/**
+            mods/worldseam/run/logs/latest.log
+            mods/worldseam/run/logs/debug.log
+            mods/worldseam/hs_err_pid*.log
+          if-no-files-found: ignore
+          retention-days: 30
