@@ -58,7 +58,7 @@ echo "Captured in-world attempt (must inspect picture; not automatically proof o
 # combat test. Real prior run proved creepers can kill the operator BEFORE
 # city commands execute; make the player invulnerable and clear hostiles now.
 # This is ONLY set for the dedicated new scratch-world city screenshot run.
-if [[ "${REME_CITY_VISUAL:-0}" == "1" ]]; then
+if [[ "${REME_CITY_VISUAL:-0}" == "1" || "${REME_POLICE_FILM:-0}" == "1" ]]; then
   xdotool key --clearmodifiers t
   sleep 1
   xdotool type --clearmodifiers --delay 25 '/gamemode creative'
@@ -91,6 +91,64 @@ if [[ "${REME_CITY_VISUAL:-0}" == "1" ]]; then
   sleep 3
   import -window root client-gui-city-creative-fixture.png
 fi
+# Evidence-grade real client video: original X11 Minecraft pixels.
+if [[ "${REME_POLICE_FILM:-0}" == "1" ]]; then
+  say_film() {
+    xdotool key --clearmodifiers t
+    sleep 0.35
+    xdotool type --clearmodifiers --delay 12 "$1"
+    xdotool key Return
+    sleep "${2:-1}"
+  }
+  # /fill is restricted to the new disposable acceptance world.
+  say_film '/fill ~-20 ~-1 ~-20 ~20 ~-1 ~20 minecraft:stone' 2
+  say_film '/fill ~-20 ~ ~-20 ~20 ~10 ~20 minecraft:air' 2
+  say_film '/time set 1000' 1
+  say_film '/npc city survey' 1
+  import -window root client-gui-police-preflight.png
+  say_film '/npc city demo' 1
+  say_film '/npc city census' 1
+  say_film '/npc city audit' 1
+  ffmpeg -hide_banner -loglevel error -y -f x11grab -draw_mouse 0 \
+    -framerate 8 -video_size 1280x720 -i "${DISPLAY}.0" \
+    -vcodec libx264 -preset ultrafast -crf 29 -pix_fmt yuv420p \
+    client-gui-police-full-process.mp4 >client-police-ffmpeg.log 2>&1 &
+  RECORDER=$!
+  # Explicit operator test trigger transfers actual food; no teleports.
+  say_film '/npc city filmcrime' 1
+  import -window root client-gui-police-actual-theft.png
+  say_film '/gamemode spectator' 1
+  for step in $(seq 1 18); do
+    say_film '/execute at @e[type=reme_studio:player_npc,tag=reme_city_shoplifter,limit=1] run tp @s ~-3 ~2 ~4 facing entity @e[type=reme_studio:player_npc,tag=reme_city_shoplifter,limit=1] eyes' 1
+    if (( step == 1 || step == 5 || step == 10 || step == 15 || step == 18 )); then
+      import -window root "client-gui-police-chase-${step}.png"
+    fi
+    sleep 3
+  done
+  say_film '/execute at @e[type=reme_studio:player_npc,tag=reme_city_guard,limit=1] run tp @s ~-3 ~2 ~5 facing entity @e[type=reme_studio:player_npc,tag=reme_city_guard,limit=1] eyes' 2
+  import -window root client-gui-police-guard-after-chase.png
+  say_film '/npc city audit' 1
+  import -window root client-gui-police-inmate-audit.png
+  kill -INT "$RECORDER" 2>/dev/null || true
+  wait "$RECORDER" || true
+  test -s client-gui-police-full-process.mp4 || {
+    echo "FAIL: no native GPU/video footage"; exit 1;
+  }
+  log=run/logs/latest.log
+  for token in 'REME_NPC_FILM staged_real_goods_theft=1' \
+    'REME_NPC_STORY stage=unpaid_pickup' \
+    'REME_NPC_STORY stage=guard_dispatch' \
+    'REME_NPC_STORY stage=nonlethal_arrest' \
+    'REME_NPC_STORY stage=jail_reached'; do
+    if ! grep -Fq "$token" "$log" && ! grep -Fq "$token" client-gui.log; then
+      echo "FAIL: NO full native city crime/escort evidence: $token"
+      exit 1
+    fi
+  done
+  echo "PASS: original Minecraft 1.21.1 video recorded with verified city crime/escort."
+  exit 0
+fi
+
 xdotool key --clearmodifiers t
 sleep 1
 xdotool type --clearmodifiers --delay 80 '/remecheck'
