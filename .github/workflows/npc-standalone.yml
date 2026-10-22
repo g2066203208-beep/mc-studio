@@ -119,3 +119,41 @@ jobs:
             mods/npc/run/logs/*.log
             mods/npc/runs/**/logs/*.log
           if-no-files-found: warn
+
+  windows-installer-check:
+    needs: build-and-gametest
+    runs-on: windows-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: reme-npc-hmcl-standalone-installer
+      - name: Validate standalone Windows installer without modifying user saves or PEAK
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $pkg = Join-Path $env:RUNNER_TEMP 'npc-solo-package'
+          $game = Join-Path $env:RUNNER_TEMP 'npc-solo-hmcl'
+          New-Item -ItemType Directory -Path $pkg,(Join-Path $game 'mods'),(Join-Path $game 'logs') -Force | Out-Null
+          Expand-Archive -LiteralPath 'REME-NPC-HMCL-Standalone-0.6.7-dev.zip' -DestinationPath $pkg -Force
+          $script = Join-Path $pkg 'Install-REME-NPC.ps1'
+          $modDir = Join-Path $game 'mods'
+          Set-Content -LiteralPath (Join-Path $modDir 'peak-stays-untouched.jar') -Value 'not a valid zip' -Encoding ASCII
+          & $script -GameDirectory $game -CheckOnly
+          if (@(Get-ChildItem $modDir -Filter 'reme_npc-*.jar').Count -ne 0) {
+            throw 'Read-only check wrote an NPC JAR'
+          }
+          & $script -GameDirectory $game -ConfirmInstall
+          if (-not (Test-Path -LiteralPath (Join-Path $modDir 'reme_npc-0.6.7-dev.jar'))) {
+            throw 'Independent NPC JAR did not install'
+          }
+          if (-not (Test-Path -LiteralPath (Join-Path $modDir 'peak-stays-untouched.jar'))) {
+            throw 'NPC installer deleted unrelated PEAK JAR'
+          }
+          & $script -GameDirectory $game -ConfirmInstall
+          if (@(Get-ChildItem $modDir -Directory -Filter 'REME-NPC-backup-*').Count -lt 1) {
+            throw 'Second install did not backup previous standalone NPC'
+          }
+          & $script -GameDirectory $game -CheckOnly
+          Write-Host 'PASS: Windows tested current reme_npc artifact + launcher; PEAK retained; backup and re-install complete.'
