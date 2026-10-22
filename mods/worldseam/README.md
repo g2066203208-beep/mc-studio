@@ -215,3 +215,14 @@ v0.5 的 teleportTo 仍引发原版 ClientboundRespawnPacket/加载界面。本�
 ## 240 次跨维长时间压力测试（独立 CI）
 
 在首轮 v0.10.1 的真实客户端 **24/24** 次穿越通过后，新增独立长时版：软件 OpenGL NeoForge Xvfb 同一进程中在真实挖通的原生三维度连续执行 **60 轮 × 4 段 = 240 次** 玩家无 Respawn 过界。每一次必须有实际客户端/服务端切换且获得本轮生成的盔甲架 UUID；每轮检测原生 Chunk 驻留、第二渲染器 owner 不超过2，记录堆内存峰值、超过250ms/1秒游戏刻间隔及最坏卡顿，在第40/120/180/240次保存截图。崩溃/日志和图片全部作为 Actions Artifact。仅在 CI 的一次性世界执行，不会挖玩家存档里的基岩。原先逐10tick跨界阻塞日志只在单独的 `-Dworldseam.traceCrossings=true` 下输出，避免长时高压测试本身制造不必要的日志 CPU 开销。总时限40分钟；没有 240/240 通过之前不得宣称长时间稳定性完成。
+
+
+## v0.10.2-dev — 远端 16³ 原生 GPU 网格缓存，停止每帧丢弃绝大部分地形
+
+**根本视觉问题**：v0.10.1 的远端 ClientLevel 虽已接收真正 5×5 区块，但在每帧通过 `renderSingleBlock` 最多提交几百～3,500 个方块模型。实际可见表面常超过 50,000 个；这种每帧只画几千个模型的逻辑必然让另一个维度显得像破碎的漂浮方块，且每帧重复 BakedModel 顶点生成、堆外暂存和提交非常耗 CPU。
+
+**实际更改**：新 `SeamGpuSurfaceCache` 在 WorldSeam 当前逐原生 16³ Section 增量扫描结果之上，再把该段的方块模型用 1.21.1 官方 `BufferBuilder`/`MeshData` 编译为独立 `VertexBuffer` 并上传 GPU；每个已就绪 Section 和 RenderType 的 VBO 可以持续多帧重画，**不再有原先 3,500 个/帧的硬性可见模型截断**。动态 RenderType 与其原生 vertex format 保留，避免把第三方 block model 强塞到不兼容的顶点格式。绘制时按真实渲染层恢复 shader/texture/光照状态，非透明层优先，再提交透明层。新的模型 GPU 构建工作按每帧最多两个 section、名义上约 700 个 Cell 限流，附近可见段优先；跨位移动、Chunk 更新、资源清理时精准删除对应旧段 VBO。估算保留上限 96MiB 并按最久不用淘汰，但**这不是实际驱动 VRAM 的硬上限**，模型几何/驱动开销可变。普通世界不会自动动玩家存档。老的逐块绘制仅在开发者显式给 `-Dworldseam.legacyProxy=true` 时启用，用作安全回归开关。
+
+**更严格 GUI 验收**：实际 NeoForge GUI 新增 `WORLDSEAM_E2E_GPU_NATIVE_MESH`，报告已编译区块段、已可见 BlockCell、GPU 绘制调用、几何估算驻留和由此计算的可见表面覆盖率；如果 290 tick 后远端可见表面超过 500、GPU 实际覆盖比例低于 70% 则 E2E **直接失败**，不能再拿“有 3,500 个 End Stone 被渲染”代表视觉完整。F3 中文诊断显示 GPU Resident、覆盖率、绘制调用；原有主世界↔下界 TNT、原生视距区块流、末地和资源释放回归仍保留。
+
+**仍待完善**：这属于一阶段 GPU 缓存绘制，不是完整双 `LevelRenderer.renderLevel` 相机和 FBO 深度模板遮挡合成；远端世界天空、日夜天气、完整液体、TileEntities、实体、Sable 船体以及 Iris/Sodium/Voxy 自定义渲染管线**并未因 VBO 缓存自动完全兼容**。透明方块排序目前也只是按渲染层、并非正确的跨维逐像素排序。必须实际看截图/性能日志、并在后续实现完整跨维原生 world context GPU 合成，才能评价外观与长期兼容性。
