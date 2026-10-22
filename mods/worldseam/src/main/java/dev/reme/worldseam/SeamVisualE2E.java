@@ -196,11 +196,15 @@ public final class SeamVisualE2E {
                 long cells=SeamNativeGeometryClient.gpuDrawnCellEquivalent();
                 int candidates=SeamNativeGeometryClient.visibleBlockCount();
                 double coverage=candidates<=0?0.0:100.0*cells/candidates;
-                LOG.info("WORLDSEAM_E2E_GPU_SETTLED: elapsedTicks={}, nativeGpuSections={}, gpuDrawnCells={}, candidateSurfaceCells={}, frameCoveragePct={}, gpuBakeP95Ms={}",
+                LOG.info("WORLDSEAM_E2E_GPU_SETTLED: elapsedTicks={}, nativeGpuSections={}, gpuDrawnCells={}, candidateSurfaceCells={}, frameCoveragePct={}, gpuBakeP95Ms={}, fluidSurfaceCandidates={}, gpuDrawnFluidCells={}",
                     now-startTick,meshes,cells,candidates,
                     String.format(java.util.Locale.ROOT,"%.1f",coverage),
                     String.format(java.util.Locale.ROOT,"%.3f",
-                        SeamNativeGeometryClient.p95GpuMeshBakeMs()));
+                        SeamNativeGeometryClient.p95GpuMeshBakeMs()),
+                    SeamNativeGeometryClient.countNativeFluidCells(),
+                    SeamNativeGeometryClient.gpuDrawnFluidCells());
+                if(SeamNativeGeometryClient.countNativeFluidCells()==0)
+                    LOG.error("WORLDSEAM_E2E_FAIL_NATIVE_FLUID: known real Nether lava source has zero remote fluid geometry");
                 // A few hundred individual remote models passing old tests
                 // is not adequate visual evidence. Require material GPU
                 // surface coverage after allowing additional bake frames.
@@ -479,6 +483,26 @@ public final class SeamVisualE2E {
             if(nether.setBlock(at,Blocks.GLOWSTONE.defaultBlockState(),3))
                 markers++;
         }
+        // Fluid rendering regression: enclosed REAL Nether lava source
+        // close enough to appear through the Overworld floor window.
+        // It is contained by 3x3 obsidian at Y126 and four walls at 127;
+        // the top is open, exposing a true LavaBlockRenderer fluid face.
+        // CI-only and outside the player's central 3x3 landing shaft.
+        int lavaX=x-4,lavaZ=z+4;
+        for(int ox=-1;ox<=1;ox++)for(int oz=-1;oz<=1;oz++) {
+            at.set(lavaX+ox,126,lavaZ+oz);
+            nether.setBlock(at,Blocks.OBSIDIAN.defaultBlockState(),3);
+            if(Math.abs(ox)+Math.abs(oz)==1) {
+                at.set(lavaX+ox,127,lavaZ+oz);
+                nether.setBlock(at,Blocks.OBSIDIAN.defaultBlockState(),3);
+            }
+        }
+        at.set(lavaX,127,lavaZ);
+        nether.setBlock(at,Blocks.LAVA.defaultBlockState(),3);
+        at.set(lavaX,128,lavaZ);
+        nether.setBlock(at,Blocks.AIR.defaultBlockState(),3);
+        LOG.info("WORLDSEAM_E2E_NATIVE_LAVA_WITNESS: Nether lava at {},Y127,{} with top face visible across Overworld-bottom seam",lavaX,lavaZ);
+
         // The End visual benchmark must use NATURALLY GENERATED island
         // terrain, not a synthetic purpur/sea-lantern frame.
         LOG.info("WORLDSEAM_E2E_END_WITNESS: NO synthetic End blocks created");
