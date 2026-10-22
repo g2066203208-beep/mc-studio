@@ -151,6 +151,7 @@ public class PlayerNpcEntity extends PathfinderMob {
     @Nullable private BlockPos detentionJail;
     private boolean buildEnabled = false;
     private int buildCursor = 0;
+    private SafeBuilder.Template buildTemplate = SafeBuilder.Template.SHELTER;
     private long nextSocialTick = 0;
     @Nullable private UUID ownerUuid;
 
@@ -334,6 +335,14 @@ public class PlayerNpcEntity extends PathfinderMob {
         exploreTarget = pos == null ? null : pos.immutable();
     }
     public int parcelsDelivered() { return parcelsDelivered; }
+    public SafeBuilder.Template buildTemplate() { return buildTemplate; }
+    public void setBuildTemplate(SafeBuilder.Template type) {
+        if (buildTemplate != type) {
+            buildEnabled = false; // switching blueprints cannot replay a half-built building
+            buildCursor = 0;
+            buildTemplate = type;
+        }
+    }
     public boolean buildEnabled() { return buildEnabled; }
     public void setBuildEnabled(boolean enabled) { buildEnabled = enabled; }
     public int buildCursor() { return buildCursor; }
@@ -672,6 +681,7 @@ public class PlayerNpcEntity extends PathfinderMob {
         tag.putInt("NpcDailyShift", dailyShiftTicks);
         tag.putBoolean("NpcBuildEnabled", buildEnabled);
         tag.putInt("NpcBuildCursor", buildCursor);
+        tag.putString("NpcBuildTemplate", buildTemplate.name());
         tag.putInt("NpcDiligence", personality.diligence());
         tag.putInt("NpcSociability", personality.sociability());
         tag.putInt("NpcCaution", personality.caution());
@@ -790,6 +800,10 @@ public class PlayerNpcEntity extends PathfinderMob {
         nextNavRepathTick = 0;
         buildEnabled = tag.getBoolean("NpcBuildEnabled");
         buildCursor = Math.clamp(tag.getInt("NpcBuildCursor"), 0, 100);
+        try { buildTemplate = SafeBuilder.Template.valueOf(tag.getString("NpcBuildTemplate")); }
+        catch (IllegalArgumentException ignored) {
+            buildTemplate = SafeBuilder.Template.SHELTER;
+        }
         setPersonality(new LivingPlanner.Personality(
             Math.clamp(tag.contains("NpcDiligence") ? tag.getInt("NpcDiligence") : 50, 0, 100),
             Math.clamp(tag.contains("NpcSociability") ? tag.getInt("NpcSociability") : 50, 0, 100),
