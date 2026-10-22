@@ -371,7 +371,15 @@ public class PlayerNpcEntity extends PathfinderMob {
     }
     public Profession profession() { return profession; }
     public void setProfession(Profession job) { profession = job; }
-    public void setHomePos(BlockPos pos) { homePos = pos.immutable(); }
+    public void setHomePos(BlockPos pos) {
+        if (!homePos.equals(pos)) {
+            // Moving house invalidates the old bed claim. Wake before moving
+            // so the old physical BedBlock is not left OCCUPIED.
+            if (isSleeping() && !level().isClientSide) stopSleeping();
+            assignedBedPos = null;
+        }
+        homePos = pos.immutable();
+    }
     public void setWorkPos(BlockPos pos) { workPos = pos.immutable(); }
     public BlockPos homePos() { return homePos; }
     @Nullable public BlockPos assignedBedPos() { return assignedBedPos; }
