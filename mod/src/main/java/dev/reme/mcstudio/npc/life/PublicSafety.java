@@ -190,7 +190,7 @@ public final class PublicSafety {
             return false;
         }
         guard.setTarget(null);
-        boolean prisonerAtCell = prisoner.distanceToSqr(Vec3.atCenterOf(jail)) <= 2.5;
+        boolean prisonerAtCell = CityJailRoute.actuallyInCell(prisoner, jail);
         if (prisonerAtCell && guard.distanceToSqr(prisoner) <= 36) {
             guard.getNavigation().stop();
             guard.setAction("on-foot escort completed: prisoner reached REAL iron-bar cell");
@@ -228,17 +228,34 @@ public final class PublicSafety {
             return false;
         }
         suspect.setTarget(null);
-        if (suspect.distanceToSqr(Vec3.atCenterOf(jail)) <= 2.5) {
+        if (CityJailRoute.actuallyInCell(suspect, jail)) {
             CityJailGate.setOpen(level, jail, false);
             suspect.getNavigation().stop();
             suspect.setAction("held at designated iron-bar holding spot until release");
             return true;
         }
-        // Nav to real walkable block, with no chunk loads. No teleport.
+        // Real multi-stage native path, bounded to the existing urban
+        // station. Before this fix the NPC stalled 4 blocks south of the
+        // cell because it kept routing DIRECTLY into the solid station wall.
         if (MovementPolicy.due(tick, suspect.getId(), 10)) {
-            suspect.getNavigation().moveTo(jail.getX() + 0.5, jail.getY(),
-                jail.getZ() + 0.5, 0.96);
-            suspect.setAction("walking under custody to the existing local holding cell");
+            BlockPos waypoint = CityJailRoute.nextPhysicalWaypoint(suspect, level, jail);
+            if (level.hasChunkAt(waypoint) && level.hasChunkAt(waypoint.below())
+                && level.getBlockState(waypoint.below()).isSolid()) {
+                boolean requested = suspect.getNavigation().moveTo(
+                    waypoint.getX() + 0.5, waypoint.getY(),
+                    waypoint.getZ() + 0.5, 0.96);
+                suspect.setAction("physically escorting via police station route "
+                    + waypoint.toShortString() + (requested ? "" : "; route not found"));
+                if (MovementPolicy.due(tick, suspect.getId(), 80)) {
+                    System.out.println("REME_NPC_JAIL_ROUTE tick=" + tick
+                        + " prisoner=" + suspect.getUUID()
+                        + " actual=" + suspect.blockPosition().toShortString()
+                        + " destination=" + waypoint.toShortString()
+                        + " pathAccepted=" + requested
+                        + " navDone=" + suspect.getNavigation().isDone()
+                        + " ironGateOpen=" + CityJailGate.isOpen(level, jail));
+                }
+            } else suspect.setAction("jail escort blocked: real waypoint unsafe or unloaded");
         }
         return true;
     }
