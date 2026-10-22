@@ -51,6 +51,9 @@ jobs:
           grep -F 'REME_NPC_STORY stage=nonlethal_arrest' npc-real-store-crime-gametest.log
           grep -F 'REME_NPC_STORY stage=jail_reached' npc-real-store-crime-gametest.log
           grep -F 'REME_NPC_PHYSICAL_JAIL_WALK ticks=210' npc-real-store-crime-gametest.log
+          # This separate test never stages prisoner/police positions after theft;
+          # require full REAL-city walking, arrest, iron-door closure.
+          grep -F 'REME_NPC_UNSTAGED_CITY_FULL_CHAIN' npc-real-store-crime-gametest.log
           grep -F 'REME_NPC_REAL_BED_DAYSOAK ticks=24000' npc-real-store-crime-gametest.log
           grep -E 'All [0-9]+ required tests passed' npc-real-store-crime-gametest.log
       - name: Always preserve unmodified real Minecraft log and save evidence
