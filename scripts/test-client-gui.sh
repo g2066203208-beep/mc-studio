@@ -190,14 +190,20 @@ if [[ "${REME_CITY_VISUAL:-0}" == "1" ]]; then
   import -window root client-gui-city-npc-guard-closeup.png
   say_city '/execute at @e[type=reme_studio:player_npc,tag=reme_city_clerk,limit=1] run tp @s ~ ~2 ~4 facing entity @e[type=reme_studio:player_npc,tag=reme_city_clerk,limit=1] eyes' 6
   import -window root client-gui-city-npc-shopkeeper-closeup.png
-  # Follow a REAL individual for multiple game seconds; note that images
-  # prove position/visuals, while unpaid/paid amounts come only from server
-  # inventory-based NeoForge tests and REME_NPC_STORY trace transitions.
-  say_city '/execute at @e[type=reme_studio:player_npc,tag=reme_city_shoplifter,limit=1] run tp @s ~ ~2 ~5 facing entity @e[type=reme_studio:player_npc,tag=reme_city_shoplifter,limit=1] eyes' 8
+  # REAL MOD CAMERA: the target UUID is retained across frames. The
+  # spectator alone moves continuously; NPC AI is not teleported/paused.
+  say_city '/npc camera chase shoplifter' 8
   import -window root client-gui-city-shoplifter-t0.png
-  sleep 15
-  say_city '/execute at @e[type=reme_studio:player_npc,tag=reme_city_shoplifter,limit=1] run tp @s ~ ~2 ~5 facing entity @e[type=reme_studio:player_npc,tag=reme_city_shoplifter,limit=1] eyes' 8
+  sleep 14
   import -window root client-gui-city-shoplifter-t1.png
+  sleep 14
+  import -window root client-gui-city-shoplifter-t2.png
+  say_city '/npc camera stop' 3
+  say_city '/npc camera pov guard' 5
+  import -window root client-gui-city-guard-native-possession.png
+  sleep 8
+  import -window root client-gui-city-guard-native-possession-t1.png
+  say_city '/npc camera stop' 3
   say_city '/npc city audit' 4
   import -window root client-gui-city-live-audit.png
   say_city '/npc market' 4
@@ -215,6 +221,15 @@ if [[ "${REME_CITY_VISUAL:-0}" == "1" ]]; then
     echo 'FAIL: GUI real city did not spawn the 12 citizen entities'
     exit 1
   fi
+  if ! grep -q '已连续跟踪真实NPC' "$log"; then
+    echo "FAIL: true integrated spectator camera never attached to actual resident"; exit 1
+  fi
+  if ! grep -q 'NPC镜头已解除附身/追踪' "$log"; then
+    echo "FAIL: live NPC camera could not detach"; exit 1
+  fi
+  for frame in client-gui-city-shoplifter-t0.png client-gui-city-shoplifter-t1.png client-gui-city-shoplifter-t2.png client-gui-city-guard-native-possession.png; do
+    test -s "$frame" || { echo "FAIL: missing native moving follow camera RGB frame $frame"; exit 1; }
+  done
   if ! grep -q '城市治安直播统计' "$log"; then
     echo "FAIL: live in-client police/store register audit missing"; exit 1
   fi
