@@ -41,6 +41,7 @@ public final class SeamGpuSectionRenderer {
     public record Section(Key key,int originX,int originY,int originZ,
                           AABB bounds,List<Cell> cells) {}
     private record Layer(RenderType renderType,VertexBuffer buffer) {}
+    private record DrawTask(Section section,Layer layer) {}
     private record Cached(Section section,List<Layer> layers) {
         void close() { for(var layer:layers)layer.buffer().close(); }
     }
@@ -174,6 +175,12 @@ public final class SeamGpuSectionRenderer {
         lastFrameModelsVisible=0;
         lastFrameEndStoneModels=0;
         var projection=RenderSystem.getProjectionMatrix();
+
+        // Order by RENDER TYPE before submitting GPU draws. The first
+        // prototype switched texture, shader and blend states hundreds of
+        // times each frame (one switch per section x layer). Grouping cuts
+        // these expensive switches to one per actual RenderType.
+        var passes=new LinkedHashMap<RenderType,List<DrawTask>>();
         for(var section:visible) {
             var cached=loaded.get(section.key());
             if(cached==null) {lastFrameUncachedSections++;continue;}
@@ -182,25 +189,38 @@ public final class SeamGpuSectionRenderer {
             for(var c:section.cells())
                 if(c.state().is(net.minecraft.world.level.block.Blocks.END_STONE))
                     lastFrameEndStoneModels++;
-            // The models are in local 16^3 coordinates. Translate using the
-            // exact seam-mapped world position and CURRENT camera every frame.
-            Matrix4f matrix=new Matrix4f(pose.last().pose()).translate(
-                (float)(section.originX()-camera.x),
-                (float)(section.originY()-camera.y),
-                (float)(section.originZ()-camera.z));
-            for(var layer:cached.layers()) {
-                RenderType type=layer.renderType();
-                type.setupRenderState();
-                try {
-                    var shader=RenderSystem.getShader();
-                    if(shader==null)continue;
-                    layer.buffer().bind();
-                    layer.buffer().drawWithShader(matrix,projection,shader);
+            for(var layer:cached.layers())
+                passes.computeIfAbsent(layer.renderType(),k->new ArrayList<>())
+                    .add(new DrawTask(section,layer));
+        }
+        var types=new ArrayList<>(passes.keySet());
+        types.sort(Comparator.comparing(type->type.sortOnUpload()));
+        for(var type:types) {
+            var tasks=passes.get(type);
+            if(type.sortOnUpload()) {
+                // Blend the distant translucent sections first. Individual
+                // quads are still static and need future re-sorting support.
+                tasks.sort(Comparator.comparingDouble(
+                    (DrawTask task)->distanceSq(task.section().bounds(),camera))
+                    .reversed());
+            }
+            type.setupRenderState();
+            try {
+                var shader=RenderSystem.getShader();
+                if(shader==null)continue;
+                for(var task:tasks) {
+                    Section section=task.section();
+                    Matrix4f matrix=new Matrix4f(pose.last().pose()).translate(
+                        (float)(section.originX()-camera.x),
+                        (float)(section.originY()-camera.y),
+                        (float)(section.originZ()-camera.z));
+                    task.layer().buffer().bind();
+                    task.layer().buffer().drawWithShader(matrix,projection,shader);
                     drawCalls++;
-                } finally {
-                    VertexBuffer.unbind();
-                    type.clearRenderState();
                 }
+            } finally {
+                VertexBuffer.unbind();
+                type.clearRenderState();
             }
         }
     }
