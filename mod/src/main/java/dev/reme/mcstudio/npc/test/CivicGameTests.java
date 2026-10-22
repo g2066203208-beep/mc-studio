@@ -22,6 +22,7 @@ import dev.reme.mcstudio.npc.life.EmergentSettlements;
 import dev.reme.mcstudio.npc.life.BanditActions;
 import dev.reme.mcstudio.npc.life.PublicSafety;
 import dev.reme.mcstudio.npc.life.ShopCounter;
+import dev.reme.mcstudio.npc.life.CivicWorkplaces;
 import dev.reme.mcstudio.npc.life.LivingWorldActions;
 import dev.reme.mcstudio.npc.life.LivingPlanner;
 import dev.reme.mcstudio.npc.life.CaravanRoutes;
@@ -1484,6 +1485,104 @@ public final class CivicGameTests {
                 helper.fail("Meal planner invented food in NPC inventory", ore);
             else helper.succeed();
         });
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 100)
+    public static void real_seven_workplace_classification_requires_actual_blocks_not_names(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos center = helper.absolutePos(new BlockPos(4, 9, 4));
+        level.setBlock(center.west(), Blocks.CHEST.defaultBlockState(), 3);
+        level.setBlock(center.east(), Blocks.BARREL.defaultBlockState(), 3);
+        var survey = CivicWorkplaces.inspect(level, center);
+        if (survey.type() != CivicWorkplaces.Type.SHOP
+            || survey.indoorBuilding()
+            || !CivicWorkplaces.matchesProfession(survey.type(),
+                PlayerNpcEntity.Profession.SHOPKEEPER))
+            throw new AssertionError("Bare shop counter misclassified as a finished roofed building");
+        for (int x = -1; x <= 1; x++)
+            level.setBlock(center.offset(x, 3, 0),
+                Blocks.OAK_PLANKS.defaultBlockState(), 3);
+        // Only a complete two-block door qualifies (lower and upper).
+        level.setBlock(center.north(), Blocks.OAK_DOOR.defaultBlockState(), 3);
+        if (CivicWorkplaces.inspect(level, center).indoorBuilding())
+            throw new AssertionError("Single fake door half qualified as complete shop building");
+        level.setBlock(center.north().above(),
+            Blocks.OAK_DOOR.defaultBlockState()
+                .setValue(net.minecraft.world.level.block.DoorBlock.HALF,
+                    net.minecraft.world.level.block.state.properties.DoubleBlockHalf.UPPER), 3);
+        if (!CivicWorkplaces.inspect(level, center).indoorBuilding())
+            throw new AssertionError("Real roof + actual double door not recognized as building");
+        level.setBlock(center.east(), Blocks.AIR.defaultBlockState(), 3);
+        if (CivicWorkplaces.inspect(level, center).type() != CivicWorkplaces.Type.UNASSIGNED)
+            throw new AssertionError("Worksite named shop without its real barrel");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 100)
+    public static void staffed_store_fetches_only_existing_goods_from_authorized_real_chest(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos pos = helper.absolutePos(new BlockPos(4, 9, 4));
+        BlockPos chestPos = pos.east();
+        level.setBlock(chestPos, Blocks.CHEST.defaultBlockState(), 3);
+        if (!(level.getBlockEntity(chestPos) instanceof ChestBlockEntity source))
+            throw new AssertionError("Shop source must be an actual chest");
+        source.setItem(0, new ItemStack(Items.APPLE, 10));
+        PlayerNpcEntity clerk = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (clerk == null) throw new AssertionError("NPC registry missing");
+        clerk.moveTo(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5, 0, 0);
+        clerk.setHomePos(pos);
+        clerk.setWorkPos(pos);
+        clerk.setProfession(PlayerNpcEntity.Profession.SHOPKEEPER);
+        clerk.setMode(PlayerNpcEntity.Mode.LIVE);
+        if (!level.addFreshEntity(clerk)) throw new AssertionError("No real store employee");
+        if (ShopCounter.restock(clerk, level) != 0
+            || source.countItem(Items.APPLE) != 10)
+            throw new AssertionError("Unapproved nearby chest was looted");
+        clerk.setShopStockChest(chestPos);
+        if (ShopCounter.restock(clerk, level) != 8
+            || source.countItem(Items.APPLE) != 2
+            || clerk.backpack().countItem(Items.APPLE) != 8)
+            throw new AssertionError("Real shop stocking did not conserve exactly 10 apples");
+        CompoundTag save = new CompoundTag();
+        clerk.addAdditionalSaveData(save);
+        PlayerNpcEntity restored = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (restored == null) throw new AssertionError("Cannot reload shop staff");
+        restored.readAdditionalSaveData(save);
+        if (!chestPos.equals(restored.shopStockChest())
+            || restored.backpack().countItem(Items.APPLE) != 8)
+            throw new AssertionError("Stock chest authorization/physical goods lost on NBT save");
+        clerk.setShopStockChest(null);
+        if (ShopCounter.restock(clerk, level) != 0
+            || source.countItem(Items.APPLE) != 2)
+            throw new AssertionError("Clear authorization did not block later withdrawals");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 100)
+    public static void full_employee_inventory_cannot_duplicate_or_destroy_shop_supply(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos pos = helper.absolutePos(new BlockPos(4, 9, 4));
+        BlockPos chestPos = pos.east();
+        level.setBlock(chestPos, Blocks.CHEST.defaultBlockState(), 3);
+        if (!(level.getBlockEntity(chestPos) instanceof ChestBlockEntity chest))
+            throw new AssertionError("Missing real chest block entity");
+        chest.setItem(0, new ItemStack(Items.BREAD, 13));
+        PlayerNpcEntity clerk = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (clerk == null) throw new AssertionError("Missing NPC");
+        clerk.moveTo(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5, 0, 0);
+        clerk.setHomePos(pos);
+        clerk.setWorkPos(pos);
+        clerk.setProfession(PlayerNpcEntity.Profession.SHOPKEEPER);
+        clerk.setMode(PlayerNpcEntity.Mode.LIVE);
+        clerk.setShopStockChest(chestPos);
+        for (int i=0; i<clerk.backpack().getContainerSize(); i++)
+            clerk.backpack().setItem(i, new ItemStack(Items.DIRT, 64));
+        if (!level.addFreshEntity(clerk)) throw new AssertionError("Clerk not spawned");
+        if (ShopCounter.restock(clerk, level) != 0
+            || chest.countItem(Items.BREAD) != 13
+            || clerk.backpack().countItem(Items.BREAD) != 0)
+            throw new AssertionError("Full NPC backpack caused item loss/duplication");
+        helper.succeed();
     }
 
 }
