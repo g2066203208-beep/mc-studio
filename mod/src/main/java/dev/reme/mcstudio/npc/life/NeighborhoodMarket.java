@@ -38,12 +38,8 @@ public final class NeighborhoodMarket {
     }
 
     private static boolean openShop(PlayerNpcEntity seller, long tick) {
-        return seller.profession() == PlayerNpcEntity.Profession.SHOPKEEPER
-            && seller.mode() == PlayerNpcEntity.Mode.LIVE
-            && seller.isAlive() && !seller.isSleeping()
-            && !seller.isAfraid(tick) && !seller.isDetained(tick)
-            && seller.intent() == LivingPlanner.Intent.WORK
-            && seller.blockPosition().distSqr(seller.workPos()) <= 9;
+        return ShopCounter.openForResidentSales(seller)
+            && !seller.isAfraid(tick) && !seller.isDetained(tick);
     }
 
     /**
