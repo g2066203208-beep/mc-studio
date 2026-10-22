@@ -1,38 +1,34 @@
-# HMCL 真正安装/客户端验收门禁 (v0.5.4)
+# REME NPC v0.6.3-dev — HMCL 游戏内验收
 
-本阶段目标是**解决用户截图中 `/npc` 根命令未知**。此前所有 GameTest 都是 GitHub 的服务器环境，不能证明 JAR 已经安装进用户 HMCL 当前实例。真实用户尚未确认已成功运行。
+这是一份随本次安装包实际打包的说明。支持 Minecraft Java 1.21.1、NeoForge 21.1.248 及更高同系列版本、Java 21。modId = reme_studio。**实验版本，并非完整 NPC 文明系统。**
 
-## 安装包
-成功构建后，将 `mod/build/libs/reme_studio-0.5.4-dev.jar` 与 `packaging/Install-REME-NPC.cmd` / `packaging/Install-REME-NPC.ps1` 放在同一 ZIP 根目录。**完整解压**，关闭 Minecraft，双击 `Install-REME-NPC.cmd`，选择 HMCL 当前选中版本的“游戏目录”，明确输入 `INSTALL` 确认。
+## 正确安装
+1. 关闭 Minecraft，第一次在新建的创造模式世界测试，不要使用唯一的正式存档。
+2. 完整解压下载的 GitHub Actions ZIP（注意 Actions 的 ZIP 外面可能还有一层 ZIP），直至看到 reme_studio-0.6.3-dev.jar、Install-REME-NPC.cmd、Install-REME-NPC.ps1、README.txt。
+3. 手动安装：只把这个 JAR 放到 HMCL **当前选中的 NeoForge 1.21.1 版本的实际游戏目录** 的 mods 内。使用版本隔离时，不能放到猜测的全局 .minecraft/mods。必须先备份旧 reme_studio JAR，确保只剩一个版本。
+4. 或解压后运行 Install-REME-NPC.cmd，选对游戏目录，确认 INSTALL；脚本会先备份相同 modId 的老版本，不碰存档。
+5. 重启该实例。Mods 页面应显示 REME MC Studio v0.6.3-dev。
 
-脚本：
-- 自动解压/读取 JAR 的 `META-INF/neoforge.mods.toml`，验证 modId 必须是 `reme_studio`；
-- 仅在用户明确确认所选目录后，扫描该目录 `mods` 下 JAR 的 **真实 modId**，将过去的 REME JAR 移到 `mods/REME-backup-时间`，不会删除个人存档；
-- 安装新 JAR，验证 SHA-256 一致，并检查仅有一份 REME 安装；
-- 提示重启当前实例，看 Mod 列表与登录消息；任何报错优先打开当前实例 `logs/latest.log`。
+## 新世界的五步真实测试
+(1) 输入 /remecheck：**无作弊也能用**；必须看到 /npc registered=true 和 v0.6.3-dev。如果命令未知，即这个实例没有正确载入 Mod，不必再尝试其他功能。
+(2) 开作弊后输入 /npc spawn TestNPC：应该真正出现可见 NPC，/npc info 返回状态，空手右键对话；Shift 空手右键**自己的** NPC 打开36格背包。
+(3) 输入 /npc demo：生成六名 NPC；/npc settlement：附近确有三户不同住址时显示聚落，但不会凭空生成村庄建筑。
+(4) 店员验证：靠近自己的 NPC，输入 /npc shopkeeper、/npc setwork；拿着面包正常右键给店员补入真实背包，再拿绿宝石右键，一个绿宝石买一份现有面包/苹果/胡萝卜。没货、背包满就不能成交。**没有自动生成便利店建筑。**
+(5) /npc info 观察真实工作/饥饿/精力。守卫需要真实敌人或巡逻点，农民要成熟作物，运输员要两座已加载的原版箱子，否则他们不会凭空生产出职业活动。
 
-风险：HMCL 会有版本隔离，不能从桌面路径猜测正确 `mods` 文件夹。脚本**不会**擅自自动猜选版本，也不会修改任何世界存档。PowerShell 静态检查不是 Windows GUI 安装验收，用户必须确认目录。
+## 重要能力边界
+- 真实玩家同等能力：目前可见的 NPC 仍是 PathfinderMob。独立 RealNpcServerPlayer 仅为未登录/未加入 PlayerList 的隔离原型。外部 Player Animator/PAL/3D Skin Layers 等不保证直接生效。
+- 野外自然刷新规则已注册于部分主世界地表生物群系，但不会保证玩家站在某处立即刷出 NPC；局部72格上限4人。
+- 报警/监狱：仅支持真实 NPC 商队抢劫、受害者举报、附近守卫调查，以及管理员指定的铁栏杆拘留点；没有完整城市场景与司法系统。管理员看着真实铁栏杆运行 /npc jail set。
+- 部分皮肤没有真正双层服饰，所有原画与 3D 挤出美术目标尚未达到；发布时仍标为研发阶段。
 
-## 游戏验收
-1. 进入 HMCL 当前选中 NeoForge 1.21.1，Mods 页面能找到 REME MC Studio，日志有 `REME NPC 0.5.2: MOD CONSTRUCTED`（基于 v0.5.2 源码的日志文案）。
-2. 新建可作弊创造模式测试世界，进入时应该有 REME NPC 系统消息。
-3. 不需要作弊的 `/remecheck` 必须报告 `/npc registered=true`。
-4. `/npc spawn` 必须生成可见的 NPC，空手右键对话，Shift 空手右键打开 36 槽背包。
-5. `/npc demo` 必须真实创建六人。挑一个农民，给它成熟农田/食物，再观察 `/npc info`。
-6. 停止加载、存档重启后 `/npc info` 和人格/NBT 正常。必须实际核对，不以单纯服务器 GameTest 代替。
-7. 再测自然生成、20/50/100 NPC TPS、其他模组兼容。未完成测试前保持 PR 草稿。
+## 不能用构建成功替代的验证
+NeoForge GameTestServer 断言实际方块/物品/实体、居民身份、工作、店员售卖及犯罪状态；真正图形客户端通过 GitHub Actions Xvfb 启动进入单人世界，测试 /remecheck、/npc spawn、/npc demo、聚落、实际挖矿和 NPC 拾取。**尚未用真人鼠标实际点击店员完成交易、观测牢房内完整押送、测试你的 HMCL 整合包、200 NPC 长时间 TPS。**
 
-## 开源参考
-研究具体源码见 `docs/OPEN_SOURCE_NPC_CODE_AUDIT.md`，GoalScheduler、Kithkyn RoamGoal、MCA Reborn VillagerBrain、MineColonies TickRateStateMachine，不抄代码，仅取任务生命周期/导航状态/失败恢复的设计。
+证据：
+- GameTest 44/44 https://github.com/g2066203208-beep/mc-studio/actions/runs/39707816385
+- 实际游戏客户端 + 截图 https://github.com/g2066203208-beep/mc-studio/actions/runs/39707811628
+- Windows HMCL 模拟安装 https://github.com/g2066203208-beep/mc-studio/actions/runs/39707816422
+- 独立草稿 PR https://github.com/g2066203208-beep/mc-studio/pull/65
 
-## 2026-10-21 v0.5.4 客户端真正进世界验收（首次完成）
-
-- JAR 源提交 `e469663d8c648e22cdd26d339c5f3ca0f14665c9`；`226220f3d52c015c859bc39662881532674d3274` 只改图形客户端测试脚本。
-- **Minecraft 1.21.1 + NeoForge 21.1.248 原生图形客户端**：GitHub Linux Xvfb/Openbox 用真实鼠标键盘 `xdotool` 完成首次辅助功能引导、点击 Singleplayer、打开新世界设置、开启 Allow Commands、点击 Create New World、启动集成游戏服务器；实际世界进入成功，非仅启动菜单。
-- [实际图形客户端运行 39545260822](https://github.com/g2066203208-beep/mc-studio/actions/runs/39545260822) SUCCESS；artifact `12321243417` 含 11 张真实截图和 `client-gui.log`, `run/logs/latest.log`。日志 `Dev ... logged in with entity id`、`REME NPC: /npc present on dispatcher`。
-- 在该真实世界，模拟键盘输入 `/remecheck`，聊天栏显示 `/npc registered=true`；`/npc spawn` 成功，在客户端渲染出 Steve 模型 NPC；`/npc info` 真正回显饥饿、精力、社交、意图与区域；`/npc demo` 生成 6 名各有姓名和职业的居民，画面可见多个实体；`/time set night` 真实切夜且画面中的居民仍在。**这次截图由实际游戏窗口截取，非 AI 图像或服务端模拟。**
-- NeoForge GameTest [39545266331](https://github.com/g2066203208-beep/mc-studio/actions/runs/39545266331) SUCCESS，**13/13 required tests**，含服务端 FakePlayer 空手右键属于自己的 NPC，确认问候记忆实际增加。**没有用 Xvfb 图形鼠标手工右键并打开背包界面**。
-- **真实 Windows PowerShell 安装测试** [39545266342](https://github.com/g2066203208-beep/mc-studio/actions/runs/39545266342) SUCCESS：非交互干运行不改 mods、备份重命名旧版 REME、不误删其他 Mod、新版安装 hash 校验通过。
-- Java21 + NeoForge 编译及双 ZIP artifact [39545266219](https://github.com/g2066203208-beep/mc-studio/actions/runs/39545266219) SUCCESS，installer artifact `12321820441`，ZIP `REME-NPC-HMCL-v0.5.4-installer.zip`，完整解压得到 `Install-REME-NPC.cmd`、`Install-REME-NPC.ps1`、`README.txt`、`reme_studio-0.5.4-dev.jar`。JAR 128021 bytes, SHA256 `c31c085d490d3a60353ae4ffd098c1d9736a6dd6b027d40b09b9cf2a5c277568`，已解包并确认元数据 ModID=reme_studio，version 0.5.4-dev。
-- **尚未完成**：用户自己的 HMCL 游戏实例是否已经载入正确版本、222 Mod 整合包兼容性、真实 GUI 右键与背包窗口、长时间自然生成/数日行为、床/工作台 POI、充分的生活生产、20/50/100/200 NPC TPS。不得以已进入 CI 测试世界推论“所有人环境可用”。
-- 已发现轻微文案问题：v0.5.4 Mod 元数据正确，但部分自检/登录提示仍显示旧 `v0.5.2`，只是字符串未更新，不应误当实际安装的 JAR 版本；以模组界面的 Mod 版本和文件 SHA 为准。
+若 /remecheck 未知、启动崩溃或 NPC 没动作：把当前 HMCL 实例 Mods 页面和该实例 logs/latest.log 发来，可以辨别未装正确目录、版本冲突、实际 NPC AI 出错。安装器脚本不能自己推断你的本机版本路径。

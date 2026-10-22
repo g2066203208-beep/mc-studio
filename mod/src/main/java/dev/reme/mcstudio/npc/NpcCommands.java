@@ -43,7 +43,7 @@ public final class NpcCommands {
                 boolean ready = ctx.getSource().getServer().getCommands()
                     .getDispatcher().getRoot().getChild("npc") != null;
                 ctx.getSource().sendSuccess(() -> Component.literal(
-                    "REME NPC v0.6.2-dev active; /npc registered=" + ready
+                    "REME NPC v0.6.3-dev active; /npc registered=" + ready
                     + ". If /npc spawn is denied, enable cheats or operator privileges."),
                     false);
                 return 1;
@@ -51,7 +51,7 @@ public final class NpcCommands {
         event.getDispatcher().register(Commands.literal("npc")
             .executes(ctx -> {
                 ctx.getSource().sendSuccess(() -> Component.literal(
-                    "REME NPC v0.6.2-dev: /npc info, /npc spawn (cheats required), /npc demo (cheats required)"),
+                    "REME NPC v0.6.3-dev: /npc info, /npc spawn (cheats required), /npc demo (cheats required)"),
                     false);
                 return 1;
             })
@@ -72,6 +72,7 @@ public final class NpcCommands {
             .then(Commands.literal("live").executes(ctx -> changeMode(ctx.getSource(), PlayerNpcEntity.Mode.LIVE)))
             .then(Commands.literal("farmer").executes(ctx -> profession(ctx.getSource(), PlayerNpcEntity.Profession.FARMER)))
             .then(Commands.literal("baker").executes(ctx -> profession(ctx.getSource(), PlayerNpcEntity.Profession.BAKER)))
+            .then(Commands.literal("shopkeeper").executes(ctx -> profession(ctx.getSource(), PlayerNpcEntity.Profession.SHOPKEEPER)))
             .then(Commands.literal("resident").executes(ctx -> profession(ctx.getSource(), PlayerNpcEntity.Profession.RESIDENT)))
             .then(Commands.literal("scout").executes(ctx -> profession(ctx.getSource(), PlayerNpcEntity.Profession.SCOUT)))
             .then(Commands.literal("courier").executes(ctx -> profession(ctx.getSource(), PlayerNpcEntity.Profession.COURIER)))

@@ -21,7 +21,7 @@ public final class StudioMod {
         modBus.addListener(NaturalResidentSpawn::register);
         NeoForge.EVENT_BUS.addListener(NpcCommands::register);
         NeoForge.EVENT_BUS.addListener(StudioMod::onPlayerLogin);
-        LogUtils.getLogger().info("REME NPC 0.5.2: MOD CONSTRUCTED; on player login will check /npc command");
+        LogUtils.getLogger().info("REME NPC 0.6.3-dev: MOD CONSTRUCTED; on player login will check /npc command");
     }
     private static void onPlayerLogin(PlayerEvent.PlayerLoggedInEvent event) {
         if (!(event.getEntity() instanceof ServerPlayer player)) return;
@@ -29,8 +29,8 @@ public final class StudioMod {
         boolean commandsAvailable = server != null &&
             server.getCommands().getDispatcher().getRoot().getChild("npc") != null;
         String status = commandsAvailable
-            ? "REME NPC v0.5.9-dev loaded; /npc registered. Use /npc spawn (cheats enabled)."
-            : "REME NPC v0.5.9-dev loaded, but /npc command MISSING. Send logs/latest.log.";
+            ? "REME NPC v0.6.3-dev loaded; /npc registered. Use /npc spawn (cheats enabled)."
+            : "REME NPC v0.6.3-dev loaded, but /npc command MISSING. Send logs/latest.log.";
         player.sendSystemMessage(Component.literal(status));
         if (!commandsAvailable)
             LogUtils.getLogger().error("REME NPC: COMMAND REGISTRATION MISSING despite Mod loaded");

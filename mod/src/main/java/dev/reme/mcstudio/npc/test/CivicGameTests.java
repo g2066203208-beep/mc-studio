@@ -21,6 +21,9 @@ import dev.reme.mcstudio.npc.life.EmergentFootpaths;
 import dev.reme.mcstudio.npc.life.EmergentSettlements;
 import dev.reme.mcstudio.npc.life.BanditActions;
 import dev.reme.mcstudio.npc.life.PublicSafety;
+import dev.reme.mcstudio.npc.life.ShopCounter;
+import dev.reme.mcstudio.npc.life.LivingWorldActions;
+import dev.reme.mcstudio.npc.life.LivingPlanner;
 import dev.reme.mcstudio.npc.life.CaravanRoutes;
 import net.minecraft.world.level.block.entity.ChestBlockEntity;
 import dev.reme.mcstudio.npc.life.SettlementLedger;
@@ -1383,6 +1386,132 @@ public final class CivicGameTests {
         if (level.getServer().getPlayerList().getPlayer(suspect.getUUID()) != null)
             throw new AssertionError("Criminal NPC incorrectly treated as logged-in human");
         helper.succeed();
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 100)
+    public static void staffed_convenience_shop_sells_only_real_food_and_keeps_real_emerald(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos pos = helper.absolutePos(new BlockPos(4, 9, 4));
+        PlayerNpcEntity clerk = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (clerk == null) throw new AssertionError("Shopkeeper registry missing");
+        clerk.moveTo(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5, 0, 0);
+        clerk.setProfession(PlayerNpcEntity.Profession.SHOPKEEPER);
+        clerk.setMode(PlayerNpcEntity.Mode.LIVE);
+        clerk.backpack().addItem(new ItemStack(Items.BREAD, 2));
+        if (!level.addFreshEntity(clerk)) throw new AssertionError("Real clerk not spawned");
+        var buyer = FakePlayerFactory.getMinecraft(level);
+        buyer.moveTo(pos.getX() + 1.5, pos.getY(), pos.getZ() + 0.5, 0, 0);
+        buyer.getInventory().clearContent();
+        buyer.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.EMERALD, 1));
+        if (!ShopCounter.purchase(clerk, buyer, buyer.getMainHandItem())
+            || clerk.backpack().countItem(Items.BREAD) != 1
+            || clerk.backpack().countItem(Items.EMERALD) != 1
+            || buyer.getInventory().countItem(Items.BREAD) != 1
+            || buyer.getInventory().countItem(Items.EMERALD) != 0)
+            throw new AssertionError("Shop duplicated stock/emerald or failed actual transaction");
+        // A customer with no emerald cannot mint food.
+        if (ShopCounter.purchase(clerk, buyer, buyer.getMainHandItem())
+            || clerk.backpack().countItem(Items.BREAD) != 1)
+            throw new AssertionError("Shop granted free food without genuine currency");
+        helper.succeed();
+    }
+
+    /** Real in-world interaction entrypoint: the NPC actually receives a
+     * human Player right-click, not merely a direct ShopCounter.purchase call.
+     */
+    @GameTest(template = "empty", timeoutTicks = 100)
+    public static void shopkeeper_actual_player_right_click_consumes_emerald_and_delivers_real_bread(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos pos = helper.absolutePos(new BlockPos(4, 9, 4));
+        PlayerNpcEntity shop = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (shop == null) throw new AssertionError("No NPC shop entity");
+        shop.moveTo(pos.getX() + .5, pos.getY(), pos.getZ() + .5, 0, 0);
+        shop.setProfession(PlayerNpcEntity.Profession.SHOPKEEPER);
+        shop.setMode(PlayerNpcEntity.Mode.LIVE);
+        shop.backpack().addItem(new ItemStack(Items.BREAD, 2));
+        if (!level.addFreshEntity(shop)) throw new AssertionError("NPC shop entity not in actual world");
+        var customer = FakePlayerFactory.getMinecraft(level);
+        customer.getInventory().clearContent();
+        customer.moveTo(pos.getX() + 1.5, pos.getY(), pos.getZ() + .5, 0, 0);
+        customer.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.EMERALD, 1));
+        if (!shop.interact(customer, InteractionHand.MAIN_HAND).consumesAction())
+            throw new AssertionError("Player right-click did not invoke real NPC merchant interaction");
+        if (customer.getInventory().countItem(Items.BREAD) != 1
+            || customer.getInventory().countItem(Items.EMERALD) != 0
+            || shop.backpack().countItem(Items.EMERALD) != 1
+            || shop.backpack().countItem(Items.BREAD) != 1)
+            throw new AssertionError("Real player click failed to transfer food and payment without duplication");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 100)
+    public static void full_cash_drawer_prevents_shop_transaction_without_loss(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos pos = helper.absolutePos(new BlockPos(4, 9, 4));
+        PlayerNpcEntity clerk = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (clerk == null) throw new AssertionError("No shop NPC");
+        clerk.moveTo(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5, 0, 0);
+        clerk.setProfession(PlayerNpcEntity.Profession.SHOPKEEPER);
+        clerk.setMode(PlayerNpcEntity.Mode.LIVE);
+        clerk.backpack().setItem(0, new ItemStack(Items.BREAD, 2));
+        for (int i = 1; i < clerk.backpack().getContainerSize(); i++)
+            clerk.backpack().setItem(i, new ItemStack(Items.DIRT, 64));
+        if (!level.addFreshEntity(clerk)) throw new AssertionError("Cannot spawn actual storekeeper");
+        var buyer = FakePlayerFactory.getMinecraft(level);
+        buyer.getInventory().clearContent();
+        buyer.moveTo(pos.getX() + 1.5, pos.getY(), pos.getZ() + 0.5, 0, 0);
+        buyer.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.EMERALD, 1));
+        if (ShopCounter.purchase(clerk, buyer, buyer.getMainHandItem())
+            || clerk.backpack().countItem(Items.BREAD) != 2
+            || clerk.backpack().countItem(Items.EMERALD) != 0
+            || buyer.getInventory().countItem(Items.EMERALD) != 1
+            || buyer.getInventory().countItem(Items.BREAD) != 0)
+            throw new AssertionError("Shop lost or duplicated items despite a full real payment drawer");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 100)
+    public static void no_food_at_mealtime_does_not_stall_real_authorized_mining(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos ore = helper.absolutePos(new BlockPos(4, 9, 4));
+        BlockPos stand = ore.east(2);
+        for (int x = -2; x <= 4; x++) for (int z = -2; z <= 2; z++) {
+            BlockPos ground = ore.offset(x, -1, z);
+            level.setBlock(ground, Blocks.STONE.defaultBlockState(), 3);
+            level.setBlock(ground.above(), Blocks.AIR.defaultBlockState(), 3);
+            level.setBlock(ground.above(2), Blocks.AIR.defaultBlockState(), 3);
+        }
+        level.setBlock(ore, Blocks.STONE.defaultBlockState(), 3);
+        PlayerNpcEntity miner = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (miner == null) throw new AssertionError("No hungry miner NPC");
+        miner.moveTo(stand.getX() + 0.5, stand.getY(), stand.getZ() + 0.5, 0, 0);
+        miner.setHomePos(stand);
+        miner.setMode(PlayerNpcEntity.Mode.LIVE);
+        miner.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.IRON_PICKAXE));
+        miner.setMiningTarget(ore);
+        miner.changeNeeds(-20, 0, 0);
+        if (!level.addFreshEntity(miner)) throw new AssertionError("No live miner");
+        // Avoid planner's 80-tick phase, which would overwrite the forced
+        // meal intent; the goal here is testing action-loop priority.
+        int delay = 2;
+        if (MovementPolicy.due(level.getGameTime() + delay, miner.getId(), 80))
+            delay++;
+        helper.runAfterDelay(delay, () -> {
+            if (level.getBlockState(ore).isAir()) {
+                helper.fail("Stone unexpectedly vanished before starvation priority check", ore);
+                return;
+            }
+            miner.resetMiningProgress();
+            miner.setDecision(new LivingPlanner.Decision(
+                LivingPlanner.Intent.EAT, 95, "breakfast while hungry and out of food"));
+            LivingWorldActions.tick(miner, level);
+            if (miner.miningProgress() <= 0.0F
+                && !level.getBlockState(ore).isAir())
+                helper.fail("Foodless EAT intent deadlocked legal real-player mining", ore);
+            else if (miner.backpack().countItem(Items.BREAD) != 0)
+                helper.fail("Meal planner invented food in NPC inventory", ore);
+            else helper.succeed();
+        });
     }
 
 }

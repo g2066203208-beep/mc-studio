@@ -59,7 +59,8 @@ public final class LivingWorldActions {
                     (npc.character().empathy() > 75 ? 15 : 0)),
                 npc.profession() == PlayerNpcEntity.Profession.FARMER ||
                 npc.profession() == PlayerNpcEntity.Profession.BAKER ||
-                npc.profession() == PlayerNpcEntity.Profession.BUILDER)));
+                npc.profession() == PlayerNpcEntity.Profession.BUILDER ||
+                npc.profession() == PlayerNpcEntity.Profession.SHOPKEEPER)));
         }
         if (npc.profession() == PlayerNpcEntity.Profession.GUARD)
             CivicSocial.guardLaw(npc, level, tick);
@@ -76,6 +77,18 @@ public final class LivingWorldActions {
             CivicContracts.post(npc, Commission.Goods.BREAD, 2,
                 npc.character().empathy() >= 75 ? 3 : 2);
         }
+        // A meal is a real high-priority survival task. Work and patrol
+        // cannot consume the entire tick budget while starving residents
+        // or during their scheduled breakfast/lunch/supper windows.
+        if (npc.intent() == LivingPlanner.Intent.EAT
+            && hasConsumableFood(npc.backpack())) {
+            if (MovementPolicy.due(tick, npc.getId(), 40)) eat(npc);
+            return;
+        }
+        // A hungry resident WITHOUT food should request supply through its
+        // existing commission planner, but must not deadlock the current
+        // lawful mining/transport task merely because lunch hour started.
+        // The later EAT branch will report "needs food" when no task exists.
         // A bounded, operator-authorized mining task is performed through the
         // same survival tool / block break pipeline as a player. Danger can
         // interrupt it; routine AI never creates an unapproved mining target.
@@ -173,6 +186,14 @@ public final class LivingWorldActions {
         npc.setAction("hungry: needs food in inventory");
     }
 
+    private static boolean hasConsumableFood(SimpleContainer bag) {
+        for (int slot = 0; slot < bag.getContainerSize(); slot++) {
+            ItemStack stack = bag.getItem(slot);
+            if (!stack.isEmpty() && isFood(stack.getItem())) return true;
+        }
+        return false;
+    }
+
     private static boolean isFood(Item item) {
         return item == Items.BREAD || item == Items.APPLE || item == Items.CARROT ||
             item == Items.POTATO || item == Items.BAKED_POTATO ||
@@ -199,6 +220,10 @@ public final class LivingWorldActions {
     }
 
     private static void work(PlayerNpcEntity npc, ServerLevel level, long tick) {
+        if (npc.profession() == PlayerNpcEntity.Profession.SHOPKEEPER) {
+            ShopCounter.tick(npc, level, tick);
+            return;
+        }
         if (npc.profession() == PlayerNpcEntity.Profession.BUILDER) {
             SafeBuilder.tick(npc, level, tick);
             return;
