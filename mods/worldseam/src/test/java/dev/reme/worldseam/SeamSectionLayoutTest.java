@@ -23,6 +23,25 @@ class SeamSectionLayoutTest {
             assertTrue(mapped>=minimum && mapped<minimum+16,"Y="+nativeY);
         }
     }
+    @Test void gpuModelUsesNativeTargetCoordinatesForNeighborAndTintQueries() {
+        // The VBO itself is placed at projected source Y, but the actual
+        // target ClientLevel queries must ALWAYS use its original block Y.
+        int[][] boundaries={{-64,128},{0,256},{320,-64},{11,255},{-31,-18}};
+        for(int[] pair:boundaries) {
+            for(int nativeY=-64;nativeY<320;nativeY++) {
+                int mapped=SeamSectionLayout.mappedBlockY(
+                    nativeY,pair[0],pair[1]);
+                assertEquals(nativeY,SeamSectionLayout.nativeBlockY(
+                    mapped,pair[0],pair[1]));
+            }
+        }
+    }
+    @Test void inverseMappingMustNotSilentlyWrapNearIntegerLimits() {
+        assertThrows(ArithmeticException.class,() ->
+            SeamSectionLayout.nativeBlockY(Integer.MAX_VALUE,0,1));
+        assertThrows(ArithmeticException.class,() ->
+            SeamSectionLayout.nativeBlockY(Integer.MIN_VALUE,1,0));
+    }
     @Test void drawOnlyWhenActuallyNearSourceConnectionPlane() {
         assertTrue(SeamSectionLayout.nearPlane(-63.5,-64,80));
         assertTrue(SeamSectionLayout.nearPlane(16,-64,80));
