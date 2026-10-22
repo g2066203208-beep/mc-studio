@@ -10,6 +10,7 @@ import dev.reme.mcstudio.npc.life.CivicWorkplaces;
 import dev.reme.mcstudio.npc.life.ShopCounter;
 import dev.reme.mcstudio.npc.life.ResidentBedLife;
 import dev.reme.mcstudio.npc.life.NeighborhoodMarket;
+import dev.reme.mcstudio.npc.life.ConvenienceStoreCrime;
 import dev.reme.mcstudio.npc.life.CityDistrictDemo;
 import net.minecraft.world.level.block.BedBlock;
 import net.minecraft.world.level.block.state.properties.BedPart;
@@ -115,6 +116,8 @@ public final class NpcCommands {
                     .executes(ctx -> citySurvey(ctx.getSource())))
                 .then(Commands.literal("census")
                     .executes(ctx -> cityCensus(ctx.getSource())))
+                .then(Commands.literal("audit")
+                    .executes(ctx -> cityLiveAudit(ctx.getSource())))
                 .then(Commands.literal("demo")
                     .requires(source -> source.hasPermission(2))
                     .executes(ctx -> cityDemo(ctx.getSource()))))
@@ -324,7 +327,8 @@ public final class NpcCommands {
     private static int cityHelp(CommandSourceStack source) {
         source.sendSuccess(() -> Component.literal(
             "NPC 城市工作室：/npc city survey 检查当前位置的41×41平坦空地；"
-            + "/npc city demo 仅OP允许，在全新平坦测试世界真正放置城市方块和12个居民。"
+            + "/npc city demo 仅OP允许，在全新平坦测试世界真正放置城市方块和13个居民。"
+            + "/npc city audit 实时查看店铺、顾客、逃单、报警与追捕。" 
             + "演示不会自动填平、破坏现有建筑；NPC自主生存建设仍属另一系统。"), false);
         return 1;
     }
@@ -359,6 +363,53 @@ public final class NpcCommands {
             + "；店员 " + s + "；农夫 " + f + "；警卫 " + g
             + "；普通居民 " + c + "。这是实时加载的实体统计，"
             + "不是 /npc city demo 的预期创建数量。"), false);
+        return 1;
+    }
+
+    /** Real-time on-location audit; numbers come from live entity state,
+     * never inferred from the script or generated city template.
+     */
+    private static int cityLiveAudit(CommandSourceStack source)
+        throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        ServerPlayer p = source.getPlayerOrException();
+        long now = p.serverLevel().getGameTime();
+        var residents = p.serverLevel().getEntitiesOfClass(
+            PlayerNpcEntity.class, p.getBoundingBox().inflate(42),
+            other -> other.isAlive() && other.mode() == PlayerNpcEntity.Mode.LIVE);
+        int open = 0, closed = 0, food = 0, customers = 0, unpaid = 0,
+            reported = 0, officers = 0, pursuing = 0, detained = 0, guardsAtCounter = 0;
+        for (PlayerNpcEntity npc : residents) {
+            if (npc.profession() == PlayerNpcEntity.Profession.SHOPKEEPER) {
+                if (ShopCounter.openForResidentSales(npc)) {
+                    open++;
+                    guardsAtCounter += ConvenienceStoreCrime.nearbySecurity(
+                        npc, p.serverLevel(), now);
+                } else closed++;
+                food += ShopCounter.stockedFood(npc.backpack());
+            }
+            if (npc.profession() == PlayerNpcEntity.Profession.RESIDENT
+                && npc.backpack().countItem(Items.EMERALD) > 0)
+                customers++;
+            if (npc.hasUnpaidShopItem(now)) {
+                unpaid++;
+                if (npc.shopCrimeReported()) reported++;
+            }
+            if (npc.profession() == PlayerNpcEntity.Profession.GUARD) {
+                officers++;
+                if (npc.policeSuspect() != null && npc.policeAlertUntil() > now)
+                    pursuing++;
+            }
+            if (npc.isDetained(now)) detained++;
+        }
+        final int a=open,b=closed,c=food,d=customers,e=unpaid,g=reported,
+            h=officers,i=pursuing,j=detained,k=guardsAtCounter;
+        source.sendSuccess(() -> Component.literal(
+            "城市治安直播统计 | tick=" + now
+            + " | 营业=" + a + " 休业=" + b + " 真实库存=" + c
+            + " 有钱顾客=" + d + " 逃单嫌疑人=" + e
+            + " 已报警=" + g + " 警察=" + h + " 追捕任务=" + i
+            + " 在押=" + j + " 店铺周边警力=" + k
+            + "。仅统计周围42格真实加载实体，不伪造抓捕。"), false);
         return 1;
     }
 
