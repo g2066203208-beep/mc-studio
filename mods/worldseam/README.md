@@ -148,3 +148,16 @@ v0.5 的 teleportTo 仍引发原版 ClientboundRespawnPacket/加载界面。本�
 **新增真实可测指标：** F3 和独立 NeoForge GUI E2E 日志输出 `visibleSlices` 与 `frustumCulledSlices`，连同 `nativeModelCpuP95Ms` 和 `modelBudget` 一起记录，逐步区分几何可见性优化与 v0.9.5 降模型数量的影响。新增纯 Java `SeamSectionLayoutTest`，验证末地、下界、负高度与自定义边界的精确切片映射。所有已建模型仍使用原版 `renderSingleBlock` 绘制，**不是** GPU 原生网格批处理，不声明 Iris/Voxy 已兼容或已改善所有资源包模型。
 
 **性能保护原则：** 改动严格限定 WorldSeam 原分支 `mods/worldseam/`；不干涉机械动力、NPC、航空学或末地 Sable 物理浮力。后续仍需专门的第二 `LevelRenderer` 同帧 GPU 合成和 shader/LOD 适配。对比性能只以相同的 NeoForge GUI 场景实测值判断，不能预设提速百分比。
+
+
+## v0.9.7-dev — 原生 16³ 区块段增量重建（减少客户端卡顿）
+
+**本轮主动发现的瓶颈：** v0.9.6 虽然把每帧视锥裁剪改为区块段级，但 `SeamNativeGeometryClient.tick` 仍在**一个客户端游戏刻**扫描最多两个完整的 16×16×160 方块柱。一个繁忙区块更新就可能造成主线程偶发高延迟；只看平均 FPS 会漏掉这种尖峰。
+
+**底层修复：** 将接缝 160 格预览带按原生 16×16×16 section 精确划分，新增无 OpenGL/无 Minecraft 依赖的 `SeamSectionWorkQueue`，每客户端 tick 最多处理 **4 个 section**（理论待扫描方块上限 16,384），相比原来的两个全柱 81,920 方块上限减少 80% 的单刻基础状态扫描量。工作队列按区块 X/Z 和世界原生 Section Y 三元组去重，优先玩家身边区块与接缝附近段，离开 5×5 窗口立即丢弃尚未执行的重建任务。跨 Chunk 边界的六面遮挡变化会一并使四邻列对应区块段失效。
+
+**画面连续：** 每个完成的 section 原子替换 `Slice` 缓存，不再把尚未构建完成的一整根柱直接清空；远端 ClientLevel、所有原生区块数据仍属于目标维度，其他已完成区块段可以继续绘制。空 section 和卸载 section 对应的老预览会清理，防止悬空的旧地形。支持接缝边界不对齐 16 的 Mod 世界及负 Y 区块段；服务端存档与默认堆叠顺序不修改。
+
+**新增可验证指标：** 真实 NeoForge GUI E2E 输出 `rebuildCpuP95Ms`、`pendingSections`、`lastTickSections`，并有硬性日志检查 `lastTickSections <= 4`。F3 显示“待重建段”和重建P95，与 `nativeModelCpuP95Ms`（绘制提交）区分。新增纯 Java JUnit 测试队列去重、原生负高度 Section、逐 tick 上限、移动窗口清理和禁用清理。
+
+**明确限制：** 这里只优化现有后备渲染器的 CPU 几何重建峰值，**不是**最终 GPU 原生区块网格、双 `LevelRenderer` 帧缓冲合成、Iris/Voxy 光影兼容或 Sable 物理化船体跨维。这些目标需要独立版本锁定的真实图形和多模组验收。先比较 CI 实际的客户端重建P95、绘制P95及真实截图，再谈收益。

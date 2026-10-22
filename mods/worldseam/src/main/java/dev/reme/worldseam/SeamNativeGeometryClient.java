@@ -34,15 +34,19 @@ import java.util.Map;
 public final class SeamNativeGeometryClient {
     private record Cell(int x,int y,int z,BlockState state,int light) {}
     /** Immutable native 16^3 segment; clip ONCE before drawing its models. */
-    private record Slice(List<Cell> cells,AABB bounds) {}
+    private record Slice(int sectionY,List<Cell> cells,AABB bounds) {}
     private static final double NEAR_PLANE_RENDER_RANGE = 80.0;
     private static int lastVisibleSlices;
     private static int lastCulledSlices;
     private static final int MAX_COLUMNS = 25;
     private static final int VERTICAL_SECTIONS = 10;
-    private static final int MAX_BUILDS_PER_TICK = 2;
-    private static final SeamGeometryQueue BUILD_QUEUE = new SeamGeometryQueue();
+    // 4 native 16³ slices per client tick, replacing 2 whole 160-block
+    // columns (~10x larger worst-case scan) per tick.
+    private static final int MAX_SECTION_BUILDS_PER_TICK = 4;
+    private static final SeamSectionWorkQueue BUILD_QUEUE=new SeamSectionWorkQueue();
+    private static int lastTickRebuildSlices;
     private static final SeamRenderSamples DRAW_CPU_SAMPLES = new SeamRenderSamples(120);
+    private static final SeamRenderSamples REBUILD_CPU_SAMPLES = new SeamRenderSamples(120);
     private static final SeamRenderBudget DRAW_BUDGET = new SeamRenderBudget();
     private static volatile long lastFrameDrawCpuNanos;
     private static ClientLevel queuedRemote;
@@ -93,67 +97,93 @@ public final class SeamNativeGeometryClient {
         LevelChunk chunk = cache.getChunk(packet.chunkX(),packet.chunkZ(),false);
         if (chunk == null) return;
 
-        // The old handler rebuilt five full 16x16x160 columns immediately
-        // on EACH chunk packet, causing multi-million block scans in bursts.
-        // Instead coalesce overlapping columns and rebuild at most two per
-        // client tick, prioritizing the player's current chunk.
+        // Deduplicate all touched 16³ sections; a later packet supersedes
+        // the queued work for the same section. Neighbor columns invalidate
+        // edge faces, but no full-column scans happen on packet arrival.
         queuedRemote=remote;
         queuedLink=link;
-        BUILD_QUEUE.invalidate(packet.chunkX(),packet.chunkZ());
+        int low=link.entry()==SeamGraph.EdgeSide.TOP
+            ? targetBoundary-VERTICAL_SECTIONS*16 : targetBoundary;
+        int high=low+VERTICAL_SECTIONS*16;
+        BUILD_QUEUE.invalidateWithNeighbors(
+            packet.chunkX(),packet.chunkZ(),low,high);
     }
 
-    private static void rebuildColumn(ClientLevel remote,SeamGraph.Link link,
-                                      int cx,int cz) {
+    /**
+     * Rebuild EXACTLY ONE native 16³ section, or remove an absent/air slice.
+     * Cached other sections remain drawable; no unfinished full-column
+     * temporary model is exposed between client ticks.
+     */
+    private static void rebuildSection(ClientLevel remote,SeamGraph.Link link,
+                                      int cx,int cz,int sy) {
+        long packed=SeamGeometryQueue.pack(cx,cz);
         var cache=remote.getChunkSource();
-        if(!cache.hasChunk(cx,cz))return;
+        if(!cache.hasChunk(cx,cz)) {
+            publishSection(packed,sy,null);
+            return;
+        }
         LevelChunk chunk=cache.getChunk(cx,cz,false);
-        if(chunk==null)return;
-        long packed=((long)cx << 32) | (cz & 0xffffffffL);
-        Map<Integer,List<Cell>> bySection=new LinkedHashMap<>();
-        int ox=cx<<4,oz=cz<<4;
+        if(chunk==null) {
+            publishSection(packed,sy,null);
+            return;
+        }
         boolean descending=link.entry()==SeamGraph.EdgeSide.TOP;
+        int bandLow=descending?targetBoundary-VERTICAL_SECTIONS*16:targetBoundary;
+        int bandHigh=bandLow+VERTICAL_SECTIONS*16;
+        int begin=Math.max(Math.max(sy*16,bandLow),remote.getMinBuildHeight());
+        int end=Math.min(Math.min(sy*16+16,bandHigh),remote.getMaxBuildHeight());
+        if(begin>=end) {
+            publishSection(packed,sy,null);
+            return;
+        }
+        var section=chunk.getSection(chunk.getSectionIndex(begin));
+        if(section.hasOnlyAir()) {
+            publishSection(packed,sy,null);
+            return;
+        }
+        int ox=cx<<4,oz=cz<<4;
+        var cells=new ArrayList<Cell>(512);
         BlockPos.MutableBlockPos pos=new BlockPos.MutableBlockPos();
-        for(int depth=0;depth<VERTICAL_SECTIONS*16;depth++) {
-            int y=descending?targetBoundary-1-depth:targetBoundary+depth;
-            if(y<remote.getMinBuildHeight()||y>=remote.getMaxBuildHeight())continue;
-            var section=chunk.getSection(chunk.getSectionIndex(y));
-            // In End voids and large caves, most entire 16^3 sections
-            // are air. Skip the rest of an empty section as a unit instead
-            // of performing 256 air-state lookups for each of its Y layers.
-            if(section.hasOnlyAir()) {
-                depth+=descending?(y & 15):(15-(y & 15));
-                continue;
-            }
-            int bucketY=Math.floorDiv(y,16);
-            List<Cell> layerCells=bySection.get(bucketY);
+        for(int y=begin;y<end;y++) {
             for(int z=0;z<16;z++)for(int x=0;x<16;x++) {
                 BlockState state=section.getBlockState(x,y&15,z);
-                if(state.isAir() || state.getRenderShape()!=RenderShape.MODEL)continue;
+                if(state.isAir()||state.getRenderShape()!=RenderShape.MODEL)continue;
                 if(isBuried(cache,chunk,x,y,z))continue;
                 pos.set(ox+x,y,oz+z);
                 int block=remote.getBrightness(LightLayer.BLOCK,pos);
                 int sky=remote.getBrightness(LightLayer.SKY,pos);
-                // Resolve the section bucket only once per Y layer, not for
-                // each visible voxel. Typical columns contain tens of
-                // thousands of surface voxels.
-                if(layerCells==null) {
-                    layerCells=new ArrayList<>(256);
-                    bySection.put(bucketY,layerCells);
-                }
-                layerCells.add(new Cell(ox+x,
+                cells.add(new Cell(ox+x,
                     SeamSectionLayout.mappedBlockY(y,sourceBoundary,targetBoundary),
                     oz+z,state,LightTexture.pack(block,sky)));
             }
         }
-        var slices=new ArrayList<Slice>(bySection.size());
-        for(var entry:bySection.entrySet()) {
+        Slice replacement=null;
+        if(!cells.isEmpty()) {
             int firstY=SeamSectionLayout.mappedSectionMinY(
-                entry.getKey()*16,sourceBoundary,targetBoundary);
-            // Exact world-space bound, including custom modded seam heights.
-            AABB bound=new AABB(ox,firstY,oz,ox+16,firstY+16,oz+16);
-            slices.add(new Slice(List.copyOf(entry.getValue()),bound));
+                sy*16,sourceBoundary,targetBoundary);
+            replacement=new Slice(sy,List.copyOf(cells),
+                new AABB(ox,firstY,oz,ox+16,firstY+16,oz+16));
         }
-        columns.put(packed,List.copyOf(slices));
+        publishSection(packed,sy,replacement);
+    }
+
+    /** Atomic replacement of one completed slice; keep all other slices. */
+    private static void publishSection(long key,int sy,Slice replacement) {
+        var old=columns.get(key);
+        var next=new ArrayList<Slice>(old==null?1:old.size()+1);
+        if(old!=null) {
+            for(var prior:old) {
+                if(prior.sectionY()==sy)
+                    blocksBuilt-=prior.cells().size();
+                else next.add(prior);
+            }
+        }
+        if(replacement!=null) {
+            next.add(replacement);
+            blocksBuilt+=replacement.cells().size();
+        }
+        if(next.isEmpty())columns.remove(key);
+        else columns.put(key,List.copyOf(next));
     }
 
     /**
@@ -204,14 +234,30 @@ public final class SeamNativeGeometryClient {
             return Math.abs((long)SeamGeometryQueue.x(p)-cx)>2 ||
                    Math.abs((long)SeamGeometryQueue.z(p)-cz)>2;
         });
-        var queued=BUILD_QUEUE.drain(MAX_BUILDS_PER_TICK,cx,cz,2);
-        for(long packed:queued) {
-            rebuildColumn(queuedRemote,queuedLink,
-                SeamGeometryQueue.x(packed),SeamGeometryQueue.z(packed));
+        int nearestSy=Math.floorDiv(
+            targetBoundary-(queuedLink.entry()==SeamGraph.EdgeSide.TOP?1:0),16);
+        var queued=BUILD_QUEUE.drain(MAX_SECTION_BUILDS_PER_TICK,
+            cx,cz,2,nearestSy);
+        lastTickRebuildSlices=queued.size();
+        if(!queued.isEmpty()) {
+            long started=System.nanoTime();
+            for(var job:queued)
+                rebuildSection(queuedRemote,queuedLink,
+                    job.chunkX(),job.chunkZ(),job.sectionY());
+            REBUILD_CPU_SAMPLES.add(Math.max(0,System.nanoTime()-started));
         }
-        if(changed || !queued.isEmpty()) {
-            while(columns.size()>MAX_COLUMNS)
-                columns.remove(columns.keySet().iterator().next());
+
+        if(changed) {
+            // Pruned columns were outside the moving 5x5 visible window.
+            // Per-section replacements maintain totals in O(1); only
+            // moving a whole window requires a bounded recount.
+            int count=0;
+            for(var group:columns.values())for(var slice:group)
+                count+=slice.cells().size();
+            blocksBuilt=count;
+        }
+        while(columns.size()>MAX_COLUMNS) {
+            columns.remove(columns.keySet().iterator().next());
             int count=0;
             for(var group:columns.values())for(var slice:group)
                 count+=slice.cells().size();
@@ -319,7 +365,9 @@ public final class SeamNativeGeometryClient {
     public static int columnCount() { return columns.size(); }
     public static int visibleSlices() { return lastVisibleSlices; }
     public static int culledSlices() { return lastCulledSlices; }
-    public static int pendingRebuilds() { return BUILD_QUEUE.pending(); }
+    public static int pendingRebuilds() { return BUILD_QUEUE.size(); }
+    public static int lastTickRebuildSlices() { return lastTickRebuildSlices; }
+    public static double p95RebuildCpuMs() { return REBUILD_CPU_SAMPLES.p95Ms(); }
     /** Measures client CPU model submission only; never interpreted as GPU frame time. */
     public static double p95ModelCpuMs() { return DRAW_CPU_SAMPLES.p95Ms(); }
     public static int currentModelBudget() { return DRAW_BUDGET.limit(); }
@@ -338,7 +386,9 @@ public final class SeamNativeGeometryClient {
         queuedRemote=null;
         queuedLink=null;
         BUILD_QUEUE.clear();
+        lastTickRebuildSlices=0;
         DRAW_CPU_SAMPLES.clear();
+        REBUILD_CPU_SAMPLES.clear();
         DRAW_BUDGET.reset();
         lastFrameDrawCpuNanos=0;
     }
