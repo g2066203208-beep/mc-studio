@@ -171,6 +171,17 @@ public final class NpcCommands {
                                 StringArgumentType.getString(ctx, "goods"),
                                 IntegerArgumentType.getInteger(ctx, "count"),
                                 IntegerArgumentType.getInteger(ctx, "reward"))))))));
+        // This log is emitted by the actual dispatcher registration event,
+        // never merely because the mod constructor happened to execute.
+        boolean npcPresent = event.getDispatcher().getRoot().getChild("npc") != null;
+        boolean checkPresent = event.getDispatcher().getRoot().getChild("remecheck") != null;
+        if (!npcPresent || !checkPresent)
+            throw new IllegalStateException("REME NPC command registration missing at server dispatcher");
+        com.mojang.logging.LogUtils.getLogger().info(
+            "REME NPC {} COMMANDS REGISTERED: /npc={}, /remecheck={},"
+                + " dispatcherIdentity={}, NeoForge requires runtime 21.1.262+",
+            dev.reme.mcstudio.StudioMod.VERSION, npcPresent, checkPresent,
+            System.identityHashCode(event.getDispatcher()));
     }
 
     private static int pathInfo(CommandSourceStack source) {

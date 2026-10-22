@@ -246,3 +246,12 @@ Push CI `39518033958` SUCCESS，PR CI `39518039426` SUCCESS。Artifact `12310085
 - 独立分支 `fix/npc-command-access-v066` 从真实构建通过的 0.6.5（draft PR #78）分出。版本号提升 0.6.6-dev，删除 0.6.3/0.6.4 旧登录提示，中文版准确显示根指令是否存在；`NpcItems` 使用 1.21.1 `DeferredSpawnEggItem` 注册原生生成蛋；刷怪蛋创造分类及中文物品名 `NPC 生成蛋（居民）`。生存配方 `EBE / BPB / EBE`，E=绿宝石/B=面包/P=纸；生成蛋和自然出生均调用 `finalizeSpawn` 设置真实附近家/工作位置，而不是零坐标。
 - 新服务端 NeoForge GameTest 使用真正 `FakePlayer` 的 `ItemStack.useOn` 检查生成蛋真实生成实体、检查初始 LIVE/物资/家位置；原 `diagnostic_command_is_visible_without_cheats` 加权限 0 的 `/npc` 调用和 spawn 指令不可见断言。真实图形客户端 CI 添加生成蛋物品注册断言和 /npc 登录日志硬门槛。
 - 安装包附送新的 `docs/NPC_HMCL_ACCEPTANCE.md`，明确 HMCL 版本隔离、正确游戏路径、日志字段、是否有 OP、不开作弊如何用生成蛋。**仍没有用户实际目录/222-mod 运行证据**；必须检查本 PR 的 Build、GameTest、Xvfb、Windows installer 所对应 SHA，任何失败不算通过。
+
+## 2026-10-22 0.6.7 用户反馈 /npc、/remecheck 在本人 HMCL 完全未知：最新 1.21.1 NeoForge 版本核对与修复
+
+- 上一版 **0.6.6-dev 基于 NeoForge 21.1.248**，**不是** 2026-10-22 官方 Maven 列出的最新 1.21.1 **21.1.262**（注意不是 26.1，也不是 1.21.11）。已在 `fix/npc-neoforge-211262-runtime-v067` 将 Java21/MC1.21.1 保持不变，`neo_version` 改为 21.1.262，`mod_version` 改为 0.6.7-dev；MDK TOML 模板由 `build.gradle` 展开后要求 NeoForge 21.1.262+。明确告知用户 0.6.7 不能安装到旧 21.1.248 实例。
+- 0.6.6 **真实 Xvfb integrated-client run 39716964718** 实际日志来自 ZIP Artifact 12398988990：`/npc registered=true`、`REME_NPC_EGG_REGISTERED`、`[Dev: Created player NPC: NPC]`，证明开发测试客户端实际注册指令，**但此 GUI workflow 最终因矿石测试坐标缺少 `REME_MINING_PREPARED` 失败**。因此不可再将整组 GUI 标为通过，更不能拿远程 CI 冒充用户 HMCL 运行正常。
+- NeoForge 规范检查：`@Mod("reme_studio")` 与生成 `neoforge.mods.toml` 一致；`NeoForge.EVENT_BUS.addListener(NpcCommands::register)` 在 `RegisterCommandsEvent` 注册服务器 Brigadier 指令；权限 0 的 `/npc` 和 `/remecheck` 应存在，只有 `/npc spawn`、`/npc demo` require 权限 2。
+- 修复诊断：`StudioMod` 仅记录构造完成，不再在 Mod constructor 误报指令已经注册；`NpcCommands.register` 完成时另写明确 `COMMANDS REGISTERED` 日志，断言两根节点。HMCL PowerShell 安装脚本 `-CheckOnly` 现在读取所选游戏目录实际 mods/JAR SHA/最近日志/是否执行 @Mod 和注册事件；不碰存档。
+- 新独立 `scripts/test-client-gui.sh` `REME_COMMAND_SMOKE_ONLY=1` 验证强制日志要求，加 `.github/workflows/npc-command-client-smoke.yml` 使用真正 21.1.262 图形 MC 集成服务器跑 `/remecheck`、`/npc spawn`、生成蛋。和因矿石坐标失败的整体 GUI 测试分离；必须看到该 PR CI 真结果后才能发布“最新环境可用”的声明。
+- 打包 `scripts/verify-npc-release-jar.py` 检查 `NpcCommands.class`、`NpcItems.class`、`PlayerNpcEntity.class`、配方、中文资源和 21.1.262 依赖约束是否真实进入 JAR。**未知用户 HMCL 的目录路径、Mod 列表、具体运行版本和 logs/latest.log，故截至这段代码提交，无法断言真正修复了用户那台机器**。

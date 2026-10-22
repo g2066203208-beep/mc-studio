@@ -1,0 +1,49 @@
+name: NPC 1.21.1 NeoForge 21.1.262 real client command smoke
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - fix/npc-neoforge-211262-runtime-v067
+  pull_request:
+    branches:
+      - fix/npc-command-access-v066
+
+permissions:
+  contents: read
+
+jobs:
+  client-command-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Validate exact MC and NeoForge 1.21.1 21.1.262 build baseline
+        shell: bash
+        run: |
+          grep -Fxq 'minecraft_version=1.21.1' mod/gradle.properties
+          grep -Fxq 'neo_version=21.1.262' mod/gradle.properties
+          grep -Fxq 'mod_version=0.6.7-dev' mod/gradle.properties
+      - name: Install real Linux virtual display and input automation
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq xvfb xdotool imagemagick openbox
+      - name: Launch REAL NeoForge graphical Minecraft; enter integrated world; run /remecheck and /npc spawn
+        shell: bash
+        env:
+          REME_COMMAND_SMOKE_ONLY: '1'
+        run: |
+          set -euo pipefail
+          timeout --signal=INT --kill-after=15s 640s             xvfb-run -a -s "-screen 0 1280x720x24"             bash scripts/test-client-gui.sh
+      - name: Always upload raw screenshots and integrated-server logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: real-211262-client-npc-command-smoke
+          if-no-files-found: warn
+          path: |
+            mod/client-gui-*.png
+            mod/client-gui.log
+            mod/run/logs/*.log
+            mod/runs/**/logs/*.log

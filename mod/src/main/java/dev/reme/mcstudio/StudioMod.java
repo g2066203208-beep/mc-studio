@@ -15,7 +15,7 @@ import net.neoforged.neoforge.common.NeoForge;
 @Mod(StudioMod.MOD_ID)
 public final class StudioMod {
     public static final String MOD_ID = "reme_studio";
-    public static final String VERSION = "0.6.6-dev";
+    public static final String VERSION = "0.6.7-dev";
 
     public StudioMod(IEventBus modBus) {
         NpcRegistry.register(modBus);
@@ -24,7 +24,7 @@ public final class StudioMod {
         modBus.addListener(NaturalResidentSpawn::register);
         NeoForge.EVENT_BUS.addListener(NpcCommands::register);
         NeoForge.EVENT_BUS.addListener(StudioMod::onPlayerLogin);
-        LogUtils.getLogger().info("REME NPC {}: mod loaded; /npc command registered on server command reload", VERSION);
+        LogUtils.getLogger().info("REME NPC {} CONSTRUCTED on NeoForge 21.1.262 baseline (Minecraft 1.21.1); commands register when the SERVER dispatcher is created, not at mod construction", VERSION);
     }
     private static void onPlayerLogin(PlayerEvent.PlayerLoggedInEvent event) {
         if (!(event.getEntity() instanceof ServerPlayer player)) return;
