@@ -10,6 +10,8 @@ public final class SeamSettings extends SavedData {
     private boolean enabled;
     private boolean carveNewChunks;
     private boolean crossSeamExplosions;
+    /** Opt-in experimental whole-ship transfers; never armed for existing worlds. */
+    private boolean experimentalSableShips;
     private boolean experimentalNoRespawn;
     private SeamStack stack = SeamStack.defaults();
     private boolean stackChosenByUser;
@@ -31,6 +33,7 @@ public final class SeamSettings extends SavedData {
         result.enabled = tag.getBoolean("enabled");
         result.carveNewChunks = tag.getBoolean("carveNewChunks");
         result.crossSeamExplosions = tag.getBoolean("crossSeamExplosions");
+        result.experimentalSableShips=tag.getBoolean("experimentalSableShips");
         result.experimentalNoRespawn = tag.getBoolean("experimentalNoRespawn");
         if (tag.contains("stack",net.minecraft.nbt.Tag.TAG_COMPOUND)) {
             try {
@@ -65,6 +68,13 @@ public final class SeamSettings extends SavedData {
 
     public boolean carveNewChunks() { return carveNewChunks; }
     public boolean crossSeamExplosions() { return crossSeamExplosions; }
+    public boolean experimentalSableShips() { return experimentalSableShips; }
+    public void setExperimentalSableShips(boolean value) {
+        if(experimentalSableShips!=value) {
+            experimentalSableShips=value;
+            setDirty();
+        }
+    }
 
     public void setCrossSeamExplosions(boolean next) {
         if (crossSeamExplosions != next) {
@@ -104,6 +114,7 @@ public final class SeamSettings extends SavedData {
         tag.putBoolean("enabled", enabled);
         tag.putBoolean("carveNewChunks", carveNewChunks);
         tag.putBoolean("crossSeamExplosions", crossSeamExplosions);
+        tag.putBoolean("experimentalSableShips",experimentalSableShips);
         tag.putBoolean("experimentalNoRespawn", experimentalNoRespawn);
         tag.put("stack",SeamStackStorage.save(stack));
         return tag;
