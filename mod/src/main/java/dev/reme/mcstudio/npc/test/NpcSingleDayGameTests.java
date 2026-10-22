@@ -26,15 +26,15 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
  * 24 hourly audit records, actual ripe wheat, real meals and the night routine.
  *
  * Opt-in only: the 54 standard PR GameTests must not incur 24,000+ world ticks.
- * The CI runs fast 24k-tick behavior evidence and separately can require
- * 20 actual wall-clock minutes, which are NOT the same measurement.
+ * This accelerated GameTest measures EXACTLY 24k world ticks; a separate
+ * REAL CLIENT screenshot test measures >=20 minutes of wall time.
  */
 @GameTestHolder(StudioMod.MOD_ID)
 @PrefixGameTestTemplate(false)
 public final class NpcSingleDayGameTests {
     private NpcSingleDayGameTests() {}
 
-    @GameTest(template = "empty", timeoutTicks = 160000)
+    @GameTest(template = "empty", timeoutTicks = 32000)
     public static void watch_same_real_farmer_from_sunrise_through_next_sunrise(
             GameTestHelper helper) {
         if (!Boolean.getBoolean("reme.npc.singleDay")) {
@@ -91,9 +91,6 @@ public final class NpcSingleDayGameTests {
         final UUID subjectId = farmer.getUUID();
         final long startGame = level.getGameTime();
         final long startWall = System.nanoTime();
-        final long requiredWall = Math.max(0L,
-            Math.min(2400L, Long.getLong("reme.npc.singleDay.minWallSeconds", 0L)))
-            * 1_000_000_000L;
 
         final int[] nextHour = {0};
         final int[] eatTicks = {0}, workTicks = {0}, restTicks = {0};
@@ -109,8 +106,7 @@ public final class NpcSingleDayGameTests {
 
         System.out.println("REME_DAYWATCH_BEGIN uuid=" + subjectId
             + " name=DayWatchFarmer profession=FARMER realItemsBread=10"
-            + " realCrops=9 gameDayTicks=24000 minRealWallSeconds="
-            + (requiredWall / 1_000_000_000L));
+            + " realCrops=9 gameDayTicks=24000 acceleratedGameTest=true");
         helper.onEachTick(() -> {
             long elapsed = level.getGameTime() - startGame;
             long wall = System.nanoTime() - startWall;
@@ -172,7 +168,7 @@ public final class NpcSingleDayGameTests {
                     + (wall / 1_000_000_000L)
                     + " gameTicks=" + elapsed + " sameUUID=" + subjectId);
             }
-            if (elapsed < 24000L || wall < requiredWall) return;
+            if (elapsed < 24000L) return;
 
             String result = String.format(Locale.ROOT,
                 "REME_DAYWATCH_RESULT uuid=%s ticks=%d realSeconds=%.1f"
