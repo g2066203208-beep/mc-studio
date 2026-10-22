@@ -115,6 +115,52 @@ public final class CivicGameTests {
         helper.succeed();
     }
 
+    @GameTest(template = "empty", timeoutTicks = 140)
+    public static void crowded_village_cannot_double_claim_eight_real_beds(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos anchor = helper.absolutePos(new BlockPos(7, 9, 7));
+        for (int x = -2; x <= 10; x++) for (int z = -2; z <= 7; z++) {
+            BlockPos floor = anchor.offset(x, -1, z);
+            level.setBlock(floor, Blocks.STONE.defaultBlockState(), 2);
+            level.setBlock(floor.above(), Blocks.AIR.defaultBlockState(), 2);
+            level.setBlock(floor.above(2), Blocks.AIR.defaultBlockState(), 2);
+        }
+        for (int i = 0; i < 8; i++) {
+            BlockPos head = anchor.offset((i % 4) * 2, 0, (i / 4) * 3);
+            level.setBlock(head, Blocks.RED_BED.defaultBlockState()
+                .setValue(BedBlock.FACING, Direction.NORTH)
+                .setValue(BedBlock.PART, BedPart.HEAD), 2);
+            level.setBlock(head.relative(Direction.SOUTH),
+                Blocks.RED_BED.defaultBlockState()
+                    .setValue(BedBlock.FACING, Direction.NORTH)
+                    .setValue(BedBlock.PART, BedPart.FOOT), 2);
+        }
+        BlockPos home = anchor.offset(3, 0, 2);
+        java.util.Set<BlockPos> claimed = new java.util.HashSet<>();
+        int residentsAssigned = 0;
+        for (int i = 0; i < 16; i++) {
+            PlayerNpcEntity npc = NpcRegistry.PLAYER_NPC.get().create(level);
+            if (npc == null) throw new AssertionError("Missing NPC registry");
+            BlockPos spawn = anchor.offset(3 + i % 3, 0, 1 + i / 3);
+            npc.moveTo(spawn.getX() + 0.5, spawn.getY(), spawn.getZ() + 0.5, 0, 0);
+            npc.setHomePos(home);
+            npc.setMode(PlayerNpcEntity.Mode.LIVE);
+            if (!level.addFreshEntity(npc)) throw new AssertionError("Failed living resident spawn");
+            boolean obtained = ResidentBedLife.reserveNearbyBed(npc, level);
+            if (obtained) {
+                residentsAssigned++;
+                if (!claimed.add(npc.assignedBedPos()))
+                    throw new AssertionError("Two citizens claimed identical real bed HEAD");
+            } else if (npc.assignedBedPos() != null) {
+                throw new AssertionError("Rejected reservation retained stale NBT claim");
+            }
+        }
+        if (residentsAssigned != 8 || claimed.size() != 8)
+            throw new AssertionError("Eight real beds accommodated " + residentsAssigned
+                + " out of sixteen actual neighbors, expected exactly 8");
+        helper.succeed();
+    }
+
     @GameTest(template = "empty", timeoutTicks = 100)
     public static void resident_claims_native_bed_sleeps_wakes_and_saves_claim(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
