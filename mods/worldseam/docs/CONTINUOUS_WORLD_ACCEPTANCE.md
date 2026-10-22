@@ -38,3 +38,13 @@
 3. 完整实体/船体原生渲染裁剪、跨界动态光照与真实交互的连贯路径，并逐项用真实 MC 客户端视频/截图作验收。
 
 每小时开发工作记录应在实际提交和 CI 证据基础上更新这里，目标不能因为实现困难自行缩减。
+
+
+## 2026-10-23 07:21 CST — verified development iteration
+
+- **Actual commit:** [63e5150](https://github.com/g2066203208-beep/mc-studio/commit/63e5150c44e97a71974cb6239ee40a1d4d8587d3) fixes the JVM PID matcher in the real Minecraft ship-film CI watchdog and extends native thread-dump timeout. This is a diagnostic repair, **not** a physics or gameplay pass.
+- **Reproduced failure:** [ship film run 39807716239](https://github.com/g2066203208-beep/mc-studio/actions/runs/39807716239) recorded actual native clear commands in Overworld and Nether and actual aircraft staging, but server tick handshake never completed; no assembled ship UUID or bidirectional physical flight.
+- **New-head checks triggered (PENDING, not passed):** [Build](https://github.com/g2066203208-beep/mc-studio/actions/runs/39871347193), [Independent Mod](https://github.com/g2066203208-beep/mc-studio/actions/runs/39871347295), [Real Aeronautics](https://github.com/g2066203208-beep/mc-studio/actions/runs/39871347143), [GUI](https://github.com/g2066203208-beep/mc-studio/actions/runs/39871347132), [240-crossing stress](https://github.com/g2066203208-beep/mc-studio/actions/runs/39871347325), [genuine ship MP4](https://github.com/g2066203208-beep/mc-studio/actions/runs/39871347136).
+- **Still failing/not implemented:** one authoritative Rapier body with simultaneous two-dimension contact forces and torques, real Aeronautics-powered down-and-return footage, full native light/fluid/entity continuity and sustained stutter-free play. Existing GameTests cannot certify those conditions.
+- **Next highest priority:** read the new ship-film JVM thread stack on failure, identify and repair server stall before Sable assembly, and rerun genuine film. Enforce fresh-save protection before any destructive film setup. Verify powered propeller shaft orientation on released Aeronautics before treating a test force as actual propulsion.
+- PR #98 stays **Draft**. Do not merge until every permanent acceptance gate above is demonstrated and the user confirms satisfaction.
