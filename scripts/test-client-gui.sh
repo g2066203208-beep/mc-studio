@@ -171,10 +171,10 @@ if [[ "${REME_CITY_VISUAL:-0}" == "1" || "${REME_CITY_DAY_VIDEO:-0}" == "1" ]]; 
     say_city '/npc city demo' 7
     say_city '/time set 0' 2
     say_city '/tick rate 80' 2
-    ffmpeg -loglevel error -nostdin -y -f x11grab -video_size 1280x720 \\
-      -framerate 4 -i "$DISPLAY" -c:v libx264 -preset ultrafast \\
-      -crf 31 -pix_fmt yuv420p -movflags +faststart \\
-      client-gui-city-full-24000-game-ticks.mp4 \\
+    ffmpeg -loglevel error -nostdin -y -f x11grab -video_size 1280x720 \
+      -framerate 4 -i "$DISPLAY" -c:v libx264 -preset ultrafast \
+      -crf 31 -pix_fmt yuv420p -movflags +faststart \
+      client-gui-city-full-24000-game-ticks.mp4 \
       >client-gui-city-full-day-ffmpeg.log 2>&1 &
     DAY_VIDEO_PID=$!
     say_city '/npc city day start' 2
