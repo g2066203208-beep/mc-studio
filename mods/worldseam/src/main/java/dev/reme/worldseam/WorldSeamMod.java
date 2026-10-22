@@ -18,6 +18,11 @@ public final class WorldSeamMod {
         NeoForge.EVENT_BUS.addListener(SeamExplosionBridge::onDetonate);
         NeoForge.EVENT_BUS.addListener(SeamTerrain::onChunkLoad);
         if (FMLEnvironment.dist == Dist.CLIENT) {
+            modBus.addListener((net.neoforged.neoforge.client.event.RegisterClientReloadListenersEvent e)->
+                e.registerReloadListener(
+                    (net.minecraft.server.packs.resources.ResourceManagerReloadListener)
+                        manager->SeamNativeGeometryClient.invalidateGpuOnReload()
+                ));
             SeamPreviewClient.install();
             SeamSectionClient.install();
             SeamClientWorldPool.install();

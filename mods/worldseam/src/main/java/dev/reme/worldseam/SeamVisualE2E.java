@@ -83,9 +83,32 @@ public final class SeamVisualE2E {
                 SeamNativeGeometryClient.bufferCreations(),
                 SeamNativeGeometryClient.bufferFlushes());
             if(SeamNativeGeometryClient.lastFrameDrawn()>0 &&
+                SeamNativeGeometryClient.lastFrameGpuModels()==0 &&
                 (!SeamNativeGeometryClient.ownBuffersActive() ||
                  SeamNativeGeometryClient.bufferFlushes()<1))
-                LOG.error("WORLDSEAM_E2E_FAIL_RENDER_BUFFER_ISOLATION: remote terrain was drawn without owned flushed buffers");
+                LOG.error("WORLDSEAM_E2E_FAIL_RENDER_BUFFER_ISOLATION: legacy model drawing used foreign buffers");
+            LOG.info("WORLDSEAM_E2E_GPU_SCENE: visibleSections={}, cachedGpuSections={}, gpuModelsDrawn={}, gpuUploads={}, gpuDrawCalls={}, fraction={}, gpuCpuMs={}, gpuVertexMiB={}, gpuEvictions={}, fallbackDisabled={}",
+                SeamNativeGeometryClient.visibleSlices(),
+                SeamNativeGeometryClient.lastFrameGpuSections(),
+                SeamNativeGeometryClient.lastFrameGpuModels(),
+                SeamNativeGeometryClient.gpuUploads(),
+                SeamNativeGeometryClient.gpuDrawCalls(),
+                String.format(java.util.Locale.ROOT,"%.3f",
+                    SeamNativeGeometryClient.lastGpuSceneCoverage()),
+                String.format(java.util.Locale.ROOT,"%.3f",
+                    SeamNativeGeometryClient.lastFrameGpuCpuMs()),
+                String.format(java.util.Locale.ROOT,"%.3f",
+                    SeamNativeGeometryClient.gpuCachedVertexBytes()/1048576.0),
+                SeamNativeGeometryClient.gpuEvictions(),
+                SeamNativeGeometryClient.gpuBackendDisabled());
+            // The old screen had only a few thousand cherry-picked blocks.
+            // This is a REAL client-frame coverage gate, not a packet count:
+            // more than half the frustum-visible complete GPU sections must
+            // actually be on screen, with >5000 baked remote model blocks.
+            if(SeamNativeGeometryClient.gpuBackendDisabled() ||
+                SeamNativeGeometryClient.lastGpuSceneCoverage()<0.50 ||
+                SeamNativeGeometryClient.lastFrameGpuModels()<5000)
+                LOG.error("WORLDSEAM_E2E_FAIL_GPU_SCENE_COVERAGE: second dimension is still visually incomplete");
             // This cumulative counter includes correctly released pools from
             // earlier seam changes. Only TWO simultaneously live pools or
             // allocations without a matching disposal indicate churn/leak.
@@ -285,8 +308,15 @@ public final class SeamVisualE2E {
             int actuallyRendered=SeamNativeGeometryClient.lastFrameEndStone();
             LOG.info("WORLDSEAM_E2E_END_NATURAL_STONE: {} native End-stone candidates, {} actually submitted in latest pre-crossing frame",
                 nativeStone,actuallyRendered);
-            if(nativeStone==0 || actuallyRendered==0)
-                LOG.error("WORLDSEAM_E2E_FAIL_END_NATURAL: End main island still not actually visible before crossing");
+            LOG.info("WORLDSEAM_E2E_GPU_END_SCENE: visibleSections={}, cachedGpuSections={}, gpuModels={}, nativeEndStone={}, renderedEndStone={}",
+                SeamNativeGeometryClient.visibleSlices(),
+                SeamNativeGeometryClient.lastFrameGpuSections(),
+                SeamNativeGeometryClient.lastFrameGpuModels(),
+                nativeStone,actuallyRendered);
+            if(nativeStone==0 || actuallyRendered==0 ||
+                SeamNativeGeometryClient.gpuBackendDisabled() ||
+                SeamNativeGeometryClient.lastFrameGpuSections()==0)
+                LOG.error("WORLDSEAM_E2E_FAIL_END_NATURAL: native End island still not fully rendered via GPU section cache");
         } else if (phase==7 && now-startTick>1340) {
             phase=8;
             server.execute(() -> attemptEnd(server,playerId));
