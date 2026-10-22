@@ -163,7 +163,35 @@ if [[ "${REME_CITY_VISUAL:-0}" == "1" ]]; then
   say_city '/fill ~-20 ~ ~-20 ~20 ~10 ~20 minecraft:air' 5
   say_city '/npc city survey' 4
   import -window root client-gui-city-survey.png
-  say_city '/npc city demo' 20
+  # Previously filming started well AFTER jail_reached. Capture an UNBROKEN
+  # real client video BEFORE the city even spawns its first thief.
+  # This is an actual screen recorder, no still-image assembly or fake
+  # path animations. Start a stable UUID spectator chase immediately.
+  ffmpeg -loglevel error -nostdin -y -f x11grab -video_size 1280x720 \
+    -framerate 6 -i "$DISPLAY" -c:v libx264 -preset ultrafast -crf 27 \
+    -pix_fmt yuv420p -movflags +faststart \
+    client-gui-city-full-crime-to-locked-jail.mp4 >client-gui-city-case-ffmpeg.log 2>&1 &
+  CASE_VIDEO_PID=$!
+  say_city '/npc city demo' 1
+  say_city '/gamemode spectator' 1
+  say_city '/npc camera chase shoplifter' 2
+  import -window root client-gui-city-full-case-t0.png
+  sleep 13
+  import -window root client-gui-city-full-case-t1.png
+  sleep 17
+  import -window root client-gui-city-full-case-t2.png
+  sleep 17
+  import -window root client-gui-city-full-case-t3.png
+  sleep 18
+  import -window root client-gui-city-full-case-t4.png
+  sleep 15
+  import -window root client-gui-city-full-case-t5.png
+  say_city '/npc camera stop' 1
+  kill -INT "$CASE_VIDEO_PID" 2>/dev/null || true
+  wait "$CASE_VIDEO_PID" || true
+  # Return to the physical city center (not an obsolete moving NPC spawn).
+  # Native spectator travel moves only our observer, not any citizen.
+  say_city '/tp @s ~ ~ ~' 1
   say_city '/npc city census' 4
   say_city '/npc city audit' 4
   import -window root client-gui-city-census.png
@@ -230,6 +258,44 @@ if [[ "${REME_CITY_VISUAL:-0}" == "1" ]]; then
     echo 'FAIL: GUI real city did not spawn the 12 citizen entities'
     exit 1
   fi
+  if ! test -s client-gui-city-full-crime-to-locked-jail.mp4; then
+    echo "FAIL: no real full-incident native Minecraft video"; exit 1
+  fi
+  # Check the FULL case in real integrated-client server stdout, NOT staged
+  # GameTest results: identical live thief UUID must steal, get reported,
+  # arrested and ENTER a physically locked cell in timestamp order. The
+  # camera attach must precede the actual arrest, else filming was late.
+  python3 - <<'PY'
+import pathlib,re,sys
+text=pathlib.Path("client-gui.log").read_text(errors="replace")
+markers=["stage=unpaid_pickup","stage=police_report",
+         "stage=nonlethal_arrest","stage=jail_reached"]
+events=[]
+for marker in markers:
+    m=re.search(r"^.*"+re.escape(marker)+r".*$",text,re.MULTILINE)
+    if not m:
+        sys.exit("FAIL: real joined client lacks "+marker)
+    events.append(m)
+uuids=[]
+for m in events:
+    x=re.search(r"(?:suspect|prisoner)=([0-9a-f-]{36})",m.group())
+    if not x: sys.exit("FAIL: real crime event has no physical actor UUID")
+    uuids.append(x.group(1))
+if len(set(uuids))!=1:
+    sys.exit("FAIL: theft/arrest/jail refer to DIFFERENT NPCs "+str(uuids))
+if not all(events[i].start()<events[i+1].start()
+           for i in range(len(events)-1)):
+    sys.exit("FAIL: real city incident timeline out of order")
+gate=re.search(r"^.*stage=jail_gate_locked.*$",text,re.MULTILINE)
+if not gate: sys.exit("FAIL: no real Minecraft iron door locked after entry")
+pov=re.search(r"已连续跟踪真实NPC ([0-9a-f-]{36})：CHASE",text)
+if not pov or pov.group(1)!=uuids[0]:
+    sys.exit("FAIL: native camera not tracking the REAL thief in incident")
+if not pov.start()<events[2].start():
+    sys.exit("FAIL: follow camera started only after actual in-world arrest")
+print("REME_NPC_REAL_CLIENT_FULL_CASE_RECORDING_OK thief="+uuids[0]
+      +" theft-report-arrest-cell=true camera-attached-before-arrest=true")
+PY
   if ! test -s client-gui-city-physical-npc-follow.mp4; then
     echo "FAIL: no genuine H264 recording of Minecraft NPC pursuit/follow"; exit 1
   fi
