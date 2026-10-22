@@ -4,6 +4,8 @@ import com.mojang.logging.LogUtils;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.LevelRenderer;
+import java.util.IdentityHashMap;
+import java.util.Map;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.phys.Vec3;
@@ -45,6 +47,13 @@ public final class SeamClientWorldPool {
     );
     private static ClientLevel remote;
     private static LevelRenderer remoteRenderer;
+    // Ownership is attached to a renderer identity, not source/target:
+    // direct handoff exchanges the active and remote LevelRenderers.
+    private static final Map<LevelRenderer,SeamOwnedLevelRenderBuffers> OWNED_RENDERERS=
+        new IdentityHashMap<>();
+    private static int dedicatedCreated;
+    private static int dedicatedReleased;
+    private static int peakDedicatedActive;
     private static String source = "";
     private static String target = "";
     private static boolean failed;
@@ -57,7 +66,7 @@ public final class SeamClientWorldPool {
     public static void install() {
         NeoForge.EVENT_BUS.addListener(SeamClientWorldPool::tick);
         NeoForge.EVENT_BUS.addListener(
-            (ClientPlayerNetworkEvent.LoggingOut e) -> clear()
+            (ClientPlayerNetworkEvent.LoggingOut e) -> disconnect()
         );
     }
 
@@ -80,12 +89,19 @@ public final class SeamClientWorldPool {
             Holder<DimensionType> type = mc.getConnection().registryAccess()
                 .registryOrThrow(Registries.DIMENSION_TYPE).getHolderOrThrow(typeKey);
 
-            LevelRenderer renderer = new LevelRenderer(
-                mc, mc.getEntityRenderDispatcher(),
-                mc.getBlockEntityRenderDispatcher(), mc.renderBuffers()
-            );
+            // NeoForge 1.21.1 constructs a SectionRenderDispatcher from
+            // the RenderBuffers passed here. Sharing mc.renderBuffers()
+            // means remote chunk compilation can contend with active chunks.
+            // Give each newly constructed secondary LevelRenderer its OWN
+            // limited, releasable native buffers (only one build pack).
+            SeamOwnedLevelRenderBuffers storage=new SeamOwnedLevelRenderBuffers();
+            LevelRenderer renderer=null;
             ClientLevel secondary;
             try {
+                renderer=new LevelRenderer(
+                    mc,mc.getEntityRenderDispatcher(),
+                    mc.getBlockEntityRenderDispatcher(),storage.buffers()
+                );
                 ClientLevel.ClientLevelData data =
                     new ClientLevel.ClientLevelData(Difficulty.NORMAL, false, false);
                 secondary = new ClientLevel(
@@ -97,9 +113,13 @@ public final class SeamClientWorldPool {
                 renderer.setLevel(secondary);
                 renderer.onResourceManagerReload(mc.getResourceManager());
             } catch (Throwable error) {
-                renderer.close();
+                try { if(renderer!=null)renderer.close(); }
+                finally { storage.release(); }
                 throw error;
             }
+            OWNED_RENDERERS.put(renderer,storage);
+            dedicatedCreated++;
+            peakDedicatedActive=Math.max(peakDedicatedActive,OWNED_RENDERERS.size());
             remoteRenderer = renderer;
             remote = secondary;
             failed = false;
@@ -331,10 +351,48 @@ public final class SeamClientWorldPool {
         }
     }
 
+    public static int dedicatedRendererCreated() { return dedicatedCreated; }
+    public static int dedicatedRendererReleased() { return dedicatedReleased; }
+    public static int dedicatedRendererActive() { return OWNED_RENDERERS.size(); }
+    public static int peakDedicatedRendererActive() { return peakDedicatedActive; }
+    public static boolean remoteHasDedicatedBuffers() {
+        return remoteRenderer!=null && OWNED_RENDERERS.containsKey(remoteRenderer);
+    }
+    public static boolean mainHasDedicatedBuffers() {
+        return OWNED_RENDERERS.containsKey(Minecraft.getInstance().levelRenderer);
+    }
+
+    private static void releaseDedicated(LevelRenderer renderer) {
+        SeamOwnedLevelRenderBuffers owner=OWNED_RENDERERS.remove(renderer);
+        if(owner!=null) {
+            owner.release();
+            dedicatedReleased++;
+        }
+    }
+
+    /** No world will be rendered after logout; reclaim even the active pool. */
+    private static void disconnect() {
+        clear();
+        // clear() must not release the active renderer during normal world
+        // operation. Once disconnected, its buffers can be reclaimed too.
+        for(var renderer:java.util.List.copyOf(OWNED_RENDERERS.keySet()))
+            releaseDedicated(renderer);
+    }
+
     public static void clear() {
         if (remoteRenderer != null) {
-            remoteRenderer.setLevel(null);
-            remoteRenderer.close();
+            LevelRenderer detached=remoteRenderer;
+            // During a handoff, a formerly remote renderer can become the
+            // ACTIVE Minecraft.levelRenderer. Never tear down its buffers
+            // while the player is still viewing that dimension.
+            if(detached!=Minecraft.getInstance().levelRenderer) {
+                try {
+                    detached.setLevel(null);
+                    detached.close();
+                } finally {
+                    releaseDedicated(detached);
+                }
+            }
         }
         remoteRenderer = null;
         remote = null;

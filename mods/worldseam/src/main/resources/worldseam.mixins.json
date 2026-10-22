@@ -12,6 +12,7 @@
     "SeamMinecraftAccess",
     "SeamPacketListenerAccess",
     "SeamClientPlayerAccess",
+    "SeamBufferSourceAccess",
     "SeamCreateWorldMixin"
   ],
   "injectors": {

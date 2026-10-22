@@ -174,3 +174,14 @@ v0.5 的 teleportTo 仍引发原版 ClientboundRespawnPacket/加载界面。本�
 **真正测试的验收条件：** NeoForge GUI E2E 除原有双向穿越、TNT 跨维爆炸、末地岛、区块驻留和关闭清理外，新增 `ownBufferActive`、`ownBufferCreations`、`ownBufferFlushes` 运行日志；远端模型绘制时必须实际使用且提交自有缓冲，关闭后必须释放自有缓冲并增加 disposals 计数。保留独立 CPU P95 和重建 P95，验证修复没有引入性能灾难。
 
 **安全边界：** 这是为双独立 LevelRenderer/FBO 做的资源隔离基础，**不是已实现** Iris 着色器上下文切换、Voxy LOD、Sable 物理子世界自由穿越或全 GPU 多维度渲染。所有这些仍需版本绑定的真实客户端集成测试，不能从一个成功截图推断“完美兼容”。本次未改航空学、NPC 或 Sable 代码，也未改变末地作为新世界最底层的默认安排。
+
+
+## v0.9.9-dev — 第二个 LevelRenderer 的原生缓冲完全分离（阶段一）
+
+**主动排查的问题：** v0.9.8 已隔离远端逐方块代理视图的 `MultiBufferSource`，但创建真正的次级 `LevelRenderer` 时仍给它传 `mc.renderBuffers()`（主世界同一套 `SectionBufferBuilderPool` 和 `fixedBufferPack`）。这会让远端原生 Chunk 编译与主世界争夺方块网格构建池，若未来启用同帧双世界原生网格渲染更容易产生任务争用和跨 Mod 问题。
+
+**这轮实现：** 使用 NeoForge 1.21.1 的真实 `new RenderBuffers(1)`，每个真实次级 `LevelRenderer` 配一套独立原生 section builder pool 和实体/方块渲染 BufferSource，只预留一个远端编译 pack，不随主世界视距扩大；预览模型仍复用 v0.9.8 的独立小缓冲。渲染器与专用缓冲的拥有关系通过 `IdentityHashMap<LevelRenderer,SeamOwnedLevelRenderBuffers>` 跟踪。跨维直接 handoff 会交换主、副 Renderer，因此资源的释放不能仅根据变量名称 `remote` 判断，而是检查**这个 Renderer 是否还在 `Minecraft.levelRenderer` 活跃**。未活跃且被清理的 Renderer 关闭后，再释放 pool 中所有归还的 SectionBufferBuilderPack、固定 pack，以及通过受限客户端 Mixin 获取的 `ByteBufferBuilder` 共享及固定层缓冲。退出世界时也执行资源释放，初始化失败则立即释放已分配的内存。资源池大小与创建/释放统计加入真实客户端中文调试 HUD。
+
+**严格测试：** 真实 NeoForge GUI 预览时必须发现实际独立次级渲染缓冲（当前只有一个持有者）；玩家下界双向穿越、末地预览和 TNT 后停用 WorldSeam，必须正确保留当时仍活跃 Renderer 的缓冲、同时关闭所有非活跃次级 Renderer 的原生内存。测试记录 `WORLDSEAM_E2E_NATIVE_RENDERER_POOL` 和释放计数，配合既有模型绘制/区块重建 P95、25/25 区块驻留与 TNT 验收。
+
+**边界提醒：** 这只是独立原生 Chunk 编译**资源**，并不代表已经把完整原生 `LevelRenderer.renderLevel` 输出以深度/遮挡/透明/光照正确合成到主世界，也没有证明兼容 Iris、Sodium、Voxy 或 Sable 飞船连续刚体跨维。未来仍要通过带实际第三方 JAR 的版本限定 E2E。新世界默认主世界→下界→末地不变，末地航空学载具原有悬浮行为不变；不修改 NPC 或航空学工程。

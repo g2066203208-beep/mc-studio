@@ -88,6 +88,17 @@ public final class SeamVisualE2E {
             if(SeamNativeGeometryClient.bufferCreations()>1)
                 LOG.error("WORLDSEAM_E2E_FAIL_RENDER_BUFFER_CHURN: same active seam allocated buffer pool {} times instead of reusing it",
                     SeamNativeGeometryClient.bufferCreations());
+            LOG.info("WORLDSEAM_E2E_NATIVE_RENDERER_POOL: remoteOwns={}, mainOwns={}, created={}, released={}, active={}, peak={}",
+                SeamClientWorldPool.remoteHasDedicatedBuffers(),
+                SeamClientWorldPool.mainHasDedicatedBuffers(),
+                SeamClientWorldPool.dedicatedRendererCreated(),
+                SeamClientWorldPool.dedicatedRendererReleased(),
+                SeamClientWorldPool.dedicatedRendererActive(),
+                SeamClientWorldPool.peakDedicatedRendererActive());
+            if(!SeamClientWorldPool.remoteHasDedicatedBuffers() ||
+                SeamClientWorldPool.dedicatedRendererCreated()!=1 ||
+                SeamClientWorldPool.dedicatedRendererActive()!=1)
+                LOG.error("WORLDSEAM_E2E_FAIL_NATIVE_RENDERER_POOL: initial secondary LevelRenderer must have exactly one isolated native buffer owner");
             if(SeamNativeGeometryClient.lastTickRebuildSlices()>4)
                 LOG.error("WORLDSEAM_E2E_FAIL_REBUILD_BUDGET: geometry builder exceeded four native sections per tick");
             server.execute(() -> {
@@ -276,16 +287,26 @@ public final class SeamVisualE2E {
                 SeamNativeGeometryClient.visibleBlockCount()==0 &&
                 SeamNativeGeometryClient.pendingRebuilds()==0 &&
                 !SeamNativeGeometryClient.ownBuffersActive() &&
-                SeamNativeGeometryClient.bufferDisposals()>0;
+                SeamNativeGeometryClient.bufferDisposals()>0 &&
+                SeamClientWorldPool.dedicatedRendererActive()<=1 &&
+                !SeamClientWorldPool.remoteHasDedicatedBuffers() &&
+                SeamClientWorldPool.dedicatedRendererReleased()>0;
             if(cleared)
-                LOG.info("WORLDSEAM_E2E_PASS_DISABLE_CLEARED: authoritative OFF synced, remote ClientLevel, models and render buffers released, bufferDisposals={}",SeamNativeGeometryClient.bufferDisposals());
+                LOG.info("WORLDSEAM_E2E_PASS_DISABLE_CLEARED: OFF synced; remotes freed, active world buffers retained only where necessary. proxyDisposals={}, nativeCreated={}, nativeReleased={}, nativeActive={}",
+                    SeamNativeGeometryClient.bufferDisposals(),
+                    SeamClientWorldPool.dedicatedRendererCreated(),
+                    SeamClientWorldPool.dedicatedRendererReleased(),
+                    SeamClientWorldPool.dedicatedRendererActive());
             else
-                LOG.error("WORLDSEAM_E2E_FAIL_DISABLE: enabled={}, remote={}, geometry={}, pending={}, ownBuffersActive={}, disposed={}",
+                LOG.error("WORLDSEAM_E2E_FAIL_DISABLE: enabled={}, remote={}, geometry={}, pending={}, ownBuffersActive={}, disposed={}, nativeCreated={}, nativeReleased={}, nativeActive={}",
                     SeamStackClient.enabled(),status,
                     SeamNativeGeometryClient.visibleBlockCount(),
                     SeamNativeGeometryClient.pendingRebuilds(),
                     SeamNativeGeometryClient.ownBuffersActive(),
-                    SeamNativeGeometryClient.bufferDisposals());
+                    SeamNativeGeometryClient.bufferDisposals(),
+                    SeamClientWorldPool.dedicatedRendererCreated(),
+                    SeamClientWorldPool.dedicatedRendererReleased(),
+                    SeamClientWorldPool.dedicatedRendererActive());
         }
     }
 
