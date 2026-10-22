@@ -110,6 +110,18 @@ public final class NpcCommands {
                 .executes(ctx -> settlementInfo(ctx.getSource())))
             .then(Commands.literal("market")
                 .executes(ctx -> marketStatus(ctx.getSource())))
+            .then(Commands.literal("camera")
+                .requires(source -> source.hasPermission(2))
+                .executes(ctx -> npcCameraStatus(ctx.getSource()))
+                .then(Commands.literal("stop").executes(ctx -> npcCameraStop(ctx.getSource())))
+                .then(Commands.literal("pov")
+                    .then(Commands.argument("role", StringArgumentType.word())
+                        .executes(ctx -> npcCameraStart(ctx.getSource(),
+                            StringArgumentType.getString(ctx,"role"), NpcCameraController.Mode.POV))))
+                .then(Commands.literal("chase")
+                    .then(Commands.argument("role", StringArgumentType.word())
+                        .executes(ctx -> npcCameraStart(ctx.getSource(),
+                            StringArgumentType.getString(ctx,"role"), NpcCameraController.Mode.CHASE)))))
             .then(Commands.literal("city")
                 .executes(ctx -> cityHelp(ctx.getSource()))
                 .then(Commands.literal("survey")
@@ -323,6 +335,35 @@ public final class NpcCommands {
         return 1;
     }
 
+
+    private static int npcCameraStatus(CommandSourceStack source)
+        throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        ServerPlayer player=source.getPlayerOrException();
+        source.sendSuccess(() -> Component.literal(NpcCameraController.status(player)
+            +"。先 /gamemode spectator；/npc camera pov shoplifter 或"
+            +" /npc camera chase guard；/npc camera stop。"),false);
+        return 1;
+    }
+    private static int npcCameraStart(CommandSourceStack source, String role,
+                                      NpcCameraController.Mode mode)
+        throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        ServerPlayer player=source.getPlayerOrException();
+        PlayerNpcEntity npc=NpcCameraController.find(player,role);
+        if (npc==null || !NpcCameraController.start(player,npc,mode)) {
+            source.sendFailure(Component.literal("必须先切到旁观模式，目标需在同维度加载范围64格内；"
+                +"角色仅限 shoplifter/clerk/guard/park/nearest"));
+            return 0;
+        }
+        source.sendSuccess(() -> Component.literal("已连续跟踪真实NPC "+npc.getUUID()+"："
+            +mode+"；镜头只移动玩家，不移动NPC。停止 /npc camera stop"),false);
+        return 1;
+    }
+    private static int npcCameraStop(CommandSourceStack source)
+        throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        NpcCameraController.stop(source.getPlayerOrException());
+        source.sendSuccess(() -> Component.literal("NPC镜头已解除附身/追踪"),false);
+        return 1;
+    }
 
     private static int cityHelp(CommandSourceStack source) {
         source.sendSuccess(() -> Component.literal(
