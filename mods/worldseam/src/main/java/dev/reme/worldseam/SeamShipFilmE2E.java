@@ -32,7 +32,7 @@ import java.util.UUID;
  */
 public final class SeamShipFilmE2E {
     private static final Logger LOG=LogUtils.getLogger();
-    private static volatile int state; // 0 pre-world, 1 setup, 2 descending, 3 rising, 4 pass, -1 fail
+    private static volatile int state; // 0 pre-world, 5 queued setup, 1 ARENA_READY/handshake, 2 descending, 3 rising, 4 pass, -1 fail
     private static volatile long started;
     private static volatile UUID shipUuid;
     private static volatile String failReason="";
@@ -66,7 +66,11 @@ public final class SeamShipFilmE2E {
         if(state!=0||server==null||mc.player==null||mc.level==null ||
            mc.player.tickCount<80)return;
         if(mc.level.dimension()!=Level.OVERWORLD)return;
-        state=1;
+        // The client callback and server thread run independently. Mark
+        // setup PENDING, not ARENA_READY: otherwise the server-tick
+        // listener sees state=1 before prepare() has even executed and
+        // attempts to assemble a non-existent Sable test aircraft.
+        state=5;
         UUID player=mc.player.getUUID();
         server.execute(()->prepare(server,player));
     }
@@ -90,6 +94,7 @@ public final class SeamShipFilmE2E {
     }
 
     private static void prepare(MinecraftServer server,UUID playerId) {
+        if(state!=5)return; // a prior failure may have invalidated setup
         try {
             ServerPlayer player=server.getPlayerList().getPlayer(playerId);
             if(player==null)throw new IllegalStateException("Client player disappeared");
@@ -192,8 +197,10 @@ public final class SeamShipFilmE2E {
             stagingAnchor=anchor;
             stagingHome=home;
             started=server.getTickCount();
-            LOG.info("WORLDSEAM_FILM_ARENA_READY: /fill air complete in BOTH native worlds, native spectator positioned; waiting for Sable client sublevel tracking handshake");
+            // Publish ready LAST, after all writes. The server-tick
+            // observer is never allowed to assemble an incomplete fixture.
             state=1;
+            LOG.info("WORLDSEAM_FILM_ARENA_READY: /fill air complete in BOTH native worlds, real Aero/Create drivetrain placed, native spectator positioned; now waiting for Sable client sublevel tracking handshake");
         } catch(Exception | LinkageError ex) {
             fail("Arena setup failed: "+ex,ex);
         }
