@@ -267,8 +267,6 @@ public final class SeamServer {
             // not currently loaded, defer the entity migration until it is.
             if(!target.hasChunk(Math.floorDiv(dest.getX(),16),
                                 Math.floorDiv(dest.getZ(),16)))return;
-            double sourceBoundary=SeamGraph.boundaryY(link.exit(),
-                sourceMinY,sourceTopY);
             if (!SeamArrival.hasJoinedClearance(
                 source,target,link,sourceBoundary,targetBoundary,
                 entity.getX(),y,entity.getZ(),entity)) return;
