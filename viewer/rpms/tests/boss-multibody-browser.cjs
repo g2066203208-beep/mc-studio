@@ -16,6 +16,11 @@ const {chromium}=require('playwright-core');
   assert.equal(initial.rigidBodies,13,'one heavy chassis + six upper and six lower legs');
   assert.equal(initial.joints,12,'all twelve real hinges required');
   assert.equal(initial.feet,6,'six load-bearing feet');
+  assert.equal(initial.powertrain.connectedBranches,6,'all six Rapier hips must have actual Create gear/clutch paths');
+  assert.equal(initial.powertrain.source.id,'create:creative_motor');
+  assert.equal(initial.powertrain.inputs.length,6);
+  assert.ok(initial.powertrain.blocks>=24);
+
   assert.ok(initial.mass>20,'mechanical Boss has real structural mass');
   const standing=await page.evaluate(()=>window.__MULTIBODY_RIG__.advance(240));
   console.log('ARTICULATED_STAND',JSON.stringify(standing));
@@ -62,6 +67,29 @@ const {chromium}=require('playwright-core');
   }));
   console.log('ARTICULATED_WEB_VISUAL',JSON.stringify(status));
   assert.equal(status.snapshot.rigidBodies,13);
+  assert.equal(status.snapshot.powertrain.connectedBranches,6,
+   'viewer must expose REAL source-audited Create network connection to all 6 joints');
+  assert.equal(await site.locator('#driveConnected').textContent(),'6 / 6');
+  await site.locator('#clutchCut').click();
+  const oneOff=await site.evaluate(()=>window.__BOSS_API__.snapshot());
+  assert.equal(oneOff.powertrain.connectedBranches,5,
+    'turning on the redstone clutch must make one gear path go DEAD');
+  assert.equal(oneOff.powertrain.inputs.find(x=>x.id==='L1').rpm,0);
+  const afterCut=await site.evaluate(()=>window.__BOSS_API__.advance(2));
+  assert.equal(afterCut.legAngles.find(x=>x.id==='L1').deliveredTorque,0,
+    'physical Rapier hip motor must receive ZERO drive torque when Create clutch is off');
+  assert.ok(afterCut.legAngles.some(x=>x.id==='R1'&&x.deliveredTorque>0),
+    'other independently connected mechanical leg must retain torque');
+  await site.locator('#clutchRestore').click();
+  assert.equal(await site.evaluate(()=>window.__BOSS_API__.snapshot().powertrain.connectedBranches),6);
+  await site.locator('#powerCut').click();
+  assert.equal(await site.evaluate(()=>window.__BOSS_API__.snapshot().powertrain.connectedBranches),0);
+  const off=await site.evaluate(()=>window.__BOSS_API__.advance(2));
+  assert.ok(off.legAngles.every(x=>x.deliveredTorque===0),
+    'disabling Create central motor MUST halt all physical joint drive');
+  await site.locator('#powerRestore').click();
+  assert.equal(await site.evaluate(()=>window.__BOSS_API__.snapshot().powertrain.connectedBranches),6);
+
   assert.equal(status.snapshot.joints,12);
   assert.equal(status.bodies,13,'every physical body must have its own separately synchronized visual group');
   assert.ok(status.meshes>65,'Not a true gear and bearing machine; insufficient visible mechanical components: '+status.meshes);
