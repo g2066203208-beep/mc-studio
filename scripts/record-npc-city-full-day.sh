@@ -28,7 +28,9 @@ city_video_cleanup() {
   kill -INT "$CITY_DAY_FFMPEG" 2>/dev/null || true
   wait "$CITY_DAY_FFMPEG" 2>/dev/null || true
 }
-trap city_video_cleanup RETURN
+# Preserve the parent client's graceful shutdown, and terminate ffmpeg even
+# if a real gameplay acceptance fails part-way through the day.
+trap 'city_video_cleanup; cleanup' EXIT
 
 video_wall_start=$SECONDS
 passes=0
@@ -72,7 +74,7 @@ say_city '/npc camera stop' 2
 say_city '/npc city audit' 3
 import -window root client-gui-city-full-day-finish.png
 city_video_cleanup
-trap - RETURN
+trap cleanup EXIT
 
 # Validate actual tick ages for all 13 unique existing entity UUIDs and
 # actual 1200-tick sampled behavior, not fabricated timestamps.
