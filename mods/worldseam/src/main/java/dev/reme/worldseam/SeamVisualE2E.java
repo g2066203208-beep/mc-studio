@@ -82,10 +82,29 @@ public final class SeamVisualE2E {
                 SeamNativeGeometryClient.ownBuffersActive(),
                 SeamNativeGeometryClient.bufferCreations(),
                 SeamNativeGeometryClient.bufferFlushes());
-            if(SeamNativeGeometryClient.lastFrameDrawn()>0 &&
+            if(SeamNativeGeometryClient.gpuBackendEnabled()) {
+                LOG.info("WORLDSEAM_E2E_GPU_NATIVE_MESH: readySlices={}, uploads={}, drawnCellModels={}, visibleCellModels={}, coverage={}, drawCalls={}, estimatedMiB={}, evictions={}, currentBuildMs={}",
+                    SeamNativeGeometryClient.gpuCachedSlices(),
+                    SeamNativeGeometryClient.gpuCompiledSlices(),
+                    SeamNativeGeometryClient.lastFrameDrawn(),
+                    SeamNativeGeometryClient.lastFrameVisibleCells(),
+                    String.format(java.util.Locale.ROOT,"%.3f",SeamNativeGeometryClient.gpuVisibleCoverage()),
+                    SeamNativeGeometryClient.gpuDrawCalls(),
+                    SeamNativeGeometryClient.gpuEstimatedBytes()/1048576,
+                    SeamNativeGeometryClient.gpuEvictedSlices(),
+                    String.format(java.util.Locale.ROOT,"%.3f",SeamNativeGeometryClient.lastGpuBuildMs()));
+                if(SeamNativeGeometryClient.gpuCachedSlices()<1 ||
+                    SeamNativeGeometryClient.gpuCompiledSlices()<1 ||
+                    SeamNativeGeometryClient.gpuEstimatedBytes()>96L*1024*1024)
+                    LOG.error("WORLDSEAM_E2E_FAIL_GPU_MESH: persistent native GPU section cache not populated or over memory budget");
+                if(SeamNativeGeometryClient.lastFrameVisibleCells()>500 &&
+                    SeamNativeGeometryClient.gpuVisibleCoverage()<0.70)
+                    LOG.error("WORLDSEAM_E2E_FAIL_GPU_COVERAGE: less than 70pct remote visible block surface reached GPU after 290 ticks");
+            } else if(SeamNativeGeometryClient.lastFrameDrawn()>0 &&
                 (!SeamNativeGeometryClient.ownBuffersActive() ||
-                 SeamNativeGeometryClient.bufferFlushes()<1))
-                LOG.error("WORLDSEAM_E2E_FAIL_RENDER_BUFFER_ISOLATION: remote terrain was drawn without owned flushed buffers");
+                 SeamNativeGeometryClient.bufferFlushes()<1)) {
+                LOG.error("WORLDSEAM_E2E_FAIL_RENDER_BUFFER_ISOLATION: fallback drew without owned flushed buffers");
+            }
             // This cumulative counter includes correctly released pools from
             // earlier seam changes. Only TWO simultaneously live pools or
             // allocations without a matching disposal indicate churn/leak.
@@ -315,7 +334,9 @@ public final class SeamVisualE2E {
                 SeamNativeGeometryClient.visibleBlockCount()==0 &&
                 SeamNativeGeometryClient.pendingRebuilds()==0 &&
                 !SeamNativeGeometryClient.ownBuffersActive() &&
-                SeamNativeGeometryClient.bufferDisposals()>0 &&
+                (SeamNativeGeometryClient.gpuBackendEnabled()
+                    ? SeamNativeGeometryClient.gpuCachedSlices()==0
+                    : SeamNativeGeometryClient.bufferDisposals()>0) &&
                 SeamClientWorldPool.dedicatedRendererActive()<=1 &&
                 !SeamClientWorldPool.remoteHasDedicatedBuffers() &&
                 SeamClientWorldPool.dedicatedRendererReleased()>0;
