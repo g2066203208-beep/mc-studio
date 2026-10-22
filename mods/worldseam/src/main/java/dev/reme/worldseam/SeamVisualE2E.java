@@ -195,9 +195,16 @@ public final class SeamVisualE2E {
                 int meshes=SeamNativeGeometryClient.gpuUploadedSections();
                 long cells=SeamNativeGeometryClient.gpuDrawnCellEquivalent();
                 int candidates=SeamNativeGeometryClient.visibleBlockCount();
-                double coverage=candidates<=0?0.0:100.0*cells/candidates;
-                LOG.info("WORLDSEAM_E2E_GPU_SETTLED: elapsedTicks={}, nativeGpuSections={}, gpuDrawnCells={}, candidateSurfaceCells={}, frameCoveragePct={}, gpuBakeP95Ms={}, fluidSurfaceCandidates={}, gpuDrawnFluidCells={}",
-                    now-startTick,meshes,cells,candidates,
+                int frustumCandidates=SeamNativeGeometryClient.frustumVisibleSurfaceCells();
+                // The old ratio divided GPU VBO draws by ALL cached cells,
+                // even the slices rejected by vanilla's frustum. That
+                // misleadingly reported ~84% as geometry holes when those
+                // hidden slices were correctly culled. Compare only the
+                // actually visible region to measure coherent mesh coverage.
+                double coverage=frustumCandidates<=0?0.0:
+                    100.0*cells/frustumCandidates;
+                LOG.info("WORLDSEAM_E2E_GPU_SETTLED: elapsedTicks={}, nativeGpuSections={}, gpuDrawnCells={}, cachedSurfaceCells={}, frustumVisibleSurfaceCells={}, frameCoveragePct={}, gpuBakeP95Ms={}, fluidSurfaceCandidates={}, gpuDrawnFluidCells={}",
+                    now-startTick,meshes,cells,candidates,frustumCandidates,
                     String.format(java.util.Locale.ROOT,"%.1f",coverage),
                     String.format(java.util.Locale.ROOT,"%.3f",
                         SeamNativeGeometryClient.p95GpuMeshBakeMs()),
