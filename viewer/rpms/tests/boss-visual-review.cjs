@@ -1,4 +1,5 @@
 const {chromium}=require('playwright-core');
+const assert=require('node:assert/strict');
 (async()=>{
  const browser=await chromium.launch({channel:'chrome',headless:true,args:['--no-sandbox','--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader','--enable-webgl','--disable-dev-shm-usage']});
  try{
@@ -13,6 +14,12 @@ const {chromium}=require('playwright-core');
    const t=window.__BOSS_API__.getAssetStatus().officialTypes;
    return t.includes('simulated:swivel_bearing')&&t.includes('create:brass_casing')&&t.includes('create:industrial_iron_block');
   },null,{timeout:120000});
+  const variants=await page.evaluate(()=>window.__BOSS_API__.getAssetStatus().officialVariants);
+  assert.ok(variants.includes('simulated:swivel_bearing|axis=x|facing=east'),
+    'East original Simulated blockstate model missing');
+  assert.ok(variants.includes('simulated:swivel_bearing|axis=x|facing=west'),
+    'West bearing must NOT reuse east original Minecraft model');
+  console.log('BOSS_REAL_ORIGINAL_BEARING_FACINGS',JSON.stringify(variants));
   await page.waitForFunction(()=>window.__BOSS_API__.snapshot().supportContacts>=4,null,{timeout:35000});
   await page.waitForTimeout(450);
   const base=await page.evaluate(()=>({audit:window.__BOSS_API__.voxelAudit(),snapshot:window.__BOSS_API__.snapshot(),assets:window.__BOSS_API__.getAssetStatus()}));
