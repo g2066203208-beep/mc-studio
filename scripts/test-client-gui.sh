@@ -168,10 +168,10 @@ if [[ "${REME_CITY_VISUAL:-0}" == "1" ]]; then
   # is the purchase refusal/theft itself; afterwards no command teleports
   # any NPC, guard, customer, goods or jail blocks.
   if [[ "${REME_CITY_STORY_MOVIE:-0}" == "1" ]]; then
-    ffmpeg -loglevel error -nostdin -y -f x11grab -video_size 1280x720 \\
-      -framerate 8 -i "$DISPLAY" -c:v libx264 -preset ultrafast -crf 25 \\
-      -pix_fmt yuv420p -movflags +faststart \\
-      client-gui-city-police-full-chase-real-minecraft.mp4 \\
+    ffmpeg -loglevel error -nostdin -y -f x11grab -video_size 1280x720 \
+      -framerate 8 -i "$DISPLAY" -c:v libx264 -preset ultrafast -crf 25 \
+      -pix_fmt yuv420p -movflags +faststart \
+      client-gui-city-police-full-chase-real-minecraft.mp4 \
       >client-gui-city-story-video.log 2>&1 &
     MOVIE_PID=$!
     say_city '/npc city demo' 1
