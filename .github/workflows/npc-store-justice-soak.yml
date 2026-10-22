@@ -52,7 +52,7 @@ jobs:
           grep -F 'REME_NPC_STORY stage=jail_reached' npc-real-store-crime-gametest.log
           grep -F 'REME_NPC_PHYSICAL_JAIL_WALK ticks=210' npc-real-store-crime-gametest.log
           grep -F 'REME_NPC_REAL_BED_DAYSOAK ticks=24000' npc-real-store-crime-gametest.log
-          grep -F 'REME_NPC_CITY_DAY_FINISH ticks=24000' npc-real-store-crime-gametest.log
+          grep -E 'REME_NPC_CITY_DAY_FINISH ticks=2400[0-9].*residents=13.*missing=0 active=13 inert=0' npc-real-store-crime-gametest.log
           grep -F 'REME_NPC_CITY_24K_GAMETEST ' npc-real-store-crime-gametest.log
           grep -E 'All [0-9]+ required tests passed' npc-real-store-crime-gametest.log
       - name: Always preserve unmodified real Minecraft log and save evidence
