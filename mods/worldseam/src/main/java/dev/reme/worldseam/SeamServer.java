@@ -220,11 +220,15 @@ public final class SeamServer {
         for (SeamGraph.Link link : SeamStackRuntime.from(server,source.dimension().location().toString())) {
             int sourceMinY = SeamStackRuntime.bottom(source);
             int sourceTopY = SeamStackRuntime.top(source);
-            // Target-aware plan is evaluated below once target level exists.
-            ServerLevel target = server.getLevel(dimensionKey(link.target()));
-            if (target == null || !entity.canChangeDimensions(source, target)) return;
+            // Hot path: this event fires for EVERY ticking entity, not only
+            // those near a connection plane. Do not resolve the destination
+            // or call modded entity dimension-change hooks until the entity
+            // is physically within a tiny band around an actual seam.
             double sourceBoundary = SeamGraph.boundaryY(link.exit(),
-                SeamStackRuntime.bottom(source), SeamStackRuntime.top(source));
+                sourceMinY, sourceTopY);
+            if(Math.abs(entity.getY()-sourceBoundary)>2.0)continue;
+            ServerLevel target = server.getLevel(dimensionKey(link.target()));
+            if(target==null || !entity.canChangeDimensions(source,target))continue;
             double targetBoundary = SeamGraph.boundaryY(link.entry(),
                 SeamStackRuntime.bottom(target), SeamStackRuntime.top(target));
             SeamCrossing.Decision crossing = SeamCrossing.evaluate(
@@ -234,7 +238,12 @@ public final class SeamServer {
             double y = crossing.arrivalY();
             BlockPos dest = BlockPos.containing(entity.getX(), y, entity.getZ());
             if (!target.getWorldBorder().isWithinBounds(dest)) return;
-            target.getChunkAt(dest);
+            // A modded entity crossing must NEVER synchronously generate
+            // destination terrain on the server's entity tick. The remote
+            // region ticket belongs to player proximity; if this chunk is
+            // not currently loaded, defer the entity migration until it is.
+            if(!target.hasChunk(Math.floorDiv(dest.getX(),16),
+                                Math.floorDiv(dest.getZ(),16)))return;
             if (!SeamArrival.hasClearance(target, dest, entity)) return;
             Vec3 motion = entity.getDeltaMovement();
             float fall = entity.fallDistance;
