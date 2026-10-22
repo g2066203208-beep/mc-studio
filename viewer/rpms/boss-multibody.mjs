@@ -179,8 +179,8 @@ export function createMultibodyBoss(RAPIER,opts={}){
     // ground friction. Default gait moves toward world -Z.
     const u=((phase/(2*Math.PI)+(leg.tripod?.5:0))%1+1)%1;
     const stanceDuty=.64;
-    const extent=mode==='walk'?.21:.10;
-    const lift=mode==='walk'?.38:.32;
+    const extent=mode==='walk'?.28:.10;
+    const lift=mode==='walk'?.86:.32;
     const smooth=t=>t*t*(3-2*t);
     if(u<stanceDuty){
      const t=u/stanceDuty;
@@ -202,11 +202,13 @@ export function createMultibodyBoss(RAPIER,opts={}){
    const budget=branch?.pathLive ? torque*branch.torqueMultiplier : 0;
    leg.deliveredTorque=budget;
    if(mode!=='relax'&&budget>0){
-    servoTorque(body,leg.upper,hipT,hipGain,hipDamping,budget);
+    servoTorque(body,leg.upper,hipT,mode==='walk'?hipGain*1.75:hipGain,
+     mode==='walk'?hipDamping*1.5:hipDamping,budget);
     // A powered knee servo mounted on the upper/lower leg is a separate
     // simplified electrical/mechanical coupling, NOT a proven Create shaft
     // through a moving SubLevel. Explicitly report that limitation in UI.
-    servoTorque(leg.upper,leg.lower,kneeT,kneeGain,kneeDamping,budget*.85);
+    servoTorque(leg.upper,leg.lower,kneeT,mode==='walk'?kneeGain*2.1:kneeGain,
+     mode==='walk'?kneeDamping*1.6:kneeDamping,budget*.85);
    }
   }
  };
