@@ -89,7 +89,17 @@ public final class SeamLongRunE2E {
         LOG.warn("WORLDSEAM_STRESS_START: actual integrated NeoForge GUI; {} physical crossings across End/Nether/Overworld in disposable world",PASSES);
         server.execute(()->{
             var settings=SeamSettings.get(server);
+            settings.setEnabled(true);
+            settings.setExperimentalNoRespawn(true);
+            settings.setCarveNewChunks(true);
             settings.setStack(SeamStack.defaults(),server);
+            var live=server.getPlayerList().getPlayer(player);
+            if(live==null) {
+                LOG.error("WORLDSEAM_STRESS_FAIL: local player disappeared before setup");
+                enabled=false;
+                return;
+            }
+            live.setGameMode(net.minecraft.world.level.GameType.CREATIVE);
             var overworld=server.getLevel(Level.OVERWORLD);
             var nether=server.getLevel(Level.NETHER);
             var end=server.getLevel(Level.END);
