@@ -102,7 +102,7 @@ public final class SeamSableObserver {
                 LOG.warn("WORLDSEAM_SABLE_STRADDLE_DETECTED: {} real ships touching two dimension charts. NO unified Rapier contact bridge is installed; do NOT claim physics continuity. sample={}",
                     straddled.size(),sample);
             previouslyStraddling=!straddled.isEmpty();
-        } catch(ReflectiveOperationException | RuntimeException ex) {
+        } catch(ReflectiveOperationException | RuntimeException | LinkageError ex) {
             failed=true;
             problem=ex.getClass().getSimpleName()+": "+ex.getMessage();
             LOG.warn("WORLDSEAM_SABLE_READ_ONLY_PROBE_UNAVAILABLE: Sable API adapter unavailable; no changes to ships were attempted",ex);
