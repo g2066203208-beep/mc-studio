@@ -98,6 +98,12 @@ xdotool type --clearmodifiers --delay 80 '/npc bed'
 xdotool key Return
 sleep 3
 import -window root client-gui-npc-bed-status.png
+xdotool key --clearmodifiers t
+sleep 1
+xdotool type --clearmodifiers --delay 80 '/npc market'
+xdotool key Return
+sleep 3
+import -window root client-gui-npc-market.png
 echo "Captured real client command attempts for visual inspection"
 
 # Dedicated real-client acceptance: this mode explicitly stops after genuine
@@ -106,7 +112,7 @@ echo "Captured real client command attempts for visual inspection"
 # separate coordinate fixture and masked an already-working command test.
 if [[ "${REME_COMMAND_SMOKE_ONLY:-0}" == "1" ]]; then
   log=run/logs/latest.log
-  if ! grep -q 'REME NPC 0.6.8-dev COMMANDS REGISTERED: /npc=true, /remecheck=true' "$log"; then
+  if ! grep -q 'REME NPC 0.6.9-dev COMMANDS REGISTERED: /npc=true, /remecheck=true' "$log"; then
     echo "FAIL: 21.1.262 server never actually registered both commands"; exit 1
   fi
   if ! grep -q '/npc registered=true' "$log"; then
@@ -117,6 +123,9 @@ if [[ "${REME_COMMAND_SMOKE_ONLY:-0}" == "1" ]]; then
   fi
   if ! grep -q '原生睡眠状态:' "$log"; then
     echo "FAIL: actual joined client did not execute /npc bed"; exit 1
+  fi
+  if ! grep -q '附近20格 NPC 市集' "$log"; then
+    echo "FAIL: real joined Minecraft client did not execute /npc market"; exit 1
   fi
   if ! grep -q 'Created player NPC: NPC' "$log"; then
     echo "FAIL: real /npc spawn failed in integrated world"; exit 1
