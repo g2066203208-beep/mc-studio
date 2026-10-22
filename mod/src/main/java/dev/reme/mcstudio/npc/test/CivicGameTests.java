@@ -23,6 +23,7 @@ import dev.reme.mcstudio.npc.life.BanditActions;
 import dev.reme.mcstudio.npc.life.PublicSafety;
 import dev.reme.mcstudio.npc.life.ShopCounter;
 import dev.reme.mcstudio.npc.life.CivicWorkplaces;
+import dev.reme.mcstudio.npc.life.SafeBuilder;
 import dev.reme.mcstudio.npc.life.LivingWorldActions;
 import dev.reme.mcstudio.npc.life.LivingPlanner;
 import dev.reme.mcstudio.npc.life.CaravanRoutes;
@@ -1582,6 +1583,81 @@ public final class CivicGameTests {
             || chest.countItem(Items.BREAD) != 13
             || clerk.backpack().countItem(Items.BREAD) != 0)
             throw new AssertionError("Full NPC backpack caused item loss/duplication");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 100)
+    public static void physical_shop_and_bakery_blueprints_have_real_furniture_and_persist(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos pos = helper.absolutePos(new BlockPos(4, 9, 4));
+        for (var type : new SafeBuilder.Template[]{
+                SafeBuilder.Template.SHOP, SafeBuilder.Template.BAKERY}) {
+            int count = SafeBuilder.steps(type);
+            if (count <= SafeBuilder.steps(SafeBuilder.Template.SHELTER) || count > 100)
+                throw new AssertionError("Shop/bakery missing true extra physical workstation steps");
+        }
+        PlayerNpcEntity builder = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (builder == null) throw new AssertionError("No resident builder");
+        builder.setBuildTemplate(SafeBuilder.Template.BAKERY);
+        builder.setWorkPos(pos);
+        CompoundTag saved = new CompoundTag();
+        builder.addAdditionalSaveData(saved);
+        PlayerNpcEntity loaded = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (loaded == null) throw new AssertionError("No NPC reload");
+        loaded.readAdditionalSaveData(saved);
+        if (loaded.buildTemplate() != SafeBuilder.Template.BAKERY)
+            throw new AssertionError("Genuine bakery plan not persisted to NBT");
+        builder.setBuildEnabled(true);
+        builder.setBuildTemplate(SafeBuilder.Template.SHOP);
+        if (builder.buildCursor() != 0 || builder.buildEnabled()
+            || builder.buildTemplate() != SafeBuilder.Template.SHOP)
+            throw new AssertionError("Switching blueprint replayed a half-built plan");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 100)
+    public static void builder_builds_actual_shop_timber_with_single_consumed_block(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos anchor = helper.absolutePos(new BlockPos(4, 9, 4));
+        for (int x = -3; x <= 3; x++) for (int z = -3; z <= 3; z++) {
+            level.setBlock(anchor.offset(x, -1, z),
+                Blocks.STONE.defaultBlockState(), 3);
+            level.setBlock(anchor.offset(x, 0, z),
+                Blocks.AIR.defaultBlockState(), 3);
+            level.setBlock(anchor.offset(x, 1, z),
+                Blocks.AIR.defaultBlockState(), 3);
+            level.setBlock(anchor.offset(x, 2, z),
+                Blocks.AIR.defaultBlockState(), 3);
+        }
+        if (!SafeBuilder.validateSite(level, anchor, SafeBuilder.Template.SHOP))
+            throw new AssertionError("Clear loaded building site rejected");
+        PlayerNpcEntity npc = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (npc == null) throw new AssertionError("No builder");
+        npc.moveTo(anchor.getX() + 0.5, anchor.getY(),
+            anchor.getZ() + 0.5, 0, 0);
+        npc.setHomePos(anchor);
+        npc.setWorkPos(anchor);
+        npc.setProfession(PlayerNpcEntity.Profession.BUILDER);
+        npc.setBuildTemplate(SafeBuilder.Template.SHOP);
+        npc.setMode(PlayerNpcEntity.Mode.LIVE);
+        npc.backpack().addItem(new ItemStack(Items.OAK_LOG, 2));
+        if (!level.addFreshEntity(npc)) throw new AssertionError("No actual builder entity");
+        npc.setBuildEnabled(true);
+        BlockPos first = anchor.offset(-2, 0, -2);
+        long due = MovementPolicy.phase(npc.getId(), 100);
+        SafeBuilder.tick(npc, level, due);
+        if (!level.getBlockState(first).is(Blocks.OAK_LOG)
+            || npc.backpack().countItem(Items.OAK_LOG) != 1
+            || npc.buildCursor() != 1)
+            throw new AssertionError("Shop was not truly built using a real consumed oak log");
+        // Never raze existing buildings or repeat the same block placement.
+        npc.resetBuildCursor();
+        if (SafeBuilder.validateSite(level, anchor, SafeBuilder.Template.SHOP))
+            throw new AssertionError("Player-placed first timber must block rebuilding site");
+        SafeBuilder.tick(npc, level, due + 100);
+        if (!level.getBlockState(first).is(Blocks.OAK_LOG)
+            || npc.backpack().countItem(Items.OAK_LOG) != 1)
+            throw new AssertionError("Construction illegally overwrote/reconsumed placed block");
         helper.succeed();
     }
 
