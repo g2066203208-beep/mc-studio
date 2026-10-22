@@ -231,6 +231,10 @@ public final class SeamShipFilmE2E {
                 shipUuid,initialMinY);
             LOG.info("WORLDSEAM_FILM_REAL_RAPIER_MASS: uuid={}, nativeMassKg={}, forceAccelerationScale=mass-times-meters-per-second-squared",
                 shipUuid,actualShipMassKg);
+            var aero=SeamAeronauticsEvidence.inspect(ship);
+            LOG.warn("WORLDSEAM_FILM_AERONAUTICS_DRIVETRAIN: {} actors={}, powered={}, rpmAndThrustVerified={}, diagnostic={}; test-imposed Rapier forces are NOT Aeronautics engine power",
+                shipUuid,aero.aeronauticsPropellerActors(),aero.powered(),
+                aero.totalAbsoluteThrust(),aero.diagnostic());
             state=2;
         } catch(Exception | LinkageError ex) {
             fail("Setup failed: "+ex,ex);
@@ -324,9 +328,20 @@ public final class SeamShipFilmE2E {
                     lastPulse=ticks;
                 }
                 if(hull.minY>PLANE+1 && fullyAcross && sawStraddle) {
+                    var aero=SeamAeronauticsEvidence.inspect(ship);
+                    LOG.info("WORLDSEAM_FILM_REAL_SABLE_FORCE_ONLY_ROUNDTRIP: uuid={}, startMinY={}, bottomMinY={}, returnMinY={}, sameBody=true, testExternalForce=true, aeroPowered={}",
+                        shipUuid,initialMinY,lowMinY,hull.minY,aero.powered());
+                    // Sable-only body forced across does NOT establish the
+                    // requested Create:Aeronautics powertrain. Certify only
+                    // when an actual running propeller entity from the real
+                    // mod was found on THIS live Sable sublevel.
+                    if(!aero.powered()) {
+                        fail("A static Sable ship moved under test-imposed force, not actual Aeronautics propulsion: "+aero.diagnostic(),null);
+                        return;
+                    }
                     state=4;
                     passes++;
-                    LOG.info("WORLDSEAM_FILM_PASS_REAL_SHIP_RETURN: uuid={} startMinY={} bottomMinY={} returnMinY={} ticks={} downTicks={} upTicks={}, twoWayStraddle=true, noTeleport=true, noSecondRigidBody=true",
+                    LOG.info("WORLDSEAM_FILM_PASS_REAL_SHIP_RETURN: uuid={} startMinY={} bottomMinY={} returnMinY={} ticks={} downTicks={} upTicks={}, twoWayStraddle=true, realAeroPropellerPowered=true, trueDualChartRapierContactsUnverified=true",
                         shipUuid,initialMinY,lowMinY,hull.minY,ticks,downTicks,upTicks);
                 }
             }
