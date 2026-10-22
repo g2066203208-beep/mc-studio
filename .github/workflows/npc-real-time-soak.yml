@@ -1,0 +1,52 @@
+name: NPC real-time 50 and 200 citizen server soak
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - test/npc-realwall-soak-v065
+  pull_request:
+    branches:
+      - feature/npc-mutual-aid-longrun-v065
+
+permissions:
+  contents: read
+
+jobs:
+  real-wall-soak:
+    name: Real NeoForge soak ${{ matrix.population }} NPCs / 5 min
+    runs-on: ubuntu-latest
+    timeout-minutes: 28
+    strategy:
+      fail-fast: false
+      matrix:
+        population: [50, 200]
+    env:
+      # System properties must reach the *Minecraft GameTestServer JVM*, not
+      # just Gradle. JAVA_TOOL_OPTIONS is read by every Java launcher.
+      JAVA_TOOL_OPTIONS: "-Dreme.npc.soak=true -Dreme.npc.soak.population=${{ matrix.population }} -Dreme.npc.soak.seconds=300"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Prepare isolated 48x24x48 real-world test arena
+        run: python3 scripts/prepare-gametest-arena.py
+      - name: Run real Minecraft GameTestServer for at least FIVE actual wall-clock minutes
+        shell: bash
+        working-directory: mod
+        run: |
+          set -euo pipefail
+          ./gradlew runGameTestServer --no-daemon --stacktrace 2>&1 | tee "npc-soak-${{ matrix.population }}.log"
+          grep -F "REME_NPC_SOAK_RESULT population=${{ matrix.population }}" "npc-soak-${{ matrix.population }}.log"
+          grep -E "All [0-9]+ required tests passed" "npc-soak-${{ matrix.population }}.log"
+      - name: Upload full dedicated-server evidence even when failed
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: npc-soak-${{ matrix.population }}-server-evidence
+          if-no-files-found: warn
+          path: |
+            mod/npc-soak-${{ matrix.population }}.log
+            mod/runs/**/logs/*.log
+            mod/run/**/logs/*.log
