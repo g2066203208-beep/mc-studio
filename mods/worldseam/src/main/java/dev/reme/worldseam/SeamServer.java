@@ -66,6 +66,9 @@ public final class SeamServer {
             SeamSectionSender.tick(server, player, tick, enabled && !ready);
         }
         seamEnabled = enabled;
+        // READ-ONLY observation of live Sable sublevels. Actual Rapier
+        // two-chart impulse coupling is not active and cannot be faked.
+        SeamSableObserver.tick(server,tick,enabled);
         terrainEnabled = enabled && SeamSettings.get(server).carveNewChunks();
         // Release any ticket held by disconnected players within five seconds,
         // even if world-seam was subsequently disabled.
