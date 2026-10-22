@@ -67,7 +67,7 @@ public final class SeamVisualE2E {
             server.execute(() -> prepare(server,playerId));
         } else if (phase==1 && !previewLogged && now-startTick>290) {
             previewLogged=true;
-            LOG.info("WORLDSEAM_E2E_PREVIEW_WINDOW: client dim={}, received={}, cached3x3={}, surface geometry={}, drawn={}, camera near floor Y={}, nativeModelCpuP95Ms={}, modelBudget={}, visibleSlices={}, frustumCulledSlices={}, rebuildCpuP95Ms={}, pendingSections={}, lastTickSections={}, ownBufferActive={}, ownBufferCreations={}, ownBufferFlushes={}",
+            LOG.info("WORLDSEAM_E2E_PREVIEW_WINDOW: client dim={}, received={}, cached3x3={}, surface geometry={}, drawn={}, camera near floor Y={}, nativeModelCpuP95Ms={}, modelBudget={}, visibleSlices={}, frustumCulledSlices={}, rebuildCpuP95Ms={}, pendingSections={}, lastTickSections={}, ownBufferActive={}, ownBufferCreations={}, ownBufferFlushes={}, gpuMeshedSections={}, gpuDrawnSections={}, gpuSectionCells={}, gpuBakeP95Ms={}",
                 mc.level.dimension().location(),SeamClientWorldPool.receivedChunks(),
                 SeamClientWorldPool.nearbyChunks(),
                 SeamNativeGeometryClient.visibleBlockCount(),
@@ -81,7 +81,16 @@ public final class SeamVisualE2E {
                 SeamNativeGeometryClient.lastTickRebuildSlices(),
                 SeamNativeGeometryClient.ownBuffersActive(),
                 SeamNativeGeometryClient.bufferCreations(),
-                SeamNativeGeometryClient.bufferFlushes());
+                SeamNativeGeometryClient.bufferFlushes(),
+                SeamNativeGeometryClient.gpuUploadedSections(),
+                SeamNativeGeometryClient.gpuDrawnSections(),
+                SeamNativeGeometryClient.gpuDrawnCellEquivalent(),
+                String.format(java.util.Locale.ROOT,"%.3f",
+                    SeamNativeGeometryClient.p95GpuMeshBakeMs()));
+            if(Boolean.getBoolean("worldseam.gpuSections") &&
+                (SeamNativeGeometryClient.gpuUploadedSections()==0 ||
+                 SeamNativeGeometryClient.gpuDrawnSections()==0))
+                LOG.error("WORLDSEAM_E2E_FAIL_GPU_MESH: actual native section GPU meshes were not drawn");
             if(SeamNativeGeometryClient.lastFrameDrawn()>0 &&
                 (!SeamNativeGeometryClient.ownBuffersActive() ||
                  SeamNativeGeometryClient.bufferFlushes()<1))
