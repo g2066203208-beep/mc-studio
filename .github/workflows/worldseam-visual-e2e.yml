@@ -1,4 +1,11 @@
 name: WorldSeam Real Client Visual Evidence
+# Only newest PR SHA should consume scarce graphical/Minecraft runners.
+# In-flight obsolete builds are cancelled on a new commit rather than
+# creating dozens of misleading old screenshots and hour-long queues.
+concurrency:
+  group: worldseam-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 on:
   push:
     branches: [feat/worldseam-standalone]
