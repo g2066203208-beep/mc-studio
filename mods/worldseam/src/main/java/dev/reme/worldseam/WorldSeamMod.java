@@ -28,7 +28,11 @@ public final class WorldSeamMod {
             SeamClientWorldPool.install();
             SeamNativeGeometryClient.install();
             SeamClientDiagnostic.install();
-            if (Boolean.getBoolean("worldseam.stress")) {
+            if (Boolean.getBoolean("worldseam.shipFilm")) {
+                // Dedicated disposable CI cinematography with REAL Sable.
+                // Never coexist with older E2E harnesses manipulating worlds.
+                SeamShipFilmE2E.install();
+            } else if (Boolean.getBoolean("worldseam.stress")) {
                 // A dedicated long-run world: do not spend the first 1500+
                 // ticks running the unrelated historical-stack visual E2E.
                 SeamLongRunE2E.install();
