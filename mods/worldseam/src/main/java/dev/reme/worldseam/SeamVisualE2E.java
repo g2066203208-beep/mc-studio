@@ -87,7 +87,7 @@ public final class SeamVisualE2E {
                 (!SeamNativeGeometryClient.ownBuffersActive() ||
                  SeamNativeGeometryClient.bufferFlushes()<1))
                 LOG.error("WORLDSEAM_E2E_FAIL_RENDER_BUFFER_ISOLATION: legacy model drawing used foreign buffers");
-            LOG.info("WORLDSEAM_E2E_GPU_SCENE: visibleSections={}, cachedGpuSections={}, gpuModelsDrawn={}, gpuUploads={}, gpuDrawCalls={}, fraction={}, gpuCpuMs={}, fallbackDisabled={}",
+            LOG.info("WORLDSEAM_E2E_GPU_SCENE: visibleSections={}, cachedGpuSections={}, gpuModelsDrawn={}, gpuUploads={}, gpuDrawCalls={}, fraction={}, gpuCpuMs={}, gpuVertexMiB={}, gpuEvictions={}, fallbackDisabled={}",
                 SeamNativeGeometryClient.visibleSlices(),
                 SeamNativeGeometryClient.lastFrameGpuSections(),
                 SeamNativeGeometryClient.lastFrameGpuModels(),
@@ -97,6 +97,9 @@ public final class SeamVisualE2E {
                     SeamNativeGeometryClient.lastGpuSceneCoverage()),
                 String.format(java.util.Locale.ROOT,"%.3f",
                     SeamNativeGeometryClient.lastFrameGpuCpuMs()),
+                String.format(java.util.Locale.ROOT,"%.3f",
+                    SeamNativeGeometryClient.gpuCachedVertexBytes()/1048576.0),
+                SeamNativeGeometryClient.gpuEvictions(),
                 SeamNativeGeometryClient.gpuBackendDisabled());
             // The old screen had only a few thousand cherry-picked blocks.
             // This is a REAL client-frame coverage gate, not a packet count:
