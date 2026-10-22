@@ -468,6 +468,17 @@ public final class SeamNativeGeometryClient {
         }
     }
 
+    public static int countFluidCells() {
+        int count=0;
+        for(var col:columns.values())for(var slice:col)
+            for(Cell cell:slice.cells())
+                if(!cell.state().getFluidState().isEmpty())count++;
+        return count;
+    }
+    public static int lastFrameGpuFluidCells() {
+        return GPU.lastFrameFluidCells();
+    }
+
     public static int countEndStone() {
         int count=0;
         for(var col:columns.values())for(var slice:col)
