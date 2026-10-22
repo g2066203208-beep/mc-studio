@@ -87,52 +87,43 @@ function ring(parent,pos,axis='x',legId){
  return mesh;
 }
 function chassisVisual(g){
- block(g,'box',[0,0,0],[5.6,1.15,5.3],'copper');
- block(g,'box',[0,.84,0],[2.3,.85,2.3],'dark');
- block(g,'box',[0,-.08,-3.0],[1.65,.65,1.1],'teal');
- // Exterior plate layering: industrial MC block silhouette.
- for(const z of [-2.1,-1.05,0,1.05,2.1])for(const x of [-2.35,-1.175,0,1.175,2.35]){
-  block(g,'box',[x,.61,z],[1.07,.16,.99],Math.abs(x)===2.35?'steel':'copper');
+ // Honest Minecraft-sized voxels, with no duplicate block coordinates.
+ // Positions are derived from the very same Create network that supplies
+ // actual joint torque rather than decorative independently moving gears.
+ const graph=buildCreatePowerBus({rpm:18,gearRatio:2});
+ const occupied=new Set(graph.blocks.filter(b=>Math.abs(b.pos[0])<=2&&Math.abs(b.pos[2])<=3)
+  .map(b=>b.pos[0]+','+b.pos[2]));
+ for(let x=-2;x<=2;x++)for(let z=-3;z<=3;z++){
+  if(occupied.has(x+','+z))continue;
+  block(g,'box',[x,0,z],[1,1,1],Math.abs(x)===2?'steel':'copper');
  }
- for(const z of [-1.85,0,1.85]){
-  block(g,'box',[0,1.3,z],[.86,.47,.88],'steel');
-  officialModule(g,'create:large_cogwheel',[0,1.64,z],{axis:'y',scale:1.27,rotor:true});
-  for(const sx of [-1,1]){
-   officialModule(g,'create:cogwheel',[sx*1.20,1.25,z],{axis:'y',scale:.94,rotor:true});
-   officialModule(g,'create:creative_motor',[sx*2.15,-.01,z],{axis:'x',facing:sx>0?'east':'west',scale:.83});
-   officialModule(g,'simulated:swivel_bearing',[sx*2.9,-.38,z],{axis:'x',facing:sx>0?'east':'west',scale:1.0});
-  }
+ for(const x of [-2,2])for(const z of [-3,0,3])
+  block(g,'box',[x,1,z],[1,1,1],'copper');
+ block(g,'box',[0,1,0],[1,1,1],'dark');
+ block(g,'box',[0,0,-4],[1,1,1],'teal');
+ for(const b of graph.blocks){
+  const [x,y,z]=b.pos;
+  const id=b.id,driven=id==='create:shaft'||id==='create:large_cogwheel';
+  officialModule(g,id,[x,y,z],{axis:b.axis||'x',
+   facing:b.facing||'east',scale:1,rotor:driven});
  }
- // Drive shafts and transmission inspection lines are *visual*; the
- // actual reaction torque is applied to real Hip/Knee Rapier hinges.
- for(const z of [-1.85,0,1.85]){
-  officialModule(g,'create:shaft',[0,.98,z],{axis:'x',scale:1.0,rotor:true});
-  block(g,'box',[-2.7,.36,z],[.25,.31,.29],'brass');
-  block(g,'box',[2.7,.36,z],[.25,.31,.29],'brass');
- }
- for(const x of [-2.28,2.28])for(const z of [-2.38,2.38])
-  block(g,'box',[x,-.68,z],[.5,.19,.55],'foot');
 }
 function linkVisual(g,length,legId,segment){
  const isUpper=segment==='upper';
- block(g,'box',[0,0,0],[isUpper?.68:.53,length,isUpper?.72:.64],isUpper?'teal':'steel',legId);
- for(const y of [-length*.3,0,length*.3]){
-  block(g,'box',[0,y,0],[.78,.21,.74],isUpper?'brass':'copper',legId);
- }
- for(const sign of [-1,1]){
-  block(g,'box',[sign*.32,0,0],[.12,length*.90,.23],'dark',legId);
- }
+ // All visible individual voxel blocks remain exactly one MC block.
+ // Rapier physics joint lengths are 1.65/1.75, not yet exact 2-block segments.
+ for(const y of [-.5,.5])
+  block(g,'box',[0,y,0],[1,1,1],isUpper?'teal':'steel',legId);
  if(isUpper){
-  officialModule(g,'simulated:swivel_bearing',[0,length/2,0],{axis:'x',facing:'east',scale:1.08,legId});
-  ring(g,[0,-length/2,0],'x',legId);
-  officialModule(g,'create:cogwheel',[.36,length*.18,.04],{axis:'x',scale:.68,legId});
+  officialModule(g,'simulated:swivel_bearing',[0,1,0],
+   {axis:'x',facing:'east',scale:1,legId});
+  officialModule(g,'create:cogwheel',[1,0,0],{axis:'x',scale:1,legId});
  }else{
-  officialModule(g,'simulated:swivel_bearing',[0,length/2,0],{axis:'x',facing:'east',scale:1.0,legId});
-  ring(g,[0,length/2,0],'x',legId);
-  block(g,'box',[0,-length/2-.17,0],[1.24,.38,1.18],'foot',legId);
-  for(const sign of [-1,1])block(g,'box',[sign*.42,-length/2-.06,.05],[.16,.12,.85],'brass',legId);
+  officialModule(g,'simulated:swivel_bearing',[0,1,0],
+   {axis:'x',facing:'east',scale:1,legId});
+  block(g,'box',[0,-1,0],[1,1,1],'foot',legId);
  }
- g.traverse(obj=>{if(obj.isMesh)obj.userData.legId=legId;});
+ g.traverse(o=>{if(o.isMesh)o.userData.legId=legId;});
 }
 function syncVisual(){
  if(!engine)return;
