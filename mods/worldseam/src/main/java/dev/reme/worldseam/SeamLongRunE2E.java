@@ -62,6 +62,7 @@ public final class SeamLongRunE2E {
     private static long maxUsedHeap;
     private static int maxNativeChunks;
     private static int maxBufferOwners;
+    private static int maxGpuSections;
     private static long lastClientTickNs;
     private static long slowTickGaps250ms;
     private static long slowTickGaps1000ms;
@@ -290,6 +291,13 @@ public final class SeamLongRunE2E {
                 ).stream().anyMatch(e->e.getUUID().equals(witness));
             int chunks=mc.level.getChunkSource().getLoadedChunksCount();
             int owners=SeamClientWorldPool.dedicatedRendererActive();
+            int gpuMeshes=SeamNativeGeometryClient.gpuUploadedSections();
+            maxGpuSections=Math.max(maxGpuSections,gpuMeshes);
+            if(Boolean.getBoolean("worldseam.gpuSections") && gpuMeshes>192) {
+                fail("GPU_SECTION_VRAM_LIMIT_EXCEEDED: live="+gpuMeshes+
+                     " pass="+(pass+1));
+                return;
+            }
             long memory=Runtime.getRuntime().totalMemory()-Runtime.getRuntime().freeMemory();
             maxUsedHeap=Math.max(maxUsedHeap,memory);
             maxNativeChunks=Math.max(maxNativeChunks,chunks);
@@ -314,10 +322,11 @@ public final class SeamLongRunE2E {
                 stage=4;
                 stageTick=tick;
                 long wallMs=(System.nanoTime()-elapsedStart)/1_000_000L;
-                LOG.info("WORLDSEAM_STRESS_PASS: crossings={}, clientHandoffs={}, elapsedWallMs={}, peakNativeChunks={}, peakDedicatedRendererOwners={}, peakHeapUsedMiB={}, clientTickGapsOver250ms={}, clientTickGapsOver1000ms={}, worstClientTickGapMs={}",
+                LOG.info("WORLDSEAM_STRESS_PASS: crossings={}, clientHandoffs={}, elapsedWallMs={}, peakNativeChunks={}, peakDedicatedRendererOwners={}, peakHeapUsedMiB={}, peakGpuMeshes={}, clientTickGapsOver250ms={}, clientTickGapsOver1000ms={}, worstClientTickGapMs={}",
                     pass,SeamClientWorldPool.nativeHandoffCount(),wallMs,
                     maxNativeChunks,maxBufferOwners,maxUsedHeap/(1024*1024),
-                    slowTickGaps250ms,slowTickGaps1000ms,worstClientTickGapMs);
+                    maxGpuSections,slowTickGaps250ms,slowTickGaps1000ms,
+                    worstClientTickGapMs);
                 server.execute(()->{
                     if(marker!=null) {marker.discard();marker=null;}
                     SeamSettings.get(server).setEnabled(false);
@@ -328,7 +337,8 @@ public final class SeamLongRunE2E {
         } else if(stage==4 && tick-stageTick>50) {
             if(SeamStackClient.enabled() ||
                 SeamClientWorldPool.remoteHasDedicatedBuffers() ||
-                SeamNativeGeometryClient.ownBuffersActive()) {
+                SeamNativeGeometryClient.ownBuffersActive() ||
+                SeamNativeGeometryClient.gpuUploadedSections()!=0) {
                 fail("CLEANUP_FAILED after long-run crossing");
                 return;
             }
