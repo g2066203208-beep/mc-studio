@@ -114,6 +114,16 @@ public final class SeamVisualE2E {
                 SeamRemoteLightmaps.failures(), SeamRemoteLightmaps.releases());
             if (SeamRemoteLightmaps.boundFrames()<1 || SeamRemoteLightmaps.failures()>0)
                 LOG.error("WORLDSEAM_E2E_FAIL_REMOTE_LIGHTMAP: target ClientLevel lighting not bound successfully");
+            LOG.info("WORLDSEAM_E2E_FOREIGN_ACTOR_CONTEXT: entered={}, restored={}, failures={}, active={}",
+                SeamForeignActorWorldScope.entered(),
+                SeamForeignActorWorldScope.restored(),
+                SeamForeignActorWorldScope.failures(),
+                SeamForeignActorWorldScope.active());
+            if(SeamForeignActorWorldScope.entered()<1 ||
+               SeamForeignActorWorldScope.entered()!=SeamForeignActorWorldScope.restored() ||
+               SeamForeignActorWorldScope.failures()>0 ||
+               SeamForeignActorWorldScope.active())
+                LOG.error("WORLDSEAM_E2E_FAIL_FOREIGN_ACTOR_CONTEXT: source client state not safely restored");
             LOG.info("WORLDSEAM_E2E_NATIVE_BE_SCENE: actualRemoteBlockEntityFrames={}, lastRendered={}, lastEligible={}, rendererErrors={}",
                 SeamRemoteBlockEntities.framesWithNativeBlocks(),
                 SeamRemoteBlockEntities.lastRendered(),
