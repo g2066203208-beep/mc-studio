@@ -76,7 +76,7 @@ public class PlayerNpcEntity extends PathfinderMob {
     }
 
     public enum Mode { LIVE, FOLLOW, STAY, WANDER, GUARD }
-    public enum Profession { FARMER, BAKER, RESIDENT, GUARD, SCOUT, COURIER, BUILDER, SHOPKEEPER }
+    public enum Profession { FARMER, BAKER, RESIDENT, GUARD, SCOUT, COURIER, BUILDER, SHOPKEEPER, MEDIC, LIBRARIAN }
 
     private final SimpleContainer backpack = new SimpleContainer(36) {
         @Override public boolean stillValid(Player player) {
