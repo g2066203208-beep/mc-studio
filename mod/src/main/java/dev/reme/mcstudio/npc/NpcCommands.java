@@ -12,6 +12,7 @@ import dev.reme.mcstudio.npc.life.ResidentBedLife;
 import dev.reme.mcstudio.npc.life.NeighborhoodMarket;
 import dev.reme.mcstudio.npc.life.ConvenienceStoreCrime;
 import dev.reme.mcstudio.npc.life.CityDistrictDemo;
+import dev.reme.mcstudio.npc.life.CityDistrictExpansion;
 import net.minecraft.world.level.block.BedBlock;
 import net.minecraft.world.level.block.state.properties.BedPart;
 import dev.reme.mcstudio.npc.life.FootTrafficData;
@@ -132,7 +133,17 @@ public final class NpcCommands {
                     .executes(ctx -> cityLiveAudit(ctx.getSource())))
                 .then(Commands.literal("demo")
                     .requires(source -> source.hasPermission(2))
-                    .executes(ctx -> cityDemo(ctx.getSource()))))
+                    .executes(ctx -> cityDemo(ctx.getSource())))
+                .then(Commands.literal("grow")
+                    .requires(source -> source.hasPermission(2))
+                    .then(Commands.literal("east")
+                        .executes(ctx -> cityGrow(ctx.getSource(), net.minecraft.core.Direction.EAST)))
+                    .then(Commands.literal("west")
+                        .executes(ctx -> cityGrow(ctx.getSource(), net.minecraft.core.Direction.WEST)))
+                    .then(Commands.literal("north")
+                        .executes(ctx -> cityGrow(ctx.getSource(), net.minecraft.core.Direction.NORTH)))
+                    .then(Commands.literal("south")
+                        .executes(ctx -> cityGrow(ctx.getSource(), net.minecraft.core.Direction.SOUTH)))))
             .then(Commands.literal("mine").requires(source -> source.hasPermission(2))
                 .then(Commands.argument("target", BlockPosArgument.blockPos())
                     .executes(ctx -> authorizeMining(ctx.getSource(),
@@ -451,6 +462,22 @@ public final class NpcCommands {
             + " 已报警=" + g + " 警察=" + h + " 追捕任务=" + i
             + " 在押=" + j + " 店铺周边警力=" + k
             + "。仅统计周围42格真实加载实体，不伪造抓捕。"), false);
+        return 1;
+    }
+
+    private static int cityGrow(CommandSourceStack source, net.minecraft.core.Direction way)
+        throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        ServerPlayer user=source.getPlayerOrException();
+        BlockPos center=user.blockPosition().below();
+        CityDistrictDemo.Result outcome=CityDistrictExpansion.grow(
+            user.serverLevel(),center,way,user);
+        if (!outcome.success()) {
+            source.sendFailure(Component.literal("新城区未生成：" + outcome.reason()));
+            return 0;
+        }
+        source.sendSuccess(() -> Component.literal(outcome.reason()
+            + "；本次增加方块="+outcome.blocks()
+            + "；本次新增加载NPC="+outcome.citizens()),true);
         return 1;
     }
 

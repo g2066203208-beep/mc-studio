@@ -173,6 +173,10 @@ if [[ "${REME_CITY_VISUAL:-0}" == "1" ]]; then
     client-gui-city-full-crime-to-locked-jail.mp4 >client-gui-city-case-ffmpeg.log 2>&1 &
   CASE_VIDEO_PID=$!
   say_city '/npc city demo' 1
+  # A marker preserves the exact original crossroads while the camera
+  # genuinely follows a real moving suspect. Marker is a test-only locator,
+  # NEVER an NPC or a simulated activity.
+  say_city '/summon minecraft:marker ~ ~ ~ {Tags:["reme_city_origin"]}' 2
   say_city '/gamemode spectator' 1
   say_city '/npc camera chase shoplifter' 2
   import -window root client-gui-city-full-case-t0.png
@@ -191,7 +195,13 @@ if [[ "${REME_CITY_VISUAL:-0}" == "1" ]]; then
   wait "$CASE_VIDEO_PID" || true
   # Return to the physical city center (not an obsolete moving NPC spawn).
   # Native spectator travel moves only our observer, not any citizen.
-  say_city '/tp @s ~ ~ ~' 1
+  say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run tp @s ~ ~ ~' 2
+  # First borough remains intact. Only the completely disposable adjacent
+  # 41x41 testing land is flattened, never by the actual city command.
+  say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] positioned ~ ~-1 ~ run fill ~22 ~-1 ~-20 ~62 ~-1 ~20 minecraft:stone' 6
+  say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] positioned ~ ~-1 ~ run fill ~22 ~ ~-20 ~62 ~10 ~20 minecraft:air' 6
+  say_city '/npc city grow east' 20
+  import -window root client-gui-city-connected-borough.png
   say_city '/npc city census' 4
   say_city '/npc city audit' 4
   import -window root client-gui-city-census.png
@@ -254,7 +264,10 @@ if [[ "${REME_CITY_VISUAL:-0}" == "1" ]]; then
     echo 'FAIL: GUI /npc city demo did not build true road/mall blocks'
     exit 1
   fi
-  if ! grep -q '实际生活NPC：13' "$log"; then
+  if ! grep -q '已建第二个真实41×41城区' "$log"; then
+    echo "FAIL: real NeoForge client did not generate a second 41x41 urban district"; exit 1
+  fi
+  if ! grep -q '实际生活NPC：15' "$log"; then
     echo 'FAIL: GUI real city did not spawn the 12 citizen entities'
     exit 1
   fi
@@ -337,7 +350,7 @@ fi
 # separate coordinate fixture and masked an already-working command test.
 if [[ "${REME_COMMAND_SMOKE_ONLY:-0}" == "1" ]]; then
   log=run/logs/latest.log
-  if ! grep -q 'REME NPC 0.7.1-dev COMMANDS REGISTERED: /npc=true, /remecheck=true' "$log"; then
+  if ! grep -q 'REME NPC 0.7.2-dev COMMANDS REGISTERED: /npc=true, /remecheck=true' "$log"; then
     echo "FAIL: 21.1.262 server never actually registered both commands"; exit 1
   fi
   if ! grep -q '/npc registered=true' "$log"; then

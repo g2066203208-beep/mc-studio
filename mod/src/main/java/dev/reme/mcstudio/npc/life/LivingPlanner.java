@@ -56,8 +56,41 @@ public final class LivingPlanner {
 
         long clock = Math.floorMod(c.dayTime(), 24000L);
         boolean asleepHours = clock >= 12500L;
-        boolean workHours = clock >= 2000L && clock < 9000L;
+        boolean workHours = clock >= 1500L && clock < 9000L;
         boolean leisureHours = clock >= 9000L && clock < 12500L;
+
+        // These are *obligations*, not low scores. Previously a socially
+        // deprived worker scored SOCIALIZE > WORK and never reached its shift;
+        // at night hunger/social could exceed the 68-point bed preference.
+        // Real monsters/fear still interrupt earlier with ESCAPE. The guard
+        // rotating night-watch exception belongs to RestPolicy.
+        if (asleepHours) {
+            last = Intent.SLEEP;
+            return new Decision(Intent.SLEEP, 1000, "scheduled night sleep, physical home/bed first");
+        }
+        if (c.energy() <= 16) {
+            last = Intent.SLEEP;
+            return new Decision(Intent.SLEEP, 990, "critical energy: must physically rest");
+        }
+        if (c.hunger() <= 23) {
+            last = Intent.EAT;
+            return new Decision(Intent.EAT, 980, "critical hunger: eat existing food");
+        }
+        if (c.raining() && c.exposedToWeather()) {
+            last = Intent.SEEK_SHELTER;
+            return new Decision(Intent.SEEK_SHELTER, 970, "weather safety before outdoor duties");
+        }
+        boolean scheduledMeal = (clock >= 900 && clock < 2100)
+            || (clock >= 5200 && clock < 6500)
+            || (clock >= 11000 && clock < 12200);
+        if (scheduledMeal && c.hunger() < 85) {
+            last = Intent.EAT;
+            return new Decision(Intent.EAT, 900, "real breakfast lunch or supper break");
+        }
+        if (workHours && c.hasJobAndWorkplace() && c.energy() > 22) {
+            last = Intent.WORK;
+            return new Decision(Intent.WORK, 950, "commuting or completing daytime paid work");
+        }
 
         int rest = (asleepHours ? 68 : 5) + (100 - c.energy()) / 2;
         // Minecraft time 0 = 06:00, 6000 = midday, 12000 = dusk.

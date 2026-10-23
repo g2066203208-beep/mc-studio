@@ -9,6 +9,7 @@ on:
     branches:
       - feat/npc-real-city-district-v070
       - feat/npc-live-store-security-e2e-v071
+      - feat/npc-daily-routines-housing-v072
   pull_request:
     branches:
       - feat/npc-economy-market-fair-v069
@@ -31,7 +32,7 @@ jobs:
         run: |
           grep -Fxq 'minecraft_version=1.21.1' mod/gradle.properties
           grep -Fxq 'neo_version=21.1.262' mod/gradle.properties
-          grep -Fxq 'mod_version=0.7.1-dev' mod/gradle.properties
+          grep -Fxq 'mod_version=0.7.2-dev' mod/gradle.properties
       - name: Install true offscreen X11 GPU client and input automation
         run: sudo apt-get update -qq && sudo apt-get install -y -qq xvfb xdotool imagemagick openbox ffmpeg
       - name: Actually enter Minecraft and build/photograph city

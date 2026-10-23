@@ -68,11 +68,12 @@ public final class CityDistrictGameTests {
             || !level.getBlockState(center.offset(-13,1,-12)).is(Blocks.BARREL)
             || !(level.getBlockEntity(center.offset(-12,1,-12)) instanceof ChestBlockEntity))
             throw new AssertionError("Mall is a façade without a physical second floor and shop storage");
-        if (!level.getBlockState(center.offset(8,1,-15)).is(Blocks.RED_BED)
-            || !level.getBlockState(center.offset(8,1,-15))
+        if (!level.getBlockState(center.offset(7,1,-16)).is(Blocks.RED_BED)
+            || !level.getBlockState(center.offset(7,1,-16))
                 .getValue(BedBlock.PART).equals(BedPart.HEAD)
-            || !level.getBlockState(center.offset(15,1,-15)).is(Blocks.RED_BED))
-            throw new AssertionError("Two townhouses lack physical vanilla resident beds");
+            || !level.getBlockState(center.offset(13,1,-16)).is(Blocks.RED_BED)
+            || !level.getBlockState(center.offset(-16,1,8)).is(Blocks.RED_BED))
+            throw new AssertionError("City housing and guard quarters lack real beds");
         if (!level.getBlockState(center.offset(-12,2,15)).is(Blocks.IRON_BARS)
             || !level.getBlockState(center.offset(-5,2,9)).is(Blocks.BELL)
             || !level.getBlockState(center.offset(-5,1,12)).isAir()
@@ -101,10 +102,32 @@ public final class CityDistrictGameTests {
                 throw new AssertionError("Real entity identity not stable for camera: "
                     + track + "=" + tracked);
         }
+        // A generated city with 13 people and only 2 beds is NOT a liveable
+        // city. Count *actual vanilla HEAD blocks and distinct saved claims*.
+        java.util.Set<BlockPos> bedClaims = new java.util.HashSet<>();
+        for (PlayerNpcEntity resident : people) {
+            BlockPos claim = resident.assignedBedPos();
+            if (claim == null || !bedClaims.add(claim)
+                || !level.getBlockState(claim).is(Blocks.RED_BED)
+                || level.getBlockState(claim).getValue(BedBlock.PART) != BedPart.HEAD
+                || resident.homePos().distSqr(claim) > 6)
+                throw new AssertionError("Citizen lacks unique reachable physical bed: "
+                    + resident.getName().getString() + " claim=" + claim);
+        }
+        if (bedClaims.size() != 15)
+            throw new AssertionError("Not all 15 NPCs own a separate real bed");
+        if (!level.getBlockState(center.offset(-15,1,-10)).is(Blocks.BOOKSHELF)
+            || !level.getBlockState(center.offset(-15,1,-9)).is(Blocks.LECTERN)
+            || !level.getBlockState(center.offset(-9,2,9)).is(Blocks.BREWING_STAND)
+            || people.stream().noneMatch(p -> p.profession()
+                == PlayerNpcEntity.Profession.MEDIC)
+            || people.stream().noneMatch(p -> p.profession()
+                == PlayerNpcEntity.Profession.LIBRARIAN))
+            throw new AssertionError("Town claims professions without real library / medical facility");
         BlockPos inmateSpot = center.offset(-13, 1, 15);
         if (merchants < 2 || guards < 2 || customers < 3
             || realDishonestShoppers != 1
-            || people.size() != 13
+            || people.size() != 15
             || !level.getBlockState(center.offset(-4,2,-10)).is(Blocks.BELL)
             || !level.getBlockState(center.offset(-8,1,-11)).isAir()
             || !dev.reme.mcstudio.npc.life.PublicSafety.holdingSpot(level, inmateSpot)
@@ -126,7 +149,8 @@ public final class CityDistrictGameTests {
             +" citizens="+outcome.citizens()+" shops="+merchants
             +" police="+guards+" customers="+customers
             +" cityWidth=41"
-            +" roadCrossing=true mallRealStorage=true residentialBeds=true cityProtected=true");
+            +" roadCrossing=true mallRealStorage=true residentialBeds=16"
+            +" distinctBedClaims="+bedClaims.size()+" clinicAndLibrary=true cityProtected=true");
         helper.succeed();
     }
 
