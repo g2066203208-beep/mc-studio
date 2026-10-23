@@ -254,7 +254,7 @@ if [[ "${REME_CITY_VISUAL:-0}" == "1" ]]; then
     echo 'FAIL: GUI /npc city demo did not build true road/mall blocks'
     exit 1
   fi
-  if ! grep -q '实际生活NPC：13' "$log"; then
+  if ! grep -q '实际生活NPC：15' "$log"; then
     echo 'FAIL: GUI real city did not spawn the 12 citizen entities'
     exit 1
   fi
@@ -337,7 +337,7 @@ fi
 # separate coordinate fixture and masked an already-working command test.
 if [[ "${REME_COMMAND_SMOKE_ONLY:-0}" == "1" ]]; then
   log=run/logs/latest.log
-  if ! grep -q 'REME NPC 0.7.1-dev COMMANDS REGISTERED: /npc=true, /remecheck=true' "$log"; then
+  if ! grep -q 'REME NPC 0.7.2-dev COMMANDS REGISTERED: /npc=true, /remecheck=true' "$log"; then
     echo "FAIL: 21.1.262 server never actually registered both commands"; exit 1
   fi
   if ! grep -q '/npc registered=true' "$log"; then
