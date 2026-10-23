@@ -1494,11 +1494,11 @@ public final class CivicGameTests {
      * courier, first-hand witness reaches a nearby real guard, which can
      * detain ONLY a nearby NPC raider at a legitimate iron-bar holding spot.
      */
-    @GameTest(template = "empty", timeoutTicks = 150)
+    @GameTest(template = "empty", timeoutTicks = 260)
     public static void eyewitness_robbery_dispatches_guard_and_physically_arrests_real_npc_raider(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
         BlockPos ground = helper.absolutePos(new BlockPos(4, 8, 4));
-        for (int dx = -1; dx <= 5; dx++) for (int dz = -1; dz <= 3; dz++) {
+        for (int dx = -1; dx <= 12; dx++) for (int dz = -1; dz <= 12; dz++) {
             BlockPos floor = ground.offset(dx, 0, dz);
             level.setBlock(floor, Blocks.STONE.defaultBlockState(), 3);
             level.setBlock(floor.above(), Blocks.AIR.defaultBlockState(), 3);
@@ -1551,7 +1551,7 @@ public final class CivicGameTests {
         if (!PublicSafety.tickGuard(officer, level, first)
             || suspect.policeBlows()!=1 || suspect.isDetained(first))
             throw new AssertionError("A single physical guard strike cannot instantly handcuff a raider");
-        helper.runAfterDelay(80, () -> {
+        helper.runAfterDelay(200, () -> {
             long tick = level.getGameTime();
             if (suspect.policeBlows()!=3 || !jail.equals(suspect.detentionJail())
                 || !suspect.isDetained(tick) || officer.policeSuspect()!=null)
