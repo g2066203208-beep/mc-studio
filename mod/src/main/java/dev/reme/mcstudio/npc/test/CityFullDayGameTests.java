@@ -107,8 +107,8 @@ public final class CityFullDayGameTests {
                         +" pathFinished="+npc.getNavigation().isDone()
                         +" lastAction="+npc.lastAction());
             }
-            if(actuallySlept.size()<6)
-                helper.fail("Fewer than six real city residents physically entered native beds",center);
+            if(actuallySlept.size()!=citizens.size())
+                helper.fail("Not all city residents physically entered native beds",center);
             else if(actuallyWorked.size()<2)
                 helper.fail("Fewer than two real workers ever reached their actual job sites",center);
             else if(nightRoaming[0]>10)
