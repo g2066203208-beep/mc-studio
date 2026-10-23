@@ -340,3 +340,8 @@ Check fresh Actions on this HEAD (Build, JUnit/GameTest, released-mod integratio
 - **Failed:** preceding genuine MP4 visibility, prior >250ms client stutters.
 - **Not implemented / not objectively verified:** full simultaneous dual-LevelRenderer sky/lighting/fog/transparency/depth and Sable sublevel tracking; original Rapier body with BOTH charts' native impulse/torque in ONE substep; actual Aeronautics-only powered down/up flight, Create mechanisms and passengers continuous; 240 genuine ship crossings; raw successful unedited MP4; user approval.
 - **Next priority:** read current GUI `WORLDSEAM_E2E_REMOTE_LIGHTMAP` and raw screenshots, repair any failure; then implement scoped second full LevelRenderer with correct offscreen compositing; separately obtain a rights-cleared Linux ABI extension for Atlas-style fused native physics. Do not merge or promote Draft PR #98.
+
+
+### 2026-10-23 22:32 CST — Sable license audit CORRECTION (important)
+
+The earlier GitHub API `license.spdx_id=NOASSERTION` is **NOT** evidence of no license: inspected the actual upstream [Sable LICENSE.md](https://github.com/STRELENA1/sable/blob/main/LICENSE.md), which is **PolyForm Shield License 1.0.0**, with a noncompete restriction on competing products and obligations for distribution/derivatives. The bundled [Rapier third-party LICENSE-RAPIER](https://github.com/STRELENA1/sable/blob/main/sable_rapier/src/main/resources/natives/sable_rapier/LICENSE-RAPIER) is Apache-2.0 but **does not relicense Sable's own Java/native integration**. No Sable source or custom native binary was copied into WorldSeam. An upstream-authorized, ABI-matched Linux integration and license review remain mandatory. IPSable's top-level Apache-2.0 license does not override this Sable restriction.
