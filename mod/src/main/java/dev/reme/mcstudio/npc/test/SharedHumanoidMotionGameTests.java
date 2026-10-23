@@ -36,7 +36,7 @@ public final class SharedHumanoidMotionGameTests {
             String id=SharedHumanoidMotion.animationId(pose).toString();
             if(!resources.add(id)||!id.startsWith("reme_studio:actor_"))
                 throw new AssertionError("Duplicate/wrong actor animation namespace: "+id);
-            String path="assets/reme_studio/player_animation/actor_"
+            String path="assets/reme_studio/player_animations/actor_"
                 +pose.name().toLowerCase(java.util.Locale.ROOT)+".json";
             try(InputStream stream=SharedHumanoidMotionGameTests.class
                     .getClassLoader().getResourceAsStream(path)) {
