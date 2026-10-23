@@ -112,6 +112,22 @@ public class PlayerNpcEntity extends PathfinderMob {
     private int parcelsDelivered = 0;
     private int formationSlot = 0;
     private int roamingRadius = 48;
+    // Operator-only ANIMATION SHOWCASE state: deliberately ephemeral, never
+    // saved to resident NBT and never allowed to override LIVE gameplay.
+    // Real physical interactions continue to use the normal planner/combat.
+    private long showcasePoseUntil = -1L;
+    private NpcPose showcaseForcedPose = NpcPose.IDLE;
+    public void showAnimationFor(NpcPose pose, long ticks) {
+        if (level().isClientSide || mode != Mode.STAY) return;
+        showcaseForcedPose = pose;
+        showcasePoseUntil = level().getGameTime() + Math.clamp(ticks, 1L, 72000L);
+        setVisualPose(pose);
+    }
+    public boolean showcasingAnimation(long tick) {
+        return mode == Mode.STAY && tick < showcasePoseUntil;
+    }
+    public NpcPose showcaseAnimation() { return showcaseForcedPose; }
+
     public int skinId() { return this.entityData.get(NPC_SKIN); }
     public NpcPose visualPose() {
         return NpcPose.fromNetworkId(this.entityData.get(NPC_VISUAL_POSE));
@@ -556,7 +572,9 @@ public class PlayerNpcEntity extends PathfinderMob {
             // 5 Hz server classification, only network-synced upon change.
             // Actual per-frame animation stays purely client-render-side.
             if ((server.getGameTime() + getId()) % 4L == 0L)
-                setVisualPose(NpcPoseSelection.select(this, server.getGameTime()));
+                setVisualPose(showcasingAnimation(server.getGameTime())
+                    ? showcaseForcedPose
+                    : NpcPoseSelection.select(this, server.getGameTime()));
         }
     }
 
