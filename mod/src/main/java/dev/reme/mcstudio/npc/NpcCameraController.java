@@ -182,6 +182,41 @@ public final class NpcCameraController {
         return true;
     }
 
+    /** Check the spectator's ACTUAL rectangular body against voxel collision
+     * geometry, not merely whether any touched block has a nonempty shape.
+     * Iron bars, open doors and fences occupy only part of a block; treating
+     * their entire block as solid caused needless first-person fallback.
+     * Reject unloaded chunks and solid intersections; never force-load them.
+     */
+    public static boolean spectatorBodyClearInWorld(ServerLevel level,
+            Vec3 lensEye, double eyeHeight, double bodyWidth, double bodyHeight) {
+        if (lensEye == null || !Double.isFinite(lensEye.x)
+            || !Double.isFinite(lensEye.y) || !Double.isFinite(lensEye.z)
+            || !Double.isFinite(eyeHeight) || eyeHeight <= 0.0
+            || !Double.isFinite(bodyWidth) || bodyWidth <= 0.002
+            || !Double.isFinite(bodyHeight) || bodyHeight <= 0.002)
+            return false;
+        double half = bodyWidth * 0.5;
+        Vec3 feet = lensEye.add(0, -eyeHeight, 0);
+        // A tiny epsilon avoids rejecting a legal face-to-face contact at
+        // exact voxel boundaries; it never permits an actual overlap.
+        net.minecraft.world.phys.AABB body = new net.minecraft.world.phys.AABB(
+            feet.x - half + 0.001, feet.y + 0.001, feet.z - half + 0.001,
+            feet.x + half - 0.001, feet.y + bodyHeight - 0.001,
+            feet.z + half - 0.001);
+        for (BlockPos pos : BlockPos.betweenClosed(
+                BlockPos.containing(body.minX, body.minY, body.minZ),
+                BlockPos.containing(body.maxX, body.maxY, body.maxZ))) {
+            if (!level.hasChunkAt(pos) || !level.isInWorldBounds(pos)
+                || !level.getWorldBorder().isWithinBounds(pos)) return false;
+            var shape = level.getBlockState(pos).getCollisionShape(level, pos);
+            if (shape.isEmpty()) continue;
+            for (net.minecraft.world.phys.AABB piece : shape.toAabbs())
+                if (body.intersects(piece.move(pos))) return false;
+        }
+        return true;
+    }
+
     /** Never teleport the NPC or force-load a chunk to make a pretty shot.
      * If no valid lens exists, use genuine entity POV until space reopens.
      */
@@ -200,13 +235,9 @@ public final class NpcCameraController {
                 ? target.getUUID().equals(other.escortedPrisoner())
                 : target.getUUID().equals(other.custodyOfficer()))
             ? other : null;
-        Predicate<Vec3> clearLens = lens -> spectatorBodyClear(
-            lens, player.getEyeHeight(), sample -> {
-                BlockPos block = BlockPos.containing(sample);
-                return level.hasChunkAt(block)
-                    && level.getBlockState(block)
-                        .getCollisionShape(level, block).isEmpty();
-            });
+        Predicate<Vec3> clearLens = lens -> spectatorBodyClearInWorld(
+            level, lens, player.getEyeHeight(),
+            player.getBbWidth(), player.getBbHeight());
         Predicate<Vec3> targetVisible = lens -> level.clip(new ClipContext(
             eye, lens, ClipContext.Block.COLLIDER,
             ClipContext.Fluid.NONE, target)).getType() == HitResult.Type.MISS;
