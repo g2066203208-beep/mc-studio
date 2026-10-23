@@ -373,7 +373,17 @@ public final class CityDistrictDemo {
             npc.setSkinId(i % 6);
             npc.setRoamingRadius(64);
             BlockPos head = center.offset(beds[i][0], 1, beds[i][1]);
-            npc.setHomePos(head.south(1)); // genuine foot-side home entrance
+            // The vanilla bed FOOT is occupied geometry, NOT a valid
+            // walking target. Previously all home anchors pointed *inside*
+            // the bed and residents could circle forever at night.
+            int aisle = switch (beds[i][0]) {
+                case 7, 9 -> 8;
+                case 14, 16 -> 15;
+                case -16 -> -15;
+                case -13 -> -12;
+                default -> beds[i][0];
+            };
+            npc.setHomePos(center.offset(aisle, 1, beds[i][1]));
             npc.setAssignedBedPos(head);
             if (i < 3) npc.setWorkPos(center.offset(-10,1,-12));
             else if (i < 5) {
