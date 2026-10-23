@@ -71,7 +71,7 @@ public final class CityDistrictGameTests {
         if (!level.getBlockState(center.offset(7,1,-16)).is(Blocks.RED_BED)
             || !level.getBlockState(center.offset(7,1,-16))
                 .getValue(BedBlock.PART).equals(BedPart.HEAD)
-            || !level.getBlockState(center.offset(14,1,-16)).is(Blocks.RED_BED)
+            || !level.getBlockState(center.offset(13,1,-16)).is(Blocks.RED_BED)
             || !level.getBlockState(center.offset(-16,1,8)).is(Blocks.RED_BED))
             throw new AssertionError("City housing and guard quarters lack real beds");
         if (!level.getBlockState(center.offset(-12,2,15)).is(Blocks.IRON_BARS)
