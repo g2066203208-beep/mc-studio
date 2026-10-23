@@ -287,6 +287,9 @@ public final class SeamVisualE2E {
             String clientDimension=mc.level.dimension().location().toString();
             if (clientDimension.equals(DEST)) {
                 LOG.info("WORLDSEAM_E2E_PASS_CLIENT: real client now in Nether without vanilla respawn");
+                if(SeamClientWorldPool.activeBuffersMatchRenderer())
+                    LOG.info("WORLDSEAM_E2E_PASS_HANDOFF_BUFFER_OWNER: active Nether Minecraft/GameRenderer native buffers match its LevelRenderer");
+                else LOG.error("WORLDSEAM_E2E_FAIL_HANDOFF_BUFFER_OWNER: active Nether renderer/buffer identities diverged");
                 phase=4;
             } else {
                 LOG.error("WORLDSEAM_E2E_FAIL_CLIENT: still in {}, expected {}, native packets={}",
@@ -360,8 +363,12 @@ public final class SeamVisualE2E {
         } else if (phase==5 && now-startTick>1080) {
             phase=6;
             String clientDimension=mc.level.dimension().location().toString();
-            if (clientDimension.equals("minecraft:overworld"))
+            if (clientDimension.equals("minecraft:overworld")) {
                 LOG.info("WORLDSEAM_E2E_PASS_RETURN_CLIENT: live Nether -> Overworld direct handoff");
+                if(SeamClientWorldPool.activeBuffersMatchRenderer())
+                    LOG.info("WORLDSEAM_E2E_PASS_RETURN_BUFFER_OWNER: restored Overworld Minecraft/GameRenderer native buffers match original LevelRenderer");
+                else LOG.error("WORLDSEAM_E2E_FAIL_RETURN_BUFFER_OWNER: restored Overworld renderer/buffer identities diverged");
+            }
             else LOG.error("WORLDSEAM_E2E_FAIL_RETURN_CLIENT: still in {}",clientDimension);
             server.execute(() -> {
                 ServerPlayer p=server.getPlayerList().getPlayer(playerId);
