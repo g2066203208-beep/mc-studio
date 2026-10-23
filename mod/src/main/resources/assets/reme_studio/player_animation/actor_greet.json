@@ -1,0 +1,66 @@
+{
+  "version": 1,
+  "name": "actor_greet",
+  "emote": {
+    "beginTick": 0,
+    "endTick": 24,
+    "stopTick": 25,
+    "isLoop": false,
+    "returnTick": 0,
+    "nsfw": false,
+    "degrees": false,
+    "moves": [
+      {
+        "tick": 0,
+        "easing": "INOUTSINE",
+        "rightArm": {
+          "pitch": -0.2
+        }
+      },
+      {
+        "tick": 8,
+        "easing": "INOUTSINE",
+        "rightArm": {
+          "pitch": -1.25,
+          "roll": 0.15
+        }
+      },
+      {
+        "tick": 8,
+        "easing": "INOUTSINE",
+        "head": {
+          "pitch": -0.08
+        }
+      },
+      {
+        "tick": 16,
+        "easing": "INOUTSINE",
+        "rightArm": {
+          "pitch": -0.8,
+          "roll": 0.5
+        }
+      },
+      {
+        "tick": 16,
+        "easing": "INOUTSINE",
+        "head": {
+          "pitch": -0.05
+        }
+      },
+      {
+        "tick": 24,
+        "easing": "INOUTSINE",
+        "rightArm": {
+          "pitch": 0
+        }
+      },
+      {
+        "tick": 24,
+        "easing": "INOUTSINE",
+        "head": {
+          "pitch": 0
+        }
+      }
+    ]
+  }
+}
