@@ -427,6 +427,7 @@ public final class SeamClientWorldPool {
     }
 
     public static void clear() {
+        SeamRemoteEntityClient.reset();
         if (remoteRenderer != null) {
             LevelRenderer detached=remoteRenderer;
             // During a handoff, a formerly remote renderer can become the
