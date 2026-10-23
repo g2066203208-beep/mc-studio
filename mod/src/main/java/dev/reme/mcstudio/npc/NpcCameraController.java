@@ -1,6 +1,9 @@
 package dev.reme.mcstudio.npc;
 
 import java.util.Comparator;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.function.Predicate;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -31,6 +34,9 @@ public final class NpcCameraController {
     public record CameraPose(double x, double y, double z, float yaw, float pitch) {}
     private record Follow(UUID target, Mode mode) {}
     private static final Map<UUID, Follow> ACTIVE = new HashMap<>();
+    // A cramped corridor may offer no collision-free third-person lens.
+    // Native spectator POV is the honest fallback, never a wall-clipping shot.
+    private static final Set<UUID> POV_FALLBACK = new HashSet<>();
 
     @Nullable public static PlayerNpcEntity find(ServerPlayer player, String role) {
         String tag = switch (role) {
@@ -63,13 +69,14 @@ public final class NpcCameraController {
             // A genuine third-person camera 4 blocks behind the *same* NPC.
             // Only the spectator is moved; inmate/guard never teleported.
             player.setCamera(player);
-            moveChase(player, npc);
+            if (!moveChase(player, npc)) player.setCamera(npc);
         }
         return true;
     }
 
     public static void stop(ServerPlayer player) {
         ACTIVE.remove(player.getUUID());
+        POV_FALLBACK.remove(player.getUUID());
         if (player.getCamera() != player) player.setCamera(player);
     }
 
@@ -93,24 +100,93 @@ public final class NpcCameraController {
         return new CameraPose(x,y,z,lookYaw,lookPitch);
     }
 
-    private static void moveChase(ServerPlayer player, PlayerNpcEntity target) {
+    /** A lens is a WORLD EYE point, not a spectator's feet. The original
+     *  client camera used the lens as /tp feet and therefore rendered from
+     *  1.62 blocks too high, clipping ceilings and staring at shop floors.
+     *  Candidate orbits are deterministic: do not randomly jump cameras.
+     *  The predicates are injectable for actual native GameTest coverage.
+     */
+    @Nullable
+    public static CameraPose selectClearView(Vec3 targetEye, float targetYaw,
+                                             Predicate<Vec3> clearLens,
+                                             Predicate<Vec3> unobstructed) {
+        double[] radii = {3.3, 2.6, 1.85};
+        double[] yawOffsets = {0, 60, -60, 115, -115, 180};
+        double[] heightOffsets = {0.32, 0.05, -0.20};
+        for (double radius : radii) {
+            for (double offset : yawOffsets) {
+                double angle = Math.toRadians(targetYaw + offset);
+                for (double height : heightOffsets) {
+                    Vec3 lens = targetEye.add(
+                        Math.sin(angle) * radius, height,
+                        -Math.cos(angle) * radius);
+                    if (!clearLens.test(lens) || !unobstructed.test(lens)) continue;
+                    // Aim at upper chest, not the ground. Actor stays in frame.
+                    Vec3 focus = targetEye.add(0, -0.32, 0);
+                    double dx = focus.x - lens.x;
+                    double dy = focus.y - lens.y;
+                    double dz = focus.z - lens.z;
+                    float yaw = (float) (Math.toDegrees(Math.atan2(dz, dx)) - 90);
+                    float pitch = (float) -Math.toDegrees(
+                        Math.atan2(dy, Math.sqrt(dx * dx + dz * dz)));
+                    return new CameraPose(lens.x, lens.y, lens.z, yaw, pitch);
+                }
+            }
+        }
+        return null;
+    }
+
+    /** Vanilla server teleport positions the FEET, not the eye camera.
+     * Never silently substitute eye coordinates for player feet.
+     */
+    public static Vec3 spectatorFeetForLens(CameraPose lens, float eyeHeight) {
+        return new Vec3(lens.x(), lens.y() - eyeHeight, lens.z());
+    }
+
+    /** Never teleport the NPC or force-load a chunk to make a pretty shot.
+     * If no valid lens exists, use genuine entity POV until space reopens.
+     */
+    private static boolean moveChase(ServerPlayer player, PlayerNpcEntity target) {
         ServerLevel level = player.serverLevel();
-        CameraPose desired = behind(target.position(), target.getYRot(),
-            target.getEyePosition(), 4.25);
         Vec3 eye = target.getEyePosition();
-        Vec3 camera = new Vec3(desired.x, desired.y, desired.z);
-        // Collision-aware spectator framing: keep the camera on the target
-        // side of actual blocks, not behind the back wall of a convenience shop.
-        var hit = level.clip(new ClipContext(eye,camera,
-            ClipContext.Block.COLLIDER,ClipContext.Fluid.NONE,player));
-        if (hit.getType() == HitResult.Type.BLOCK)
-            camera = eye.add(hit.getLocation().subtract(eye).scale(.85));
-        BlockPos cameraCell = BlockPos.containing(camera);
-        if (!level.hasChunkAt(cameraCell)) return;
-        double dx = eye.x-camera.x, dy = eye.y-camera.y, dz=eye.z-camera.z;
-        float yaw=(float)(Math.toDegrees(Math.atan2(dz,dx))-90);
-        float pitch=(float)-Math.toDegrees(Math.atan2(dy,Math.sqrt(dx*dx+dz*dz)));
-        player.connection.teleport(camera.x,camera.y,camera.z,yaw,pitch);
+        CameraPose chosen = selectClearView(eye, target.getYRot(),
+            lens -> {
+                // A camera INSIDE stone, glass, iron bars or a low ceiling is
+                // not a valid view, even when its center ray is unobstructed.
+                for (double ox : new double[]{-.19, .0, .19})
+                    for (double oz : new double[]{-.19, .0, .19}) {
+                        BlockPos block = BlockPos.containing(
+                            lens.add(ox, 0, oz));
+                        if (!level.hasChunkAt(block)
+                            || !level.getBlockState(block)
+                                .getCollisionShape(level, block).isEmpty())
+                            return false;
+                    }
+                return true;
+            },
+            lens -> level.clip(new ClipContext(
+                eye, lens, ClipContext.Block.COLLIDER,
+                ClipContext.Fluid.NONE, target)).getType()
+                == HitResult.Type.MISS);
+        if (chosen == null) {
+            if (POV_FALLBACK.add(player.getUUID())) {
+                com.mojang.logging.LogUtils.getLogger().info(
+                    "REME_NPC_CAMERA_FALLBACK uuid={} target={} reason=no_clear_lens",
+                    player.getUUID(), target.getUUID());
+            }
+            return false;
+        }
+        if (POV_FALLBACK.remove(player.getUUID())) {
+            com.mojang.logging.LogUtils.getLogger().info(
+                "REME_NPC_CAMERA_RECOVERED uuid={} target={} eye=({}, {}, {})",
+                player.getUUID(), target.getUUID(),
+                chosen.x(), chosen.y(), chosen.z());
+        }
+        if (player.getCamera() != player) player.setCamera(player);
+        Vec3 feet = spectatorFeetForLens(chosen, player.getEyeHeight());
+        player.connection.teleport(feet.x, feet.y, feet.z,
+            chosen.yaw, chosen.pitch);
+        return true;
     }
 
     public static void onTick(PlayerTickEvent.Post event) {
@@ -134,8 +210,9 @@ public final class NpcCameraController {
             if (player.getCamera() != target) {
                 ACTIVE.remove(player.getUUID());
             }
-        } else if (player.tickCount % 3 == 0) {
-            moveChase(player,target);
+        } else if (player.tickCount % 2 == 0) {
+            if (!moveChase(player,target) && player.getCamera() != target)
+                player.setCamera(target);
         }
     }
 
