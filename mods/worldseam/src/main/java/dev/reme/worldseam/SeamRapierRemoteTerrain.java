@@ -13,6 +13,8 @@ import org.slf4j.Logger;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.ArrayDeque;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
@@ -56,8 +58,33 @@ public final class SeamRapierRemoteTerrain {
     private static final Map<BlockState,Integer> COLLIDER_CACHE=new IdentityHashMap<>();
     private static boolean active,faulted;
     private static long totalNativeUploads,totalRemoteSolidCells;
+    // Only the disposable CI world may request an OBSERVABLE real-Nether
+    // witness block. This wraps the actual native block collider with a
+    // pass-through Sable JNI callback, never a duplicate body or fake force.
+    private static BlockPos witnessPos;
+    private static ServerLevel witnessLevel;
+    private static final AtomicLong nativeWitnessContacts=new AtomicLong();
+    private static volatile double latestNativeImpactSpeed;
+    private static int witnessColliderPacked;
 
     private SeamRapierRemoteTerrain() {}
+
+    /** CI-only real Nether block; the world must have actually placed it. */
+    public static void registerNativeWitness(ServerLevel level,BlockPos pos) {
+        if(!enabled())return;
+        if(level.getBlockState(pos).is(net.minecraft.world.level.block.Blocks.OBSIDIAN)) {
+            witnessLevel=level;
+            witnessPos=pos.immutable();
+            nativeWitnessContacts.set(0);
+            latestNativeImpactSpeed=0;
+        } else {
+            throw new IllegalArgumentException(
+                "Foreign Rapier witness must be a REAL Nether obsidian block");
+        }
+    }
+
+    public static long witnessedNativeContacts(){return nativeWitnessContacts.get();}
+    public static double lastNativeImpactSpeed(){return latestNativeImpactSpeed;}
 
     /** Optional experiment only: launched against published Sable jar. */
     public static boolean enabled() {
@@ -253,6 +280,16 @@ public final class SeamRapierRemoteTerrain {
             if(value==null) {
                 Object collider=bake.invoke(destinationBakery,state);
                 int id=collider==null?-1:((Number)colliderHandle.invoke(collider)).intValue();
+                if(witnessPos!=null &&
+                    state.is(net.minecraft.world.level.block.Blocks.OBSIDIAN)) {
+                    if(witnessColliderPacked==0)
+                        witnessColliderPacked=createObservedObsidianCollider();
+                    value=witnessColliderPacked;
+                    COLLIDER_CACHE.put(state,value);
+                    packed[bx+(bz<<4)+(by<<8)]=value;
+                    filled++;
+                    continue;
+                }
                 // Sable's native format: (colliderID+1) << 16 | VoxelNeighborhoodState.
                 // 0 is air. CORNER is conservative and preserves custom box shape,
                 // but must be replaced by exact neighbor classification before
@@ -281,6 +318,66 @@ public final class SeamRapierRemoteTerrain {
                 uploaded.size()+1);
     }
 
+    /**
+     * Exact vanilla obsidian full-block shape + published Sable friction,
+     * restitution and volume. Only the callback is added for CI evidence;
+     * it always returns zero tangent motion, removes no collision and applies
+     * NO force itself. JNI invokes it only if its native collision pair
+     * actually reaches this foreign terrain witness.
+     */
+    private static int createObservedObsidianCollider()
+        throws ReflectiveOperationException {
+        if(witnessLevel==null || witnessPos==null)
+            throw new IllegalStateException("No real foreign-world witness");
+        BlockState state=witnessLevel.getBlockState(witnessPos);
+        if(!state.isCollisionShapeFullBlock(witnessLevel,witnessPos))
+            throw new IllegalStateException(
+                "Witness no longer has real full-block collision shape");
+        Class<?> interfaceType=Class.forName(
+            "dev.ryanhcode.sable.api.physics.callback.BlockSubLevelCollisionCallback");
+        Class<?> result=Class.forName(
+            "dev.ryanhcode.sable.api.physics.callback.BlockSubLevelCollisionCallback$CollisionResult");
+        Object noChange=result.getField("NONE").get(null);
+        Object callback=Proxy.newProxyInstance(interfaceType.getClassLoader(),
+            new Class<?>[]{interfaceType},(proxy,method,args)->{
+                if(method.getName().equals("onCollision")) {
+                    int wx=((Number)args[0]).intValue();
+                    int wy=((Number)args[1]).intValue();
+                    int wz=((Number)args[2]).intValue();
+                    int mappedY=Math.addExact(witnessPos.getY(),offsetY);
+                    if(wx==witnessPos.getX() && wz==witnessPos.getZ() &&
+                       (wy==mappedY || wy==witnessPos.getY())) {
+                        long hits=nativeWitnessContacts.incrementAndGet();
+                        latestNativeImpactSpeed=((Number)args[9]).doubleValue();
+                        if(hits<=8 || hits%50==0)
+                            LOG.warn("WORLDSEAM_RAPIER_NATIVE_FOREIGN_CONTACT: actualNetherWitness={} solverCollisionPos={},{},{} nativeContactCount={} impactSpeed={} (ONE authoritative scene, callback never applies fake force)",
+                                witnessPos,wx,wy,wz,hits,latestNativeImpactSpeed);
+                    }
+                    return new double[]{0.0,0.0,0.0,0.0};
+                }
+                if(method.getName().equals("sable$onCollision"))return noChange;
+                if(method.getName().equals("toString"))return "WorldSeamNativeWitness("+witnessPos+")";
+                if(method.getName().equals("hashCode"))return System.identityHashCode(proxy);
+                if(method.getName().equals("equals"))return proxy==args[0];
+                throw new UnsupportedOperationException(method.getName());
+            });
+        Class<?> props=Class.forName(
+            "dev.ryanhcode.sable.physics.config.block_properties.PhysicsBlockPropertyHelper");
+        double friction=((Number)props.getMethod("getFriction",BlockState.class).invoke(null,state)).doubleValue();
+        double volume=((Number)props.getMethod("getVolume",BlockState.class).invoke(null,state)).doubleValue();
+        double restitution=((Number)props.getMethod("getRestitution",BlockState.class).invoke(null,state)).doubleValue();
+        Class<?> nativeBridge=Class.forName("dev.ryanhcode.sable.physics.impl.rapier.Rapier3D");
+        Object collider=nativeBridge.getMethod("createVoxelColliderEntry",
+            double.class,double.class,double.class,boolean.class,interfaceType)
+            .invoke(null,friction,volume,restitution,false,callback);
+        int id=((Number)colliderHandle.invoke(collider)).intValue();
+        nativeBridge.getMethod("addVoxelColliderBox",int.class,double[].class)
+            .invoke(null,id,new double[]{0.0,0.0,0.0,1.0,1.0,1.0});
+        LOG.info("WORLDSEAM_RAPIER_NATIVE_WITNESS_ARMED: realBlock={} mappedY={} nativeColliderID={} noClonedBody=true",
+            witnessPos,Math.addExact(witnessPos.getY(),offsetY),id);
+        return ((id+1)<<16)|(exposedVoxelState&0xFF);
+    }
+
     private static void remove(NativeSection s) throws ReflectiveOperationException {
         if(nativeRemove!=null)
             nativeRemove.invoke(null,sourceNativeScene,
@@ -294,6 +391,11 @@ public final class SeamRapierRemoteTerrain {
         source=null;target=null;destinationBakery=null;
         active=false;
         totalNativeUploads=totalRemoteSolidCells=0;
+        witnessColliderPacked=0;
+        witnessPos=null;
+        witnessLevel=null;
+        nativeWitnessContacts.set(0);
+        latestNativeImpactSpeed=0;
     }
 
     public static void close() {
