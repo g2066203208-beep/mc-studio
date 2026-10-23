@@ -409,18 +409,14 @@ public final class SeamNativeGeometryClient {
         // Chunk prewarming continues independently for immediate handoff.
         if(!SeamSectionLayout.nearPlane(mc.player.getY(),
                 sourceBoundary,NEAR_PLANE_RENDER_RANGE)) return;
-        // Native target-world BEs use their OWN real BlockEntity and the
-        // vanilla BER dispatcher, never the static fallback item model.
-        // This pass is independent of terrain VBO cache completeness.
-        if(queuedRemote!=null && queuedLink!=null) {
-            SeamRemoteBlockEntities.draw(event,queuedRemote,sourceBoundary,
-                targetBoundary,queuedLink.entry());
-            // Genuine foreign ClientLevel entities, NOT fake models. Full
-            // second LevelRenderer and Sable sublevels remain outstanding.
-            SeamRemoteEntities.draw(event,queuedRemote,sourceBoundary,
-                targetBoundary,queuedLink.entry());
+        // Foreign block entities and ordinary entities must be submitted
+        // AFTER our own terrain depth writes. The old order drew them first,
+        // then let the remote VBOs overwrite/occlude their pixels even when
+        // both belonged to the same foreign ClientLevel.
+        if(columns.isEmpty()) {
+            renderForeignActors(event);
+            return;
         }
-        if(columns.isEmpty())return;
         long drawStarted=System.nanoTime();
         PoseStack pose=event.getPoseStack();
         Vec3 camera=event.getCamera().getPosition();
@@ -438,7 +434,10 @@ public final class SeamNativeGeometryClient {
             else lastCulledSlices++;
         }
         lastVisibleSlices=visible.size();
-        if(visible.isEmpty())return;
+        if(visible.isEmpty()) {
+            renderForeignActors(event);
+            return;
+        }
         if(!gpuDisabled) {
             try {
                 long gpuStart=System.nanoTime();
@@ -464,6 +463,7 @@ public final class SeamNativeGeometryClient {
                 if(visible.isEmpty()) {
                     lastFrameDrawCpuNanos=lastFrameGpuCpuNanos;
                     DRAW_CPU_SAMPLES.add(lastFrameGpuCpuNanos);
+                    renderForeignActors(event);
                     return;
                 }
             } catch (RuntimeException | Error failure) {
@@ -532,6 +532,19 @@ public final class SeamNativeGeometryClient {
             DRAW_BUDGET.observe(drawnFallback,
                 Math.max(0,lastFrameDrawCpuNanos-lastFrameGpuCpuNanos));
         }
+        renderForeignActors(event);
+    }
+
+    private static void renderForeignActors(RenderLevelStageEvent event) {
+        if(queuedRemote==null || queuedLink==null)return;
+        // These are actual foreign ClientLevel objects, not decorative
+        // overlays. Their depth ordering relative to WorldSeam terrain is
+        // now correct; native LevelRenderer compositing, sky, translucent
+        // depth and Sable sublevels remain separate unfinished work.
+        SeamRemoteBlockEntities.draw(event,queuedRemote,sourceBoundary,
+            targetBoundary,queuedLink.entry());
+        SeamRemoteEntities.draw(event,queuedRemote,sourceBoundary,
+            targetBoundary,queuedLink.entry());
     }
 
     public static int countFluidCells() {
