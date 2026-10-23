@@ -275,12 +275,68 @@ public final class PublicSafety {
             suspect.setAction("held at designated iron-bar holding spot until release");
             return true;
         }
-        // Nav to real walkable block, with no chunk loads. No teleport.
-        if (MovementPolicy.due(tick, suspect.getId(), 10)) {
-            suspect.getNavigation().moveTo(jail.getX() + 0.5, jail.getY(),
-                jail.getZ() + 0.5, 0.96);
-            suspect.setAction("walking under custody to the existing local holding cell");
+        // A* to the cell centre alone stops on the EAST iron-bar wall:
+        // the real police cell has its ONLY entrance on the SOUTH, behind an
+        // actual oak rear door and a server-controlled iron gate. Stage the
+        // route on foot: public street -> exterior intake -> inside gate ->
+        // holding cell. No setPos/moveTo teleport, no invented prison.
+        if (CityJailGate.isGate(level, jail) && !CityJailGate.isOpen(level, jail)) {
+            // Custody has already been lawfully authorized by tickGuard.
+            // The gate is opened only for this still-detained prisoner.
+            if (!CityJailGate.setOpen(level, jail, true)) {
+                suspect.setAction("real cell gate cannot open; custody route waiting");
+                return true;
+            }
+        }
+        BlockPos waypoint = custodyWaypoint(jail, suspect.blockPosition());
+        if (!level.hasChunkAt(waypoint) || !level.hasChunkAt(waypoint.below())) {
+            suspect.setAction("custody route unloaded; waiting without chunk tickets");
+            return true;
+        }
+        // Never reset an advancing native A* path every 10 ticks. Replan
+        // after reaching the waypoint or at a bounded 80-tick interval.
+        if (suspect.getNavigation().isDone()
+            || MovementPolicy.due(tick, suspect.getId(), 80)) {
+            net.minecraft.world.level.pathfinder.Path path =
+                suspect.getNavigation().createPath(waypoint, 0);
+            if (path != null && path.canReach()
+                && suspect.getNavigation().moveTo(path, 0.96)) {
+                suspect.setAction("walking real rear intake and open iron gate under custody");
+            } else {
+                suspect.getNavigation().stop();
+                suspect.setAction("native jail intake route blocked; no ghost custody");
+                if (MovementPolicy.due(tick, suspect.getId(), 80))
+                    com.mojang.logging.LogUtils.getLogger().error(
+                        "REME_NPC_JAIL_ROUTE_BLOCKED uuid={} feet={} jail={} "
+                        + "waypoint={} gateOpen={} pathNodes={} canReach={}",
+                        suspect.getUUID(), suspect.blockPosition().toShortString(),
+                        jail.toShortString(), waypoint.toShortString(),
+                        CityJailGate.isOpen(level, jail),
+                        path == null ? -1 : path.getNodeCount(),
+                        path != null && path.canReach());
+            }
         }
         return true;
+    }
+
+    /** Route stages describe REAL Minecraft block coordinates, not
+     * movement. The actual entity must physically reach each waypoint
+     * using native GroundPathNavigation; GameTests verify that separately.
+     *
+     * Jail layout: holding z=0, interior z=+1, iron gate z=+2,
+     * oak rear door z=+3, public exterior sidewalk z=+4.
+     */
+    public static BlockPos custodyWaypoint(BlockPos jail, BlockPos feet) {
+        BlockPos interior = jail.south(1);
+        BlockPos exterior = jail.south(4);
+        if (feet.getY() != jail.getY()) return exterior;
+        // Do not confuse an NPC on the outside EAST wall with one inside
+        // the cell: the prisoner must line up with the SOUTH intake first.
+        if (Math.abs(feet.getX() - jail.getX()) > 1
+            || feet.getZ() < jail.getZ() + 2)
+            return exterior;
+        if (feet.distSqr(interior) > 1)
+            return interior;
+        return jail;
     }
 }
