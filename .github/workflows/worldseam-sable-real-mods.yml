@@ -73,6 +73,10 @@ jobs:
             echo 'Failed: authentic assembled Aeronautics smart propeller never received Create RPM and generated positive native thrust'
             exit 1
           fi
+          if ! grep -q 'WORLDSEAM_REAL_PILOT_THROTTLE_PASS' real-sable-gametest.log; then
+            echo 'Failed: real Simulated cockpit throttle never cut AND restored real Create clutch/Aeronautics RPM'
+            exit 1
+          fi
           echo 'WorldSeam real released-mod GameTest assembled and observed an actual Sable hull crossing the seam. Native dual-chart Rapier contacts still NOT implemented.'
 
       - name: Publish logs and version hashes, never redistribute third-party jars
