@@ -10,6 +10,7 @@ on:
       - feat/npc-urban-civic-campus-v073
       - feat/npc-connected-boulevards-v076
       - feat/npc-expressive-actions-urban-v077
+      - feat/npc-player-emote-network-v078
   pull_request:
     branches:
       - feat/npc-daily-routines-housing-v072
@@ -48,6 +49,7 @@ jobs:
         shell: bash
         run: |
           grep -F 'REME_NPC_REAL_CLIENT_SHARED_RIG playeranimator=true bothActorKinds=true registeredKeyframeClips=30' mod/client-gui.log
+          grep -F 'REME_NPC_SHARED_PLAYER_EMOTE realPlayer=' mod/client-gui.log
       - name: Always collect unmodified native Minecraft client artifacts
         if: always()
         uses: actions/upload-artifact@v4

@@ -173,6 +173,9 @@ if [[ "${REME_CITY_VISUAL:-0}" == "1" ]]; then
     client-gui-city-full-crime-to-locked-jail.mp4 >client-gui-city-case-ffmpeg.log 2>&1 &
   CASE_VIDEO_PID=$!
   say_city '/npc city demo' 1
+  # Server-authoritative client-visible human PLAYER emote uses the same
+  # 30 authored animation resources as real NPCs, while X11 MP4 captures.
+  say_city '/npc emote greet' 3
   # A marker preserves the exact original crossroads while the camera
   # genuinely follows a real moving suspect. Marker is a test-only locator,
   # NEVER an NPC or a simulated activity.
