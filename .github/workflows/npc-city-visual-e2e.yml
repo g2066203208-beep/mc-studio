@@ -24,6 +24,7 @@ on:
       - fix/npc-gui-runner-apt-visibility-v094
       - test/npc-escort-cell-arrival-no-floor-fall-v095
       - test/npc-real-client-video-integrity-v096
+      - fix/npc-gui-apt-dpkg-lock-v097
   pull_request:
     branches:
       - feat/npc-economy-market-fair-v069
