@@ -19,6 +19,7 @@ on:
       - fix/npc-escorted-custody-proximity-v089
       - fix/npc-unloaded-jail-custody-v090
       - fix/npc-gui-apt-timeout-evidence-v091
+      - fix/npc-gui-install-cache-first-v092
   pull_request:
     branches:
       - feat/npc-economy-market-fair-v069
@@ -42,22 +43,47 @@ jobs:
           grep -Fxq 'minecraft_version=1.21.1' mod/gradle.properties
           grep -Fxq 'neo_version=21.1.262' mod/gradle.properties
           grep -Fxq 'mod_version=0.7.2-dev' mod/gradle.properties
-      - name: Install real X11 client tools with bounded apt timeouts and saved diagnostics
+      - name: Install GUI dependencies from runner cache first; bounded network fallback
         shell: bash
         run: |
           set -euo pipefail
           {
-            echo "Installing real Minecraft GUI dependencies; fail rather than silently wait forever"
-            timeout --signal=TERM --kill-after=10s 180s \
-              sudo apt-get -o Acquire::Retries=1 -o Acquire::http::Timeout=25 update -qq
-            timeout --signal=TERM --kill-after=10s 240s \
-              sudo env DEBIAN_FRONTEND=noninteractive apt-get \
-                -o Acquire::Retries=1 -o Acquire::http::Timeout=25 \
-                install -y -qq --no-install-recommends \
-                xvfb xdotool imagemagick openbox ffmpeg
-            for binary in xvfb-run xdotool import openbox ffmpeg ffprobe; do
-              command -v "$binary" || { echo "Missing GUI dependency: $binary"; exit 1; }
+            echo "Runner: $(lsb_release -ds 2>/dev/null || uname -a)"
+            echo "Checking the actual GUI commands before attempting network apt update"
+            required=(xvfb-run xdotool import openbox ffmpeg ffprobe)
+            missing=()
+            for binary in "${required[@]}"; do
+              if command -v "$binary" >/dev/null 2>&1; then
+                echo "PRESENT $binary: $(command -v "$binary")"
+              else
+                echo "MISSING $binary"
+                missing+=("$binary")
+              fi
             done
+            if (( ${#missing[@]} > 0 )); then
+              echo "Install missing dependencies using the runner's existing apt indexes first"
+              packages=(xvfb xdotool imagemagick openbox ffmpeg)
+              if timeout --signal=TERM --kill-after=10s 150s \
+                  sudo env DEBIAN_FRONTEND=noninteractive apt-get \
+                    -o Acquire::Retries=0 -o Acquire::http::Timeout=15 \
+                    install -y -qq --no-install-recommends "${packages[@]}"; then
+                echo "CACHE_FIRST_APT_INSTALL_OK"
+              else
+                echo "CACHE_FIRST_APT_INSTALL_FAILED; bounded apt index refresh, then one retry"
+                timeout --signal=TERM --kill-after=10s 75s \
+                  sudo apt-get -o Acquire::Retries=0 -o Acquire::http::Timeout=15 update -qq
+                timeout --signal=TERM --kill-after=10s 150s \
+                  sudo env DEBIAN_FRONTEND=noninteractive apt-get \
+                    -o Acquire::Retries=0 -o Acquire::http::Timeout=15 \
+                    install -y -qq --no-install-recommends "${packages[@]}"
+              fi
+            else
+              echo "ALL_GUI_TOOLS_ALREADY_PRESENT; skipping apt network calls"
+            fi
+            for binary in "${required[@]}"; do
+              command -v "$binary" || { echo "GUI_DEPENDENCY_MISSING_AFTER_INSTALL=$binary"; exit 1; }
+            done
+            echo "GUI_DEPENDENCIES_READY; actual Minecraft client must still run and be verified"
           } 2>&1 | tee npc-city-gui-dependencies.log
       - name: Actually enter Minecraft and build/photograph city
         shell: bash
