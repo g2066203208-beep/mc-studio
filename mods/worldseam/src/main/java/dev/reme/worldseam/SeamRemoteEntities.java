@@ -37,7 +37,8 @@ public final class SeamRemoteEntities {
         lastEligible=lastRendered=lastErrors=0;
         Minecraft mc=Minecraft.getInstance();
         if(event.getPoseStack()==null||mc.level==null||mc.player==null||
-           remote==null||remote==mc.level||targetEntry==null)return;
+           remote==null||targetEntry==null||
+           (remote==mc.level && !SeamForeignActorWorldScope.active()))return;
         var dispatcher=mc.getEntityRenderDispatcher();
         var camera=event.getCamera();
         Vec3 cameraPos=camera.getPosition();
