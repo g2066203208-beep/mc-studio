@@ -93,6 +93,9 @@ for step in $(seq 1 240); do
   fi
   if [[ "$descent_still" = 0 ]] &&
      grep -q "WORLDSEAM_FILM_REAL_SHIP_DOWN" real-ship-film-client.log; then
+    # Screenshot after the real client has received recent Sable pose and
+    # spectator orientation; server leaves 35 ticks of REAL descent hold.
+    sleep 1
     xwd -root -silent | convert xwd:- -resize 960x540 -quality 82 real-ship-below-seam.jpg || true
     descent_still=1
   fi
@@ -114,8 +117,11 @@ for step in $(seq 1 240); do
   fi
   if grep -q "WORLDSEAM_FILM_PASS_REAL_SHIP_RETURN" real-ship-film-client.log; then
     returned=1
+    # The recorded MP4 is continuous; do not grab the post-return still
+    # before the client actually draws the server's final camera pose.
+    sleep 2
     xwd -root -silent | convert xwd:- -resize 960x540 -quality 82 real-ship-returned.jpg || true
-    sleep 7 # show clearly recognizable final aircraft for viewer
+    sleep 5 # show actual completed in-game view; no artificial frames
     break
   fi
   if grep -q "WORLDSEAM_FILM_FAIL_REAL_SHIP_CROSSING" real-ship-film-client.log; then
