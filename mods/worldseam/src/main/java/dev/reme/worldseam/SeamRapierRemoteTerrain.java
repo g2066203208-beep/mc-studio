@@ -66,6 +66,7 @@ public final class SeamRapierRemoteTerrain {
     private static final AtomicLong nativeWitnessContacts=new AtomicLong();
     private static volatile double latestNativeImpactSpeed;
     private static int witnessColliderPacked;
+    private static Object witnessCallback; // strong reference while JNI callback is registered
 
     private SeamRapierRemoteTerrain() {}
 
@@ -367,6 +368,7 @@ public final class SeamRapierRemoteTerrain {
         double volume=((Number)props.getMethod("getVolume",BlockState.class).invoke(null,state)).doubleValue();
         double restitution=((Number)props.getMethod("getRestitution",BlockState.class).invoke(null,state)).doubleValue();
         Class<?> nativeBridge=Class.forName("dev.ryanhcode.sable.physics.impl.rapier.Rapier3D");
+        witnessCallback=callback;
         Object collider=nativeBridge.getMethod("createVoxelColliderEntry",
             double.class,double.class,double.class,boolean.class,interfaceType)
             .invoke(null,friction,volume,restitution,false,callback);
@@ -392,6 +394,7 @@ public final class SeamRapierRemoteTerrain {
         active=false;
         totalNativeUploads=totalRemoteSolidCells=0;
         witnessColliderPacked=0;
+        witnessCallback=null;
         witnessPos=null;
         witnessLevel=null;
         nativeWitnessContacts.set(0);
