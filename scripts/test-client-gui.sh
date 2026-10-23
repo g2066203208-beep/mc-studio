@@ -181,14 +181,16 @@ if [[ "${REME_CITY_VISUAL:-0}" == "1" ]]; then
     -pix_fmt yuv420p -movflags +faststart \
     client-gui-city-full-crime-to-locked-jail.mp4 >client-gui-city-case-ffmpeg.log 2>&1 &
   CASE_VIDEO_PID=$!
+  # Preserve the ORIGINAL center feet Y before real surface blocks are
+  # placed. Spawning the marker AFTER /npc city demo captures a player who
+  # has been collision-pushed one block UP by the new road; /npc city grow
+  # then checks the wrong air block as the original center and fails.
+  # The marker is a disposable camera/fixture locator, never an NPC.
+  say_city '/summon minecraft:marker ~ ~ ~ {Tags:["reme_city_origin"]}' 2
   say_city '/npc city demo' 1
   # Server-authoritative client-visible human PLAYER emote uses the same
   # 30 authored animation resources as real NPCs, while X11 MP4 captures.
   say_city '/npc emote greet' 3
-  # A marker preserves the exact original crossroads while the camera
-  # genuinely follows a real moving suspect. Marker is a test-only locator,
-  # NEVER an NPC or a simulated activity.
-  say_city '/summon minecraft:marker ~ ~ ~ {Tags:["reme_city_origin"]}' 2
   say_city '/gamemode spectator' 1
   say_city '/npc camera chase shoplifter' 2
   import -window root client-gui-city-full-case-t0.png
@@ -207,7 +209,7 @@ if [[ "${REME_CITY_VISUAL:-0}" == "1" ]]; then
   wait "$CASE_VIDEO_PID" || true
   # Return to the physical city center (not an obsolete moving NPC spawn).
   # Native spectator travel moves only our observer, not any citizen.
-  say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run tp @s ~ ~ ~' 2
+  say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run tp @s ~ ~1 ~' 2
   # Separate urban-professional REAL-client acceptance, using the same
   # actual city origin marker and vanilla game commands. A clean disposable
   # test world may be flattened by the harness, NEVER by the OP expansion.
@@ -228,7 +230,7 @@ if [[ "${REME_CITY_VISUAL:-0}" == "1" ]]; then
     photo_city client-gui-city-zone-hospital-true-3d.png
     say_city '/execute at @e[type=reme_studio:player_npc,tag=reme_urban_hospital_0,limit=1] run tp @s ~ ~2 ~5 facing entity @e[type=reme_studio:player_npc,tag=reme_urban_hospital_0,limit=1] eyes' 5
     photo_city client-gui-city-zone-hospital-npc-closeup.png
-    say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run tp @s ~ ~ ~' 3
+    say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run tp @s ~ ~1 ~' 3
 
     say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run fill ~-20 ~-1 ~-62 ~20 ~-1 ~-22 minecraft:stone' 4
     say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run fill ~-20 ~ ~-62 ~20 ~11 ~-22 minecraft:air' 4
@@ -241,7 +243,7 @@ if [[ "${REME_CITY_VISUAL:-0}" == "1" ]]; then
     photo_city client-gui-city-zone-education-true-3d.png
     say_city '/execute at @e[type=reme_studio:player_npc,tag=reme_urban_education_0,limit=1] run tp @s ~ ~2 ~5 facing entity @e[type=reme_studio:player_npc,tag=reme_urban_education_0,limit=1] eyes' 5
     photo_city client-gui-city-zone-education-npc-closeup.png
-    say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run tp @s ~ ~ ~' 3
+    say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run tp @s ~ ~1 ~' 3
 
     say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run fill ~-20 ~-1 ~22 ~20 ~-1 ~62 minecraft:stone' 4
     say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run fill ~-20 ~ ~22 ~20 ~11 ~62 minecraft:air' 4
@@ -254,7 +256,7 @@ if [[ "${REME_CITY_VISUAL:-0}" == "1" ]]; then
     photo_city client-gui-city-zone-government-true-3d.png
     say_city '/execute at @e[type=reme_studio:player_npc,tag=reme_urban_government_0,limit=1] run tp @s ~ ~2 ~5 facing entity @e[type=reme_studio:player_npc,tag=reme_urban_government_0,limit=1] eyes' 5
     photo_city client-gui-city-zone-government-npc-closeup.png
-    say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run tp @s ~ ~ ~' 3
+    say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run tp @s ~ ~1 ~' 3
 
     say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run fill ~22 ~-1 ~-20 ~62 ~-1 ~20 minecraft:stone' 4
     say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run fill ~22 ~ ~-20 ~62 ~11 ~20 minecraft:air' 4
@@ -267,7 +269,7 @@ if [[ "${REME_CITY_VISUAL:-0}" == "1" ]]; then
     photo_city client-gui-city-zone-transport-true-3d.png
     say_city '/execute at @e[type=reme_studio:player_npc,tag=reme_urban_transport_0,limit=1] run tp @s ~ ~2 ~5 facing entity @e[type=reme_studio:player_npc,tag=reme_urban_transport_0,limit=1] eyes' 5
     photo_city client-gui-city-zone-transport-npc-closeup.png
-    say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run tp @s ~ ~ ~' 3
+    say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run tp @s ~ ~1 ~' 3
     say_city '/npc city census' 4
     import -window root client-gui-city-zone-population-live.png
     kill -INT "$URBAN_VIDEO_PID" 2>/dev/null || true
