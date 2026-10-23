@@ -412,9 +412,14 @@ public final class SeamNativeGeometryClient {
         // Native target-world BEs use their OWN real BlockEntity and the
         // vanilla BER dispatcher, never the static fallback item model.
         // This pass is independent of terrain VBO cache completeness.
-        if(queuedRemote!=null && queuedLink!=null)
+        if(queuedRemote!=null && queuedLink!=null) {
             SeamRemoteBlockEntities.draw(event,queuedRemote,sourceBoundary,
                 targetBoundary,queuedLink.entry());
+            // Genuine foreign ClientLevel entities, NOT fake models. Full
+            // second LevelRenderer and Sable sublevels remain outstanding.
+            SeamRemoteEntities.draw(event,queuedRemote,sourceBoundary,
+                targetBoundary,queuedLink.entry());
+        }
         if(columns.isEmpty())return;
         long drawStarted=System.nanoTime();
         PoseStack pose=event.getPoseStack();
@@ -608,6 +613,7 @@ public final class SeamNativeGeometryClient {
         REBUILD_CPU_SAMPLES.clear();
         OWNED_BUFFERS.release();
         SeamRemoteBlockEntities.reset();
+        SeamRemoteEntities.reset();
         DRAW_BUDGET.reset();
         lastFrameDrawCpuNanos=0;
     }
