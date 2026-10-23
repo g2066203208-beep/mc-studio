@@ -76,19 +76,22 @@ jobs:
             if (( ${#missing[@]} > 0 )); then
               echo "Install missing dependencies using the runner's existing apt indexes first"
               packages=(xvfb xdotool imagemagick openbox ffmpeg)
-              if timeout --signal=TERM --kill-after=10s 150s \
-                  sudo env DEBIAN_FRONTEND=noninteractive apt-get \
-                    -o Acquire::Retries=0 -o Acquire::http::Timeout=15 \
+              # Previous 150s timeout killed the shell wrapper while apt-get
+              # continued unpacking in the background. The immediate retry then
+              # collided with the still-held dpkg frontend lock (exit 100).
+              # Give a cold runner time to install all dependencies and NEVER
+              # start a second apt process after a timed-out install.
+              if sudo timeout --signal=TERM --kill-after=30s 420s \
+                  env DEBIAN_FRONTEND=noninteractive apt-get \
+                    -o Acquire::Retries=0 -o Acquire::http::Timeout=20 \
+                    -o Acquire::https::Timeout=20 -o DPkg::Lock::Timeout=60 \
                     install -y --no-install-recommends "${packages[@]}"; then
-                echo "CACHE_FIRST_APT_INSTALL_OK"
+                echo "GUI_APT_INSTALL_COMPLETED"
               else
-                echo "CACHE_FIRST_APT_INSTALL_FAILED; bounded apt index refresh, then one retry"
-                timeout --signal=TERM --kill-after=10s 75s \
-                  sudo apt-get -o Acquire::Retries=0 -o Acquire::http::Timeout=15 update
-                timeout --signal=TERM --kill-after=10s 150s \
-                  sudo env DEBIAN_FRONTEND=noninteractive apt-get \
-                    -o Acquire::Retries=0 -o Acquire::http::Timeout=15 \
-                    install -y --no-install-recommends "${packages[@]}"
+                status=$?
+                echo "GUI_APT_INSTALL_FAILED exit=${status}; refusing unsafe concurrent apt retry"
+                ps -eo pid,ppid,stat,etime,args | grep -E '[a]pt-get|[d]pkg|[t]imeout' || true
+                exit "${status}"
               fi
             else
               echo "ALL_GUI_TOOLS_ALREADY_PRESENT; skipping apt network calls"
