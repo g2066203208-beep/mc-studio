@@ -199,6 +199,10 @@ public final class PublicSafety {
         // A native iron cell door is opened before the physical escort.
         CityJailGate.setOpen(level, jail, true);
         suspect.detainAt(jail, tick + CUSTODY_TICKS);
+        // Two-way persisted custody identity: a suspect arrested by a real
+        // officer must not silently run alone to the jail while that officer
+        // is stranded on the opposite side of town.
+        suspect.assignCustodyOfficer(guard.getUUID());
         if (suspect.hasUnpaidShopItem(tick)) suspect.clearUnpaidShopItem();
         System.out.println("REME_NPC_STORY stage=post_stun_arrest tick=" + tick
             + " guard=" + guard.getUUID() + " suspect=" + suspect.getUUID()
@@ -254,6 +258,27 @@ public final class PublicSafety {
         return true;
     }
 
+    /** Real spatial escort leash, not a teleport or passenger mount.
+     * A linked detainee pauses if the arresting officer is not alive, no
+     * longer owns the same case, or is more than ten blocks away. This is
+     * checked only against the persisted UUID: no nearby guard may
+     * impersonate the actual arresting officer. Legacy saved detainees
+     * without a custody officer continue to use the old custody route.
+     */
+    public static boolean escortedPrisonerMayAdvance(PlayerNpcEntity prisoner,
+                                                      ServerLevel level, long tick) {
+        UUID officerId = prisoner.custodyOfficer();
+        if (officerId == null) return true;
+        var found = level.getEntity(officerId);
+        return found instanceof PlayerNpcEntity officer
+            && officer.isAlive()
+            && officer.mode() == PlayerNpcEntity.Mode.LIVE
+            && officer.profession() == PlayerNpcEntity.Profession.GUARD
+            && prisoner.getUUID().equals(officer.escortedPrisoner())
+            && tick < officer.escortUntil()
+            && officer.distanceToSqr(prisoner) <= 100.0;
+    }
+
     /** Real-world physical walk to a recognized holding spot (not a teleport).
      * Stops robbery/work while detained; expires automatically even on reload.
      */
@@ -273,6 +298,17 @@ public final class PublicSafety {
             CityJailGate.setOpen(level, jail, false);
             suspect.getNavigation().stop();
             suspect.setAction("held at designated iron-bar holding spot until release");
+            return true;
+        }
+        if (!escortedPrisonerMayAdvance(suspect, level, tick)) {
+            suspect.getNavigation().stop();
+            suspect.setAction("waiting for arresting officer to resume real foot escort");
+            if (MovementPolicy.due(tick, suspect.getId(), 80)) {
+                com.mojang.logging.LogUtils.getLogger().info(
+                    "REME_NPC_ESCORT_WAIT prisoner={} officer={} feet={} jail={}",
+                    suspect.getUUID(), suspect.custodyOfficer(),
+                    suspect.blockPosition().toShortString(), jail.toShortString());
+            }
             return true;
         }
         // A* to the cell centre alone stops on the EAST iron-bar wall:
