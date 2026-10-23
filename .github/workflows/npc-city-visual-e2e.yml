@@ -23,6 +23,7 @@ on:
       - fix/npc-playeranimator-resource-registry-v093
       - fix/npc-gui-runner-apt-visibility-v094
       - test/npc-escort-cell-arrival-no-floor-fall-v095
+      - test/npc-real-client-video-integrity-v096
   pull_request:
     branches:
       - feat/npc-economy-market-fair-v069
@@ -107,6 +108,11 @@ jobs:
           timeout --signal=INT --kill-after=15s 1000s \
             xvfb-run -a -s "-screen 0 1280x720x24" \
             bash scripts/test-client-gui.sh
+      - name: Reject missing or frozen native MP4, bad screenshots and animation resource warnings
+        shell: bash
+        run: |
+          python3 scripts/verify-npc-client-capture.py --self-test
+          python3 scripts/verify-npc-client-capture.py --root mod
       - name: ALWAYS upload actual RGB screenshots and Minecraft logs
         if: always()
         uses: actions/upload-artifact@v4
