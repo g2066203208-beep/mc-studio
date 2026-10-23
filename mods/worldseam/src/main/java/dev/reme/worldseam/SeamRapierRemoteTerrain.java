@@ -43,12 +43,10 @@ public final class SeamRapierRemoteTerrain {
     private static final int MAX_NATIVE_UPLOADS_PER_TICK = 1;
     private static final int MAX_PENDING = (2*WINDOW_RADIUS+1)*(2*WINDOW_RADIUS+1)*SECTIONS_BELOW_EDGE;
     private record NativeSection(int cx,int cy,int cz) {}
-    private static final ArrayDeque<NativeSection> pending = new ArrayDeque<>();
-    private static final Set<NativeSection> queued = new HashSet<>();
-    // Native section edits/unloads cannot be silently discarded while the
-    // bounded upload queue is full. Deferred work remains within the same
-    // fixed 5x5x2 window and is drained without synchronous chunk loads.
-    private static final Set<NativeSection> overflow = new HashSet<>();
+    // A tested bounded FIFO retains both unloaded-chunk retries and edits
+    // arriving while all native upload slots are occupied.
+    private static final SeamBoundedRetryQueue<NativeSection> UPLOAD_QUEUE =
+        new SeamBoundedRetryQueue<>(MAX_PENDING);
     private static final Set<NativeSection> uploaded = new HashSet<>();
 
     private static MinecraftServer owner;
@@ -132,23 +130,7 @@ public final class SeamRapierRemoteTerrain {
     }
 
     private static void enqueue(NativeSection s) {
-        if(queued.contains(s))return;
-        if(pending.size()>=MAX_PENDING) {
-            overflow.add(s);
-            return;
-        }
-        overflow.remove(s);
-        queued.add(s);
-        pending.offer(s);
-    }
-
-    private static void drainOverflow() {
-        if(overflow.isEmpty() || pending.size()>=MAX_PENDING)return;
-        for(var it=overflow.iterator();it.hasNext() && pending.size()<MAX_PENDING;) {
-            NativeSection section=it.next();
-            it.remove();
-            if(queued.add(section))pending.offer(section);
-        }
+        UPLOAD_QUEUE.enqueue(s);
     }
 
     public static void tick(ServerTickEvent.Post event) {
@@ -218,9 +200,7 @@ public final class SeamRapierRemoteTerrain {
             centerX=cx;centerZ=cz;
             // Drop queued old-window work BEFORE rescheduling. Otherwise
             // delayed chunks could reintroduce ghost colliders out of view.
-            pending.clear();
-            queued.clear();
-            overflow.clear();
+            UPLOAD_QUEUE.clear();
             // Old foreign chunks must not remain collidable after moving.
             for(var i=uploaded.iterator();i.hasNext();) {
                 var s=i.next();
@@ -255,14 +235,14 @@ public final class SeamRapierRemoteTerrain {
                 enqueue(s);
             }
         }
-        int polls=pending.size();
+        int polls=UPLOAD_QUEUE.size();
         int uploads=0;
         for(int i=0;i<polls && uploads<MAX_NATIVE_UPLOADS_PER_TICK;i++) {
-            var s=pending.poll();
+            var s=UPLOAD_QUEUE.poll();
             if(s==null)break;
             LevelChunk chunk=target.getChunkSource().getChunkNow(s.cx(),s.cz());
-            if(chunk==null){ pending.offer(s);continue; }
-            queued.remove(s);
+            if(chunk==null){ UPLOAD_QUEUE.defer(s);continue; }
+            UPLOAD_QUEUE.complete(s);
             try {
                 upload(chunk,s);
             } catch(ReflectiveOperationException | RuntimeException ex) {
@@ -273,7 +253,6 @@ public final class SeamRapierRemoteTerrain {
             uploaded.add(s);
             uploads++;
         }
-        drainOverflow();
     }
 
     private static void initialize(ServerLevel upper,ServerLevel lower,int shift,
@@ -504,7 +483,7 @@ public final class SeamRapierRemoteTerrain {
     }
 
     private static void resetOnlyJavaState() {
-        pending.clear();queued.clear();overflow.clear();uploaded.clear();COLLIDER_CACHE.clear();
+        UPLOAD_QUEUE.clear();uploaded.clear();COLLIDER_CACHE.clear();
         source=null;target=null;destinationBakery=null;
         active=false;
         totalNativeUploads=totalRemoteSolidCells=0;
