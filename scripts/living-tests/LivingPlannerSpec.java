@@ -34,6 +34,18 @@ public final class LivingPlannerSpec {
             .intent() == LivingPlanner.Intent.SEEK_SHELTER, "rain must interrupt outdoor work");
         expect(brain.choose(new LivingPlanner.Context(17000, false, false, false, 90, 60, 90, true))
             .intent() == LivingPlanner.Intent.SLEEP, "night calls for rest");
+        expect(brain.choose(new LivingPlanner.Context(19000, false, false, false, 24, 92, 0, true))
+            .intent() == LivingPlanner.Intent.SLEEP,
+            "Nightly bed obligation cannot be stolen by starvation/social score");
+        expect(brain.choose(new LivingPlanner.Context(3300, false, false, false, 90, 95, 0, true))
+            .intent() == LivingPlanner.Intent.WORK,
+            "A socially isolated employed clerk must walk to work rather than wander");
+        expect(brain.choose(new LivingPlanner.Context(8000, false, false, false, 80, 95, 0, true))
+            .intent() == LivingPlanner.Intent.WORK,
+            "Afternoon contracted shift must not be cancelled by social need");
+        expect(brain.choose(new LivingPlanner.Context(18000, false, false, true, 90, 80, 0, true))
+            .intent() == LivingPlanner.Intent.ESCAPE,
+            "Night threat always interrupts sleeping and never leaves resident trapped");
         expect(brain.choose(new LivingPlanner.Context(10000, false, false, false, 90, 90, 35, true))
             .intent() == LivingPlanner.Intent.SOCIALIZE, "evening social opportunity");
 
