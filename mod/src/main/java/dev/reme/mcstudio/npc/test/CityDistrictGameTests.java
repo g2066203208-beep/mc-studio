@@ -62,6 +62,23 @@ public final class CityDistrictGameTests {
         if (!level.getBlockState(center.offset(0,0,6)).is(Blocks.WHITE_CONCRETE)
             || !level.getBlockState(center.offset(-4,5,-13)).is(Blocks.SEA_LANTERN))
             throw new AssertionError("Town has no real zebra crossing or glowing streetlight");
+        // Hard physical exit checks: walls may not trap real workers inside
+        // one-tile mall doors or private apartments during the night shift.
+        for(int z : new int[]{-13,-11,11,13})
+            for(int y=1;y<=2;y++)
+                if(!level.getBlockState(center.offset(-6,y,z)).isAir())
+                    throw new AssertionError("Mall/police side pedestrian arch is solid "+z+" y="+y);
+        for(int x : new int[]{8,10,14,16})
+            for(int y=1;y<=2;y++)
+                if(!level.getBlockState(center.offset(x,y,-6)).isAir())
+                    throw new AssertionError("Real apartment pedestrian exit blocked at x="+x);
+        for(var doorPos : new BlockPos[]{
+            center.offset(-6,1,-12),center.offset(-6,1,12),
+            center.offset(9,1,-6),center.offset(15,1,-6)})
+            if(!level.getBlockState(doorPos).is(Blocks.OAK_DOOR)
+                || !level.getBlockState(doorPos).getValue(
+                    net.minecraft.world.level.block.DoorBlock.OPEN))
+                throw new AssertionError("Native openable door replaced by an arcade: "+doorPos);
         if (!level.getBlockState(center.offset(-6,8,-12)).is(Blocks.GOLD_BLOCK)
             || !level.getBlockState(center.offset(-12,4,-13)).is(Blocks.SMOOTH_QUARTZ)
             || !level.getBlockState(center.offset(-12,1,-12)).is(Blocks.CHEST)
@@ -84,6 +101,15 @@ public final class CityDistrictGameTests {
         List<PlayerNpcEntity> people = level.getEntitiesOfClass(PlayerNpcEntity.class,
             new AABB(center.getX()-20, center.getY(), center.getZ()-20,
                 center.getX()+21, center.getY()+11, center.getZ()+21));
+        PlayerNpcEntity storeClerk = people.stream().filter(p ->
+                p.getTags().contains("reme_city_clerk")).findFirst().orElseThrow();
+        var exitPath = storeClerk.getNavigation().createPath(center.offset(-5,1,-12),0);
+        if(exitPath==null || !exitPath.canReach())
+            throw new AssertionError("Mall merchant cannot walk out of the actual mall door");
+        // A source/target that exists does NOT pass if vanilla A* ends on the
+        // wrong side of a solid wall; the path must reach the real city sidewalk.
+        System.out.println("REME_NPC_CITY_REAL_ENTRANCE verifiedStoreClerkUUID="
+            +storeClerk.getUUID()+" mallExitReachable=true nativeDoors=4 pedestrianArches=8");
         long merchants = people.stream().filter(p -> p.profession()
             == PlayerNpcEntity.Profession.SHOPKEEPER
             && p.backpack().countItem(Items.BREAD) > 0).count();
