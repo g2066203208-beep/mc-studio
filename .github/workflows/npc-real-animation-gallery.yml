@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - feat/npc-playeranimator-real-showcase-v080
+      - feat/npc-motion-art-direction-v081
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -50,7 +51,7 @@ jobs:
           set -euo pipefail
           cd mod
           test -s client-gui-actual-playeranimator-30-motions.mp4
-          test "$(find . -maxdepth 1 -name 'client-gui-playeranimator-motion-*.png' | wc -l)" -eq 30
+          test "$(find . -maxdepth 1 -name 'client-gui-playeranimator-motion-*.png' | wc -l)" -eq 60
           grep -Fq 'REME_NPC_ANIMATION_STAGE_REAL clips=30 actualEntities=30' client-gui.log
           grep -Fq 'REME_NPC_REAL_CLIENT_SHARED_RIG playeranimator=true bothActorKinds=true registeredKeyframeClips=30' client-gui.log
           test "$(grep -o 'REME_NPC_REAL_MODEL_ANIMATED action=[A-Z_]*' client-gui.log | sort -u | wc -l)" -eq 30

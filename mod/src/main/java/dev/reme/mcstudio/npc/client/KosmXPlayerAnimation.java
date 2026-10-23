@@ -3,6 +3,8 @@ package dev.reme.mcstudio.npc.client;
 import dev.kosmx.playerAnim.api.IPlayable;
 import dev.kosmx.playerAnim.api.layered.IAnimation;
 import dev.kosmx.playerAnim.api.layered.ModifierLayer;
+import dev.kosmx.playerAnim.api.layered.modifier.AbstractFadeModifier;
+import dev.kosmx.playerAnim.core.util.Ease;
 import dev.kosmx.playerAnim.minecraftApi.PlayerAnimationAccess;
 import dev.kosmx.playerAnim.minecraftApi.PlayerAnimationRegistry;
 import dev.reme.mcstudio.npc.NpcPose;
@@ -56,7 +58,14 @@ public final class KosmXPlayerAnimation {
             IPlayable clip=PlayerAnimationRegistry.getAnimation(
                 SharedHumanoidMotion.animationId(pose));
             if (clip!=null) {
-                t.layer.setAnimation(clip.playAnimation());
+                int blend = switch(pose) {
+                    case HIT, STRIKE, STUNNED -> 2;
+                    case IDLE, REST, SITTING, SAD -> 7;
+                    default -> 4;
+                };
+                t.layer.replaceAnimationWithFade(
+                    AbstractFadeModifier.standardFadeIn(blend,Ease.INOUTSINE),
+                    clip.playAnimation(),false);
                 t.pose=pose;
             } else {
                 t.layer.setAnimation(null);

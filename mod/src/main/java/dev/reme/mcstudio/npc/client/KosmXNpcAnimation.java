@@ -3,6 +3,9 @@ package dev.reme.mcstudio.npc.client;
 import dev.kosmx.playerAnim.api.IPlayable;
 import dev.kosmx.playerAnim.api.TransformType;
 import dev.kosmx.playerAnim.api.layered.IAnimation;
+import dev.kosmx.playerAnim.api.layered.ModifierLayer;
+import dev.kosmx.playerAnim.api.layered.modifier.AbstractFadeModifier;
+import dev.kosmx.playerAnim.core.util.Ease;
 import dev.kosmx.playerAnim.core.util.Vec3f;
 import dev.kosmx.playerAnim.minecraftApi.PlayerAnimationRegistry;
 import dev.reme.mcstudio.npc.NpcPose;
@@ -29,11 +32,11 @@ public final class KosmXNpcAnimation {
     private static final Set<NpcPose> RENDERED_ACTIONS = new HashSet<>();
     private static final class Playback {
         NpcPose pose;
-        IAnimation active;
+        final ModifierLayer<IAnimation> active = new ModifierLayer<>();
         int tick;
-        Playback(NpcPose pose, IAnimation active, int tick) {
+        Playback(NpcPose pose, IAnimation animation, int tick) {
             this.pose = pose;
-            this.active = active;
+            this.active.setAnimation(animation);
             this.tick = tick;
         }
     }
@@ -42,16 +45,33 @@ public final class KosmXNpcAnimation {
         NpcPose pose=npc.visualPose();
         if (!SharedHumanoidMotion.authoredClip(pose)) pose=NpcPose.IDLE;
         Playback track=TRACKS.get(npc);
-        if (track == null || track.pose!=pose
-            || track.active == null || !track.active.isActive()) {
+        if (track == null) {
             IPlayable clip=PlayerAnimationRegistry.getAnimation(
                 SharedHumanoidMotion.animationId(pose));
-            if (clip == null) {
+            if (clip==null) return;
+            track=new Playback(pose,clip.playAnimation(),npc.tickCount);
+            TRACKS.put(npc,track);
+        } else if (track.pose!=pose
+                   || track.active.getAnimation()==null
+                   || !track.active.isActive()) {
+            IPlayable clip=PlayerAnimationRegistry.getAnimation(
+                SharedHumanoidMotion.animationId(pose));
+            if (clip==null) {
                 TRACKS.remove(npc);
                 return;
             }
-            track=new Playback(pose, clip.playAnimation(), npc.tickCount);
-            TRACKS.put(npc,track);
+            // Real blend from the actual previous keyed pose: no sudden
+            // arm snap when a walking officer swings or a suspect is hit.
+            // Impact response remains fast; relaxed locomotion takes longer.
+            int blend = switch(pose) {
+                case HIT, STRIKE, STUNNED -> 2;
+                case IDLE, REST, SITTING, SAD -> 7;
+                default -> 4;
+            };
+            track.active.replaceAnimationWithFade(
+                AbstractFadeModifier.standardFadeIn(blend,Ease.INOUTSINE),
+                clip.playAnimation(),false);
+            track.pose=pose;
         }
         // Sample with Minecraft entity ticks rather than rendered frame count.
         // Cap catch-up when a world resumes after heavy lag or chunk unload.
