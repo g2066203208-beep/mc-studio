@@ -63,18 +63,18 @@ jobs:
             if (( ${#missing[@]} > 0 )); then
               echo "Install missing dependencies using the runner's existing apt indexes first"
               packages=(xvfb xdotool imagemagick openbox ffmpeg)
-              if timeout --signal=TERM --kill-after=10s 150s \\
-                  sudo env DEBIAN_FRONTEND=noninteractive apt-get \\
-                    -o Acquire::Retries=0 -o Acquire::http::Timeout=15 \\
+              if timeout --signal=TERM --kill-after=10s 150s \
+                  sudo env DEBIAN_FRONTEND=noninteractive apt-get \
+                    -o Acquire::Retries=0 -o Acquire::http::Timeout=15 \
                     install -y -qq --no-install-recommends "${packages[@]}"; then
                 echo "CACHE_FIRST_APT_INSTALL_OK"
               else
                 echo "CACHE_FIRST_APT_INSTALL_FAILED; bounded apt index refresh, then one retry"
-                timeout --signal=TERM --kill-after=10s 75s \\
+                timeout --signal=TERM --kill-after=10s 75s \
                   sudo apt-get -o Acquire::Retries=0 -o Acquire::http::Timeout=15 update -qq
-                timeout --signal=TERM --kill-after=10s 150s \\
-                  sudo env DEBIAN_FRONTEND=noninteractive apt-get \\
-                    -o Acquire::Retries=0 -o Acquire::http::Timeout=15 \\
+                timeout --signal=TERM --kill-after=10s 150s \
+                  sudo env DEBIAN_FRONTEND=noninteractive apt-get \
+                    -o Acquire::Retries=0 -o Acquire::http::Timeout=15 \
                     install -y -qq --no-install-recommends "${packages[@]}"
               fi
             else
