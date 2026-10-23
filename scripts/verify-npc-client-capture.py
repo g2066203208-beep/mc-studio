@@ -165,7 +165,9 @@ if __name__ == "__main__":
     parser.add_argument("--self-test", action="store_true")
     args = parser.parse_args()
     if args.self_test:
-        unittest.main(argv=[sys.argv[0]], exit=False, verbosity=2)
+        result = unittest.main(argv=[sys.argv[0]], exit=False, verbosity=2).result
+        if not result.wasSuccessful():
+            raise SystemExit(1)
     else:
         try:
             verify(args.root)
