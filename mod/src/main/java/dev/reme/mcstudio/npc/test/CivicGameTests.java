@@ -167,7 +167,7 @@ public final class CivicGameTests {
         BlockPos head = helper.absolutePos(new BlockPos(7, 2, 7));
         BlockPos foot = head.relative(Direction.SOUTH);
         BlockPos home = head.relative(Direction.WEST, 3);
-        for (int dx = -1; dx <= 3; dx++)
+        for (int dx = -3; dx <= 3; dx++)
             for (int dz = -2; dz <= 2; dz++)
                 level.setBlock(head.offset(dx, -1, dz), Blocks.STONE.defaultBlockState(), 2);
         level.setBlock(head, Blocks.RED_BED.defaultBlockState()
@@ -188,6 +188,9 @@ public final class CivicGameTests {
         second.setProfession(PlayerNpcEntity.Profession.RESIDENT);
         first.moveTo(head.getX() + 1.5, head.getY(), head.getZ() + 0.5, 0, 0);
         second.moveTo(head.getX() - 1.5, head.getY(), head.getZ() + 0.5, 0, 0);
+        // Keep the night-rest obligation after the actual planner re-evaluates;
+        // otherwise a full-energy day-shift resident legitimately wakes early.
+        second.changeNeeds(0, -95, 0);
         first.setDecision(new LivingPlanner.Decision(LivingPlanner.Intent.SLEEP, 99, "bedtime"));
         second.setDecision(new LivingPlanner.Decision(LivingPlanner.Intent.SLEEP, 99, "bedtime"));
         if (!level.addFreshEntity(first) || !level.addFreshEntity(second))
@@ -225,10 +228,22 @@ public final class CivicGameTests {
         // free orthogonal side before vanilla sleeping; an instant same-tick
         // sleep from two blocks away would be a fake arrival.
         ResidentBedLife.tick(second, level, level.getGameTime());
+        for (int elapsed : new int[]{20,40}) helper.runAfterDelay(elapsed, () ->
+            com.mojang.logging.LogUtils.getLogger().info(
+                "REME_NPC_NATIVE_BED_REUSE_TRACE age={} uuid={} pos={} "
+                + "intent={} energy={} pathDone={} onGround={} sleeping={} action={}",
+                elapsed, second.getUUID(), second.blockPosition().toShortString(),
+                second.intent(), second.energy(), second.getNavigation().isDone(),
+                second.onGround(), second.isSleeping(), second.lastAction()));
         helper.runAfterDelay(60, () -> {
             if (!second.isSleeping()
                 || !level.getBlockState(head).getValue(BedBlock.OCCUPIED)) {
-                helper.fail("Neighbor did not physically walk to and sleep in the freed native bed", head);
+                helper.fail("Neighbor did not physically walk to and sleep in the freed native bed:"
+                    + " feet="+second.blockPosition().toShortString()
+                    + " intent="+second.intent()+" energy="+second.energy()
+                    + " pathDone="+second.getNavigation().isDone()
+                    + " onGround="+second.onGround()
+                    + " action="+second.lastAction(), head);
                 return;
             }
             // Removal of the real bed must NOT leave a phantom sleeper/claim.

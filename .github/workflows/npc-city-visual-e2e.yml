@@ -11,6 +11,7 @@ on:
       - feat/npc-live-store-security-e2e-v071
       - feat/npc-daily-routines-housing-v072
       - fix/npc-city-entrance-bed-claims-v083
+      - fix/npc-jail-rear-intake-physical-waypoints-v084
   pull_request:
     branches:
       - feat/npc-economy-market-fair-v069
