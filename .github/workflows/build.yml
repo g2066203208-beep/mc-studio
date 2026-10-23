@@ -19,6 +19,8 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
+      - name: Verify real NPC crime video correlation against 8 false-positive cases
+        run: python3 scripts/test-verify-npc-gui-case.py
       - name: Test living-world planner core
         run: bash scripts/test-living-planner.sh
       - name: Validate six human skin assets
