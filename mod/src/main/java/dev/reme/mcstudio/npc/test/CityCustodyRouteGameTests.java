@@ -105,4 +105,86 @@ public final class CityCustodyRouteGameTests {
             else helper.succeed();
         });
     }
+    /**
+     * The original GUI city has an actual suspect 35+ blocks from its cell.
+     * A direct native path was truncated to 20 nodes and canReach=false.
+     * This test MUST walk the full distance through loaded vanilla paving,
+     * then physically enter the real two-block-high iron gate and lock it.
+     */
+    @GameTest(template="empty",timeoutTicks=760)
+    public static void far_arrest_walks_to_real_cell_without_teleport(
+        GameTestHelper helper) {
+        ServerLevel level=helper.getLevel();
+        BlockPos jail=helper.absolutePos(new BlockPos(10,2,10));
+        for(int dx=-5;dx<=35;dx++)for(int dz=-19;dz<=9;dz++){
+            BlockPos tile=jail.offset(dx,0,dz);
+            level.setBlock(tile.below(),Blocks.SMOOTH_STONE.defaultBlockState(),2);
+            for(int y=0;y<3;y++)
+                level.setBlock(tile.above(y),Blocks.AIR.defaultBlockState(),2);
+        }
+        // A physically enclosed cell: east/west/north bars, iron south gate,
+        // and an actual open oak back door. The surrounding paving is real.
+        for(int z=-1;z<=2;z++)
+            for(int x:new int[]{-1,1})
+                for(int y=0;y<3;y++)
+                    level.setBlock(jail.offset(x,y,z),Blocks.IRON_BARS.defaultBlockState(),2);
+        for(int x=-1;x<=1;x++)
+            for(int y=0;y<3;y++)
+                level.setBlock(jail.offset(x,y,-1),Blocks.IRON_BARS.defaultBlockState(),2);
+        BlockPos gate=jail.south(2);
+        level.setBlock(gate,Blocks.IRON_DOOR.defaultBlockState()
+            .setValue(DoorBlock.FACING,Direction.SOUTH)
+            .setValue(DoorBlock.HALF,DoubleBlockHalf.LOWER),2);
+        level.setBlock(gate.above(),Blocks.IRON_DOOR.defaultBlockState()
+            .setValue(DoorBlock.FACING,Direction.SOUTH)
+            .setValue(DoorBlock.HALF,DoubleBlockHalf.UPPER),2);
+        BlockPos back=jail.south(3);
+        level.setBlock(back,Blocks.OAK_DOOR.defaultBlockState()
+            .setValue(DoorBlock.FACING,Direction.SOUTH)
+            .setValue(DoorBlock.OPEN,true)
+            .setValue(DoorBlock.HALF,DoubleBlockHalf.LOWER),2);
+        level.setBlock(back.above(),Blocks.OAK_DOOR.defaultBlockState()
+            .setValue(DoorBlock.FACING,Direction.SOUTH)
+            .setValue(DoorBlock.OPEN,true)
+            .setValue(DoorBlock.HALF,DoubleBlockHalf.UPPER),2);
+        if(!PublicSafety.holdingSpot(level,jail)
+            ||!CityJailGate.setOpen(level,jail,true))
+            throw new AssertionError("Long-range physical jail fixture not built");
+        PlayerNpcEntity suspect=NpcRegistry.PLAYER_NPC.get().create(level);
+        if(suspect==null)throw new AssertionError("NPC registry unavailable");
+        suspect.setMode(PlayerNpcEntity.Mode.LIVE);
+        BlockPos start=jail.offset(31,0,-16);
+        suspect.moveTo(start.getX()+0.5,start.getY(),start.getZ()+0.5,0,0);
+        suspect.detainAt(jail,level.getGameTime()+1100);
+        if(!level.addFreshEntity(suspect))
+            throw new AssertionError("Long-range prisoner could not spawn");
+        if(start.distSqr(jail)<30*30)
+            throw new AssertionError("Test did not exceed native pathfinding range");
+        final net.minecraft.world.phys.Vec3[] last={suspect.position()};
+        for(int at=10;at<=640;at+=10)
+            helper.runAfterDelay(at,()->{
+                if(!suspect.isAlive()||suspect.isRemoved()){
+                    helper.fail("Long-range prisoner disappeared",start);
+                    return;
+                }
+                if(suspect.position().distanceToSqr(last[0])>7.0*7.0){
+                    helper.fail("Prisoner skipped real walking / teleported over ten ticks",
+                        suspect.blockPosition());
+                    return;
+                }
+                last[0]=suspect.position();
+            });
+        helper.runAfterDelay(680,()->{
+            if(!suspect.blockPosition().equals(jail)
+                ||!suspect.isDetained(level.getGameTime())
+                ||CityJailGate.isOpen(level,jail))
+                helper.fail("Long-range custody never reached the physical cell:"
+                    +" start="+start.toShortString()
+                    +" actual="+suspect.blockPosition().toShortString()
+                    +" gateOpen="+CityJailGate.isOpen(level,jail)
+                    +" action="+suspect.lastAction(),suspect.blockPosition());
+            else helper.succeed();
+        });
+    }
+
 }
