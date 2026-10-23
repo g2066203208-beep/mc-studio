@@ -259,7 +259,8 @@ public final class UrbanCivicDistrict {
         for(int z=8;z<=16;z+=4)
             p.put(-9,1,z,Blocks.OAK_FENCE);
         p.put(-15,1,17,Blocks.SEA_LANTERN);
-        p.put(-8,1,17,Blocks.BARREL); // fare/check-in booth
+        p.put(-8,1,17,Blocks.LECTERN); // real attended permit desk
+        p.put(-9,1,17,Blocks.BARREL); // physical parking service inventory
     }
 
     private static String check(ServerLevel level,Plan plan) {
@@ -385,6 +386,8 @@ public final class UrbanCivicDistrict {
             spawnAt[2]=new int[]{-10,-11}; // real student attends classroom
             jobAt[2]=new int[]{-10,-11};
         }
+        if(zone==Zone.TRANSPORT)
+            jobAt[0]=new int[]{-12,-11}; // rail + anvil both within 2 blocks
         if(zone==Zone.GOVERNMENT){
             jobAt[1]=new int[]{10,8}; // hotel reception in SE (not post office)
             spawnAt[1]=new int[]{10,9};
@@ -400,13 +403,15 @@ public final class UrbanCivicDistrict {
             npc.setMode(PlayerNpcEntity.Mode.LIVE);
             npc.setIdentity(SocietyRules.civilian(region));
             npc.setProfession(jobs[i]);
-            npc.setRoamingRadius(30); // bounded to local district; no chunk tickets
+            npc.setRoamingRadius(40); // covers local school-to-bed walk, no chunk tickets
             npc.setSkinId((i+zone.ordinal()*4)%6);
             // Every assigned bed is an actual two-block, non-overlapping head.
             int x=8+i*3;
             BlockPos head=city.offset(x,1,14);
-            npc.setAssignedBedPos(head);
             npc.setHomePos(city.offset(x,1,13)); // walkable aisle, not bed FOOT
+            // setHomePos intentionally invalidates an older bed claim: always
+            // assign the actual block head AFTER selecting a new home.
+            npc.setAssignedBedPos(head);
             npc.setWorkPos(city.offset(jobAt[i][0],1,jobAt[i][1]));
             npc.setCustomName(Component.literal(names[i]));
             npc.setCustomNameVisible(true);
