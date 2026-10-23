@@ -95,7 +95,7 @@ public final class CityCustodyRouteGameTests {
         helper.runAfterDelay(220,()->{
             if(!suspect.isAlive() || suspect.isRemoved())
                 helper.fail("Real prisoner disappeared during custody",initial);
-            else if(suspect.blockPosition().distSqr(jail)>2
+            else if(!suspect.blockPosition().equals(jail)
                 ||!suspect.isDetained(level.getGameTime())
                 ||CityJailGate.isOpen(level,jail))
                 helper.fail("Prisoner failed physical rear intake, iron gate or lock:"
