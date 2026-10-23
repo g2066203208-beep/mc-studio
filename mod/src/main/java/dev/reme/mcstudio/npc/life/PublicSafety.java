@@ -228,6 +228,16 @@ public final class PublicSafety {
             return false;
         }
         BlockPos jail = prisoner.detentionJail();
+        if (jail != null && !level.hasChunkAt(jail)) {
+            // A remote cell's chunk can unload while the prisoner and
+            // arresting officer remain loaded. Unloaded != demolished.
+            // Keep the persisted two-way UUID custody link, stop walking,
+            // and resume only when the real cell chunk becomes available.
+            // Never force-load the prison or release the detainee here.
+            guard.getNavigation().stop();
+            guard.setAction("escorting paused: authorized jail chunk unloaded");
+            return true;
+        }
         if (jail == null || !holdingSpot(level, jail)
             || !DailyRoaming.inRange(guard, jail)) {
             guard.clearPrisonerEscort();
@@ -298,12 +308,30 @@ public final class PublicSafety {
     public static boolean tickPrisoner(PlayerNpcEntity suspect, ServerLevel level, long tick) {
         BlockPos jail = suspect.detentionJail();
         if (jail == null) return false;
-        if (tick >= suspect.detainedUntil() || !holdingSpot(level, jail)) {
-            // Completed sentence unlocks the physical exit. The ex-prisoner
-            // is free to navigate back into society; no teleport on release.
-            CityJailGate.setOpen(level, jail, true);
+        if (tick >= suspect.detainedUntil()) {
+            // A sentence expires on game time even if its remote jail is
+            // unloaded; never force-load chunks or detain indefinitely.
+            // The physical door is opened when it is actually loaded.
+            if (level.hasChunkAt(jail)) CityJailGate.setOpen(level, jail, true);
             suspect.releaseDetention();
-            suspect.setAction("released from temporary community detention");
+            suspect.setAction("released after lawful custody sentence expired");
+            return false;
+        }
+        if (!level.hasChunkAt(jail)) {
+            // CRITICAL: holdingSpot() returns false for unloaded chunks.
+            // The old code treated that as a destroyed jail and silently
+            // released an evidence-backed prisoner, clearing the officer
+            // UUID and corrupting a legitimate escort across chunk borders.
+            // Pause the NPC in the real world until the existing jail loads.
+            suspect.getNavigation().stop();
+            suspect.setAction("custody paused: authorized jail chunk unloaded");
+            return true;
+        }
+        if (!holdingSpot(level, jail)) {
+            // A genuinely removed/invalid jail in a LOADED chunk is not a
+            // lawful holding cell. Release without teleport or ghost bars.
+            suspect.releaseDetention();
+            suspect.setAction("released: real holding cell was removed");
             return false;
         }
         suspect.setTarget(null);
