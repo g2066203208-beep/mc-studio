@@ -497,12 +497,17 @@ public final class SeamShipFilmE2E {
                 ServerPlayer camera=viewerId==null?null:
                     server.getPlayerList().getPlayer(viewerId);
                 if(camera!=null && camera.serverLevel().dimension()==Level.OVERWORLD) {
+                    double midX=(hull.minX+hull.maxX)*0.5;
                     double midY=(hull.minY+hull.maxY)*0.5;
-                    double eyeY=Math.max(-60.0,Math.min(-55.0,midY+4.0));
+                    double midZ=(hull.minZ+hull.maxZ)*0.5;
+                    double eyeY=Math.max(-60.0,Math.min(-51.0,midY+6.0));
                     double eyeDiff=(eyeY+1.62)-midY;
                     float pitch=(float)Math.toDegrees(Math.atan2(
                         eyeDiff,Math.sqrt(8.0*8.0+8.0*8.0)));
-                    camera.connection.teleport(x+8,eyeY,z+8,135,pitch);
+                    // Follow the REAL Sable hull's logical world-space X/Z.
+                    // Staging x/z may not match its physical pose after
+                    // assembly, plot relocation and native physics ticks.
+                    camera.connection.teleport(midX+8,eyeY,midZ+8,135,pitch);
                 }
             }
             if(state==2) {
@@ -545,8 +550,9 @@ public final class SeamShipFilmE2E {
                 }
             }
             if(ticks<=6 || ticks%10==0)
-                LOG.info("WORLDSEAM_FILM_FRAME: tick={} uuid={} state={} hullMinY={} hullMaxY={} straddles={} dimension=overworld(authoritative Sable body)",
-                    ticks,shipUuid,state,hull.minY,hull.maxY,
+                LOG.info("WORLDSEAM_FILM_FRAME: tick={} uuid={} state={} hullMinX={} hullMinY={} hullMinZ={} hullMaxX={} hullMaxY={} hullMaxZ={} stageX={} stageZ={} straddles={} dimension=overworld(authoritative Sable body)",
+                    ticks,shipUuid,state,hull.minX,hull.minY,hull.minZ,
+                    hull.maxX,hull.maxY,hull.maxZ,x,z,
                     hull.minY<PLANE&&hull.maxY>PLANE);
         } catch(Exception | LinkageError ex) {
             fail("Real Rapier impulse/pose failed: "+ex,ex);
