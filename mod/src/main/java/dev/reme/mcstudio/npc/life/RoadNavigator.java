@@ -5,7 +5,6 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.pathfinder.Path;
 
 /** Local, bounded road preference over vanilla pathfinding (not a global road network). */
 public final class RoadNavigator {
@@ -81,18 +80,15 @@ public final class RoadNavigator {
             // Actual vanilla A* must accept a reachable route. The first
             // candidate can be behind real blocks despite sharing a sidewalk
             // height. Never declare a ghost route just for its lower distance.
-            Path physical = npc.getNavigation().createPath(waypoint, 0);
-            if (physical != null && physical.canReach()
-                && npc.getNavigation().moveTo(physical, speed)) {
-                npc.setAction("following fully reachable real paved street waypoint");
+            if (npc.getNavigation().moveTo(waypoint.getX()+0.5,
+                    waypoint.getY(),waypoint.getZ()+0.5,speed)) {
+                npc.setAction("following accessible real paved street waypoint");
                 return true;
             }
         }
-        Path physical = npc.getNavigation().createPath(destination, 0);
-        boolean direct = physical != null && physical.canReach()
-            && npc.getNavigation().moveTo(physical, speed);
-        if (direct) npc.setAction("navigating fully reachable loaded-world vanilla route");
-        else npc.setAction("no fully reachable road or direct route; physical detour required");
+        boolean direct = npc.getNavigation().moveTo(destination.getX()+0.5,
+            destination.getY(),destination.getZ()+0.5,speed);
+        if(direct)npc.setAction("navigating direct loaded-world vanilla route");
         return direct;
     }
 }
