@@ -108,17 +108,19 @@ public final class CityFullDayGameTests {
                 +" unexplainedNightRoaming="+nightRoaming[0]
                 +" wallSeconds="+String.format(java.util.Locale.ROOT,"%.2f",
                     (System.nanoTime()-started)/1_000_000_000.0));
+            // Actions uploads latest.log/debug.log, not process stdout.
+            // Emit structured per-UUID outcome in the actual uploaded files.
+            com.mojang.logging.LogUtils.getLogger().info(
+                "REME_NPC_CITY_DAY_24K_DIAGNOSTIC residents={} nativeSleepers={} workers={} nightRoaming={}",
+                citizens.size(), actuallySlept.size(), actuallyWorked.size(), nightRoaming[0]);
             for (PlayerNpcEntity npc:citizens) {
                 if(!actuallySlept.contains(npc.getUUID()))
-                    System.out.println("REME_NPC_CITY_INSOMNIA npc="+npc.getName().getString()
-                        +" profession="+npc.profession()
-                        +" livePos="+npc.blockPosition().toShortString()
-                        +" home="+npc.homePos().toShortString()
-                        +" realBed="+(npc.assignedBedPos()==null ? "none"
-                            : npc.assignedBedPos().toShortString())
-                        +" intent="+npc.intent()+" energy="+npc.energy()
-                        +" pathFinished="+npc.getNavigation().isDone()
-                        +" lastAction="+npc.lastAction());
+                    com.mojang.logging.LogUtils.getLogger().error(
+                        "REME_NPC_CITY_INSOMNIA uuid={} npc={} profession={} pos={} home={} bed={} intent={} energy={} pathDone={} action={}",
+                        npc.getUUID(), npc.getName().getString(), npc.profession(),
+                        npc.blockPosition().toShortString(), npc.homePos().toShortString(),
+                        npc.assignedBedPos()==null ? "none" : npc.assignedBedPos().toShortString(),
+                        npc.intent(), npc.energy(), npc.getNavigation().isDone(), npc.lastAction());
             }
             if(actuallySlept.size()!=citizens.size())
                 helper.fail("Hard acceptance: all residents must physically use own vanilla beds, only "
