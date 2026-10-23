@@ -67,8 +67,8 @@ public final class SharedHumanoidMotionGameTests {
                 throw new AssertionError("Failed to read real clip asset "+path,problem);
             }
         }
-        if(clips!=22 || keyframes<100)
-            throw new AssertionError("Too few independently authored player/NPC clips: "
+        if(clips!=30 || keyframes<250)
+            throw new AssertionError("Incomplete original player/NPC gesture library: player/NPC clips: "
                 +clips+" frames="+keyframes);
         // Old network ordinals are permanent; old saved worlds need not change.
         if(NpcPose.values()[0]!=NpcPose.IDLE

@@ -47,7 +47,7 @@ jobs:
       - name: Assert native client loaded REAL player animation library and all shared rig clips
         shell: bash
         run: |
-          grep -F 'REME_NPC_REAL_CLIENT_SHARED_RIG playeranimator=true bothActorKinds=true registeredKeyframeClips=22' mod/client-gui.log
+          grep -F 'REME_NPC_REAL_CLIENT_SHARED_RIG playeranimator=true bothActorKinds=true registeredKeyframeClips=30' mod/client-gui.log
       - name: Always collect unmodified native Minecraft client artifacts
         if: always()
         uses: actions/upload-artifact@v4

@@ -27,7 +27,8 @@ public final class SharedHumanoidMotion {
             case IDLE, WALK, RUN, JUMP, CROUCH, GUARD,
                  STRIKE, HIT, STUNNED, CUFFED, ESCORT, FLEE, CHASE,
                  SOCIALIZE, GREET, HAND_HOLD, LEAN, SITTING,
-                 EATING, WORK, CARRY, LOOK_AROUND -> true;
+                 EATING, WORK, CARRY, LOOK_AROUND, AFRAID, REST, SHOPPING,
+                 LAUGH, SAD, BACK_CARRY, WAKE, SIT_DOWN -> true;
             default -> false;
         };
     }
