@@ -374,12 +374,27 @@ public final class PublicSafety {
         // The eastern station wall lies at X+7. Go through its REAL
         // open front door (X+7,Z-3) before navigating the outside wall.
         // Do not redirect people who are already on the south sidewalk.
-        if (feet.getY() == jail.getY()
-            && feet.getX() > jail.getX() + 1
-            && feet.getZ() < jail.getZ() + 4) {
-            if (feet.getX() < jail.getX() + 7)
+        // IMPORTANT: a thief arrested 30+ blocks away must still use
+        // RoadNavigator's short, reachable road legs to the rear exterior.
+        // The special east-door detour is ONLY for feet physically within
+        // the station east corridor or immediately outside its east wall.
+        // Previously it also redirected a distant thief to an unreachable
+        // 22-node A* path to the southeast corner, freezing all custody.
+        if (feet.getY() == jail.getY()) {
+            boolean insideEastCorridor =
+                feet.getX() > jail.getX() + 1
+                && feet.getX() < jail.getX() + 7
+                && feet.getZ() >= jail.getZ() - 9
+                && feet.getZ() < jail.getZ() + 4;
+            if (insideEastCorridor)
                 return jail.offset(8, 0, -3);
-            return jail.offset(8, 0, 4);
+            boolean justOutsideEastWall =
+                feet.getX() >= jail.getX() + 7
+                && feet.getX() <= jail.getX() + 10
+                && feet.getZ() >= jail.getZ() - 4
+                && feet.getZ() < jail.getZ() + 4;
+            if (justOutsideEastWall)
+                return jail.offset(8, 0, 4);
         }
         return custodyWaypoint(jail, feet);
     }
