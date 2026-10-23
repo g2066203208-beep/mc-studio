@@ -312,8 +312,17 @@ if [[ "${REME_CITY_VISUAL:-0}" == "1" ]]; then
   fi
   # First borough remains intact. Only the completely disposable adjacent
   # 41x41 testing land is flattened, never by the actual city command.
-  say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] positioned ~ ~-1 ~ run fill ~22 ~-1 ~-20 ~62 ~-1 ~20 minecraft:stone' 6
-  say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] positioned ~ ~-1 ~ run fill ~22 ~ ~-20 ~62 ~10 ~20 minecraft:air' 6
+  # Previous GUI harness accidentally used "positioned ~ ~-1 ~" AND
+  # fill y=-1, laying the NEW borough ground TWO blocks below the city's
+  # actual center. CityDistrictDemo.survey correctly rejected that unsafe
+  # site. Prepare only this disposable scratch fixture at the SAME level as
+  # the first city; never weaken the city's real preflight safety checks.
+  say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run fill ~22 ~-1 ~-20 ~62 ~-1 ~20 minecraft:stone' 6
+  say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run fill ~22 ~ ~-20 ~62 ~10 ~20 minecraft:air' 6
+  # Five physically supported one-block seam tiles must also be present
+  # before /npc city grow can connect the two actual road surfaces.
+  say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run fill ~21 ~-1 ~-2 ~21 ~-1 ~2 minecraft:stone' 3
+  say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run fill ~21 ~ ~-2 ~21 ~10 ~2 minecraft:air' 3
   say_city '/npc city grow east' 20
   import -window root client-gui-city-connected-borough.png
   say_city '/npc city census' 4
