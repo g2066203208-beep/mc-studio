@@ -26,6 +26,7 @@ on:
       - test/npc-real-client-video-integrity-v096
       - fix/npc-gui-apt-dpkg-lock-v097
       - feat/npc-physical-escort-pair-camera-v098
+      - fix/npc-camera-spectator-body-clearance-v099
   pull_request:
     branches:
       - feat/npc-economy-market-fair-v069
