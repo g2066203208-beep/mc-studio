@@ -66,6 +66,33 @@ public final class NpcEscortPairCameraGameTests {
     }
 
     @GameTest(template="empty", timeoutTicks=100)
+    public static void iron_bars_clearance_uses_real_partial_voxel_shape(
+            GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos bars = helper.absolutePos(new BlockPos(3, 3, 3));
+        level.setBlock(bars, Blocks.IRON_BARS.defaultBlockState(), 2);
+        // The body is inside the iron-bar BLOCK but stays in its real empty
+        // corner, away from the thin central collision cross. An old
+        // whole-block-is-solid check wrongly forced spectator POV here.
+        Vec3 lensEye = new Vec3(bars.getX() + 0.08,
+            bars.getY() + 1.72, bars.getZ() + 0.08);
+        if (!NpcCameraController.spectatorBodyClearInWorld(
+                level, lensEye, 1.62, 0.6, 1.8))
+            throw new AssertionError("Clear corner beside iron bars rejected");
+        // Replacing only the material with full stone must reject the exact
+        // same body volume; this must never permit filming through walls.
+        level.setBlock(bars, Blocks.STONE.defaultBlockState(), 2);
+        if (NpcCameraController.spectatorBodyClearInWorld(
+                level, lensEye, 1.62, 0.6, 1.8))
+            throw new AssertionError("Solid stone intersects spectator body");
+        if (NpcCameraController.spectatorBodyClearInWorld(
+                level, new Vec3(Double.NaN, lensEye.y, lensEye.z),
+                1.62, 0.6, 1.8))
+            throw new AssertionError("Non-finite camera coordinate accepted");
+        helper.succeed();
+    }
+
+    @GameTest(template="empty", timeoutTicks=100)
     public static void solid_wall_between_escort_actors_never_fakes_joint_view(
             GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
