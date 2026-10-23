@@ -47,6 +47,7 @@ public final class SeamShipFilmE2E {
     private static int upTicks,downTicks,passes;
     private static double initialMinY,lowMinY=Double.POSITIVE_INFINITY;
     private static double actualShipMassKg;
+    private static int nativeBodyID=-1;
     private static final double PLANE=-64.0;
     private static boolean sawStraddle,fullyAcross;
     private static long lastPulse;
@@ -330,6 +331,8 @@ public final class SeamShipFilmE2E {
             pipeline=system.getMethod("getPipeline").invoke(owner);
             Class<?> body=Class.forName(
                 "dev.ryanhcode.sable.api.physics.PhysicsPipelineBody");
+            nativeBodyID=((Number)body.getMethod("getRuntimeId").invoke(ship))
+                .intValue();
             Object massData=body.getMethod("getMassTracker").invoke(ship);
             Class<?> massInterface=Class.forName(
                 "dev.ryanhcode.sable.api.physics.mass.MassData");
@@ -457,7 +460,7 @@ public final class SeamShipFilmE2E {
                     fail("Vanilla /fill failed to remove real native takeoff pad",null);
                     return;
                 }
-                LOG.info("WORLDSEAM_FILM_NATIVE_TAKEOFF: real /fill cleared physical support y=-58; Sable body never teleported, startMinY={} from actual hull",departure.minY);
+                LOG.info("WORLDSEAM_FILM_NATIVE_TAKEOFF: real /fill cleared physical support y=-58; Sable body never teleported, startMinY={} from actual hull nativeBodyID={}",departure.minY,nativeBodyID);
             }
             startedRealFlight=true;
             realFlightStartTick=server.getTickCount();
@@ -518,9 +521,17 @@ public final class SeamShipFilmE2E {
                     // terrain are the only physical forces during this hold.
                     // This is an observation, NOT yet calibrated contact
                     // impulse/torque proof.
-                    if(server.getTickCount()%10==0)
-                        LOG.info("WORLDSEAM_FILM_NATIVE_REMOTE_CONTACT_HOLD: uuid={} y={} foreignNativeSolidCells={} (contact force not separately measured)",
-                            shipUuid,hull.minY,SeamRapierRemoteTerrain.remoteColliderCells());
+                    if(server.getTickCount()%10==0) {
+                        if(SeamRapierRemoteTerrain.enabled()) {
+                            var nativeMotion=SeamRapierRemoteTerrain.motion(nativeBodyID);
+                            LOG.info("WORLDSEAM_FILM_NATIVE_REMOTE_CONTACT_HOLD: uuid={} nativeBodyID={} y={} nativeLinearY={} angular=({},{},{}) foreignNativeSolidCells={} (observe native motion, NOT a verified contact impulse)",
+                                shipUuid,nativeBodyID,hull.minY,nativeMotion.vy(),
+                                nativeMotion.wx(),nativeMotion.wy(),nativeMotion.wz(),
+                                SeamRapierRemoteTerrain.remoteColliderCells());
+                        } else
+                            LOG.info("WORLDSEAM_FILM_NATIVE_REMOTE_CONTACT_HOLD: uuid={} y={} experimentDisabled=true",
+                                shipUuid,hull.minY);
+                    }
                     return;
                 }
                 upTicks++;
@@ -546,10 +557,17 @@ public final class SeamShipFilmE2E {
                         shipUuid,initialMinY,lowMinY,hull.minY,ticks,downTicks,upTicks,clientSublevelRenderableFrames);
                 }
             }
-            if(ticks<=6 || ticks%10==0)
+            if(ticks<=6 || ticks%10==0) {
+                if(SeamRapierRemoteTerrain.enabled()) {
+                    var m=SeamRapierRemoteTerrain.motion(nativeBodyID);
+                    LOG.info("WORLDSEAM_FILM_NATIVE_MOTION: uuid={} nativeBodyID={} tick={} vy={} wx={} wy={} wz={} projectedNetherSolidCells={}",
+                        shipUuid,nativeBodyID,ticks,m.vy(),m.wx(),m.wy(),m.wz(),
+                        SeamRapierRemoteTerrain.remoteColliderCells());
+                }
                 LOG.info("WORLDSEAM_FILM_FRAME: tick={} uuid={} state={} hullMinY={} hullMaxY={} straddles={} dimension=overworld(authoritative Sable body)",
                     ticks,shipUuid,state,hull.minY,hull.maxY,
                     hull.minY<PLANE&&hull.maxY>PLANE);
+            }
         } catch(Exception | LinkageError ex) {
             fail("Real Rapier impulse/pose failed: "+ex,ex);
         }
