@@ -12,6 +12,7 @@ on:
       - feat/npc-daily-routines-housing-v072
       - fix/npc-city-entrance-bed-claims-v083
       - fix/npc-jail-rear-intake-physical-waypoints-v084
+      - fix/npc-real-home-door-approach-v085
   pull_request:
     branches:
       - feat/npc-economy-market-fair-v069
