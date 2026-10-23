@@ -24,6 +24,11 @@ public final class NpcPoseSelection {
             npc.hasUnpaidShopItem(tick),
             npc.hurtTime > 0);
         if (urgent != null) return urgent;
+        if (!npc.onGround() && !npc.isInWater() && !npc.isPassenger()) return NpcPose.JUMP;
+        if (npc.getDeltaMovement().horizontalDistanceSqr() > 0.003) {
+            if (npc.isSprinting()) return NpcPose.RUN;
+            return NpcPose.WALK;
+        }
         if (npc.isShiftKeyDown()) return NpcPose.CROUCH;
         if (npc.isPassenger()) return NpcPose.SITTING;
         if (npc.isUsingItem()) return NpcPose.EATING;
@@ -52,9 +57,11 @@ public final class NpcPoseSelection {
     public static NpcPose classifyPhysical(boolean unconscious, boolean detained,
                                            boolean escorting, boolean pursuing,
                                            boolean fleeing, boolean hurt) {
+        // Once walking under custody, show handcuffs rather than dragging
+        // a permanently horizontal collapsed model down the sidewalk.
+        if (detained) return NpcPose.CUFFED;
         if (unconscious) return NpcPose.STUNNED;
         if (hurt) return NpcPose.HIT;
-        if (detained) return NpcPose.CUFFED;
         if (escorting) return NpcPose.ESCORT;
         if (pursuing) return NpcPose.CHASE;
         if (fleeing) return NpcPose.FLEE;
