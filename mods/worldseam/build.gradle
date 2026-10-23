@@ -63,6 +63,9 @@ neoForge {
             }
             if (project.hasProperty('worldseamShipFilm')) {
                 systemProperty 'worldseam.shipFilm', 'true'
+                // Disposable native-only validation: map actual Nether physics
+                // voxels into ONE authoritative Overworld Sable Rapier scene.
+                systemProperty 'worldseam.experimentalRemoteRapier', 'true'
             }
             // Comma-separated list of namespaces to load gametests from. Empty = all namespaces.
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
