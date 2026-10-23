@@ -547,10 +547,16 @@ public final class SeamNativeGeometryClient {
         // overlays. Their depth ordering relative to WorldSeam terrain is
         // now correct; native LevelRenderer compositing, sky, translucent
         // depth and Sable sublevels remain separate unfinished work.
-        SeamRemoteBlockEntities.draw(event,queuedRemote,sourceBoundary,
-            targetBoundary,queuedLink.entry());
-        SeamRemoteEntities.draw(event,queuedRemote,sourceBoundary,
-            targetBoundary,queuedLink.entry());
+        // Render genuine foreign actors with their OWN ClientLevel and
+        // LevelRenderer installed, while retaining the translated source
+        // camera. Restore all singleton state before vanilla resumes.
+        try (SeamForeignActorWorldScope.Scope ignored =
+                 SeamForeignActorWorldScope.bind(queuedRemote,event.getCamera())) {
+            SeamRemoteBlockEntities.draw(event,queuedRemote,sourceBoundary,
+                targetBoundary,queuedLink.entry());
+            SeamRemoteEntities.draw(event,queuedRemote,sourceBoundary,
+                targetBoundary,queuedLink.entry());
+        }
     }
 
     public static int countFluidCells() {
