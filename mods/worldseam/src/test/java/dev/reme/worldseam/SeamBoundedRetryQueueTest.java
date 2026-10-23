@@ -40,6 +40,51 @@ final class SeamBoundedRetryQueueTest {
     }
 
     @Test
+    void loadedNativeEditCannotStarveBehindMissingChunks() {
+        var q = new SeamBoundedRetryQueue<String>(2);
+        q.enqueue("missing-a");
+        q.enqueue("missing-b");
+        q.enqueue("loaded-dirty"); // previously blocked forever in overflow
+
+        assertEquals("missing-a", q.poll());
+        q.defer("missing-a");
+        assertEquals("missing-b", q.poll());
+        q.defer("missing-b");
+        // Fair rotation has admitted the loaded edit, even though both
+        // original entries are still waiting for authoritative chunks.
+        assertEquals("loaded-dirty", q.poll());
+        q.complete("loaded-dirty");
+        assertEquals(0, q.deferredCount());
+        assertEquals("missing-a", q.poll());
+        q.defer("missing-a");
+        assertEquals("missing-b", q.poll());
+        q.defer("missing-b");
+    }
+
+    @Test
+    void repeatedDeferralsWithOverflowPreserveEveryUniqueSection() {
+        var q = new SeamBoundedRetryQueue<Integer>(1);
+        q.enqueue(1);
+        q.enqueue(2);
+        q.enqueue(3);
+        for (int i = 0; i < 240; i++) {
+            int item = q.poll();
+            q.defer(item);
+            assertEquals(1, q.size());
+            assertEquals(2, q.deferredCount());
+        }
+        var seen = new java.util.HashSet<Integer>();
+        for (int i = 0; i < 3; i++) {
+            int item = q.poll();
+            assertTrue(seen.add(item));
+            q.complete(item);
+        }
+        assertEquals(java.util.Set.of(1, 2, 3), seen);
+        assertNull(q.poll());
+        assertEquals(0, q.deferredCount());
+    }
+
+    @Test
     void worldOrShipWindowChangeDiscardsAllOldRetries() {
         var q = new SeamBoundedRetryQueue<Integer>(1);
         q.enqueue(1);

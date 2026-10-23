@@ -40,13 +40,32 @@ final class SeamBoundedRetryQueue<T> {
         return pending.pollFirst();
     }
 
-    /** The target chunk is not resident: retain the same pending section. */
+    /**
+     * A missing authoritative chunk must not monopolize every native upload
+     * slot while a resident, edited chunk waits in overflow. Rotate the oldest
+     * overflow entry into the vacated slot, and put this unloaded section at
+     * the back of overflow. This is fair across the entire window without
+     * forcing a chunk load or changing any Rapier body.
+     */
     void defer(T item) {
-        if (item == null || !queued.contains(item))
+        if (item == null || !queued.remove(item))
             throw new IllegalStateException("Cannot defer a nonqueued section");
-        if (pending.size() >= capacity)
+        if (pending.size() >= capacity) {
+            queued.add(item);
             throw new IllegalStateException("Retry queue capacity exceeded");
-        pending.addLast(item);
+        }
+        if (overflow.isEmpty()) {
+            queued.add(item);
+            pending.addLast(item);
+            return;
+        }
+        overflow.add(item);
+        var iterator = overflow.iterator();
+        T next = iterator.next();
+        iterator.remove();
+        if (!queued.add(next))
+            throw new IllegalStateException("Duplicate native upload entry");
+        pending.addLast(next);
     }
 
     /** Native upload completed (or was deliberately discarded on failure). */
