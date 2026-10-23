@@ -54,3 +54,13 @@ GitHub 是整个 Minecraft 工作室的开发中心。代码、需求、研究�
 **本分支修复**：统一逻辑边界 Nether Y128；独立新 ChunkStatusTasks Mixin 在世界生成阶段除去接缝基岩（管理员开关后，仅新区块）；`SeamCrossing` 在边界平面内侧 0.5 格、朝向面运动时提前交接，不需要先越出建筑高度；远端 LevelRenderer 收到 Chunk 后通知 section mesh 重建；`/worldseam enable` 默认走 no-respawn（若没有预热完成则阻挡边界，不以加载换维假冒成功）；`/worldseam setup-test` 为明确授权的破坏性测试世界命令：为当前X/Z 16×16区块柱在主世界地板/地狱屋顶删去既有基岩。以上只在 `feat/worldseam-standalone`，与 PEAK 攀爬绝不合并。
 
 **禁止宣称最终无缝**：没有 GUI 实际跨界/双向像素级验收和实体/碰撞/粒子/光照整合；自动构建、GameTest、headless-client 仅部分门槛。后续工作必须实现远端全维 `LevelRenderer` 在统一帧中按平面遮挡渲染、服务器/客户端多实体和光照数据正确按维度同步、镜头跨面交接，无加载录像完成才可称交付。
+
+
+## 2026-10-23：WorldSeam P2 航空学真实录像故障与修复交接（PR #110）
+
+- 只改 `mods/worldseam/` 及本交接文档；目标 Create: Aeronautics + Sable，**不是** Valkyrien Skies，不与 NPC/PEAK/Boss 合并。
+- [WorldSeam P2 PR #98](https://github.com/g2066203208-beep/mc-studio/pull/98) 仍需统一 Rapier 双维原生求解器、Sable 船体跨界裁剪/渲染、原生流体/实体完整连贯，不得宣称完美。
+- [本次修复 PR #110](https://github.com/g2066203208-beep/mc-studio/pull/110) 在 P2 head `75cbf87` 上修复 Sable 同艘船双目标图表区块票据互相替换，新增 5 个 JUnit 案例；单船同场最多 2 个目标图表，32 船/64 票据上限。
+- **关键真实故障**：[Actions 39882697903](https://github.com/g2066203208-beep/mc-studio/actions/runs/39882697903) 的 83 秒原生 Minecraft MP4 **失败**，有真实 /fill 与构建的 Create+Aero 方块飞船，但是无法组装后往返。对应 `real-ship-jvm-thread-dump.txt` 的服务器栈为 `ChunkStatusTasks.full -> SeamTerrain.onChunkLoad -> LevelChunk.setBlockState -> Sable RapierPhysicsPipeline.handleBlockChange -> LevelAccelerator.getChunk -> ServerChunkCache.getChunk (park)`。因此删除加载时逐方块改基岩的事件，仅在生成阶段 `ProtoChunk` 做可选基岩处理。另将发布版 Aeronautics 默认 X 轴螺旋桨改为与上向 Create 马达同轴的 Y 轴，实际速度/推力还必须在 GameTest 中确认。
+- 录像 CI `mods/worldseam/ci/record_real_sable_ship.sh` 追加真正的客户端已可渲染、飞到界缝下方、返回时 3 张截图，并通过 `ci/check_real_ship_pixels.py` 校验船体蓝黄方块是否真实出现在像素中；不允许黑洞/空画面成功，也不把测试外力推动说成 Aero-only 推进。
+- 新版 Actions [真实电影](https://github.com/g2066203208-beep/mc-studio/actions/workflows/worldseam-ship-film.yml)、[真实航空学](https://github.com/g2066203208-beep/mc-studio/actions/workflows/worldseam-sable-real-mods.yml)、[独立 Mod](https://github.com/g2066203208-beep/mc-studio/actions/workflows/worldseam.yml)、[240 次压力](https://github.com/g2066203208-beep/mc-studio/actions/workflows/worldseam-stress-e2e.yml) 必须看当前 PR HEAD；上轮成功不替代当前测试。**PR #110 及 #98 都保持 Draft**，未有完整双维动态接触/真正 Aero-only 自主往返视频证据前禁止标记通过。
