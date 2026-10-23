@@ -225,18 +225,25 @@ public final class CityDistrictDemo {
 
     private static void apartments(Plan p) {
         // Two distinct townhouses face the main avenue; actual assignable beds.
-        shell(p, 6, -18, 11, -6, 6, Blocks.BRICKS,
+        // Continuous inner gallery across two townhouse facade wings.
+        // Former 5-wide individual units crammed six beds into 1-wide halls
+        // and NPCs blocked one another, causing real nighttime insomnia.
+        shell(p, 6, -18, 18, -6, 6, Blocks.BRICKS,
             Blocks.GLASS, Blocks.SPRUCE_PLANKS);
-        shell(p, 13, -18, 18, -6, 6, Blocks.OAK_PLANKS,
-            Blocks.GLASS, Blocks.DEEPSLATE_TILES);
+        // Two distinct exterior facade wings WITHOUT an interior wall.
+        for(int x=13;x<=18;x++)for(int z=-18;z<=-6;z++)
+            if(x==18||z==-18||z==-6)
+                for(int y=1;y<6;y++)
+                    if(!p.blocks.get(p.pos(x,y,z)).is(Blocks.GLASS))
+                        p.put(x,y,z,Blocks.OAK_PLANKS);
         door(p, 9, -6, Direction.SOUTH);
         door(p, 15, -6, Direction.SOUTH);
         // Two compact homes need enough *real* vanilla sleeping space for
         // the citizens working here: 12 separate red beds, not 2 for 13 NPCs.
         for (int z : new int[]{-16, -13, -10}) {
             bed(p, 7, z);
-            bed(p, 9, z);
-            bed(p, 14, z);
+            bed(p, 10, z);
+            bed(p, 13, z);
             bed(p, 16, z);
         }
         p.put(7, 1, -11, Blocks.CHEST);
@@ -357,9 +364,9 @@ public final class CityDistrictDemo {
         // Fixed one-to-one *physical bed HEADS*; no multiple people fighting
         // over a single claim. These blocks are placed by apartments()/police.
         int[][] beds = {
-            {7,-16},{9,-16},{14,-16},{-16,8},{-13,8},
-            {16,-16},{7,-13},{9,-13},{14,-13},{16,-13},
-            {7,-10},{9,-10},{14,-10},
+            {7,-16},{10,-16},{13,-16},{-16,8},{-13,8},
+            {16,-16},{7,-13},{10,-13},{13,-13},{16,-13},
+            {7,-10},{10,-10},{13,-10},
             {-16,11},{-13,11}
         };
         for (int i=0; i<names.length; i++) {
@@ -377,8 +384,10 @@ public final class CityDistrictDemo {
             // walking target. Previously all home anchors pointed *inside*
             // the bed and residents could circle forever at night.
             int aisle = switch (beds[i][0]) {
-                case 7, 9 -> 8;
-                case 14, 16 -> 15;
+                case 7 -> 8;
+                case 10 -> 9;
+                case 13 -> 14;
+                case 16 -> 15;
                 case -16 -> -15;
                 case -13 -> -12;
                 default -> beds[i][0];
