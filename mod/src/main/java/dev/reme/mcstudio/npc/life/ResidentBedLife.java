@@ -9,6 +9,7 @@ import net.minecraft.world.level.block.BedBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BedPart;
 import net.minecraft.world.phys.AABB;
+import net.minecraft.world.level.pathfinder.Path;
 
 /**
  * Bounded, server-authoritative REAL vanilla-bed sleep. Vanilla LivingEntity
@@ -135,41 +136,83 @@ public final class ResidentBedLife {
         }
         if (bed == null) return false;
 
-        if (npc.blockPosition().distSqr(bed) <= 6) {
-            // Recheck right before occupation: another player or villager
-            // may have taken the bed since this NPC first reserved it.
+        // Being 2 blocks away across a WALL is not arriving at a real bed.
+        // Select a traversable, loaded-side foot tile first; vanilla walking
+        // must actually reach that tile before vanilla startSleeping is used.
+        BlockPos nearSide = accessibleSide(level, bed, npc.blockPosition());
+        if (nearSide == null) {
+            npc.setAssignedBedPos(null);
+            npc.setAction("bed physical access blocked; reassign on next scan");
+            return false;
+        }
+        if (npc.blockPosition().distSqr(nearSide) <= 2
+            && npc.blockPosition().distSqr(bed) <= 6) {
             if (!assignedBedAvailable(npc, level, bed)) {
                 npc.setAssignedBedPos(null);
                 return false;
             }
             npc.getNavigation().stop();
-            npc.startSleeping(bed); // native lying entity + bed occupancy
+            npc.startSleeping(bed); // one real Minecraft BedBlock, no scripted teleport
             if (npc.isSleeping()) {
-                npc.setAction("sleeping in an actual Minecraft bed");
+                npc.setAction("sleeping in an actual Minecraft bed after walking to bedside");
                 return true;
             }
-            return false;
+            // A native bed occupancy or sleeping restriction can fail; retry,
+            // NEVER convert the action string into a fake sleeping status.
+            npc.setAction("reached bedside but vanilla sleep did not start");
+            return true;
         }
 
-        if (npc.getNavigation().isDone() ||
-            MovementPolicy.due(tick, npc.getId(), 40)) {
-            BlockPos access = accessibleSide(level, bed, npc.blockPosition());
-            if (access == null) {
-                // A moved furniture block must not hold the entire NPC AI
-                // hostage forever: allow ordinary at-home rest fallback.
-                npc.setAssignedBedPos(null);
-                npc.setAction("bed blocked; releasing claim until next scan");
-                return false;
-            }
-            if (RoadNavigator.moveToward(npc, level, access, 1.00))
-                npc.setAction("walking to reserved bed");
-            else if (npc.getNavigation().isDone()) {
-                npc.setAssignedBedPos(null);
-                npc.setAction("no valid path to bed; releasing claim");
-                return false;
+        if (npc.getNavigation().isDone()
+            || MovementPolicy.due(tick, npc.getId(), 40)) {
+            // The shortest Euclidean direction is often through a house wall.
+            // Choose the FULL native A* route that REACHES one of four sides.
+            Path realRoute = reachableBedSide(npc, level, bed);
+            if (realRoute != null && npc.getNavigation().moveTo(realRoute, 1.00)) {
+                npc.setAction("walking on fully reachable vanilla A-star route to real bedside");
+            } else {
+                // While outside, continue towards the apartment door/home
+                // instead of dropping a valid bed claim just because the
+                // inner-room path is temporarily unavailable.
+                var homeRoute = npc.getNavigation().createPath(npc.homePos(), 0);
+                if (homeRoute != null && homeRoute.canReach()
+                    && npc.getNavigation().moveTo(homeRoute, 0.98))
+                    npc.setAction("walking to real home entrance before bedside");
+                else if (RoadNavigator.moveToward(npc, level, npc.homePos(), 0.94))
+                    npc.setAction("following actual road/door route home before bed");
+                else
+                    npc.setAction("real house/bed path blocked; no fake teleport or sleeping");
             }
         }
-        return true; // keep ordinary AI from overwriting a live bed path
+        return true; // preserve the real navigation through bedtime
+    }
+
+    /** Maximum four native A* probes per slow (40-tick) sleep replan.
+     * Partial paths which terminate at the OUTSIDE wall are explicitly
+     * rejected by Path.canReach(); a failed route never proves arrival.
+     */
+    @Nullable private static Path reachableBedSide(PlayerNpcEntity npc,
+                                                   ServerLevel level, BlockPos bed) {
+        Path best = null;
+        int nodes = Integer.MAX_VALUE;
+        for (Direction dir : Direction.Plane.HORIZONTAL) {
+            BlockPos side = bed.relative(dir);
+            if (!isStandingSide(level, side)) continue;
+            Path candidate = npc.getNavigation().createPath(side, 0);
+            if (candidate != null && candidate.canReach()
+                && candidate.getNodeCount() < nodes) {
+                nodes = candidate.getNodeCount();
+                best = candidate;
+            }
+        }
+        return best;
+    }
+
+    private static boolean isStandingSide(ServerLevel level, BlockPos pos) {
+        return level.hasChunkAt(pos) && level.hasChunkAt(pos.below())
+            && level.getBlockState(pos).isAir()
+            && level.getBlockState(pos.above()).isAir()
+            && level.getBlockState(pos.below()).isSolid();
     }
 
     @Nullable private static BlockPos accessibleSide(ServerLevel level,
@@ -178,9 +221,7 @@ public final class ResidentBedLife {
         double bestDistance = Double.POSITIVE_INFINITY;
         for (Direction dir : Direction.Plane.HORIZONTAL) {
             BlockPos pos = bed.relative(dir);
-            if (!level.hasChunkAt(pos) || !level.getBlockState(pos).isAir()
-                || !level.getBlockState(pos.above()).isAir()
-                || !level.getBlockState(pos.below()).isSolid()) continue;
+            if (!isStandingSide(level, pos)) continue;
             double dist = from.distSqr(pos);
             if (dist < bestDistance) { best = pos; bestDistance = dist; }
         }

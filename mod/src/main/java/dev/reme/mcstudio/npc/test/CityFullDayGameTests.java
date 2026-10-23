@@ -54,7 +54,8 @@ public final class CityFullDayGameTests {
         int[] nightSleepSamples={0},dayDutySamples={0},nearHome={0},nightRoaming={0};
         long started=System.nanoTime();
         for(int age=200;age<24000;age+=200){
-            helper.runAfterDelay(age,()->{
+            final int sampleAge=age;
+            helper.runAfterDelay(sampleAge,()->{
                 long clock=Math.floorMod(level.getDayTime(),24000L);
                 for(PlayerNpcEntity npc:citizens){
                     if(!npc.isAlive()||npc.isRemoved()){
@@ -68,6 +69,18 @@ public final class CityFullDayGameTests {
                         actuallySlept.add(npc.getUUID());
                         nightSleepSamples[0]++;
                     }
+                    if(sampleAge % 600 == 200)
+                        System.out.println("REME_NPC_CITY_REAL_DIARY age=" + sampleAge
+                            + " uuid=" + npc.getUUID()
+                            + " name=" + npc.getName().getString()
+                            + " xyz=" + npc.blockPosition().toShortString()
+                            + " job=" + npc.profession()
+                            + " intent=" + npc.intent()
+                            + " nativeSleeping=" + npc.isSleeping()
+                            + " bed=" + (npc.assignedBedPos()==null ? "none" : npc.assignedBedPos().toShortString())
+                            + " home=" + npc.homePos().toShortString()
+                            + " pathDone=" + npc.getNavigation().isDone()
+                            + " action=" + npc.lastAction());
                     if(night && npc.blockPosition().distSqr(npc.homePos())<=9)
                         nearHome[0]++;
                     if(night && npc.profession()!=PlayerNpcEntity.Profession.GUARD
@@ -107,10 +120,11 @@ public final class CityFullDayGameTests {
                         +" pathFinished="+npc.getNavigation().isDone()
                         +" lastAction="+npc.lastAction());
             }
-            if(actuallySlept.size()<6)
-                helper.fail("Fewer than six real city residents physically entered native beds",center);
-            else if(actuallyWorked.size()<2)
-                helper.fail("Fewer than two real workers ever reached their actual job sites",center);
+            if(actuallySlept.size()!=citizens.size())
+                helper.fail("Hard acceptance: all residents must physically use own vanilla beds, only "
+                    +actuallySlept.size()+"/"+citizens.size()+" slept",center);
+            else if(actuallyWorked.size()<10)
+                helper.fail("Hard acceptance: fewer than ten workers reached real daytime work positions",center);
             else if(nightRoaming[0]>10)
                 helper.fail("Nighttime wandering or social planner repeatedly overrode real bedtime",center);
             else helper.succeed();

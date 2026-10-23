@@ -178,6 +178,23 @@ public final class CityDistrictDemo {
             .setValue(DoorBlock.HALF, DoubleBlockHalf.UPPER));
     }
 
+    /**
+     * Walkable three-cell entry, not a decorative one-tile door with NPCs
+     * deadlocking on either side. Center is a REAL, opened vanilla oak door;
+     * the other two are genuine open arcade passages with two blocks headroom.
+     * Removing shell placements is safe: the constructor only operates on
+     * preflighted EMPTY scratch terrain and never clears a player's buildings.
+     */
+    private static void pedestrianEntrance(Plan p, int x, int z, Direction facing) {
+        door(p, x, z, facing);
+        for (int side : new int[]{-1, 1}) {
+            int nx = x + (facing.getAxis() == Direction.Axis.Z ? side : 0);
+            int nz = z + (facing.getAxis() == Direction.Axis.X ? side : 0);
+            p.blocks.remove(p.pos(nx, 1, nz));
+            p.blocks.remove(p.pos(nx, 2, nz));
+        }
+    }
+
     private static void bed(Plan p, int x, int z) {
         // Head is north, foot is south: actual two-block vanilla bed.
         p.state(x, 1, z, Blocks.RED_BED.defaultBlockState()
@@ -197,7 +214,8 @@ public final class CityDistrictDemo {
             for (int z = -17; z <= -7; z++)
                 if (!(x == -17 && z == -17))
                     p.put(x, 4, z, Blocks.SMOOTH_QUARTZ);
-        door(p, -6, -12, Direction.EAST);
+        pedestrianEntrance(p, -6, -12, Direction.EAST);
+        for(int z=-13;z<=-11;z++) p.put(-5,0,z,Blocks.SMOOTH_STONE);
         // The library desk is genuinely inside the mall, rather than just
         // giving a nonfunctional LIBRARIAN label to a random pedestrian.
         p.put(-15, 1, -10, Blocks.BOOKSHELF);
@@ -236,8 +254,8 @@ public final class CityDistrictDemo {
                 for(int y=1;y<6;y++)
                     if(!p.blocks.get(p.pos(x,y,z)).is(Blocks.GLASS))
                         p.put(x,y,z,Blocks.OAK_PLANKS);
-        door(p, 9, -6, Direction.SOUTH);
-        door(p, 15, -6, Direction.SOUTH);
+        pedestrianEntrance(p, 9, -6, Direction.SOUTH);
+        pedestrianEntrance(p, 15, -6, Direction.SOUTH);
         // Two compact homes need enough *real* vanilla sleeping space for
         // the citizens working here: 12 separate red beds, not 2 for 13 NPCs.
         for (int z : new int[]{-16, -13, -10}) {
@@ -248,16 +266,16 @@ public final class CityDistrictDemo {
         }
         p.put(7, 1, -11, Blocks.CHEST);
         p.put(17, 1, -11, Blocks.BARREL);
-        for (int z = -5; z <= -3; z++) {
-            p.put(9, 0, z, Blocks.POLISHED_ANDESITE);
-            p.put(15, 0, z, Blocks.POLISHED_ANDESITE);
-        }
+        for (int z = -5; z <= -3; z++)
+            for (int x : new int[]{8,9,10,14,15,16})
+                p.put(x, 0, z, Blocks.POLISHED_ANDESITE);
     }
 
     private static void police(Plan p) {
         shell(p, -18, 6, -6, 18, 6, Blocks.STONE_BRICKS,
             Blocks.GLASS, Blocks.DEEPSLATE_TILES);
-        door(p, -6, 12, Direction.EAST);
+        pedestrianEntrance(p, -6, 12, Direction.EAST);
+        for(int z=11;z<=13;z++) p.put(-5,0,z,Blocks.SMOOTH_STONE);
         // Real rear prisoner intake: outside street z=19 -> open station
         // back door z=18 -> authorized IRON cell gate z=17 -> actual cell.
         // Avoid a 25-block detour around solid police walls, which left

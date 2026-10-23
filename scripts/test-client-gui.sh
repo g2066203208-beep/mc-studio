@@ -155,6 +155,15 @@ if [[ "${REME_CITY_VISUAL:-0}" == "1" ]]; then
     xdotool key Return
     sleep "${2:-3}"
   }
+  # Remove HUD/chat from the ACTUAL framebuffer while filming real
+  # in-world people and buildings. Not a synthesized panorama or composite.
+  photo_city() {
+    xdotool key --clearmodifiers F1
+    sleep 3
+    import -window root "$1"
+    sleep 2
+    xdotool key --clearmodifiers F1
+  }
   # The initial /npc spawn is part of command-smoke coverage. Remove only
   # that one test entity from this disposable scratch-world before founding
   # the district; otherwise the subsequent 12-citizen census shows 13.
@@ -211,41 +220,53 @@ if [[ "${REME_CITY_VISUAL:-0}" == "1" ]]; then
     say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run fill ~-62 ~-1 ~-20 ~-22 ~-1 ~20 minecraft:stone' 4
     say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run fill ~-62 ~ ~-20 ~-22 ~11 ~20 minecraft:air' 4
     say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run fill ~-21 ~-1 ~-2 ~-21 ~-1 ~2 minecraft:stone' 3
+    say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run fill ~-21 ~ ~-2 ~-21 ~10 ~2 minecraft:air' 3
     say_city '/npc city zone survey hospital' 3
     say_city '/npc city zone hospital' 16
     say_city '/execute if entity @e[type=reme_studio:player_npc,tag=reme_urban_hospital_0] run say REME_URBAN_HOSPITAL_STAFF_REAL' 3
-    say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run tp @s ~-53 ~25 ~-54 facing ~-42 ~1 ~-42' 12
-    import -window root client-gui-city-zone-hospital-true-3d.png
+    say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run tp @s ~-55 ~26 ~-24 facing ~-42 ~2 ~' 12
+    photo_city client-gui-city-zone-hospital-true-3d.png
+    say_city '/execute at @e[type=reme_studio:player_npc,tag=reme_urban_hospital_0,limit=1] run tp @s ~ ~2 ~5 facing entity @e[type=reme_studio:player_npc,tag=reme_urban_hospital_0,limit=1] eyes' 5
+    photo_city client-gui-city-zone-hospital-npc-closeup.png
     say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run tp @s ~ ~ ~' 3
 
     say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run fill ~-20 ~-1 ~-62 ~20 ~-1 ~-22 minecraft:stone' 4
     say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run fill ~-20 ~ ~-62 ~20 ~11 ~-22 minecraft:air' 4
     say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run fill ~-2 ~-1 ~-21 ~2 ~-1 ~-21 minecraft:stone' 3
+    say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run fill ~-2 ~ ~-21 ~2 ~10 ~-21 minecraft:air' 3
     say_city '/npc city zone survey education' 3
     say_city '/npc city zone education' 16
     say_city '/execute if entity @e[type=reme_studio:player_npc,tag=reme_urban_education_0] run say REME_URBAN_EDUCATION_STAFF_REAL' 3
     say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run tp @s ~-11 ~25 ~-54 facing ~ ~1 ~-42' 12
-    import -window root client-gui-city-zone-education-true-3d.png
+    photo_city client-gui-city-zone-education-true-3d.png
+    say_city '/execute at @e[type=reme_studio:player_npc,tag=reme_urban_education_0,limit=1] run tp @s ~ ~2 ~5 facing entity @e[type=reme_studio:player_npc,tag=reme_urban_education_0,limit=1] eyes' 5
+    photo_city client-gui-city-zone-education-npc-closeup.png
     say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run tp @s ~ ~ ~' 3
 
     say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run fill ~-20 ~-1 ~22 ~20 ~-1 ~62 minecraft:stone' 4
     say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run fill ~-20 ~ ~22 ~20 ~11 ~62 minecraft:air' 4
+    say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run fill ~-2 ~ ~21 ~2 ~10 ~21 minecraft:air' 3
     say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run fill ~-2 ~-1 ~21 ~2 ~-1 ~21 minecraft:stone' 3
     say_city '/npc city zone survey government' 3
     say_city '/npc city zone government' 16
     say_city '/execute if entity @e[type=reme_studio:player_npc,tag=reme_urban_government_0] run say REME_URBAN_GOVERNMENT_STAFF_REAL' 3
     say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run tp @s ~-11 ~25 ~53 facing ~ ~1 ~42' 12
-    import -window root client-gui-city-zone-government-true-3d.png
+    photo_city client-gui-city-zone-government-true-3d.png
+    say_city '/execute at @e[type=reme_studio:player_npc,tag=reme_urban_government_0,limit=1] run tp @s ~ ~2 ~5 facing entity @e[type=reme_studio:player_npc,tag=reme_urban_government_0,limit=1] eyes' 5
+    photo_city client-gui-city-zone-government-npc-closeup.png
     say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run tp @s ~ ~ ~' 3
 
     say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run fill ~22 ~-1 ~-20 ~62 ~-1 ~20 minecraft:stone' 4
     say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run fill ~22 ~ ~-20 ~62 ~11 ~20 minecraft:air' 4
     say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run fill ~21 ~-1 ~-2 ~21 ~-1 ~2 minecraft:stone' 3
+    say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run fill ~21 ~ ~-2 ~21 ~10 ~2 minecraft:air' 3
     say_city '/npc city zone survey transport' 3
     say_city '/npc city zone transport' 16
     say_city '/execute if entity @e[type=reme_studio:player_npc,tag=reme_urban_transport_0] run say REME_URBAN_TRANSPORT_STAFF_REAL' 3
     say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run tp @s ~53 ~25 ~-11 facing ~42 ~1 ~' 12
-    import -window root client-gui-city-zone-transport-true-3d.png
+    photo_city client-gui-city-zone-transport-true-3d.png
+    say_city '/execute at @e[type=reme_studio:player_npc,tag=reme_urban_transport_0,limit=1] run tp @s ~ ~2 ~5 facing entity @e[type=reme_studio:player_npc,tag=reme_urban_transport_0,limit=1] eyes' 5
+    photo_city client-gui-city-zone-transport-npc-closeup.png
     say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run tp @s ~ ~ ~' 3
     say_city '/npc city census' 4
     import -window root client-gui-city-zone-population-live.png
@@ -264,10 +285,28 @@ if [[ "${REME_CITY_VISUAL:-0}" == "1" ]]; then
       test -s "client-gui-city-zone-${zone}-true-3d.png" || {
         echo "FAIL: actual 3D district screenshot missing for ${zone}"; exit 1
       }
+      test -s "client-gui-city-zone-${zone}-npc-closeup.png" || {
+        echo "FAIL: real citizen close-up photo missing for ${zone}"; exit 1
+      }
+      test -s "client-gui-city-zone-${zone}-npc-closeup.png" || {
+        echo "FAIL: real citizen close-up photo missing for ${zone}"; exit 1
+      }
+      test -s "client-gui-city-zone-${zone}-npc-closeup.png" || {
+        echo "FAIL: real citizen close-up photo missing for ${zone}"; exit 1
+      }
+      test -s "client-gui-city-zone-${zone}-npc-closeup.png" || {
+        echo "FAIL: real citizen close-up photo missing for ${zone}"; exit 1
+      }
     done
     test -s client-gui-city-four-public-service-zones.mp4 || {
       echo 'FAIL: original-unmodified X11 Minecraft walkaround video missing'; exit 1
     }
+    # Actual uninterrupted captured X11 video, not a stitched image sequence.
+    ffprobe -v error -select_streams v:0 -show_entries stream=codec_name,width,height \
+      -of default=noprint_wrappers=1 client-gui-city-four-public-service-zones.mp4 \
+      | grep -Fq 'codec_name=h264' || {
+        echo 'FAIL: actual client does not have a real H.264 video stream'; exit 1
+      }
     echo "PASS: actual NeoForge client generated four district zones, sixteen real NPC careers and unmodified visual frames"
     exit 0
   fi
