@@ -53,7 +53,7 @@ jobs:
           grep -Fxq 'mod_version=0.7.2-dev' mod/gradle.properties
       - name: Verify shared NPC and real-player keyframe assets
         run: python3 scripts/check-npc-animation-assets.py
-      - name: Install GUI dependencies with visible apt diagnostics and bounded fallback
+      - name: Install GUI dependencies without overlapping apt or dpkg processes
         shell: bash
         run: |
           set -euo pipefail
