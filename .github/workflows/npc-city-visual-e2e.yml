@@ -20,6 +20,7 @@ on:
       - fix/npc-unloaded-jail-custody-v090
       - fix/npc-gui-apt-timeout-evidence-v091
       - fix/npc-gui-install-cache-first-v092
+      - fix/npc-playeranimator-resource-registry-v093
   pull_request:
     branches:
       - feat/npc-economy-market-fair-v069
@@ -43,6 +44,8 @@ jobs:
           grep -Fxq 'minecraft_version=1.21.1' mod/gradle.properties
           grep -Fxq 'neo_version=21.1.262' mod/gradle.properties
           grep -Fxq 'mod_version=0.7.2-dev' mod/gradle.properties
+      - name: Verify shared NPC and real-player keyframe assets
+        run: python3 scripts/check-npc-animation-assets.py
       - name: Install GUI dependencies from runner cache first; bounded network fallback
         shell: bash
         run: |
