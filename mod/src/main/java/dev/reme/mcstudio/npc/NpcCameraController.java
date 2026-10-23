@@ -166,6 +166,22 @@ public final class NpcCameraController {
         return new Vec3(lens.x(), lens.y() - eyeHeight, lens.z());
     }
 
+    /** Reject a camera whose eye is clear but whose spectator body intersects
+     * a real wall, door or floor. The original eye-only check could place the
+     * spectator's FEET inside stone while its lens remained in open air.
+     * Sample the body volume without loading any additional chunks.
+     */
+    public static boolean spectatorBodyClear(Vec3 lensEye, double eyeHeight,
+                                             Predicate<Vec3> collisionFree) {
+        if (!Double.isFinite(eyeHeight) || eyeHeight <= 0.0) return false;
+        for (double height : new double[]{0.08, eyeHeight * 0.55, eyeHeight + 0.16})
+            for (double ox : new double[]{-0.28, 0.0, 0.28})
+                for (double oz : new double[]{-0.28, 0.0, 0.28})
+                    if (!collisionFree.test(lensEye.add(ox, height - eyeHeight, oz)))
+                        return false;
+        return true;
+    }
+
     /** Never teleport the NPC or force-load a chunk to make a pretty shot.
      * If no valid lens exists, use genuine entity POV until space reopens.
      */
@@ -184,17 +200,13 @@ public final class NpcCameraController {
                 ? target.getUUID().equals(other.escortedPrisoner())
                 : target.getUUID().equals(other.custodyOfficer()))
             ? other : null;
-        Predicate<Vec3> clearLens = lens -> {
-            for (double ox : new double[]{-.19, .0, .19})
-                for (double oz : new double[]{-.19, .0, .19}) {
-                    BlockPos block = BlockPos.containing(lens.add(ox, 0, oz));
-                    if (!level.hasChunkAt(block)
-                        || !level.getBlockState(block)
-                            .getCollisionShape(level, block).isEmpty())
-                        return false;
-                }
-            return true;
-        };
+        Predicate<Vec3> clearLens = lens -> spectatorBodyClear(
+            lens, player.getEyeHeight(), sample -> {
+                BlockPos block = BlockPos.containing(sample);
+                return level.hasChunkAt(block)
+                    && level.getBlockState(block)
+                        .getCollisionShape(level, block).isEmpty();
+            });
         Predicate<Vec3> targetVisible = lens -> level.clip(new ClipContext(
             eye, lens, ClipContext.Block.COLLIDER,
             ClipContext.Fluid.NONE, target)).getType() == HitResult.Type.MISS;
@@ -209,6 +221,14 @@ public final class NpcCameraController {
         } else {
             chosen = selectClearView(eye, target.getYRot(),
                 clearLens, targetVisible);
+        }
+        if (partner != null && player.tickCount % 40 == 0) {
+            com.mojang.logging.LogUtils.getLogger().info(
+                "REME_NPC_CAMERA_PAIR_VIEW observer={} target={} partner={} "
+                    + "actorDistance={} sharedLens={} lensEye={}",
+                player.getUUID(), target.getUUID(), partner.getUUID(),
+                target.distanceTo(partner), chosen != null,
+                chosen == null ? "none" : new Vec3(chosen.x(), chosen.y(), chosen.z()));
         }
         if (chosen == null) {
             if (POV_FALLBACK.add(player.getUUID())) {

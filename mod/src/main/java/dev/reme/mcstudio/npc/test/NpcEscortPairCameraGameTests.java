@@ -42,6 +42,30 @@ public final class NpcEscortPairCameraGameTests {
     }
 
     @GameTest(template="empty", timeoutTicks=100)
+    public static void spectator_eye_clear_but_body_in_stone_is_rejected(
+            GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos stone = helper.absolutePos(new BlockPos(3, 3, 3));
+        level.setBlock(stone, Blocks.STONE.defaultBlockState(), 2);
+        Vec3 lensEye = new Vec3(stone.getX() + 0.5,
+            stone.getY() + 1.62, stone.getZ() + 0.5);
+        if (!level.getBlockState(BlockPos.containing(lensEye))
+                .getCollisionShape(level, BlockPos.containing(lensEye)).isEmpty())
+            throw new AssertionError("Test precondition: lens eye must be in air");
+        java.util.function.Predicate<Vec3> collisionFree = point -> {
+            BlockPos at = BlockPos.containing(point);
+            return level.hasChunkAt(at)
+                && level.getBlockState(at).getCollisionShape(level, at).isEmpty();
+        };
+        if (NpcCameraController.spectatorBodyClear(lensEye, 1.62, collisionFree))
+            throw new AssertionError("Eye-only check put spectator feet inside stone");
+        level.setBlock(stone, Blocks.AIR.defaultBlockState(), 2);
+        if (!NpcCameraController.spectatorBodyClear(lensEye, 1.62, collisionFree))
+            throw new AssertionError("Unobstructed spectator body was rejected");
+        helper.succeed();
+    }
+
+    @GameTest(template="empty", timeoutTicks=100)
     public static void solid_wall_between_escort_actors_never_fakes_joint_view(
             GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
