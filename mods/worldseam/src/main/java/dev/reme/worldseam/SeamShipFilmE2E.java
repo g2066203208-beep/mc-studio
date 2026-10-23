@@ -385,6 +385,8 @@ public final class SeamShipFilmE2E {
             var hull=currentHull();
             if(!Double.isFinite(hull.minY)||!Double.isFinite(hull.maxY))
                 throw new IllegalStateException("Nonfinite Sable hull");
+            if(!shipClientRenderReady)
+                throw new IllegalStateException("Client lost real Sable ship render data mid-flight");
             if(hull.minY<PLANE && hull.maxY>PLANE)sawStraddle=true;
             lowMinY=Math.min(lowMinY,hull.minY);
             int ticks=(int)(server.getTickCount()-realFlightStartTick);
@@ -438,8 +440,8 @@ public final class SeamShipFilmE2E {
                     }
                     state=4;
                     passes++;
-                    LOG.info("WORLDSEAM_FILM_PASS_REAL_SHIP_RETURN: uuid={} startMinY={} bottomMinY={} returnMinY={} ticks={} downTicks={} upTicks={}, twoWayStraddle=true, realAeroPropellerPowered=true, trueDualChartRapierContactsUnverified=true",
-                        shipUuid,initialMinY,lowMinY,hull.minY,ticks,downTicks,upTicks);
+                    LOG.info("WORLDSEAM_FILM_PASS_REAL_SHIP_RETURN: uuid={} startMinY={} bottomMinY={} returnMinY={} ticks={} downTicks={} upTicks={}, twoWayStraddle=true, aeroPropellerSpinningAtReturn=true, poweredByTestExternalForce=true, aeronauticsOnlyFlightUnverified=true, trueDualChartRapierContactsUnverified=true, nativeClientSameUuidRenderableFrames={}",
+                        shipUuid,initialMinY,lowMinY,hull.minY,ticks,downTicks,upTicks,clientSublevelRenderableFrames);
                 }
             }
             if(ticks<=6 || ticks%10==0)
