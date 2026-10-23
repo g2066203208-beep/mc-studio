@@ -37,17 +37,17 @@ public final class CityFullDayGameTests {
                 level.setBlock(center.offset(x,y,z),Blocks.AIR.defaultBlockState(),2);
         }
         CityDistrictDemo.Result city=CityDistrictDemo.build(level,center,null);
-        if (!city.success() || city.citizens()!=13)
-            throw new AssertionError("Need actual city and 13 genuinely living residents: "+city);
+        if (!city.success() || city.citizens()!=15)
+            throw new AssertionError("Need actual city and 15 genuinely living residents: "+city);
         var citizens=level.getEntitiesOfClass(PlayerNpcEntity.class,
             new AABB(center.getX()-20,center.getY(),center.getZ()-20,
                 center.getX()+21,center.getY()+11,center.getZ()+21));
-        if(citizens.size()!=13) throw new AssertionError("City not genuinely populated");
+        if(citizens.size()!=15) throw new AssertionError("City not genuinely populated");
         Set<BlockPos> claims=new HashSet<>();
         for(PlayerNpcEntity npc:citizens)
             if(npc.assignedBedPos()==null || !claims.add(npc.assignedBedPos()))
                 throw new AssertionError("Missing unique actual native bed claim");
-        if(claims.size()!=13)throw new AssertionError("Bed claims not one-to-one");
+        if(claims.size()!=15)throw new AssertionError("Bed claims not one-to-one");
 
         Set<java.util.UUID> actuallySlept=new HashSet<>();
         Set<java.util.UUID> actuallyWorked=new HashSet<>();
