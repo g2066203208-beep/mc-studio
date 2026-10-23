@@ -1,19 +1,28 @@
 package dev.reme.worldseam;
 
 import com.mojang.logging.LogUtils;
+import dev.reme.worldseam.mixin.SeamGameRendererAccess;
 import dev.reme.worldseam.mixin.SeamMinecraftAccess;
 import dev.reme.worldseam.mixin.SeamParticleEngineAccess;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.LevelRenderer;
+import net.minecraft.client.renderer.RenderBuffers;
 import org.slf4j.Logger;
 
 /**
- * Narrow, exception-safe native context for rendering actual foreign actors.
- * It deliberately keeps the source camera/projection because the existing
- * BE/entity pass translates foreign coordinates into source coordinates.
- * NOT a full second LevelRenderer render, sky, transparency or framebuffer.
+ * Exception-safe native context for rendering actual foreign actors.
+ *
+ * A secondary LevelRenderer has its own native RenderBuffers. Switching only
+ * Minecraft.level and levelRenderer leaves Minecraft/GameRenderer drawing into
+ * the SOURCE world's unfinished entity buffers. Keep all four identities
+ * consistent until the target draw has completed, then restore them even if
+ * a modded BE/entity renderer throws.
+ *
+ * This retains the source camera because existing foreign actors are mapped
+ * into source coordinates. It is NOT yet a full sky/fog/depth/offscreen
+ * LevelRenderer pass or Sable sublevel composite.
  */
 public final class SeamForeignActorWorldScope {
     private static final Logger LOG=LogUtils.getLogger();
@@ -35,26 +44,34 @@ public final class SeamForeignActorWorldScope {
     public static Scope bind(ClientLevel foreign, Camera sourceCamera) {
         Minecraft mc=Minecraft.getInstance();
         LevelRenderer foreignRenderer=SeamClientWorldPool.rendererFor(foreign);
-        if(foreign==null || foreignRenderer==null || mc.level==null ||
-            foreign==mc.level || sourceCamera==null)return NOOP;
+        RenderBuffers foreignBuffers=SeamClientWorldPool.renderBuffersFor(foreign);
+        if(foreign==null || foreignRenderer==null || foreignBuffers==null ||
+            mc.level==null || foreign==mc.level || sourceCamera==null)return NOOP;
         if(inside)throw new IllegalStateException("Nested WorldSeam foreign render context");
         ClientLevel originalWorld=mc.level;
         LevelRenderer originalRenderer=mc.levelRenderer;
+        RenderBuffers originalMinecraftBuffers=mc.renderBuffers();
+        SeamGameRendererAccess game=(SeamGameRendererAccess)mc.gameRenderer;
+        RenderBuffers originalGameBuffers=game.worldseam$getRenderBuffers();
+        SeamMinecraftAccess client=(SeamMinecraftAccess)mc;
         SeamParticleEngineAccess particles=(SeamParticleEngineAccess)mc.particleEngine;
         ClientLevel originalParticleWorld=particles.worldseam$getLevel();
         inside=true;
         try {
             mc.level=foreign;
-            ((SeamMinecraftAccess)mc).worldseam$setLevelRenderer(foreignRenderer);
+            client.worldseam$setLevelRenderer(foreignRenderer);
+            client.worldseam$setRenderBuffers(foreignBuffers);
+            game.worldseam$setRenderBuffers(foreignBuffers);
             mc.getBlockEntityRenderDispatcher().setLevel(foreign);
-            // ParticleEngine.setLevel() clears particles. Swap its actual
-            // level field instead, then restore it before vanilla resumes.
+            // ParticleEngine.setLevel() clears particles; swap only its
+            // dimension reference and restore it before vanilla resumes.
             particles.worldseam$setLevel(foreign);
             mc.getEntityRenderDispatcher().prepare(foreign,sourceCamera,null);
         } catch(RuntimeException | Error failure) {
             failures++;
             restore(mc,originalWorld,originalRenderer,originalParticleWorld,
-                sourceCamera,particles);
+                originalMinecraftBuffers,originalGameBuffers,
+                sourceCamera,particles,client,game);
             throw failure;
         }
         entered++;
@@ -65,10 +82,14 @@ public final class SeamForeignActorWorldScope {
                 closed=true;
                 try {
                     restore(mc,originalWorld,originalRenderer,
-                        originalParticleWorld,sourceCamera,particles);
+                        originalParticleWorld,originalMinecraftBuffers,
+                        originalGameBuffers,sourceCamera,particles,client,game);
+                    if(mc.renderBuffers()!=originalMinecraftBuffers ||
+                       game.worldseam$getRenderBuffers()!=originalGameBuffers)
+                        throw new IllegalStateException("Foreign native render buffers leaked");
                     restored++;
                     if(restored==1 || restored%120==0)
-                        LOG.info("WORLDSEAM_FOREIGN_ACTOR_CONTEXT: entered={}, restored={}, failures={}",
+                        LOG.info("WORLDSEAM_FOREIGN_ACTOR_CONTEXT: entered={}, restored={}, failures={}, isolatedBuffers=true",
                             entered,restored,failures);
                 } catch(RuntimeException | Error failure) {
                     failures++;
@@ -81,22 +102,34 @@ public final class SeamForeignActorWorldScope {
     private static void restore(Minecraft mc,ClientLevel originalWorld,
                                 LevelRenderer originalRenderer,
                                 ClientLevel originalParticleWorld,
-                                Camera camera,SeamParticleEngineAccess particles) {
+                                RenderBuffers originalMinecraftBuffers,
+                                RenderBuffers originalGameBuffers,
+                                Camera camera,SeamParticleEngineAccess particles,
+                                SeamMinecraftAccess client,
+                                SeamGameRendererAccess game) {
         try {
             mc.level=originalWorld;
-            ((SeamMinecraftAccess)mc).worldseam$setLevelRenderer(originalRenderer);
+            client.worldseam$setLevelRenderer(originalRenderer);
         } finally {
             try {
-                mc.getBlockEntityRenderDispatcher().setLevel(originalWorld);
+                game.worldseam$setRenderBuffers(originalGameBuffers);
             } finally {
                 try {
-                    particles.worldseam$setLevel(originalParticleWorld);
+                    client.worldseam$setRenderBuffers(originalMinecraftBuffers);
                 } finally {
                     try {
-                        mc.getEntityRenderDispatcher().prepare(
-                            originalWorld,camera,mc.crosshairPickEntity);
+                        mc.getBlockEntityRenderDispatcher().setLevel(originalWorld);
                     } finally {
-                        inside=false;
+                        try {
+                            particles.worldseam$setLevel(originalParticleWorld);
+                        } finally {
+                            try {
+                                mc.getEntityRenderDispatcher().prepare(
+                                    originalWorld,camera,mc.crosshairPickEntity);
+                            } finally {
+                                inside=false;
+                            }
+                        }
                     }
                 }
             }
