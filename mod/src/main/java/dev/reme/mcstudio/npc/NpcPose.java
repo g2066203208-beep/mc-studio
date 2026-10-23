@@ -16,7 +16,9 @@ public enum NpcPose {
     // APPEND ONLY: existing ordinal IDs must remain stable across clients.
     FLEE, CHASE, STRIKE, HIT, STUNNED, CUFFED, ESCORT,
     SHOPPING, EATING, SITTING, LOOK_AROUND, CROUCH,
-    LAUGH, SAD, GREET;
+    LAUGH, SAD, GREET,
+    // Shared vanilla-player AND living-NPC rig events. Append, never reorder.
+    WALK, RUN, JUMP, LEAN, HAND_HOLD, BACK_CARRY, WAKE, SIT_DOWN;
 
     public static NpcPose fromNetworkId(int id) {
         NpcPose[] all = values();
