@@ -279,6 +279,9 @@ public final class SeamClientWorldPool {
         LevelRenderer newRenderer = remoteRenderer;
         LocalPlayer player = mc.player;
 
+        // A promoted secondary world must not retain a second lightmap
+        // once the active GameRenderer takes over its normal lightmap.
+        SeamRemoteLightmaps.release();
         oldWorld.removeEntity(player.getId(), Entity.RemovalReason.CHANGED_DIMENSION);
         ((SeamEntityAccess) player).worldseam$unsetRemoved();
         ((SeamEntityAccess) player).worldseam$setLevel(newWorld);
@@ -427,6 +430,7 @@ public final class SeamClientWorldPool {
     }
 
     public static void clear() {
+        SeamRemoteLightmaps.release();
         SeamRemoteEntityClient.reset();
         if (remoteRenderer != null) {
             LevelRenderer detached=remoteRenderer;

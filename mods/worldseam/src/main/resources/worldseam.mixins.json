@@ -10,6 +10,7 @@
   ],
   "client": [
     "SeamMinecraftAccess",
+    "SeamGameRendererAccess",
     "SeamPacketListenerAccess",
     "SeamClientPlayerAccess",
     "SeamClientBlockUpdateMixin",

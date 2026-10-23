@@ -409,6 +409,11 @@ public final class SeamNativeGeometryClient {
         // Chunk prewarming continues independently for immediate handoff.
         if(!SeamSectionLayout.nearPlane(mc.player.getY(),
                 sourceBoundary,NEAR_PLANE_RENDER_RANGE)) return;
+        // Scope a distinct real target-dimension lightmap across the whole
+        // foreign terrain/BE/entity pass. Restore the active sampler even on
+        // early return or a third-party renderer exception.
+        try (SeamRemoteLightmaps.Scope ignored =
+                 SeamRemoteLightmaps.bind(queuedRemote)) {
         // Foreign block entities and ordinary entities must be submitted
         // AFTER our own terrain depth writes. The old order drew them first,
         // then let the remote VBOs overwrite/occlude their pixels even when
@@ -533,6 +538,7 @@ public final class SeamNativeGeometryClient {
                 Math.max(0,lastFrameDrawCpuNanos-lastFrameGpuCpuNanos));
         }
         renderForeignActors(event);
+        }
     }
 
     private static void renderForeignActors(RenderLevelStageEvent event) {

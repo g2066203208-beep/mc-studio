@@ -109,6 +109,11 @@ public final class SeamVisualE2E {
             if(SeamNativeGeometryClient.countFluidCells()<2 ||
                SeamNativeGeometryClient.lastFrameGpuFluidCells()<1)
                 LOG.error("WORLDSEAM_E2E_FAIL_GPU_FLUID_SCENE: real target water/lava/waterlogged sections not drawn");
+            LOG.info("WORLDSEAM_E2E_REMOTE_LIGHTMAP: created={}, boundFrames={}, failures={}, released={}",
+                SeamRemoteLightmaps.creations(), SeamRemoteLightmaps.boundFrames(),
+                SeamRemoteLightmaps.failures(), SeamRemoteLightmaps.releases());
+            if (SeamRemoteLightmaps.boundFrames()<1 || SeamRemoteLightmaps.failures()>0)
+                LOG.error("WORLDSEAM_E2E_FAIL_REMOTE_LIGHTMAP: target ClientLevel lighting not bound successfully");
             LOG.info("WORLDSEAM_E2E_NATIVE_BE_SCENE: actualRemoteBlockEntityFrames={}, lastRendered={}, lastEligible={}, rendererErrors={}",
                 SeamRemoteBlockEntities.framesWithNativeBlocks(),
                 SeamRemoteBlockEntities.lastRendered(),
