@@ -8,11 +8,22 @@ export LIBGL_ALWAYS_SOFTWARE=1
 bash ./gradlew runClient -PworldseamShipFilm --no-daemon --console=plain > real-ship-film-client.log 2>&1 &
 minecraft_pid=$!
 film_pid=""
+# Background ffmpeg can inherit SIGINT=ignored from a non-interactive bash.
+# SIGTERM is handled by ffmpeg and flushes the actual MP4 moov atom. Never
+# wait unboundedly for a recorder after the real Sable test has completed.
+stop_film() {
+  [[ -n "$film_pid" ]] || return 0
+  kill -TERM "$film_pid" 2>/dev/null || true
+  for i in $(seq 1 60); do
+    kill -0 "$film_pid" 2>/dev/null || break
+    sleep 0.25
+  done
+  kill -KILL "$film_pid" 2>/dev/null || true
+  wait "$film_pid" 2>/dev/null || true
+  film_pid=""
+}
 cleanup() {
-  if [[ -n "$film_pid" ]]; then
-    kill -INT "$film_pid" 2>/dev/null || true
-    wait "$film_pid" 2>/dev/null || true
-  fi
+  stop_film
   kill "$minecraft_pid" 2>/dev/null || true
 }
 trap cleanup EXIT
@@ -146,9 +157,7 @@ for step in $(seq 1 240); do
   sleep 1
 done
 
-kill -INT "$film_pid" 2>/dev/null || true
-wait "$film_pid" 2>/dev/null || true
-film_pid=""
+stop_film
 test -s real-ship-attempt-UNVERIFIED.mp4 ||
   { echo 'REAL_SHIP_FILM_CAPTURE_FAILED'; tail -n 60 real-ship-ffmpeg.log; exit 1; }
 ffprobe -v error -show_entries format=duration -of default=nw=1 \
