@@ -275,3 +275,28 @@ New HEAD after these commits must complete six fresh Actions: Build, independent
 - Read upstream Immersive Portals 1.21 `MyGameRenderer.renderWorldNew` and `ClientWorldLoader.withSwitchedWorld`: native second-world render requires scoped `Minecraft.level` and `LevelRenderer`, network listener, independent lightmap, render buffers, camera/frustum, transparency and GL matrices, and strict restoration. Current WorldSeam still draws remote chunk/BE/entity passes in the active renderer. **Full second LevelRenderer composite NOT IMPLEMENTED.**
 - Read upstream IPSable `IplFusedStep`: it schedules all dimension pre-phases, then only one armed native Rapier step per substep. Current Sable scenes are dimension-local, and the WorldSeam translation-only foreign terrain uploader does not provide a rights-cleared Atlas shared world, chart-keyed terrain, image colliders, same-body two-chart impulses/torques or native fused step. **Unified dual-dimension physics NOT IMPLEMENTED.**
 - Next priority is actual second-world native renderer context/compositing and licence/ABI-cleared shared Rapier physics architecture; then autonomous Aeronautics power, passenger/constraint continuity, actual 240 ship crossings and uninterrupted raw MP4. Do not equate a green GameTest or remote entity frame counter with these final gates.
+
+
+## 2026-10-23 20:18 CST — native Rapier projected-section collision safety (FINAL GATES OPEN)
+
+**Draft PR #98 remains Draft; NO merge, NO visual/physics acceptance.** Only `mods/worldseam` Java and JUnit changed.
+
+### Fresh baseline at 50fac5b
+- [Build #39945895757](https://github.com/g2066203208-beep/mc-studio/actions/runs/39945895757): passed.
+- [Independent JUnit/GameTest #39945895714](https://github.com/g2066203208-beep/mc-studio/actions/runs/39945895714): passed limited checks.
+- [Released Sable/Create/Aeronautics #39945895838](https://github.com/g2066203208-beep/mc-studio/actions/runs/39945895838): passed limited GameTest; **physicsBridgeActive=false**.
+- [Native GUI #39945895814](https://github.com/g2066203208-beep/mc-studio/actions/runs/39945895814): passed limited test, 134 actual foreign entity frames, 165 foreign BE frames; **full second LevelRenderer and visible seamless composite unverified**.
+- [240 handoffs #39945895768](https://github.com/g2066203208-beep/mc-studio/actions/runs/39945895768): passed **client** handoffs, **17 >250ms tick gaps, worst 442ms**; NOT 240 physical ship crossings.
+- [Actual ship film #39945895730](https://github.com/g2066203208-beep/mc-studio/actions/runs/39945895730): **FAILED** visible ship continuity; ffprobe missing is an additional diagnostic issue, not proof of successful aircraft rendering.
+
+### Actual native collision code fix (not fused Atlas physics)
+The Sable `VoxelNeighborhoodState` classification intentionally marks fully supported voxels INTERIOR. The old `fullNativeNeighbor` sampled any *loaded* foreign ServerLevel chunk, including sections never uploaded to the bounded native Rapier scene. At native projection edges this could mark a real collider INTERIOR based on a neighbor that did not exist in Rapier, producing missing native contact faces, especially during asynchronous upload/eviction.
+
+- [f677157](https://github.com/g2066203208-beep/mc-studio/commit/f67715778fb18280a0801ddcd82ba6b5817c9ff4): introduce integer-exact same-native-section support predicate, including negative coordinates.
+- [4a46249](https://github.com/g2066203208-beep/mc-studio/commit/4a46249d90aeac10605733d05b5111a4279b1920): foreign native voxel neighborhood culls faces ONLY when neighboring voxel belongs to the same projected native section; cross-section faces remain conservatively exposed regardless of Java chunk residency, eliminating an upload-order/eviction-dependent false INTERIOR.
+- [64149d8](https://github.com/g2066203208-beep/mc-studio/commit/64149d89ef5dab2fa58c72d801fce9ee6d843024): JUnit coverage for x/z boundaries, negative section arithmetic and Nether roof Y127/Y128.
+
+This is a **real Java/native terrain correctness change**, but the experimental projection is off in ordinary gameplay, and the native force/torque effect has **NOT** yet been measured. Native Rapier Atlas shared-world, chart-keyed image colliders, fused same-substep dual-dimension impulses/torques, autonomous Aeronautics flight and continuous ship rendering are still **NOT IMPLEMENTED/NOT VERIFIED**. No native Sable source/binary was redistributed.
+
+### Required follow-up
+Check fresh Actions on this HEAD (Build, JUnit/GameTest, released-mod integration, real GUI, 240 client handoffs, unedited real aircraft MP4). In addition to the two missing main architectures, instrument actual native body ID and per-chart contact impulse/torque in one substep only through a licensed ABI-safe interface; do not call callback counts or test external forces successful physics. Maintain the Draft PR and all acceptance gates OPEN pending objective real-game results and user approval.
