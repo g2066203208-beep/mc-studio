@@ -224,27 +224,41 @@ public final class SeamShipFilmE2E {
             BlockPos motorPos=anchor.offset(0,1,-2);
             BlockPos rotorPos=motorPos.above();
             var rotorState=rotor.defaultBlockState();
-            // Actual released 1.3.2 propeller defaults to AXIS=X, while
-            // Create's creative motor below faces UP. Those shafts were at
-            // right angles in the previous footage: spin/thrust could never
-            // pass the genuine Aeronautics powertrain acceptance gate.
+            // Verified against OFFICIAL SmartPropellerBlock source:
+            // HORIZONTAL_AXIS only accepts X or Z, controlling hinge tilt.
+            // Its IRotate.getRotationAxis(...) is independently Y, and
+            // hasShaftTowards is DOWN for CEILING=false. Setting the
+            // blockstate AXIS=Y throws IllegalArgumentException at runtime!
+            // Let the actual released block report its drive axis instead.
             if(!rotorState.hasProperty(
-                net.minecraft.world.level.block.state.properties.BlockStateProperties.AXIS))
+                net.minecraft.world.level.block.state.properties.BlockStateProperties.HORIZONTAL_AXIS))
                 throw new IllegalStateException(
-                    "Released Aeronautics propeller lacks expected AXIS property");
-            rotorState=rotorState.setValue(
-                net.minecraft.world.level.block.state.properties.BlockStateProperties.AXIS,
-                net.minecraft.core.Direction.Axis.Y);
+                    "Released Aeronautics smart propeller has no HORIZONTAL_AXIS");
+            var hingeAxis=rotorState.getValue(
+                net.minecraft.world.level.block.state.properties.BlockStateProperties.HORIZONTAL_AXIS);
+            if(hingeAxis!=net.minecraft.core.Direction.Axis.X &&
+               hingeAxis!=net.minecraft.core.Direction.Axis.Z)
+                throw new IllegalStateException("Propeller hinge must be horizontal");
             if(!home.setBlock(motorPos,motorState,3) ||
                !home.setBlock(rotorPos,rotorState,3))
                 throw new IllegalStateException("Could not stage real Create/Aero drivetrain");
-            if(home.getBlockState(rotorPos).getValue(
-                    net.minecraft.world.level.block.state.properties.BlockStateProperties.AXIS)
-                    !=net.minecraft.core.Direction.Axis.Y)
-                throw new IllegalStateException("Aeronautics rotor axis changed during staging");
+            // Runtime reflection here preserves WorldSeam's genuinely
+            // independent build (Create/Aero are optional external jars).
+            Object driveAxis=rotor.getClass().getMethod(
+                "getRotationAxis",net.minecraft.world.level.block.state.BlockState.class)
+                .invoke(rotor,home.getBlockState(rotorPos));
+            boolean shaftFacesMotor=(boolean)rotor.getClass().getMethod(
+                "hasShaftTowards",net.minecraft.world.level.LevelReader.class,
+                BlockPos.class,net.minecraft.world.level.block.state.BlockState.class,
+                net.minecraft.core.Direction.class).invoke(
+                    rotor,home,rotorPos,rotorState,net.minecraft.core.Direction.DOWN);
+            if(driveAxis!=net.minecraft.core.Direction.Axis.Y || !shaftFacesMotor)
+                throw new IllegalStateException(
+                    "Actual Aeronautics kinetic axle does not face UP motor: "+
+                    driveAxis+" downFace="+shaftFacesMotor);
             blocks.add(rotorPos); // motor already replaces a counted hull voxel
-            LOG.info("WORLDSEAM_FILM_REAL_CREATE_AERO_MACHINERY: motor={} {}, propeller={} {}, shaftAxis=Y, matchingRealUpwardMotor=true, require TRUE getSpeed()+scaledThrust AFTER assembly",
-                motorPos,motorState,rotorPos,rotorState);
+            LOG.info("WORLDSEAM_FILM_REAL_CREATE_AERO_MACHINERY: motor={} {}, propeller={} {}, horizontalHingeAxis={}, kineticRotationAxis=Y, shaftFacesMotor=true, verify TRUE getSpeed()+scaledThrust AFTER assembly",
+                motorPos,motorState,rotorPos,rotorState,hingeAxis);
             stagingBlocks=blocks;
             stagingAnchor=anchor;
             stagingHome=home;
