@@ -123,6 +123,18 @@ public final class SeamExternalModGameTests {
             var nether=server.getLevel(net.minecraft.world.level.Level.NETHER);
             helper.assertTrue(nether!=null,
                 "A real Sable ship cannot enter a missing destination dimension");
+            // This real released-Sable GameTest runs without a spectator:
+            // verify that the newly published native terrain anchor comes
+            // from the actual OW-owned assembled hull, not player position.
+            var realHull=SeamSableObserver.nativeRapierSourceHull(level,nether,10);
+            var nativeAnchor=SeamRapierAnchor.fromHull(realHull);
+            helper.assertTrue(nativeAnchor!=null,
+                "Real unattended Sable ship did not publish its native Rapier terrain anchor");
+            helper.assertTrue(SeamSableObserver.nativeRapierSourceHull(level,nether,31)==null,
+                "Expired Sable terrain anchor was reused after 20 ticks");
+            com.mojang.logging.LogUtils.getLogger().info(
+                "WORLDSEAM_REAL_SABLE_UNATTENDED_TERRAIN_ANCHOR: uuid={} chunkX={} chunkZ={} actualHull={} (observer only; JNI same-body force/torque NOT verified)",
+                actualShip,nativeAnchor.chunkX(),nativeAnchor.chunkZ(),realHull);
             com.mojang.logging.LogUtils.getLogger().info(
                 "WORLDSEAM_REAL_SABLE_STRADDLE_OBSERVED: uuid={}, totalLiveHulls={}, straddling={}, shipDrivenRemoteRegionTickets={}, physicsBridgeActive={}",
                 actualShip,report.liveBodies(),report.straddlingBodies(),
