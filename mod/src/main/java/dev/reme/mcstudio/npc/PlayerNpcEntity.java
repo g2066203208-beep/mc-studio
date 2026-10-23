@@ -157,6 +157,11 @@ public class PlayerNpcEntity extends PathfinderMob {
     // Bounded local police case. No global suspect scans or arbitrary arrests.
     @Nullable private UUID policeSuspect;
     private long policeAlertUntil = 0L;
+    // Real three-contact nonlethal takedown; no arrest just for proximity.
+    private int policeBlows = 0;
+    private long policeLastBlow = 0L;
+    private long policeStunnedUntil = 0L;
+    private long policeNextSwing = 0L;
     // During a nonlethal arrest, an actual guard must escort the prisoner by
     // walking, rather than leaving while the thief 'auto-teleports' to jail.
     @Nullable private UUID escortedPrisoner;
@@ -421,6 +426,17 @@ public class PlayerNpcEntity extends PathfinderMob {
     public void clearPoliceCase() {
         policeSuspect = null;
         policeAlertUntil = 0L;
+    }
+    public int policeBlows() { return policeBlows; }
+    public boolean isPoliceStunned(long tick) { return tick < policeStunnedUntil; }
+    public boolean canPoliceSwing(long tick) { return tick >= policeNextSwing; }
+    public void markPoliceSwing(long tick) { policeNextSwing = tick + 20L; }
+    public boolean registerNonlethalBlow(long tick) {
+        if (tick - policeLastBlow > 160L) policeBlows = 0;
+        policeBlows = Math.min(3, policeBlows + 1);
+        policeLastBlow = tick;
+        if (policeBlows >= 3) policeStunnedUntil = tick + 80L;
+        return isPoliceStunned(tick);
     }
     @Nullable public UUID escortedPrisoner() { return escortedPrisoner; }
     public long escortUntil() { return escortUntil; }
@@ -740,6 +756,10 @@ public class PlayerNpcEntity extends PathfinderMob {
         if (escortedPrisoner != null) tag.putUUID("NpcEscortedPrisoner", escortedPrisoner);
         tag.putLong("NpcEscortUntil", escortUntil);
         tag.putLong("NpcPoliceAlertUntil", policeAlertUntil);
+        tag.putInt("NpcPoliceBlows", policeBlows);
+        tag.putLong("NpcPoliceLastBlow", policeLastBlow);
+        tag.putLong("NpcPoliceStunnedUntil", policeStunnedUntil);
+        tag.putLong("NpcPoliceNextSwing", policeNextSwing);
         if (policeJail != null) tag.putLong("NpcPoliceJail", policeJail.asLong());
         if (detentionJail != null) tag.putLong("NpcDetentionJail", detentionJail.asLong());
         tag.putLong("NpcDetainedUntil", detainedUntil);
@@ -860,6 +880,10 @@ public class PlayerNpcEntity extends PathfinderMob {
         escortUntil = Math.max(0L, tag.getLong("NpcEscortUntil"));
         if (escortUntil <= level().getGameTime()) clearPrisonerEscort();
         policeAlertUntil = Math.max(0L, tag.getLong("NpcPoliceAlertUntil"));
+        policeBlows = Math.clamp(tag.getInt("NpcPoliceBlows"), 0, 3);
+        policeLastBlow = Math.max(0L, tag.getLong("NpcPoliceLastBlow"));
+        policeStunnedUntil = Math.max(0L, tag.getLong("NpcPoliceStunnedUntil"));
+        policeNextSwing = Math.max(0L, tag.getLong("NpcPoliceNextSwing"));
         policeJail = tag.contains("NpcPoliceJail", Tag.TAG_LONG)
             ? BlockPos.of(tag.getLong("NpcPoliceJail")) : null;
         detentionJail = tag.contains("NpcDetentionJail", Tag.TAG_LONG)

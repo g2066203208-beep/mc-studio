@@ -54,7 +54,7 @@ public final class ConvenienceJusticeGameTests {
         return middle;
     }
 
-    @GameTest(template="empty",timeoutTicks=300)
+    @GameTest(template="empty",timeoutTicks=700)
     public static void actual_unpaid_item_then_real_eyewitness_report_nonlethal_arrest_and_save(
         GameTestHelper helper) {
         ServerLevel level=helper.getLevel();
@@ -93,39 +93,38 @@ public final class ConvenienceJusticeGameTests {
         // Stage close range intercept to specifically exercise native police
         // custody only within 1.8 blocks (not a fake long-distance arrest).
         guard.moveTo(crook.getX()+1, crook.getY(), crook.getZ(),0,0);
-        boolean caught=false;
-        for(int i=0;i<30;i++){
-            long tick=now+i;
-            if(PublicSafety.tickGuard(guard,level,tick) && crook.isDetained(tick)){
-                caught=true;break;
-            }
-        }
-        if(!caught || crook.hasUnpaidShopItem(now+30)
-            || !jail.equals(crook.detentionJail()))
-            throw new AssertionError("Shoplifter not physically intercepted and assigned authorized cell");
-        CompoundTag tag=new CompoundTag();
-        crook.addAdditionalSaveData(tag);
-        PlayerNpcEntity restored=NpcRegistry.PLAYER_NPC.get().create(level);
-        if(restored==null)throw new AssertionError("Cannot reload thief");
-        restored.readAdditionalSaveData(tag);
-        if(!jail.equals(restored.detentionJail())
-            || restored.hasUnpaidShopItem(now+30))
-            throw new AssertionError("Arrest/past criminal state corrupted by NBT reload");
-        System.out.println("REME_NPC_STORE_CRIME_PATH stock=3->2 suspectFood=1"
-            +" unpaid=1 report=1 guardDispatch=1 nonlethalArrest=1 cellAssigned=1 nbt=1");
-        // From this point NO TEST MANIPULATES POSITION. It is genuine
-        // vanilla world motion for at least 180 game ticks, including
-        // server-authoritative prisoner navigation and police on-foot escort.
-        helper.runAfterDelay(210, () -> {
+        // First contact must be an actual server-side melee blow, NEVER
+        // the old automatic "within 1.8 blocks means arrested" shortcut.
+        for(int i=0;i<10;i++) PublicSafety.tickGuard(guard,level,now+i);
+        if(crook.policeBlows()!=1 || crook.isPoliceStunned(now+10)
+            || crook.isDetained(now+10) || !crook.hasUnpaidShopItem(now+10))
+            throw new AssertionError("First close-range contact must not instantly arrest a live suspect");
+        CompoundTag pre=new CompoundTag();
+        crook.addAdditionalSaveData(pre);
+        PlayerNpcEntity reloaded=NpcRegistry.PLAYER_NPC.get().create(level);
+        if(reloaded==null) throw new AssertionError("Cannot recreate resident from NBT");
+        reloaded.readAdditionalSaveData(pre);
+        if(reloaded.policeBlows()!=1
+            || !reloaded.hasUnpaidShopItem(now+10))
+            throw new AssertionError("Reload lost assault counter or actual unpaid merchandise evidence");
+        // Real entity ticks must deliver the remaining contacts AND walk to
+        // the physical cell. No test moves either actor after this point.
+        helper.runAfterDelay(560, () -> {
             if (!crook.isAlive() || !guard.isAlive())
-                helper.fail("Guard or arrested prisoner died before reaching jail", jail);
-            else if (crook.distanceToSqr(net.minecraft.world.phys.Vec3.atCenterOf(jail)) > 2.5)
-                helper.fail("Arrest assigned a cell but prisoner never physically walked into it", jail);
-            else if (guard.escortedPrisoner() != null)
-                helper.fail("Guard never completed physical escort", jail);
+                helper.fail("Guard or thief died before physical knockdown/escort", jail);
+            else if(crook.policeBlows()<3)
+                helper.fail("Guard never landed three separate native melee contacts",crook.blockPosition());
+            else if (!jail.equals(crook.detentionJail())
+                || crook.hasUnpaidShopItem(level.getGameTime()))
+                helper.fail("Actual stun never converted to lawful arrested custody",jail);
+            else if(crook.distanceToSqr(net.minecraft.world.phys.Vec3.atCenterOf(jail))>2.5)
+                helper.fail("Stunned thief was not physically walked into built iron-bar cell",jail);
+            else if(guard.escortedPrisoner()!=null)
+                helper.fail("Officer failed to finish the real foot escort",jail);
             else {
-                System.out.println("REME_NPC_PHYSICAL_JAIL_WALK ticks=210"
-                    + " reachedRealCell=true nonTeleport=true guardEscortCompleted=true");
+                System.out.println("REME_NPC_REAL_STUN_CUSTODY"
+                    +" merchandiseMoved=true firstHitNotArrest=true blows="+crook.policeBlows()
+                    +" noTeleport=true physicalJail=true NBTCompatible=true");
                 helper.succeed();
             }
         });

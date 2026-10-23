@@ -153,13 +153,43 @@ public final class PublicSafety {
             }
             return true;
         }
-        // Only here, actually within reach and line of sight, custody starts.
-        // A native iron cell door is physically opened before the walk;
-        // the prisoner is never moved through walls by setPos/teleport.
+        // Proximity is NOT an arrest. Native melee animations, bounded real
+        // damage and three successive contact hits are required to stun.
+        // A miss/blocked damage never advances the takedown counter.
+        if (!suspect.isPoliceStunned(tick)) {
+            if (!guard.canPoliceSwing(tick)) return true;
+            guard.markPoliceSwing(tick);
+            guard.swing(net.minecraft.world.InteractionHand.MAIN_HAND);
+            // A harmless no-damage proximity "hit" is not evidence of a
+            // successful physical strike. Never drop health below one heart.
+            float nonlethal = Math.min(1.0F, suspect.getHealth() - 2.0F);
+            boolean landed = nonlethal > 0.0F
+                && suspect.hurt(guard.damageSources().mobAttack(guard), nonlethal);
+            if (!landed) {
+                guard.setAction("nonlethal baton strike blocked; pursuing suspect");
+                return true;
+            }
+            suspect.knockback(0.18, guard.getX() - suspect.getX(),
+                guard.getZ() - suspect.getZ());
+            boolean stunned = suspect.registerNonlethalBlow(tick);
+            System.out.println("REME_NPC_STORY stage=police_contact tick=" + tick
+                + " guard=" + guard.getUUID() + " suspect=" + suspect.getUUID()
+                + " blows=" + suspect.policeBlows() + " stunned=" + stunned
+                + " guardPos=" + guard.blockPosition().toShortString()
+                + " suspectPos=" + suspect.blockPosition().toShortString());
+            if (!stunned) {
+                guard.setAction("struck fleeing thief; still resisting, pursuit continues");
+                return true;
+            }
+            suspect.getNavigation().stop();
+            suspect.setAction("knocked unconscious by three real nonlethal contacts");
+        }
+        // Only an actually stunned, evidence-backed suspect can be handcuffed.
+        // A native iron cell door is opened before the physical escort.
         CityJailGate.setOpen(level, jail, true);
         suspect.detainAt(jail, tick + CUSTODY_TICKS);
         if (suspect.hasUnpaidShopItem(tick)) suspect.clearUnpaidShopItem();
-        System.out.println("REME_NPC_STORY stage=nonlethal_arrest tick=" + tick
+        System.out.println("REME_NPC_STORY stage=post_stun_arrest tick=" + tick
             + " guard=" + guard.getUUID() + " suspect=" + suspect.getUUID()
             + " holding=" + jail.toShortString());
         suspect.setAction("nonlethally arrested by nearby guard; walking to authorized holding spot");
