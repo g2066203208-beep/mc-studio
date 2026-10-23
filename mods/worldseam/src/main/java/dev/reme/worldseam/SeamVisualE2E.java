@@ -139,6 +139,14 @@ public final class SeamVisualE2E {
                 SeamRemoteEntities.totalErrors());
             if(SeamRemoteEntities.framesWithRealEntities()<1)
                 LOG.warn("WORLDSEAM_E2E_NATIVE_ENTITY_TRACKING_MISSING: no genuine remote ClientLevel entity rendered; not a complete dual-world renderer");
+            LOG.info("WORLDSEAM_E2E_NATIVE_FOREIGN_BUFFERS: realBEFlushes={}, realEntityFlushes={}, foreignContextEntered={}, restored={}",
+                SeamRemoteBlockEntities.nativeBufferFlushes(),
+                SeamRemoteEntities.nativeBufferFlushes(),
+                SeamForeignActorWorldScope.entered(),
+                SeamForeignActorWorldScope.restored());
+            if(SeamRemoteBlockEntities.nativeBufferFlushes()<1 ||
+               SeamRemoteEntities.nativeBufferFlushes()<1)
+                LOG.error("WORLDSEAM_E2E_FAIL_NATIVE_FOREIGN_BUFFERS: real remote BE/entity draws did not flush secondary LevelRenderer native buffers");
             LOG.info("WORLDSEAM_E2E_LOGICAL_PLANE_NEIGHBORS: realCrossPlaneBlockLookups={}, NetherLogicalRoof128BelowVanillaBuildCeiling256=true",
                 SeamNativeGeometryClient.logicalPlaneNeighborReads());
             if(SeamNativeGeometryClient.logicalPlaneNeighborReads()<1)
