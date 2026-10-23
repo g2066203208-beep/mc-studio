@@ -438,7 +438,12 @@ public final class SeamShipFilmE2E {
             // Strict preflight: the boat has to remain ABOVE the plane
             // before we claim any DOWN crossing. Do not count falling during
             // the 40-tick camera warmup as physical seam traversal.
-            var departure=currentHull();
+            net.minecraft.world.phys.AABB departure;
+            try { departure=currentHull(); }
+            catch(Exception ex) {
+                fail("Cannot read native Sable hull before physical takeoff: "+ex,ex);
+                return;
+            }
             if(departure.minY<=PLANE+2.0) {
                 fail("Sable ship fell through real support before flight gate: "+
                     departure+" (no authentic documented down crossing)",null);
@@ -447,8 +452,10 @@ public final class SeamShipFilmE2E {
             if(!departurePadRemoved) {
                 nativeFill(server,stagingHome,-58,-58);
                 departurePadRemoved=true;
-                if(!stagingHome.getBlockState(new BlockPos(x,-58,z)).isAir())
-                    throw new IllegalStateException("Vanilla /fill failed to remove real native takeoff pad");
+                if(!stagingHome.getBlockState(new BlockPos(x,-58,z)).isAir()) {
+                    fail("Vanilla /fill failed to remove real native takeoff pad",null);
+                    return;
+                }
                 LOG.info("WORLDSEAM_FILM_NATIVE_TAKEOFF: real /fill cleared physical support y=-58; Sable body never teleported, startMinY={} from actual hull",departure.minY);
             }
             startedRealFlight=true;
