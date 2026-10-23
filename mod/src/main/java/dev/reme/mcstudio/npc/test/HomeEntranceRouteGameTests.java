@@ -5,6 +5,7 @@ import dev.reme.mcstudio.npc.NpcRegistry;
 import dev.reme.mcstudio.npc.PlayerNpcEntity;
 import dev.reme.mcstudio.npc.life.HomeEntranceRoute;
 import dev.reme.mcstudio.npc.life.LivingPlanner;
+import dev.reme.mcstudio.npc.life.RestPolicy;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.gametest.framework.GameTest;
@@ -77,6 +78,22 @@ public final class HomeEntranceRouteGameTests {
                 .setValue(DoorBlock.OPEN,false),3);
         if(HomeEntranceRoute.nearestOpenDoor(helper.getLevel(),center.north())!=null)
             throw new AssertionError("Closed door incorrectly accepted as open physical entry");
+        helper.succeed();
+    }
+
+    @GameTest(template="empty",timeoutTicks=40)
+    public static void tired_night_watch_officer_recovers_only_in_real_bed(
+        GameTestHelper helper) {
+        if (RestPolicy.lateWatchRecovery(true,16000,42)
+            || RestPolicy.lateWatchRecovery(true,19500,65)
+            || RestPolicy.lateWatchRecovery(false,19500,42)
+            || !RestPolicy.lateWatchRecovery(true,19500,42)
+            || RestPolicy.energyDelta(LivingPlanner.Intent.SLEEP,true,42,
+                true,false,false,false)!=12
+            || RestPolicy.energyDelta(LivingPlanner.Intent.SLEEP,true,42,
+                false,false,false,false)!=-3)
+            throw new AssertionError("Night guard recovered without physically sleeping, "
+                +"or real native bed sleep incorrectly drained energy");
         helper.succeed();
     }
 
