@@ -46,9 +46,9 @@ jobs:
           for cmd in Xvfb xvfb-run xdotool ffmpeg; do
             command -v "$cmd" >/dev/null || { echo "WORLDSEAM_FILM_MISSING: $cmd"; exit 1; }
           done
-          ffmpeg -hide_banner -encoders 2>/dev/null | grep -q libx264 ||
+          ffmpeg -hide_banner -encoders 2>/dev/null | grep libx264 >/dev/null ||
             { echo 'WORLDSEAM_FILM_MISSING_NATIVE_H264_ENCODER'; exit 1; }
-          ffmpeg -hide_banner -devices 2>/dev/null | grep -q x11grab ||
+          ffmpeg -hide_banner -devices 2>/dev/null | grep x11grab >/dev/null ||
             { echo 'WORLDSEAM_FILM_MISSING_REAL_X11_CAPTURE'; exit 1; }
           echo WORLDSEAM_FILM_NATIVE_CAPTURE_DEPS_READY
       - name: Fetch actual released Sable + Create + Aeronautics + required mods
