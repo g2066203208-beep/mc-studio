@@ -29,6 +29,8 @@ public final class SeamRemoteBlockEntities {
     private static int lastRendered;
     private static int lastEligible;
     private static int lastFailures;
+    private static long framesWithNativeBlocks;
+    private static long totalRendererFailures;
     private static boolean warned;
 
     private SeamRemoteBlockEntities() {}
@@ -94,6 +96,7 @@ public final class SeamRemoteBlockEntities {
                             // singleton. Never leave the live renderer
                             // attached to the remote level on failure.
                             lastFailures++;
+                            totalRendererFailures++;
                             if(!warned) {
                                 warned=true;
                                 LOG.error("WorldSeam remote native block-entity renderer failed; "
@@ -107,6 +110,7 @@ public final class SeamRemoteBlockEntities {
                     }
                 }
         } finally {
+            if(lastRendered>0)framesWithNativeBlocks++;
             try {
                 if(usedBuffers)OWNED.flush();
             } finally {
@@ -118,10 +122,13 @@ public final class SeamRemoteBlockEntities {
     public static int lastRendered(){return lastRendered;}
     public static int lastEligible(){return lastEligible;}
     public static int lastFailures(){return lastFailures;}
+    public static long framesWithNativeBlocks(){return framesWithNativeBlocks;}
+    public static long totalRendererFailures(){return totalRendererFailures;}
 
     public static void reset() {
         OWNED.release();
         lastRendered=lastEligible=lastFailures=0;
+        framesWithNativeBlocks=totalRendererFailures=0;
         warned=false;
     }
 }
