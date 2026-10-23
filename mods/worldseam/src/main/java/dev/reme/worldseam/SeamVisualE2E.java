@@ -109,6 +109,14 @@ public final class SeamVisualE2E {
             if(SeamNativeGeometryClient.countFluidCells()<2 ||
                SeamNativeGeometryClient.lastFrameGpuFluidCells()<1)
                 LOG.error("WORLDSEAM_E2E_FAIL_GPU_FLUID_SCENE: real target water/lava/waterlogged sections not drawn");
+            LOG.info("WORLDSEAM_E2E_NATIVE_BE_SCENE: actualRemoteBlockEntityFrames={}, lastRendered={}, lastEligible={}, rendererErrors={}",
+                SeamRemoteBlockEntities.framesWithNativeBlocks(),
+                SeamRemoteBlockEntities.lastRendered(),
+                SeamRemoteBlockEntities.lastEligible(),
+                SeamRemoteBlockEntities.totalRendererFailures());
+            if(SeamRemoteBlockEntities.framesWithNativeBlocks()<1 ||
+                SeamRemoteBlockEntities.totalRendererFailures()>0)
+                LOG.error("WORLDSEAM_E2E_FAIL_NATIVE_BE_SCENE: target ClientLevel's real chest block entity was not rendered by native BER");
             LOG.info("WORLDSEAM_E2E_LOGICAL_PLANE_NEIGHBORS: realCrossPlaneBlockLookups={}, NetherLogicalRoof128BelowVanillaBuildCeiling256=true",
                 SeamNativeGeometryClient.logicalPlaneNeighborReads());
             if(SeamNativeGeometryClient.logicalPlaneNeighborReads()<1)
@@ -537,6 +545,16 @@ public final class SeamVisualE2E {
             Blocks.OAK_SLAB.defaultBlockState().setValue(
                 net.minecraft.world.level.block.SlabBlock.WATERLOGGED,true),3);
         LOG.info("WORLDSEAM_E2E_FLUID_FIXTURES: placed native Nether WATER LAVA and waterlogged slab at roof for real client render");
+        // A genuine target-owned BlockEntity, deliberately absent from the
+        // Overworld. It must be rendered with Minecraft's native BER using
+        // the preloaded Nether ClientLevel, not a duplicated item model.
+        BlockPos chestPos=new BlockPos(x+1,127,z+1);
+        nether.setBlock(chestPos,Blocks.CHEST.defaultBlockState(),3);
+        if(nether.getBlockEntity(chestPos)==null)
+            LOG.error("WORLDSEAM_E2E_FAIL_NATIVE_BE_SETUP: native Nether chest BE missing");
+        LOG.info("WORLDSEAM_E2E_NATIVE_BE_FIXTURE: dimension={}, pos={}, sourceOverworldHasSameBlock={}",
+            nether.dimension().location(),chestPos,
+            overworld.getBlockState(new BlockPos(x+1,-65,z+1)).getBlock()==Blocks.CHEST);
         // The End visual benchmark must use NATURALLY GENERATED island
         // terrain, not a synthetic purpur/sea-lantern frame.
         LOG.info("WORLDSEAM_E2E_END_WITNESS: NO synthetic End blocks created");
