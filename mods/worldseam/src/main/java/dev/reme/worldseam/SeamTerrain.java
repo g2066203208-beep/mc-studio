@@ -5,6 +5,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.chunk.LevelChunk;
+import net.minecraft.world.level.chunk.ChunkAccess;
 import java.util.HashMap;
 import java.util.Map;
 import net.neoforged.neoforge.event.level.ChunkEvent;
@@ -200,5 +201,27 @@ public final class SeamTerrain {
             }
         }
         return true;
+    }
+    /**
+     * Generation-only hook invoked before a ChunkAccess becomes a published
+     * LevelChunk. No gameplay block updates or Sable hooks may be dispatched
+     * here; the chunk's original initial state is still being constructed.
+     * Loaded chunks instead use onServerTick and native setBlock updates.
+     */
+    public static void replaceGeneratedBedrock(ServerLevel level,ChunkAccess chunk) {
+        MinecraftServer server=level.getServer();
+        if(server==null || !SeamServer.shouldCarveNewChunk(server))return;
+        List<SeamBounds.CarveRange> bands=carveBands(level);
+        if(bands.isEmpty())return;
+        int ox=chunk.getPos().getMinBlockX(),oz=chunk.getPos().getMinBlockZ();
+        BlockPos.MutableBlockPos p=new BlockPos.MutableBlockPos();
+        for(var band:bands)for(int y=band.minY();y<=band.maxY();y++) {
+            if(y<chunk.getMinBuildHeight() || y>=chunk.getMaxBuildHeight())continue;
+            for(int dz=0;dz<16;dz++)for(int dx=0;dx<16;dx++) {
+                p.set(ox+dx,y,oz+dz);
+                if(chunk.getBlockState(p).is(Blocks.BEDROCK))
+                    chunk.setBlockState(p,Blocks.AIR.defaultBlockState(),false);
+            }
+        }
     }
 }
