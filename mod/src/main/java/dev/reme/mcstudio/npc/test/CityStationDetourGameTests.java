@@ -60,6 +60,11 @@ public final class CityStationDetourGameTests {
         if(!PublicSafety.custodyCityDetourWaypoint(level,jail,trapped).equals(front)
             ||!PublicSafety.custodyCityDetourWaypoint(level,jail,front).equals(corner)
             ||!PublicSafety.custodyCityDetourWaypoint(level,jail,corner).equals(jail.south(4))
+            // Regression from failed CI #39948341847: a thief arrested
+            // 30+ blocks away MUST keep the existing bounded street leg,
+            // not target the 22-node unreachable east-corner path.
+            ||!PublicSafety.custodyCityDetourWaypoint(level,jail,
+                jail.offset(17,0,-27)).equals(jail.south(4))
             ||!PublicSafety.custodyCityDetourWaypoint(level,jail,jail.south(2)).equals(jail.south(1))
             ||!PublicSafety.custodyCityDetourWaypoint(level,jail,jail.south(1)).equals(jail))
             throw new AssertionError("East-door/south-sidewalk/iron-gate route oscillates");
