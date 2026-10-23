@@ -54,6 +54,9 @@ public final class SeamShipFilmE2E {
     private static volatile boolean shipClientRenderReady;
     private static volatile int clientSublevelSeenFrames;
     private static volatile int clientSublevelRenderableFrames;
+    private static volatile int clientNativeAllocatedSections;
+    private static volatile int clientNativeCompiledSections;
+    private static volatile String clientRenderDiagnostic="unobserved";
     private static long realFlightStartTick=-1;
     private static boolean startedRealFlight;
 
@@ -83,11 +86,20 @@ public final class SeamShipFilmE2E {
                         .invoke(holder,shipUuid);
                     if(tracked!=null) {
                         clientSublevelSeenFrames++;
-                        Object rend=tracked.getClass().getMethod("getRenderData")
-                            .invoke(tracked);
-                        if(rend!=null) {
+                        var render=SeamShipClientRenderProbe.inspect(tracked);
+                        clientNativeAllocatedSections=render.allocatedSections();
+                        clientNativeCompiledSections=render.compiledSections();
+                        clientRenderDiagnostic=render.diagnostic()+" ["
+                            +render.renderer()+"]";
+                        if(render.nativeGeometryReady()) {
                             clientSublevelRenderableFrames++;
                             shipClientRenderReady=true;
+                        }
+                        if(mc.player!=null && mc.player.tickCount%40==0) {
+                            LOG.info("WORLDSEAM_FILM_SABLE_NATIVE_CLIENT_RENDER: sameUuid={} allocatedSections={} compiledSections={} renderer={} diagnostic={}",
+                                shipUuid,render.allocatedSections(),
+                                render.compiledSections(),render.renderer(),
+                                render.diagnostic());
                         }
                     }
                 }
@@ -362,6 +374,9 @@ public final class SeamShipFilmE2E {
             shipClientRenderReady=false;
             clientSublevelSeenFrames=0;
             clientSublevelRenderableFrames=0;
+            clientNativeAllocatedSections=0;
+            clientNativeCompiledSections=0;
+            clientRenderDiagnostic="awaiting true native section compilation";
             realFlightStartTick=-1;
             startedRealFlight=false;
             lastPulse=0;
@@ -461,7 +476,7 @@ public final class SeamShipFilmE2E {
                     shipUuid,sinceAssembly,clientSublevelSeenFrames,
                     clientSublevelRenderableFrames,shipClientRenderReady);
             if(sinceAssembly>160) {
-                fail("Real Minecraft client never received and initialized visible Sable render data for identical ship UUID, cannot call this a flight video",null);
+                fail("Real Minecraft Sable same-UUID GPU sections never compiled; allocated="+clientNativeAllocatedSections+" compiled="+clientNativeCompiledSections+" detail="+clientRenderDiagnostic+"; cannot certify a visible flight",null);
                 return;
             }
             // Hold ship before motion until real rendered client sublevel
@@ -492,8 +507,9 @@ public final class SeamShipFilmE2E {
             }
             startedRealFlight=true;
             realFlightStartTick=server.getTickCount();
-            LOG.info("WORLDSEAM_FILM_CLIENT_VISIBLE_SHIP_READY: sameUuid={} clientSeenFrames={} clientRenderableFrames={} realClientRenderData=true",
-                shipUuid,clientSublevelSeenFrames,clientSublevelRenderableFrames);
+            LOG.info("WORLDSEAM_FILM_CLIENT_VISIBLE_SHIP_READY: sameUuid={} clientSeenFrames={} compiledFrames={} allocatedNativeSections={} compiledNativeSections={} noPixelProofYet=true",
+                shipUuid,clientSublevelSeenFrames,clientSublevelRenderableFrames,
+                clientNativeAllocatedSections,clientNativeCompiledSections);
         }
         if(server.getTickCount()-realFlightStartTick>20*100) {
             fail("Native Rapier ship never completed real bidirectional seam crossing",null);
