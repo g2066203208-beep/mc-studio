@@ -16,6 +16,7 @@ on:
       - fix/npc-long-range-physical-custody-v086
       - fix/npc-visible-collision-safe-follow-camera-v087
       - fix/npc-police-station-physical-detour-v088
+      - fix/npc-escorted-custody-proximity-v089
   pull_request:
     branches:
       - feat/npc-economy-market-fair-v069
