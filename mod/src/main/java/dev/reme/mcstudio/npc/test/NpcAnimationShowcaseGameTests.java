@@ -47,6 +47,7 @@ public final class NpcAnimationShowcaseGameTests {
             var uuids=new HashSet<java.util.UUID>();
             for(PlayerNpcEntity npc:citizens) {
                 if(!npc.showcasingAnimation(level.getGameTime())
+                    ||!npc.isAnimationShowcase()
                     ||npc.mode()!=PlayerNpcEntity.Mode.STAY
                     ||!uuids.add(npc.getUUID())
                     ||npc.blockPosition().getY()!=center.getY())
