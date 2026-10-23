@@ -54,6 +54,9 @@ public final class SeamShipFilmE2E {
     private static volatile boolean shipClientRenderReady;
     private static volatile int clientSublevelSeenFrames;
     private static volatile int clientSublevelRenderableFrames;
+    private static volatile int clientNativeAllocatedSections;
+    private static volatile int clientNativeCompiledSections;
+    private static volatile String clientRenderDiagnostic="unobserved";
     private static long realFlightStartTick=-1;
     private static boolean startedRealFlight;
 
@@ -83,11 +86,20 @@ public final class SeamShipFilmE2E {
                         .invoke(holder,shipUuid);
                     if(tracked!=null) {
                         clientSublevelSeenFrames++;
-                        Object rend=tracked.getClass().getMethod("getRenderData")
-                            .invoke(tracked);
-                        if(rend!=null) {
+                        var render=SeamShipClientRenderProbe.inspect(tracked);
+                        clientNativeAllocatedSections=render.allocatedSections();
+                        clientNativeCompiledSections=render.compiledSections();
+                        clientRenderDiagnostic=render.diagnostic()+" ["
+                            +render.renderer()+"]";
+                        if(render.nativeGeometryReady()) {
                             clientSublevelRenderableFrames++;
                             shipClientRenderReady=true;
+                        }
+                        if(mc.player!=null && mc.player.tickCount%40==0) {
+                            LOG.info("WORLDSEAM_FILM_SABLE_NATIVE_CLIENT_RENDER: sameUuid={} allocatedSections={} compiledSections={} renderer={} diagnostic={}",
+                                shipUuid,render.allocatedSections(),
+                                render.compiledSections(),render.renderer(),
+                                render.diagnostic());
                         }
                     }
                 }
@@ -231,8 +243,11 @@ public final class SeamShipFilmE2E {
                 throw new IllegalStateException(
                     "Official Create seat / Simulated steering wheel or throttle missing");
             BlockPos seatPos=anchor.offset(0,2,1);
-            BlockPos wheelPos=anchor.offset(0,2,-2);
-            BlockPos throttlePos=anchor.offset(1,2,0);
+            BlockPos wheelPos=anchor.offset(0,2,0);
+            // Adjacent to the clutch at anchor(0,1,-2), on its EAST face.
+            // This is the genuine Simulated REDSTONE -> Create clutch wire,
+            // not a decorative throttle with no mechanical connection.
+            BlockPos throttlePos=anchor.offset(1,1,-2);
             for(var cabin:java.util.List.of(
                     java.util.Map.entry(seatPos,seat.defaultBlockState()),
                     java.util.Map.entry(wheelPos,wheel.defaultBlockState()),
@@ -240,7 +255,8 @@ public final class SeamShipFilmE2E {
                 if(!home.setBlock(cabin.getKey(),cabin.getValue(),3))
                     throw new IllegalStateException(
                         "Could not place authentic pilot control "+cabin.getKey());
-                blocks.add(cabin.getKey());
+                if(!blocks.contains(cabin.getKey()))
+                    blocks.add(cabin.getKey());
             }
             LOG.info("WORLDSEAM_FILM_AUTHENTIC_COCKPIT_STAGED: seat={} wheel={} throttle={}, allNativeBlocks=true, actualPilotBoardingUnverified=true",
                 seatPos,wheelPos,throttlePos);
@@ -254,11 +270,13 @@ public final class SeamShipFilmE2E {
             // Fail explicitly if the exact RELEASED mod blocks are absent.
             var motor=net.minecraft.core.registries.BuiltInRegistries.BLOCK.get(
                 net.minecraft.resources.ResourceLocation.parse("create:creative_motor"));
+            var clutch=net.minecraft.core.registries.BuiltInRegistries.BLOCK.get(
+                net.minecraft.resources.ResourceLocation.parse("create:clutch"));
             var rotor=net.minecraft.core.registries.BuiltInRegistries.BLOCK.get(
                 net.minecraft.resources.ResourceLocation.parse("aeronautics:smart_propeller"));
-            if(motor==Blocks.AIR || rotor==Blocks.AIR)
+            if(motor==Blocks.AIR || clutch==Blocks.AIR || rotor==Blocks.AIR)
                 throw new IllegalStateException(
-                    "Actual Create creative motor or Aeronautics smart propeller missing in released jars");
+                    "Actual Create motor/clutch or Aeronautics smart propeller missing in released jars");
             var motorState=motor.defaultBlockState();
             if(!motorState.hasProperty(
                 net.minecraft.world.level.block.state.properties.BlockStateProperties.FACING))
@@ -267,8 +285,15 @@ public final class SeamShipFilmE2E {
             motorState=motorState.setValue(
                 net.minecraft.world.level.block.state.properties.BlockStateProperties.FACING,
                 net.minecraft.core.Direction.UP);
-            BlockPos motorPos=anchor.offset(0,1,-2);
-            BlockPos rotorPos=motorPos.above();
+            // Three consecutive real blocks: motor(bottom) -> powered
+            // redstone clutch(middle) -> Aero propeller(top). A REAL
+            // Simulated throttle one block EAST drives that native clutch.
+            BlockPos motorPos=anchor.offset(0,0,-2);
+            BlockPos clutchPos=motorPos.above();
+            BlockPos rotorPos=clutchPos.above();
+            var clutchState=clutch.defaultBlockState().setValue(
+                net.minecraft.world.level.block.state.properties.BlockStateProperties.AXIS,
+                net.minecraft.core.Direction.Axis.Y);
             var rotorState=rotor.defaultBlockState();
             // Verified against OFFICIAL SmartPropellerBlock source:
             // HORIZONTAL_AXIS only accepts X or Z, controlling hinge tilt.
@@ -286,8 +311,12 @@ public final class SeamShipFilmE2E {
                hingeAxis!=net.minecraft.core.Direction.Axis.Z)
                 throw new IllegalStateException("Propeller hinge must be horizontal");
             if(!home.setBlock(motorPos,motorState,3) ||
+               !home.setBlock(clutchPos,clutchState,3) ||
                !home.setBlock(rotorPos,rotorState,3))
-                throw new IllegalStateException("Could not stage real Create/Aero drivetrain");
+                throw new IllegalStateException("Could not stage real Create/Aero/clutch drivetrain");
+            if(home.getBlockState(clutchPos).getBlock()!=clutch ||
+               home.getBlockState(throttlePos).getBlock()!=throttle)
+                throw new IllegalStateException("Native player throttle cannot reach the clutch");
             // Runtime reflection here preserves WorldSeam's genuinely
             // independent build (Create/Aero are optional external jars).
             Object driveAxis=rotor.getClass().getMethod(
@@ -303,8 +332,9 @@ public final class SeamShipFilmE2E {
                     "Actual Aeronautics kinetic axle does not face UP motor: "+
                     driveAxis+" downFace="+shaftFacesMotor);
             blocks.add(rotorPos); // motor already replaces a counted hull voxel
-            LOG.info("WORLDSEAM_FILM_REAL_CREATE_AERO_MACHINERY: motor={} {}, propeller={} {}, horizontalHingeAxis={}, kineticRotationAxis=Y, shaftFacesMotor=true, verify TRUE getSpeed()+scaledThrust AFTER assembly",
-                motorPos,motorState,rotorPos,rotorState,hingeAxis);
+            LOG.info("WORLDSEAM_FILM_REAL_CREATE_AERO_MACHINERY: motor={} {}, clutch={} {}, propeller={} {}, lever={} {}, horizontalHingeAxis={}, kineticRotationAxis=Y, genuineNativeRedstoneClutch=true, verify TRUE getSpeed()+scaledThrust AFTER assembly",
+                motorPos,motorState,clutchPos,clutchState,rotorPos,rotorState,
+                throttlePos,home.getBlockState(throttlePos),hingeAxis);
             stagingBlocks=blocks;
             stagingAnchor=anchor;
             stagingHome=home;
@@ -344,6 +374,9 @@ public final class SeamShipFilmE2E {
             shipClientRenderReady=false;
             clientSublevelSeenFrames=0;
             clientSublevelRenderableFrames=0;
+            clientNativeAllocatedSections=0;
+            clientNativeCompiledSections=0;
+            clientRenderDiagnostic="awaiting true native section compilation";
             realFlightStartTick=-1;
             startedRealFlight=false;
             lastPulse=0;
@@ -443,7 +476,7 @@ public final class SeamShipFilmE2E {
                     shipUuid,sinceAssembly,clientSublevelSeenFrames,
                     clientSublevelRenderableFrames,shipClientRenderReady);
             if(sinceAssembly>160) {
-                fail("Real Minecraft client never received and initialized visible Sable render data for identical ship UUID, cannot call this a flight video",null);
+                fail("Real Minecraft Sable same-UUID GPU sections never compiled; allocated="+clientNativeAllocatedSections+" compiled="+clientNativeCompiledSections+" detail="+clientRenderDiagnostic+"; cannot certify a visible flight",null);
                 return;
             }
             // Hold ship before motion until real rendered client sublevel
@@ -474,8 +507,9 @@ public final class SeamShipFilmE2E {
             }
             startedRealFlight=true;
             realFlightStartTick=server.getTickCount();
-            LOG.info("WORLDSEAM_FILM_CLIENT_VISIBLE_SHIP_READY: sameUuid={} clientSeenFrames={} clientRenderableFrames={} realClientRenderData=true",
-                shipUuid,clientSublevelSeenFrames,clientSublevelRenderableFrames);
+            LOG.info("WORLDSEAM_FILM_CLIENT_VISIBLE_SHIP_READY: sameUuid={} clientSeenFrames={} compiledFrames={} allocatedNativeSections={} compiledNativeSections={} noPixelProofYet=true",
+                shipUuid,clientSublevelSeenFrames,clientSublevelRenderableFrames,
+                clientNativeAllocatedSections,clientNativeCompiledSections);
         }
         if(server.getTickCount()-realFlightStartTick>20*100) {
             fail("Native Rapier ship never completed real bidirectional seam crossing",null);
@@ -497,12 +531,17 @@ public final class SeamShipFilmE2E {
                 ServerPlayer camera=viewerId==null?null:
                     server.getPlayerList().getPlayer(viewerId);
                 if(camera!=null && camera.serverLevel().dimension()==Level.OVERWORLD) {
+                    double midX=(hull.minX+hull.maxX)*0.5;
                     double midY=(hull.minY+hull.maxY)*0.5;
-                    double eyeY=Math.max(-60.0,Math.min(-55.0,midY+4.0));
+                    double midZ=(hull.minZ+hull.maxZ)*0.5;
+                    double eyeY=Math.max(-60.0,Math.min(-51.0,midY+6.0));
                     double eyeDiff=(eyeY+1.62)-midY;
                     float pitch=(float)Math.toDegrees(Math.atan2(
                         eyeDiff,Math.sqrt(8.0*8.0+8.0*8.0)));
-                    camera.connection.teleport(x+8,eyeY,z+8,135,pitch);
+                    // Follow the REAL Sable hull's logical world-space X/Z.
+                    // Staging x/z may not match its physical pose after
+                    // assembly, plot relocation and native physics ticks.
+                    camera.connection.teleport(midX+8,eyeY,midZ+8,135,pitch);
                 }
             }
             if(state==2) {
@@ -545,8 +584,9 @@ public final class SeamShipFilmE2E {
                 }
             }
             if(ticks<=6 || ticks%10==0)
-                LOG.info("WORLDSEAM_FILM_FRAME: tick={} uuid={} state={} hullMinY={} hullMaxY={} straddles={} dimension=overworld(authoritative Sable body)",
-                    ticks,shipUuid,state,hull.minY,hull.maxY,
+                LOG.info("WORLDSEAM_FILM_FRAME: tick={} uuid={} state={} hullMinX={} hullMinY={} hullMinZ={} hullMaxX={} hullMaxY={} hullMaxZ={} stageX={} stageZ={} straddles={} dimension=overworld(authoritative Sable body)",
+                    ticks,shipUuid,state,hull.minX,hull.minY,hull.minZ,
+                    hull.maxX,hull.maxY,hull.maxZ,x,z,
                     hull.minY<PLANE&&hull.maxY>PLANE);
         } catch(Exception | LinkageError ex) {
             fail("Real Rapier impulse/pose failed: "+ex,ex);
