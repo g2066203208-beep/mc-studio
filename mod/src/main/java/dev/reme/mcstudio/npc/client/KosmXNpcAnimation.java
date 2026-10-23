@@ -6,7 +6,6 @@ import dev.kosmx.playerAnim.api.layered.IAnimation;
 import dev.kosmx.playerAnim.core.util.Vec3f;
 import dev.kosmx.playerAnim.minecraftApi.PlayerAnimationRegistry;
 import dev.reme.mcstudio.npc.NpcPose;
-import dev.reme.mcstudio.npc.NpcAnimationShowcase;
 import dev.reme.mcstudio.npc.PlayerNpcEntity;
 import dev.reme.mcstudio.npc.SharedHumanoidMotion;
 import java.util.Map;
@@ -67,8 +66,8 @@ public final class KosmXNpcAnimation {
         boneDelta+=rotation(model.leftArm,"leftArm",track.active,tickDelta);
         boneDelta+=rotation(model.rightLeg,"rightLeg",track.active,tickDelta);
         boneDelta+=rotation(model.leftLeg,"leftLeg",track.active,tickDelta);
-        if (npc.getTags().contains(NpcAnimationShowcase.TAG)
-            && boneDelta > 0.035F && RENDERED_ACTIONS.add(pose)) {
+        if (npc.isAnimationShowcase() && boneDelta > 0.035F
+            && RENDERED_ACTIONS.add(pose)) {
             System.out.println("REME_NPC_REAL_MODEL_ANIMATED action="+pose
                 +" uuid="+npc.getUUID()+" rotatedRadians="+boneDelta
                 +" playerAnimatorIPlayable=true actualModelRender=true"
