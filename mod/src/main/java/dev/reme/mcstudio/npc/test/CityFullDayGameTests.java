@@ -54,7 +54,8 @@ public final class CityFullDayGameTests {
         int[] nightSleepSamples={0},dayDutySamples={0},nearHome={0},nightRoaming={0};
         long started=System.nanoTime();
         for(int age=200;age<24000;age+=200){
-            helper.runAfterDelay(age,()->{
+            final int sampleAge=age;
+            helper.runAfterDelay(sampleAge,()->{
                 long clock=Math.floorMod(level.getDayTime(),24000L);
                 for(PlayerNpcEntity npc:citizens){
                     if(!npc.isAlive()||npc.isRemoved()){
@@ -68,8 +69,8 @@ public final class CityFullDayGameTests {
                         actuallySlept.add(npc.getUUID());
                         nightSleepSamples[0]++;
                     }
-                    if(age % 600 == 200)
-                        System.out.println("REME_NPC_CITY_REAL_DIARY age=" + age
+                    if(sampleAge % 600 == 200)
+                        System.out.println("REME_NPC_CITY_REAL_DIARY age=" + sampleAge
                             + " uuid=" + npc.getUUID()
                             + " name=" + npc.getName().getString()
                             + " xyz=" + npc.blockPosition().toShortString()
