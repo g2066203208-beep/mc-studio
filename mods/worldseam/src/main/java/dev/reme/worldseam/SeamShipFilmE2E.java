@@ -50,6 +50,11 @@ public final class SeamShipFilmE2E {
     private static final double PLANE=-64.0;
     private static boolean sawStraddle,fullyAcross;
     private static long lastPulse;
+    private static volatile boolean shipClientRenderReady;
+    private static volatile int clientSublevelSeenFrames;
+    private static volatile int clientSublevelRenderableFrames;
+    private static long realFlightStartTick=-1;
+    private static boolean startedRealFlight;
 
     private SeamShipFilmE2E() {}
 
@@ -62,6 +67,36 @@ public final class SeamShipFilmE2E {
 
     private static void clientTick(ClientTickEvent.Post event) {
         Minecraft mc=Minecraft.getInstance();
+        // A SERVER-side AABB crossing is not a visible Minecraft video.
+        // Verify the SAME physical Sable UUID exists in the actual ClientLevel
+        // and has a live Sable render-data object before any impulses begin.
+        if(shipUuid!=null && (state==2 || state==3)) {
+            try {
+                Class<?> containerApi=Class.forName(
+                    "dev.ryanhcode.sable.api.sublevel.SubLevelContainer");
+                Object holder=containerApi.getMethod("getContainer",
+                    net.minecraft.client.multiplayer.ClientLevel.class)
+                    .invoke(null,mc.level);
+                if(holder!=null) {
+                    Object tracked=containerApi.getMethod("getSubLevel",UUID.class)
+                        .invoke(holder,shipUuid);
+                    if(tracked!=null) {
+                        clientSublevelSeenFrames++;
+                        Object rend=tracked.getClass().getMethod("getRenderData")
+                            .invoke(tracked);
+                        if(rend!=null) {
+                            clientSublevelRenderableFrames++;
+                            shipClientRenderReady=true;
+                        }
+                    }
+                }
+            } catch(Exception | LinkageError ex) {
+                if(clientSublevelSeenFrames==0 && mc.player!=null &&
+                   mc.player.tickCount%40==0)
+                    LOG.warn("WORLDSEAM_FILM_CLIENT_SABLE_DIAGNOSTIC: {}",
+                        ex.toString());
+            }
+        }
         MinecraftServer server=mc.getSingleplayerServer();
         if(state!=0||server==null||mc.player==null||mc.level==null ||
            mc.player.tickCount<80)return;
@@ -229,6 +264,13 @@ public final class SeamShipFilmE2E {
             bounding=sub.getDeclaredMethod("boundingBox");
             uuidGetter=sub.getDeclaredMethod("getUniqueId");
             shipUuid=(UUID)uuidGetter.invoke(ship);
+            shipClientRenderReady=false;
+            clientSublevelSeenFrames=0;
+            clientSublevelRenderableFrames=0;
+            realFlightStartTick=-1;
+            startedRealFlight=false;
+            lastPulse=0;
+            sawStraddle=false; fullyAcross=false;
             // Sable initializes SubLevel.globalBounds to the zero AABB.
             // assembleBlocks() DOES NOT call updateBoundingBox(): reading
             // the zero box immediately as a ship at Y=0 was a false signal.
@@ -317,7 +359,25 @@ public final class SeamShipFilmE2E {
             return;
         }
         if(state!=2&&state!=3)return;
-        if(server.getTickCount()-started>20*100) {
+        long sinceAssembly=server.getTickCount()-started;
+        if(!startedRealFlight) {
+            if(sinceAssembly%20==0)
+                LOG.info("WORLDSEAM_FILM_CLIENT_TRACK_GATE: uuid={} elapsedServerTicks={} clientSeenFrames={} clientRenderableFrames={} renderReady={}",
+                    shipUuid,sinceAssembly,clientSublevelSeenFrames,
+                    clientSublevelRenderableFrames,shipClientRenderReady);
+            if(sinceAssembly>160) {
+                fail("Real Minecraft client never received and initialized visible Sable render data for identical ship UUID, cannot call this a flight video",null);
+                return;
+            }
+            // Hold ship before motion until real rendered client sublevel
+            // exists, then leave >=40 native ticks for actual render uploads.
+            if(!shipClientRenderReady || sinceAssembly<40)return;
+            startedRealFlight=true;
+            realFlightStartTick=server.getTickCount();
+            LOG.info("WORLDSEAM_FILM_CLIENT_VISIBLE_SHIP_READY: sameUuid={} clientSeenFrames={} clientRenderableFrames={} realClientRenderData=true",
+                shipUuid,clientSublevelSeenFrames,clientSublevelRenderableFrames);
+        }
+        if(server.getTickCount()-realFlightStartTick>20*100) {
             fail("Native Rapier ship never completed real bidirectional seam crossing",null);
             return;
         }
@@ -327,7 +387,7 @@ public final class SeamShipFilmE2E {
                 throw new IllegalStateException("Nonfinite Sable hull");
             if(hull.minY<PLANE && hull.maxY>PLANE)sawStraddle=true;
             lowMinY=Math.min(lowMinY,hull.minY);
-            int ticks=(int)(server.getTickCount()-started);
+            int ticks=(int)(server.getTickCount()-realFlightStartTick);
             // An actual in-game spectator CAMERA follows the real hull.
             // The Sable rigid body itself is NEVER teleported.
             // Camera stays in Overworld, shooting into the other dimension.
@@ -348,7 +408,7 @@ public final class SeamShipFilmE2E {
                 // Gentle repeated *real impulse*, not teleport or rewriting
                 // entity/world pose. Sable/Rapier still controls the body.
                 if(ticks-lastPulse>=8) {
-                    pulse(-35);
+                    pulse(-12);
                     lastPulse=ticks;
                 }
                 if(hull.maxY<PLANE-1) {
@@ -361,7 +421,7 @@ public final class SeamShipFilmE2E {
             } else {
                 upTicks++;
                 if(ticks-lastPulse>=8) {
-                    pulse(110);
+                    pulse(50);
                     lastPulse=ticks;
                 }
                 if(hull.minY>PLANE+1 && fullyAcross && sawStraddle) {
