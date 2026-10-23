@@ -235,6 +235,19 @@ public final class PublicSafety {
             return false;
         }
         guard.setTarget(null);
+        // Bounded evidence trace: the same pair UUIDs, their actual feet
+        // coordinates, squared distance and navigation status. GUI footage
+        // alone cannot prove that a nearby unrelated officer was the escort.
+        if (MovementPolicy.due(tick, guard.getId(), 40)) {
+            System.out.println("REME_NPC_ESCORT_PAIR tick=" + tick
+                + " officer=" + guard.getUUID()
+                + " prisoner=" + prisoner.getUUID()
+                + " officerFeet=" + guard.blockPosition().toShortString()
+                + " prisonerFeet=" + prisoner.blockPosition().toShortString()
+                + " distanceSq=" + guard.distanceToSqr(prisoner)
+                + " prisonerMayAdvance=" + escortedPrisonerMayAdvance(prisoner, level, tick)
+                + " officerPathDone=" + guard.getNavigation().isDone());
+        }
         boolean prisonerAtCell = prisoner.blockPosition().equals(jail);
         if (prisonerAtCell && guard.distanceToSqr(prisoner) <= 36) {
             guard.getNavigation().stop();
