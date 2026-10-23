@@ -25,6 +25,6 @@ public final class SeamRapierChartMath {
     }
 
     public static boolean entirelyBelowSource(int mappedSectionY,int sourceBottomY) {
-        return (long)(mappedSectionY+1)*16L <= sourceBottomY;
+        return ((long)mappedSectionY+1L)*16L <= sourceBottomY;
     }
 }
