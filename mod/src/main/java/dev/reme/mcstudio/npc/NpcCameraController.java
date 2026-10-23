@@ -110,7 +110,31 @@ public final class NpcCameraController {
     public static CameraPose selectClearView(Vec3 targetEye, float targetYaw,
                                              Predicate<Vec3> clearLens,
                                              Predicate<Vec3> unobstructed) {
-        double[] radii = {3.3, 2.6, 1.85};
+        return selectClearViewWithRadii(targetEye, targetYaw, clearLens,
+            unobstructed, new double[]{3.3, 2.6, 1.85});
+    }
+
+    /** Frame two ACTUAL mutually linked escort actors rather than filming
+     * only the prisoner or pointing into a nearby wall. The midpoint is a
+     * camera focus, never a teleport destination for either NPC.
+     * Both sight lines must be physically clear in the loaded Minecraft world.
+     */
+    @Nullable
+    public static CameraPose selectPairView(Vec3 firstEye, Vec3 secondEye,
+                                            float targetYaw,
+                                            Predicate<Vec3> clearLens,
+                                            Predicate<Vec3> seesBoth) {
+        Vec3 midpoint = firstEye.add(secondEye).scale(0.5);
+        double distance = firstEye.distanceTo(secondEye);
+        double far = Math.max(4.5, Math.min(9.0, 4.0 + distance * 0.8));
+        return selectClearViewWithRadii(midpoint, targetYaw, clearLens,
+            seesBoth, new double[]{far, far * 0.82, far * 0.65});
+    }
+
+    @Nullable
+    private static CameraPose selectClearViewWithRadii(
+            Vec3 targetEye, float targetYaw, Predicate<Vec3> clearLens,
+            Predicate<Vec3> unobstructed, double[] radii) {
         double[] yawOffsets = {0, 60, -60, 115, -115, 180};
         double[] heightOffsets = {0.32, 0.05, -0.20};
         for (double radius : radii) {
@@ -121,7 +145,6 @@ public final class NpcCameraController {
                         Math.sin(angle) * radius, height,
                         -Math.cos(angle) * radius);
                     if (!clearLens.test(lens) || !unobstructed.test(lens)) continue;
-                    // Aim at upper chest, not the ground. Actor stays in frame.
                     Vec3 focus = targetEye.add(0, -0.32, 0);
                     double dx = focus.x - lens.x;
                     double dy = focus.y - lens.y;
@@ -149,25 +172,44 @@ public final class NpcCameraController {
     private static boolean moveChase(ServerPlayer player, PlayerNpcEntity target) {
         ServerLevel level = player.serverLevel();
         Vec3 eye = target.getEyePosition();
-        CameraPose chosen = selectClearView(eye, target.getYRot(),
-            lens -> {
-                // A camera INSIDE stone, glass, iron bars or a low ceiling is
-                // not a valid view, even when its center ray is unobstructed.
-                for (double ox : new double[]{-.19, .0, .19})
-                    for (double oz : new double[]{-.19, .0, .19}) {
-                        BlockPos block = BlockPos.containing(
-                            lens.add(ox, 0, oz));
-                        if (!level.hasChunkAt(block)
-                            || !level.getBlockState(block)
-                                .getCollisionShape(level, block).isEmpty())
-                            return false;
-                    }
-                return true;
-            },
-            lens -> level.clip(new ClipContext(
-                eye, lens, ClipContext.Block.COLLIDER,
-                ClipContext.Fluid.NONE, target)).getType()
-                == HitResult.Type.MISS);
+        // Follow either member of the REAL officer/prisoner pair. A nearby
+        // unrelated guard is never accepted as a cinematic stand-in.
+        UUID partnerId = target.custodyOfficer() != null
+            ? target.custodyOfficer() : target.escortedPrisoner();
+        Entity linked = partnerId == null ? null : level.getEntity(partnerId);
+        PlayerNpcEntity partner = linked instanceof PlayerNpcEntity other
+            && other.isAlive() && other.level() == level
+            && target.distanceToSqr(other) <= 100.0
+            && (target.custodyOfficer() != null
+                ? target.getUUID().equals(other.escortedPrisoner())
+                : target.getUUID().equals(other.custodyOfficer()))
+            ? other : null;
+        Predicate<Vec3> clearLens = lens -> {
+            for (double ox : new double[]{-.19, .0, .19})
+                for (double oz : new double[]{-.19, .0, .19}) {
+                    BlockPos block = BlockPos.containing(lens.add(ox, 0, oz));
+                    if (!level.hasChunkAt(block)
+                        || !level.getBlockState(block)
+                            .getCollisionShape(level, block).isEmpty())
+                        return false;
+                }
+            return true;
+        };
+        Predicate<Vec3> targetVisible = lens -> level.clip(new ClipContext(
+            eye, lens, ClipContext.Block.COLLIDER,
+            ClipContext.Fluid.NONE, target)).getType() == HitResult.Type.MISS;
+        CameraPose chosen;
+        if (partner != null) {
+            Vec3 partnerEye = partner.getEyePosition();
+            chosen = selectPairView(eye, partnerEye, target.getYRot(),
+                clearLens, lens -> targetVisible.test(lens)
+                    && level.clip(new ClipContext(partnerEye, lens,
+                        ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE,
+                        partner)).getType() == HitResult.Type.MISS);
+        } else {
+            chosen = selectClearView(eye, target.getYRot(),
+                clearLens, targetVisible);
+        }
         if (chosen == null) {
             if (POV_FALLBACK.add(player.getUUID())) {
                 com.mojang.logging.LogUtils.getLogger().info(
