@@ -94,7 +94,7 @@ public final class UrbanCivicDistrictGameTests {
             }
             case GOVERNMENT -> {
                 if(!world.getBlockState(c.offset(-11,1,-10)).is(Blocks.LECTERN)
-                    ||!world.getBlockState(c.offset(12,1,-10)).is(Blocks.BARREL)
+                    ||!world.getBlockState(c.offset(11,1,-10)).is(Blocks.BARREL)
                     ||!world.getBlockState(c.offset(12,1,8)).is(Blocks.BELL)
                     ||!world.getBlockState(c.offset(-12,2,12)).is(Blocks.WATER_CAULDRON))
                     throw new AssertionError("Government lacks town hall desk, post office, hotel or plaza");
