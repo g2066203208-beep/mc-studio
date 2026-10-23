@@ -49,6 +49,16 @@ ffmpeg -hide_banner -loglevel warning -nostdin -y \
 film_pid=$!
 xdotool mousemove 480 565 click 1
 
+# Each still is a direct raw X11 frame from the running Minecraft client,
+# not a composite or synthesized aircraft image. A second capture process
+# never edits the uninterrupted main MP4.
+capture_real_frame() {
+  local output="$1"
+  timeout 15 ffmpeg -hide_banner -loglevel error -nostdin -y \
+    -f x11grab -framerate 1 -video_size 1280x720 -i "$DISPLAY" \
+    -frames:v 1 -vf "scale=960:540" -q:v 3 "$output" || true
+}
+
 # Capture JVM thread stacks if the real integrated client/server stalls.
 # An MP4 of a stuck image is diagnostic evidence, NOT a successful flight.
 capture_jvm_diagnostics() {
@@ -88,7 +98,7 @@ for step in $(seq 1 240); do
   fi
   if [[ "$ready_still" = 0 ]] &&
      grep -q "WORLDSEAM_FILM_RECORD_READY" real-ship-film-client.log; then
-    xwd -root -silent | convert xwd:- -resize 960x540 -quality 82 real-ship-first-frame.jpg || true
+    capture_real_frame real-ship-first-frame.jpg
     ready_still=1
   fi
   if [[ "$descent_still" = 0 ]] &&
@@ -96,7 +106,7 @@ for step in $(seq 1 240); do
     # Screenshot after the real client has received recent Sable pose and
     # spectator orientation; server leaves 35 ticks of REAL descent hold.
     sleep 1
-    xwd -root -silent | convert xwd:- -resize 960x540 -quality 82 real-ship-below-seam.jpg || true
+    capture_real_frame real-ship-below-seam.jpg
     descent_still=1
   fi
   if grep -q "WORLDSEAM_FILM_RECORD_READY" real-ship-film-client.log; then
@@ -120,7 +130,7 @@ for step in $(seq 1 240); do
     # The recorded MP4 is continuous; do not grab the post-return still
     # before the client actually draws the server's final camera pose.
     sleep 2
-    xwd -root -silent | convert xwd:- -resize 960x540 -quality 82 real-ship-returned.jpg || true
+    capture_real_frame real-ship-returned.jpg
     sleep 5 # show actual completed in-game view; no artificial frames
     break
   fi
