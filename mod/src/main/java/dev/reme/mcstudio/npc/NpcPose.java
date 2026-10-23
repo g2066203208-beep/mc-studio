@@ -12,7 +12,11 @@ public enum NpcPose {
     SOCIALIZE,
     GUARD,
     AFRAID,
-    REST;
+    REST,
+    // APPEND ONLY: existing ordinal IDs must remain stable across clients.
+    FLEE, CHASE, STRIKE, HIT, STUNNED, CUFFED, ESCORT,
+    SHOPPING, EATING, SITTING, LOOK_AROUND, CROUCH,
+    LAUGH, SAD, GREET;
 
     public static NpcPose fromNetworkId(int id) {
         NpcPose[] all = values();
