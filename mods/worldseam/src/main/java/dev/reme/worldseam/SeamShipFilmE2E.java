@@ -56,6 +56,7 @@ public final class SeamShipFilmE2E {
     private static long realFlightStartTick=-1;
     private static boolean startedRealFlight;
     private static boolean departurePadRemoved;
+    private static long descentHoldUntil;
 
     private SeamShipFilmE2E() {}
 
@@ -503,10 +504,25 @@ public final class SeamShipFilmE2E {
                     fullyAcross=true;
                     state=3;
                     lastPulse=0;
+                    // Show the ship on genuinely projected Nether native
+                    // terrain before applying any artificial UP force.
+                    descentHoldUntil=server.getTickCount()+35;
+                    LOG.info("WORLDSEAM_FILM_REAL_DESCENT_HOLD: uuid={} nativeHeight={} holdRealServerTicks=35; spectator follows boat; no upward test forces during evidence window",
+                        shipUuid,hull.minY);
                     LOG.info("WORLDSEAM_FILM_REAL_SHIP_DOWN: uuid={} minY={} maxY={} tick={} straddled={}, movement=native-rapier-impulses",
                         shipUuid,hull.minY,hull.maxY,ticks,sawStraddle);
                 }
             } else {
+                if(server.getTickCount()<descentHoldUntil) {
+                    // Gravity, Sable and the real foreign-world projected
+                    // terrain are the only physical forces during this hold.
+                    // This is an observation, NOT yet calibrated contact
+                    // impulse/torque proof.
+                    if(server.getTickCount()%10==0)
+                        LOG.info("WORLDSEAM_FILM_NATIVE_REMOTE_CONTACT_HOLD: uuid={} y={} foreignNativeSolidCells={} (contact force not separately measured)",
+                            shipUuid,hull.minY,SeamRapierRemoteTerrain.remoteColliderCells());
+                    return;
+                }
                 upTicks++;
                 if(ticks-lastPulse>=8) {
                     pulse(50);
