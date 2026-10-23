@@ -401,7 +401,7 @@ public final class SeamNativeGeometryClient {
         // A quiet, still-resident remote world must NOT expire after 2400
         // ticks without packets. Cache lifetime follows the actual remote
         // ClientLevel, not an arbitrary traffic timer.
-        if (columns.isEmpty() || event.getPoseStack()==null) return;
+        if (event.getPoseStack()==null) return;
         // Window pruning and geometry recount already happen in the 20 TPS
         // client tick. Doing another 25-column scan at EVERY render frame
         // (possibly >120 FPS) is redundant.
@@ -409,6 +409,13 @@ public final class SeamNativeGeometryClient {
         // Chunk prewarming continues independently for immediate handoff.
         if(!SeamSectionLayout.nearPlane(mc.player.getY(),
                 sourceBoundary,NEAR_PLANE_RENDER_RANGE)) return;
+        // Native target-world BEs use their OWN real BlockEntity and the
+        // vanilla BER dispatcher, never the static fallback item model.
+        // This pass is independent of terrain VBO cache completeness.
+        if(queuedRemote!=null && queuedLink!=null)
+            SeamRemoteBlockEntities.draw(event,queuedRemote,sourceBoundary,
+                targetBoundary,queuedLink.entry());
+        if(columns.isEmpty())return;
         long drawStarted=System.nanoTime();
         PoseStack pose=event.getPoseStack();
         Vec3 camera=event.getCamera().getPosition();
@@ -600,6 +607,7 @@ public final class SeamNativeGeometryClient {
         DRAW_CPU_SAMPLES.clear();
         REBUILD_CPU_SAMPLES.clear();
         OWNED_BUFFERS.release();
+        SeamRemoteBlockEntities.reset();
         DRAW_BUDGET.reset();
         lastFrameDrawCpuNanos=0;
     }
