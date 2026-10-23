@@ -14,7 +14,8 @@ final class SeamRapierAnchor {
     private SeamRapierAnchor() {}
 
     static boolean fresh(long sampled,long now) {
-        return now>=sampled && now-sampled<=MAX_SAMPLE_AGE_TICKS;
+        return now>=sampled &&
+            Long.compareUnsigned(now-sampled,MAX_SAMPLE_AGE_TICKS)<=0;
     }
 
     static Center fromHull(AABB hull) {
