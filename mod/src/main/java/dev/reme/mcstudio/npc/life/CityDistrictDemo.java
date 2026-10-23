@@ -227,8 +227,14 @@ public final class CityDistrictDemo {
             Blocks.GLASS, Blocks.DEEPSLATE_TILES);
         door(p, 9, -6, Direction.SOUTH);
         door(p, 15, -6, Direction.SOUTH);
-        bed(p, 8, -15);
-        bed(p, 15, -15);
+        // Two compact homes need enough *real* vanilla sleeping space for
+        // the citizens working here: 12 separate red beds, not 2 for 13 NPCs.
+        for (int z : new int[]{-16, -13, -10}) {
+            bed(p, 7, z);
+            bed(p, 9, z);
+            bed(p, 14, z);
+            bed(p, 16, z);
+        }
         p.put(7, 1, -11, Blocks.CHEST);
         p.put(17, 1, -11, Blocks.BARREL);
         for (int z = -5; z <= -3; z++) {
@@ -264,6 +270,10 @@ public final class CityDistrictDemo {
         p.state(-13, 2, 17, Blocks.IRON_DOOR.defaultBlockState()
             .setValue(DoorBlock.FACING, Direction.SOUTH)
             .setValue(DoorBlock.HALF, DoubleBlockHalf.UPPER));
+        // Night-watch officers have their own quarters instead of using
+        // shopworkers' beds or sleeping at the occupied iron-bar cell.
+        bed(p, -16, 8);
+        bed(p, -13, 8);
         p.put(-11, 1, 10, Blocks.LECTERN);
         p.put(-15, 1, 9, Blocks.CHEST);
         p.put(-10, 1, 9, Blocks.CRAFTING_TABLE);
@@ -331,6 +341,13 @@ public final class CityDistrictDemo {
         };
         int count=0;
         String region = "city_" + (center.getX()>>4) + "_" + (center.getZ()>>4);
+        // Fixed one-to-one *physical bed HEADS*; no multiple people fighting
+        // over a single claim. These blocks are placed by apartments()/police.
+        int[][] beds = {
+            {7,-16},{9,-16},{14,-16},{-16,8},{-13,8},
+            {16,-16},{7,-13},{9,-13},{14,-13},{16,-13},
+            {7,-10},{9,-10},{14,-10}
+        };
         for (int i=0; i<names.length; i++) {
             PlayerNpcEntity npc = NpcRegistry.PLAYER_NPC.get().create(level);
             if (npc == null) continue;
@@ -341,7 +358,9 @@ public final class CityDistrictDemo {
             npc.setIdentity(SocietyRules.civilian(region));
             npc.setSkinId(i % 6);
             npc.setRoamingRadius(64);
-            npc.setHomePos(center.offset(i%2==0 ? 9 : 15, 1, -12));
+            BlockPos head = center.offset(beds[i][0], 1, beds[i][1]);
+            npc.setHomePos(head.south(1)); // genuine foot-side home entrance
+            npc.setAssignedBedPos(head);
             if (i < 3) npc.setWorkPos(center.offset(-10,1,-12));
             else if (i < 5) {
                 // One officer's actual street beat covers the shop so
@@ -384,7 +403,8 @@ public final class CityDistrictDemo {
         }
         System.out.println("REME_NPC_STORY stage=city_initial_population"
             + " tick=" + level.getGameTime() + " citizens=" + count
-            + " realClerks=2 realGuards=2 dishonestCustomers=1");
+            + " realClerks=2 realGuards=2 dishonestCustomers=1"
+            + " realResidentialBeds=14 individualBedClaims=13");
         return count;
     }
 }
