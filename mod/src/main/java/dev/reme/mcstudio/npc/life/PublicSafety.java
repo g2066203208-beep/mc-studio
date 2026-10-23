@@ -288,7 +288,15 @@ public final class PublicSafety {
                 return true;
             }
         }
-        BlockPos waypoint = custodyWaypoint(jail, suspect.blockPosition());
+        // The built city's south intake is reached from OUTSIDE the rear
+        // wall. A prisoner on the east side of the cell can be INSIDE the
+        // station, with the only exit at the east front door. Native A* to
+        // the rear intake then correctly reports unreachable through the
+        // station wall. Walk out of the REAL front door, follow the eastern
+        // exterior facade, and turn west along the south sidewalk. Derive
+        // stages from feet and real doors; no teleport or saved state.
+        BlockPos waypoint = custodyCityDetourWaypoint(
+            level, jail, suspect.blockPosition());
         if (!level.hasChunkAt(waypoint) || !level.hasChunkAt(waypoint.below())) {
             suspect.setAction("custody route unloaded; waiting without chunk tickets");
             return true;
@@ -339,6 +347,56 @@ public final class PublicSafety {
             }
         }
         return true;
+    }
+
+    /**
+     * Only the materialized 41x41 city police station has this geometry:
+     * front east door at (cell +7 X, -3 Z), rear oak door at +3 Z,
+     * iron gate at +2 Z. In that layout an arrested resident at the EAST
+     * iron-bar wall is INSIDE the station, and cannot walk straight south
+     * through the exterior wall. Use the actual east door before the
+     * public southern sidewalk. Generic operator-built jails retain the
+     * original direct SOUTH entrance routing.
+     *
+     * The chosen points are navigation goals, never entity coordinates
+     * assigned by the server. Unloaded doors do not trigger a detour.
+     */
+    public static BlockPos custodyCityDetourWaypoint(
+        ServerLevel level, BlockPos jail, BlockPos feet) {
+        BlockPos frontDoor = jail.offset(7, 0, -3);
+        BlockPos rearDoor = jail.south(3);
+        if (!level.hasChunkAt(frontDoor) || !level.hasChunkAt(rearDoor)
+            || !CityJailGate.isGate(level, jail)
+            || !level.getBlockState(frontDoor).is(Blocks.OAK_DOOR)
+            || !level.getBlockState(rearDoor).is(Blocks.OAK_DOOR))
+            return custodyWaypoint(jail, feet);
+
+        // The eastern station wall lies at X+7. Go through its REAL
+        // open front door (X+7,Z-3) before navigating the outside wall.
+        // Do not redirect people who are already on the south sidewalk.
+        // IMPORTANT: a thief arrested 30+ blocks away must still use
+        // RoadNavigator's short, reachable road legs to the rear exterior.
+        // The special east-door detour is ONLY for feet physically within
+        // the station east corridor or immediately outside its east wall.
+        // Previously it also redirected a distant thief to an unreachable
+        // 22-node A* path to the southeast corner, freezing all custody.
+        if (feet.getY() == jail.getY()) {
+            boolean insideEastCorridor =
+                feet.getX() > jail.getX() + 1
+                && feet.getX() < jail.getX() + 7
+                && feet.getZ() >= jail.getZ() - 9
+                && feet.getZ() < jail.getZ() + 4;
+            if (insideEastCorridor)
+                return jail.offset(8, 0, -3);
+            boolean justOutsideEastWall =
+                feet.getX() >= jail.getX() + 7
+                && feet.getX() <= jail.getX() + 10
+                && feet.getZ() >= jail.getZ() - 4
+                && feet.getZ() < jail.getZ() + 4;
+            if (justOutsideEastWall)
+                return jail.offset(8, 0, 4);
+        }
+        return custodyWaypoint(jail, feet);
     }
 
     /** Route stages describe REAL Minecraft block coordinates, not
