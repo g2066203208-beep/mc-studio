@@ -187,7 +187,7 @@ public final class CivicGameTests {
         first.setProfession(PlayerNpcEntity.Profession.RESIDENT);
         second.setProfession(PlayerNpcEntity.Profession.RESIDENT);
         first.moveTo(head.getX() + 1.5, head.getY(), head.getZ() + 0.5, 0, 0);
-        second.moveTo(head.getX() + 2.5, head.getY(), head.getZ() + 0.5, 0, 0);
+        second.moveTo(head.getX() - 1.5, head.getY(), head.getZ() + 0.5, 0, 0);
         first.setDecision(new LivingPlanner.Decision(LivingPlanner.Intent.SLEEP, 99, "bedtime"));
         second.setDecision(new LivingPlanner.Decision(LivingPlanner.Intent.SLEEP, 99, "bedtime"));
         if (!level.addFreshEntity(first) || !level.addFreshEntity(second))
@@ -219,16 +219,25 @@ public final class CivicGameTests {
         if (first.isSleeping() || level.getBlockState(head).getValue(BedBlock.OCCUPIED))
             throw new AssertionError("sunrise failed to release real occupied bed");
         first.setAssignedBedPos(null);
-        if (!ResidentBedLife.reserveNearbyBed(second, level)
-            || !ResidentBedLife.tick(second, level, level.getGameTime())
-            || !second.isSleeping())
-            throw new AssertionError("released bed cannot be reused by neighbor");
-        // Removal of the real bed must NOT leave a phantom sleeper/claim.
-        level.setBlock(head, Blocks.AIR.defaultBlockState(), 3);
+        if (!ResidentBedLife.reserveNearbyBed(second, level))
+            throw new AssertionError("released real bed cannot be reserved by neighbor");
+        // The neighbor starts TWO blocks away and must physically walk to a
+        // free orthogonal side before vanilla sleeping; an instant same-tick
+        // sleep from two blocks away would be a fake arrival.
         ResidentBedLife.tick(second, level, level.getGameTime());
-        if (second.isSleeping() || second.assignedBedPos() != null)
-            throw new AssertionError("Destroyed bed left NPC sleeping or claiming a nonexistent bed");
-        helper.succeed();
+        helper.runAfterDelay(60, () -> {
+            if (!second.isSleeping()
+                || !level.getBlockState(head).getValue(BedBlock.OCCUPIED)) {
+                helper.fail("Neighbor did not physically walk to and sleep in the freed native bed", head);
+                return;
+            }
+            // Removal of the real bed must NOT leave a phantom sleeper/claim.
+            level.setBlock(head, Blocks.AIR.defaultBlockState(), 3);
+            ResidentBedLife.tick(second, level, level.getGameTime());
+            if (second.isSleeping() || second.assignedBedPos() != null)
+                helper.fail("Destroyed bed left NPC sleeping or claiming a nonexistent bed", head);
+            else helper.succeed();
+        });
     }
 
     @GameTest(template = "empty", timeoutTicks = 100)
