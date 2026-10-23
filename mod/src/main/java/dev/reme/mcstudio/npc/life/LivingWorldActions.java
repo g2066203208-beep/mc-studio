@@ -76,11 +76,25 @@ public final class LivingWorldActions {
                 npc.profession() == PlayerNpcEntity.Profession.FARMER ||
                 npc.profession() == PlayerNpcEntity.Profession.BAKER ||
                 npc.profession() == PlayerNpcEntity.Profession.BUILDER ||
-                npc.profession() == PlayerNpcEntity.Profession.SHOPKEEPER)));
+                npc.profession() == PlayerNpcEntity.Profession.SHOPKEEPER ||
+                npc.profession() == PlayerNpcEntity.Profession.GUARD ||
+                npc.profession() == PlayerNpcEntity.Profession.COURIER ||
+                npc.profession() == PlayerNpcEntity.Profession.SCOUT)));
         }
         // Resolve native bed occupancy immediately after planning, before
         // cargo/work/social activities may override the path to bed.
         if (ResidentBedLife.tick(npc, level, tick)) return;
+        if (npc.intent() == LivingPlanner.Intent.SLEEP
+            && RestPolicy.shouldRest(npc.intent(),
+                npc.profession() == PlayerNpcEntity.Profession.GUARD, npc.energy())
+            && !npc.isAfraid(tick) && !npc.isDetained(tick)) {
+            // Without a usable bed, returning home STILL owns movement.
+            // Previously shoppers/social planners could drag a sleepy NPC
+            // across town before its 200-tick reserved-bed scan.
+            if (MovementPolicy.due(tick, npc.getId(), 40))
+                returnHome(npc, "night schedule: returning to real house or waiting for bed");
+            return;
+        }
         if (npc.profession() == PlayerNpcEntity.Profession.GUARD)
             CivicSocial.guardLaw(npc, level, tick);
         // NPCs can ask for essentials themselves. The reward is funded from
@@ -149,6 +163,21 @@ public final class LivingWorldActions {
         // witnessed stories, but survival, bed, crime and paid jobs come first.
         if (NeighborhoodMarket.tickFair(npc, level, tick)) return;
         if (SocietyActions.tick(npc, level, tick)) return;
+        // A scheduled worker does NOT become a free-range wanderer simply
+        // because SocietyActions had nothing useful to do this 80-tick pulse.
+        if (npc.intent() == LivingPlanner.Intent.WORK
+            && npc.profession() != PlayerNpcEntity.Profession.RESIDENT
+            && npc.profession() != PlayerNpcEntity.Profession.GUARD
+            && npc.profession() != PlayerNpcEntity.Profession.SHOPKEEPER) {
+            if (npc.blockPosition().distSqr(npc.workPos()) > 9
+                && MovementPolicy.due(tick, npc.getId(), 40)
+                && level.hasChunkAt(npc.workPos())
+                && DailyRoaming.inRange(npc, npc.workPos())) {
+                RoadNavigator.moveToward(npc, level, npc.workPos(), 0.88);
+                npc.setAction("commuting to assigned daytime profession at real workplace");
+            }
+            return; // preserve existing navigation on unbudgeted ticks
+        }
         if (DailyRoaming.tick(npc, level, tick)) return;
         if (npc.profession() == PlayerNpcEntity.Profession.GUARD &&
             npc.getTarget() != null && npc.getTarget().isAlive() &&
