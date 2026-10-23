@@ -8,6 +8,13 @@ import net.minecraft.world.level.chunk.ChunkAccess;
 import net.neoforged.neoforge.event.level.ChunkEvent;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.world.level.Level;
+import net.neoforged.neoforge.event.tick.ServerTickEvent;
+import com.mojang.logging.LogUtils;
 
 /**
  * Only removes existing BEDROCK in opt-in connected plane bands; respects
@@ -15,6 +22,19 @@ import java.util.List;
  * Changing Y connection planes never secretly changes worldgen build height.
  */
 public final class SeamTerrain {
+    // ChunkEvent.Load is part of chunk publication. A block mutation here can
+    // reenter Sable's Rapier voxel rebuild and synchronously await the chunk
+    // which is STILL being published. The film CI's JVM dump caught exactly
+    // that call chain. Defer all writes to a later, bounded server tick.
+    private record Pending(ResourceKey<Level> dimension, int cx, int cz) {}
+    private static final ConcurrentLinkedQueue<Pending> PENDING = new ConcurrentLinkedQueue<>();
+    private static final Set<Pending> QUEUED = ConcurrentHashMap.newKeySet();
+    private static final int MAX_PENDING = 4096;
+    private static final int MAX_POLLS_PER_TICK = 32;
+    private static final int MAX_CARVES_PER_TICK = 1;
+    private static MinecraftServer activeServer;
+    private static long lastFullQueueWarningTick = Long.MIN_VALUE / 2;
+
     private SeamTerrain() {}
 
     public static List<SeamBounds.CarveRange> carveBands(ServerLevel level) {
@@ -61,7 +81,75 @@ public final class SeamTerrain {
     public static void onChunkLoad(ChunkEvent.Load event) {
         if(!event.isNewChunk() || !(event.getLevel() instanceof ServerLevel level))
             return;
-        replaceGeneratedBedrock(level,event.getChunk());
+        MinecraftServer server = level.getServer();
+        if(server==null || !SeamServer.shouldCarveNewChunk(server)
+            || carveBands(level).isEmpty())return;
+        Pending job = new Pending(level.dimension(), event.getChunk().getPos().x,
+            event.getChunk().getPos().z);
+        // Never retain ChunkAccess from a load event: it may not yet be FULL.
+        if(QUEUED.contains(job))return;
+        if(QUEUED.size()>=MAX_PENDING) {
+            long tick=server.getTickCount();
+            if(tick-lastFullQueueWarningTick>=200) {
+                lastFullQueueWarningTick=tick;
+                LogUtils.getLogger().error(
+                    "WORLDSEAM_TERRAIN_CARVE_BACKPRESSURE: {} pending chunks; refusing unsafe in-load mutation. Seam not yet cleared at {},{} in {}",
+                    QUEUED.size(),job.cx(),job.cz(),job.dimension().location());
+            }
+            return;
+        }
+        if(QUEUED.add(job))PENDING.offer(job);
+    }
+
+    /** No blocking getChunk: a partially published chunk must never be touched. */
+    private static boolean neighborsResident(ServerLevel level,int cx,int cz) {
+        for(int dz=-1;dz<=1;dz++)for(int dx=-1;dx<=1;dx++)
+            if(level.getChunkSource().getChunkNow(cx+dx,cz+dz)==null)
+                return false;
+        return true;
+    }
+
+    /** Called AFTER world ticks; no terrain writes during ChunkEvent.Load. */
+    public static void onServerTick(ServerTickEvent.Post event) {
+        MinecraftServer server=event.getServer();
+        if(activeServer!=server) {
+            // Preserve jobs queued during initial startup of the first server.
+            if(activeServer!=null) {
+                PENDING.clear();
+                QUEUED.clear();
+            }
+            activeServer=server;
+        }
+        if(!SeamServer.shouldCarveNewChunk(server)) {
+            PENDING.clear();
+            QUEUED.clear();
+            return;
+        }
+        int polls=Math.min(PENDING.size(),MAX_POLLS_PER_TICK);
+        int carved=0;
+        for(int i=0;i<polls;i++) {
+            Pending job=PENDING.poll();
+            if(job==null)break;
+            ServerLevel level=server.getLevel(job.dimension());
+            if(level==null) {
+                QUEUED.remove(job);
+                continue;
+            }
+            var chunk=level.getChunkSource().getChunkNow(job.cx(),job.cz());
+            if(chunk==null || !neighborsResident(level,job.cx(),job.cz())
+                || carved>=MAX_CARVES_PER_TICK) {
+                // FAIL CLOSED: no synchronous chunk generation. Retry when the
+                // normal chunk scheduler makes all required neighbors resident.
+                PENDING.offer(job);
+                continue;
+            }
+            try {
+                replaceGeneratedBedrock(level,chunk);
+                carved++;
+            } finally {
+                QUEUED.remove(job);
+            }
+        }
     }
 
     public static void replaceGeneratedBedrock(ServerLevel level,ChunkAccess chunk) {
