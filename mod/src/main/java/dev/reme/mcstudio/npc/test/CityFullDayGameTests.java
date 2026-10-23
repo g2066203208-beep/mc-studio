@@ -95,6 +95,18 @@ public final class CityFullDayGameTests {
                 +" unexplainedNightRoaming="+nightRoaming[0]
                 +" wallSeconds="+String.format(java.util.Locale.ROOT,"%.2f",
                     (System.nanoTime()-started)/1_000_000_000.0));
+            for (PlayerNpcEntity npc:citizens) {
+                if(!actuallySlept.contains(npc.getUUID()))
+                    System.out.println("REME_NPC_CITY_INSOMNIA npc="+npc.getName().getString()
+                        +" profession="+npc.profession()
+                        +" livePos="+npc.blockPosition().toShortString()
+                        +" home="+npc.homePos().toShortString()
+                        +" realBed="+(npc.assignedBedPos()==null ? "none"
+                            : npc.assignedBedPos().toShortString())
+                        +" intent="+npc.intent()+" energy="+npc.energy()
+                        +" pathFinished="+npc.getNavigation().isDone()
+                        +" lastAction="+npc.lastAction());
+            }
             if(actuallySlept.size()<6)
                 helper.fail("Fewer than six real city residents physically entered native beds",center);
             else if(actuallyWorked.size()<2)
