@@ -223,11 +223,22 @@ public final class SeamShipFilmE2E {
                 net.minecraft.core.Direction.UP);
             BlockPos motorPos=anchor.offset(0,1,-2);
             BlockPos rotorPos=motorPos.above();
+            // The released propeller defaults to axis=X; an UP-facing Create
+            // motor needs a Y-aligned shaft. Never infer working thrust from
+            // a visible propeller with a disconnected kinetic axis.
+            var rotorState=rotor.defaultBlockState();
+            if(!rotorState.hasProperty(
+                net.minecraft.world.level.block.state.properties.BlockStateProperties.AXIS))
+                throw new IllegalStateException(
+                    "Released Aeronautics smart propeller missing AXIS");
+            rotorState=rotorState.setValue(
+                net.minecraft.world.level.block.state.properties.BlockStateProperties.AXIS,
+                net.minecraft.core.Direction.Axis.Y);
             home.setBlock(motorPos,motorState,3);
-            home.setBlock(rotorPos,rotor.defaultBlockState(),3);
+            home.setBlock(rotorPos,rotorState,3);
             blocks.add(rotorPos); // motor already replaces a counted hull voxel
             LOG.info("WORLDSEAM_FILM_REAL_CREATE_AERO_MACHINERY: motor={} {}, propeller={} {}, intendedShaft=vertical, verify TRUE getSpeed()+scaledThrust AFTER assembly",
-                motorPos,motorState,rotorPos,rotor.defaultBlockState());
+                motorPos,motorState,rotorPos,rotorState);
             stagingBlocks=blocks;
             stagingAnchor=anchor;
             stagingHome=home;
