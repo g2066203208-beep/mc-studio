@@ -157,6 +157,18 @@ public final class SeamShipFilmE2E {
             cfg.setCarveNewChunks(true);
             nativeFill(server,home,-64,-47);
             nativeFill(server,nether,112,134);
+            // A REAL NETHER OBSIDIAN BELOW the cleared flight shaft,
+            // not fake collision geometry: Nether Y111 maps to Overworld
+            // image Y-81, directly under the actual descending hull.
+            // Native Sable test callback must report collision with this
+            // unique target block; the callback itself adds no impulse.
+            if(SeamRapierRemoteTerrain.enabled()) {
+                var witness=new BlockPos(x,111,z);
+                nether.setBlock(witness,Blocks.OBSIDIAN.defaultBlockState(),3);
+                SeamRapierRemoteTerrain.registerNativeWitness(nether,witness);
+                LOG.info("WORLDSEAM_FILM_REAL_NETHER_PHYSICS_WITNESS: {} in {}; literal native obsidian replaces one real-world block after both vanilla /fill clearances",
+                    witness,nether.dimension().location());
+            }
             // Put the real spectator in tracking range BEFORE Sable
             // registers its first sublevel/spawn packets. The previous
             // film assembled immediately and got "movement packet for a
@@ -540,6 +552,11 @@ public final class SeamShipFilmE2E {
                     lastPulse=ticks;
                 }
                 if(hull.minY>PLANE+1 && fullyAcross && sawStraddle) {
+                    if(SeamRapierRemoteTerrain.enabled() &&
+                        SeamRapierRemoteTerrain.witnessedNativeContacts()<1) {
+                        fail("Native Sable NEVER called the genuine Nether obsidian collision callback; foreign terrain native upload alone is NOT contact proof",null);
+                        return;
+                    }
                     var aero=SeamAeronauticsEvidence.inspect(ship);
                     LOG.info("WORLDSEAM_FILM_REAL_SABLE_FORCE_ONLY_ROUNDTRIP: uuid={}, startMinY={}, bottomMinY={}, returnMinY={}, sameBody=true, testExternalForce=true, aeroPowered={}",
                         shipUuid,initialMinY,lowMinY,hull.minY,aero.powered());
