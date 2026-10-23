@@ -373,6 +373,13 @@ public final class SeamClientWorldPool {
             source.equals(from) && target.equals(to) ? remote : null;
     }
 
+    /** Dedicated buffers for this real remote LevelRenderer, not the active world's batches. */
+    static net.minecraft.client.renderer.RenderBuffers renderBuffersFor(ClientLevel level) {
+        LevelRenderer renderer=rendererFor(level);
+        SeamOwnedLevelRenderBuffers owner=renderer==null?null:OWNED_RENDERERS.get(renderer);
+        return owner==null || owner.released()?null:owner.buffers();
+    }
+
     /** Renderer owned by exactly this secondary ClientLevel; never the active one. */
     static LevelRenderer rendererFor(ClientLevel level) {
         return level!=null && level==remote ? remoteRenderer : null;
