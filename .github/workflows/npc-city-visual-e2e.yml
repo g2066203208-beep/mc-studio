@@ -27,6 +27,7 @@ on:
       - fix/npc-gui-apt-dpkg-lock-v097
       - feat/npc-physical-escort-pair-camera-v098
       - fix/npc-camera-spectator-body-clearance-v099
+      - fix/npc-gui-cold-apt-install-budget-v100
   pull_request:
     branches:
       - feat/npc-economy-market-fair-v069
@@ -40,7 +41,7 @@ jobs:
     # Pin the independently maintained 22.04 runner to isolate mirror/image
     # regressions; this does not waive actual-client video acceptance.
     runs-on: ubuntu-22.04
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -84,7 +85,11 @@ jobs:
               # collided with the still-held dpkg frontend lock (exit 100).
               # Give a cold runner time to install all dependencies and NEVER
               # start a second apt process after a timed-out install.
-              if sudo timeout --signal=TERM --kill-after=30s 420s \
+              # On PR #137, apt had already unpacked all packages and was
+              # running libc-bin post-install when the 420s deadline killed it.
+              # Extend the cold-install budget without changing required tools
+              # or allowing a second concurrent apt/dpkg invocation.
+              if sudo timeout --signal=TERM --kill-after=30s 720s \
                   env DEBIAN_FRONTEND=noninteractive apt-get \
                     -o Acquire::Retries=0 -o Acquire::http::Timeout=20 \
                     -o Acquire::https::Timeout=20 -o DPkg::Lock::Timeout=60 \
