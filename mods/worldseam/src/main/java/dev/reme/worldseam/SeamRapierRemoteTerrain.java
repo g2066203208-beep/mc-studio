@@ -91,7 +91,12 @@ public final class SeamRapierRemoteTerrain {
             faulted=false;
         }
         owner=server;
-        if(faulted)return;
+        if(faulted) {
+            // Experimental JNI mismatch may have left chart proxies.
+            // A failed native mutation is NOT a safe physics mode.
+            if(active)close();
+            return;
+        }
         if(!SeamSettings.get(server).enabled()) {
             if(active)close();
             return;
@@ -132,6 +137,10 @@ public final class SeamRapierRemoteTerrain {
         }
         if(cx!=centerX || cz!=centerZ) {
             centerX=cx;centerZ=cz;
+            // Drop queued old-window work BEFORE rescheduling. Otherwise
+            // delayed chunks could reintroduce ghost colliders out of view.
+            pending.clear();
+            queued.clear();
             // Old foreign chunks must not remain collidable after moving.
             for(var i=uploaded.iterator();i.hasNext();) {
                 var s=i.next();
