@@ -293,6 +293,25 @@ public final class PublicSafety {
             suspect.setAction("custody route unloaded; waiting without chunk tickets");
             return true;
         }
+        // The original GUI client exposed a real failure: a thief arrested
+        // 35+ blocks from jail could not A* directly to its intake (native
+        // search returns a short 20-node UNREACHABLE partial path). The
+        // previous code stopped forever at the arrest site while a different
+        // second thief, arrested near jail, completed custody. Only the
+        // far-away EXTERIOR leg may use bounded real-road sub-waypoints.
+        BlockPos exterior = jail.south(4);
+        boolean exteriorLeg = waypoint.equals(exterior);
+        if (exteriorLeg && suspect.blockPosition().distSqr(exterior) > 14 * 14) {
+            if (RoadNavigator.moveTowardCustodyIntake(suspect, level, exterior, 0.96)) {
+                suspect.setAction("walking successive reachable real road tiles toward jail");
+            } else if (MovementPolicy.due(tick, suspect.getId(), 80)) {
+                com.mojang.logging.LogUtils.getLogger().warn(
+                    "REME_NPC_JAIL_ROAD_STALLED uuid={} feet={} intake={} jail={}",
+                    suspect.getUUID(), suspect.blockPosition().toShortString(),
+                    exterior.toShortString(), jail.toShortString());
+            }
+            return true;
+        }
         // Never reset an advancing native A* path every 10 ticks. Replan
         // after reaching the waypoint or at a bounded 80-tick interval.
         if (suspect.getNavigation().isDone()
@@ -302,6 +321,9 @@ public final class PublicSafety {
             if (path != null && path.canReach()
                 && suspect.getNavigation().moveTo(path, 0.96)) {
                 suspect.setAction("walking real rear intake and open iron gate under custody");
+            } else if (exteriorLeg
+                && RoadNavigator.moveTowardCustodyIntake(suspect, level, exterior, 0.96)) {
+                suspect.setAction("following reachable street detour to real jail intake");
             } else {
                 suspect.getNavigation().stop();
                 suspect.setAction("native jail intake route blocked; no ghost custody");

@@ -403,43 +403,20 @@ if [[ "${REME_CITY_VISUAL:-0}" == "1" ]]; then
   # GameTest results: identical live thief UUID must steal, get reported,
   # arrested and ENTER a physically locked cell in timestamp order. The
   # camera attach must precede the actual arrest, else filming was late.
-  python3 - <<'PY'
-import pathlib,re,sys
-text=pathlib.Path("client-gui.log").read_text(errors="replace")
-markers=["stage=unpaid_pickup","stage=police_report",
-         "stage=police_contact","stage=post_stun_arrest","stage=jail_reached"]
-events=[]
-for marker in markers:
-    m=re.search(r"^.*"+re.escape(marker)+r".*$",text,re.MULTILINE)
-    if not m:
-        sys.exit("FAIL: real joined client lacks "+marker)
-    events.append(m)
-uuids=[]
-for m in events:
-    x=re.search(r"(?:suspect|prisoner)=([0-9a-f-]{36})",m.group())
-    if not x: sys.exit("FAIL: real crime event has no physical actor UUID")
-    uuids.append(x.group(1))
-if len(set(uuids))!=1:
-    sys.exit("FAIL: theft/arrest/jail refer to DIFFERENT NPCs "+str(uuids))
-# Same live suspect must receive three real swings before handcuffing.
-contacts=re.findall(r"^.*stage=police_contact.*$",text,re.MULTILINE)
-real=[m for m in contacts if uuids[0] in m]
-progress=[re.search(r"blows=(\\d+) stunned=(true|false)",m) for m in real]
-if len(real)<3 or not any(m and m.group(1)=="3" and m.group(2)=="true" for m in progress):
-    sys.exit("FAIL: true GUI log lacks three melee contacts and knockdown")
-if not all(events[i].start()<events[i+1].start()
-           for i in range(len(events)-1)):
-    sys.exit("FAIL: real city incident timeline out of order")
-gate=re.search(r"^.*stage=jail_gate_locked.*$",text,re.MULTILINE)
-if not gate: sys.exit("FAIL: no real Minecraft iron door locked after entry")
-pov=re.search(r"已连续跟踪真实NPC ([0-9a-f-]{36})：CHASE",text)
-if not pov or pov.group(1)!=uuids[0]:
-    sys.exit("FAIL: native camera not tracking the REAL thief in incident")
-if not pov.start()<events[3].start():
-    sys.exit("FAIL: follow camera started only after actual in-world arrest")
-print("REME_NPC_REAL_CLIENT_FULL_CASE_RECORDING_OK thief="+uuids[0]
-      +" theft-report-arrest-cell=true camera-attached-before-arrest=true")
-PY
+  # Real GUI v085 had TWO different theft cases: filmed thief A was
+  # immobile outside a distant jail; unfilmed thief B reached a cell.
+  # Never accept a Frankenstein timeline by matching each stage globally.
+  # The verifier binds the FIRST native CHASE camera to the SAME UUID,
+  # merchant, officer, three actual hits, iron gate and physical cell.
+  python3 ../scripts/verify-npc-gui-case.py client-gui.log
+  # A file existing on disk does not prove the original H264 stream decodes.
+  ffmpeg -v error -xerror -i client-gui-city-full-crime-to-locked-jail.mp4 \
+    -f null - || { echo "FAIL: actual continuous MP4 cannot fully decode"; exit 1; }
+  ffprobe -v error -select_streams v:0 \
+    -show_entries stream=width,height -of csv=p=0 \
+    client-gui-city-full-crime-to-locked-jail.mp4 | grep -Fxq '1280,720' || {
+    echo "FAIL: original Minecraft 1280x720 RGB capture missing"; exit 1;
+  }
   if ! test -s client-gui-city-physical-npc-follow.mp4; then
     echo "FAIL: no genuine H264 recording of Minecraft NPC pursuit/follow"; exit 1
   fi

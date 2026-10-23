@@ -12,8 +12,32 @@ public final class RoadNavigator {
 
     public static boolean moveToward(PlayerNpcEntity npc, ServerLevel level,
                                      BlockPos destination, double speed) {
+        return moveTowardInternal(npc, level, destination, speed, false);
+    }
+
+    /**
+     * A lawful, already handcuffed prisoner may cross the normal home radius
+     * ONLY toward the physically built SOUTH intake of their own assigned
+     * holding cell. Ordinary residents still obey their home mobility bounds.
+     * No teleport, ticket, global navigation or changed save/NBT format.
+     */
+    public static boolean moveTowardCustodyIntake(PlayerNpcEntity npc,
+                                                   ServerLevel level,
+                                                   BlockPos destination,
+                                                   double speed) {
+        if (!level.getServer().isSameThread() || !npc.isAlive()
+            || !npc.isDetained(level.getGameTime())
+            || npc.detentionJail() == null
+            || !destination.equals(npc.detentionJail().south(4)))
+            return false;
+        return moveTowardInternal(npc, level, destination, speed, true);
+    }
+
+    private static boolean moveTowardInternal(PlayerNpcEntity npc, ServerLevel level,
+                                              BlockPos destination, double speed,
+                                              boolean authorizedCustody) {
         if (npc.mode() == PlayerNpcEntity.Mode.LIVE &&
-            npc.escortLeader() == null &&
+            npc.escortLeader() == null && !authorizedCustody &&
             !DailyRoaming.inRange(npc, destination)) {
             npc.setAction("destination outside home mobility radius");
             return false;
