@@ -231,7 +231,7 @@ public final class PublicSafety {
             return false;
         }
         guard.setTarget(null);
-        boolean prisonerAtCell = prisoner.distanceToSqr(Vec3.atCenterOf(jail)) <= 2.5;
+        boolean prisonerAtCell = prisoner.blockPosition().equals(jail);
         if (prisonerAtCell && guard.distanceToSqr(prisoner) <= 36) {
             guard.getNavigation().stop();
             guard.setAction("on-foot escort completed: prisoner reached REAL iron-bar cell");
@@ -269,7 +269,7 @@ public final class PublicSafety {
             return false;
         }
         suspect.setTarget(null);
-        if (suspect.distanceToSqr(Vec3.atCenterOf(jail)) <= 2.5) {
+        if (suspect.blockPosition().equals(jail)) {
             CityJailGate.setOpen(level, jail, false);
             suspect.getNavigation().stop();
             suspect.setAction("held at designated iron-bar holding spot until release");
