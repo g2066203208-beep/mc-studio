@@ -326,6 +326,23 @@ public final class SeamShipFilmE2E {
                 actualShipMassKg<=0 || actualShipMassKg>100_000_000)
                 throw new IllegalStateException(
                     "Sable assembled ship with invalid native mass="+actualShipMassKg);
+            // The native bridge is an experiment, not full cross-chart physics.
+            // Require actual real-block voxels to have been installed in the
+            // SAME Rapier scene before external force is applied. This still
+            // does NOT prove any collision impulse or dimension ownership.
+            if(SeamRapierRemoteTerrain.enabled()) {
+                if(!SeamRapierRemoteTerrain.active() ||
+                    SeamRapierRemoteTerrain.uploadedSections()<1 ||
+                    SeamRapierRemoteTerrain.remoteColliderCells()<1)
+                    throw new IllegalStateException(
+                        "No real Nether terrain voxels installed in authoritative Sable scene: "+
+                        "bridgeActive="+SeamRapierRemoteTerrain.active()+
+                        " nativeSectionUploads="+SeamRapierRemoteTerrain.uploadedSections()+
+                        " realSolidCells="+SeamRapierRemoteTerrain.remoteColliderCells());
+                LOG.warn("WORLDSEAM_FILM_NATIVE_CHART_PROJECTION: realNetherVoxelUploads={} realSolidCells={} sameOverworldRapierScene=true; TRUE contact force/torque, Nether ship membership and independent flight NOT YET PROVEN",
+                    SeamRapierRemoteTerrain.uploadedSections(),
+                    SeamRapierRemoteTerrain.remoteColliderCells());
+            }
             vec=Class.forName("org.joml.Vector3d");
             Class<?> v=Class.forName("org.joml.Vector3dc");
             impulse=pipeline.getClass().getMethod("applyLinearAndAngularImpulse",
