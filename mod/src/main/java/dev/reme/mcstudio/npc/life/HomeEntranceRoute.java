@@ -83,7 +83,17 @@ public final class HomeEntranceRoute {
      */
     public static boolean moveTowardEntrance(PlayerNpcEntity npc,
                                               ServerLevel level, double speed) {
-        Entrance entrance = nearestOpenDoor(level, npc.homePos());
+        return moveTowardEntrance(npc, level, npc.homePos(), speed);
+    }
+
+    /** Same physical doorway routing for a REAL indoor workplace (library,
+     * hospital, shop). The caller supplies the actual saved work coordinate.
+     * Neither routine assumes the target building is the NPC's home.
+     */
+    public static boolean moveTowardEntrance(PlayerNpcEntity npc,
+                                              ServerLevel level,
+                                              BlockPos indoorGoal, double speed) {
+        Entrance entrance = nearestOpenDoor(level, indoorGoal);
         if (entrance == null) return false;
         BlockPos here = npc.blockPosition();
         BlockPos target = here.distSqr(entrance.outside()) <= 2
