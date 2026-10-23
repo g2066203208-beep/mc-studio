@@ -23,6 +23,22 @@ public final class SeamRapierVoxelNeighbors {
         return Kind.FACE;
     }
 
+    /**
+     * Only voxels in the SAME uploaded native section may hide one another
+     * during neighborhood classification. The foreign ServerLevel can have
+     * more loaded chunks than the bounded Rapier projection. Treating a
+     * loaded but unprojected neighbor as support can mark a border voxel
+     * INTERIOR and remove its collision face entirely. Conservative section
+     * edges also remain correct while asynchronous native uploads/removals
+     * are in flight, without relying on a stale upload ordering.
+     */
+    public static boolean sameNativeSection(int x,int y,int z,
+                                            int nx,int ny,int nz) {
+        return Math.floorDiv(x,16)==Math.floorDiv(nx,16)
+            && Math.floorDiv(y,16)==Math.floorDiv(ny,16)
+            && Math.floorDiv(z,16)==Math.floorDiv(nz,16);
+    }
+
     public static boolean matchesWitness(int x,int y,int z,
                                          int witnessX,int witnessY,int witnessZ) {
         return x==witnessX && y==witnessY && z==witnessZ;
