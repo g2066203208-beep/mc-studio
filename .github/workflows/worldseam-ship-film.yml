@@ -26,29 +26,31 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Install actual Minecraft X11 GPU renderer and native MP4 screen recorder
+      - name: Install minimal real X11 display and pinned ffmpeg encoder
         run: |
           set -euo pipefail
           export DEBIAN_FRONTEND=noninteractive
-          # Always preserve a bounded failure log: apt mirrors can stall
-          # indefinitely on an otherwise healthy GitHub runner. All five
-          # real X11/ffmpeg dependencies are necessary, not screenshots.
-          if command -v Xvfb >/dev/null && command -v xdotool >/dev/null &&
-             command -v ffmpeg >/dev/null && command -v convert >/dev/null &&
-             command -v xwd >/dev/null; then
-            echo "WORLDSEAM_FILM_X11_PACKAGES_ALREADY_PRESENT"
-          else
-            echo "WORLDSEAM_FILM_INSTALL_START"
-            timeout 180 sudo apt-get -o Acquire::Retries=2 update -qq
-            timeout 240 sudo apt-get -o Dpkg::Use-Pty=0 install -y --no-install-recommends \
-              xvfb libgl1-mesa-dri libglx-mesa0 xdotool ffmpeg imagemagick x11-apps
-          fi
-          for cmd in Xvfb xdotool ffmpeg convert xwd; do
-            command -v "$cmd" >/dev/null || {
-              echo "WORLDSEAM_FILM_X11_DEPENDENCY_MISSING: $cmd"
-              exit 1
-            }
+          # Previous run 39925099966 failed BEFORE launching Minecraft:
+          # a 65 MB apt ffmpeg+ImageMagick chain timed out on Azure mirror.
+          # Use apt only for the tiny X11 server/input tools, and the pinned
+          # imageio-ffmpeg binary for genuine continuous x11grab MP4 frames.
+          timeout 180 sudo apt-get -o Acquire::Retries=0 update -qq
+          timeout 180 sudo apt-get -o Acquire::Retries=0 -o Dpkg::Use-Pty=0 \
+            install -y --no-install-recommends xvfb xdotool libgl1-mesa-dri libglx-mesa0
+          python -m pip install --disable-pip-version-check --no-input imageio-ffmpeg==0.6.0
+          mkdir -p "$RUNNER_TEMP/worldseam-bin"
+          ln -sf "$(python -c 'import imageio_ffmpeg; print(imageio_ffmpeg.get_ffmpeg_exe())')" \
+            "$RUNNER_TEMP/worldseam-bin/ffmpeg"
+          export PATH="$RUNNER_TEMP/worldseam-bin:$PATH"
+          echo "$RUNNER_TEMP/worldseam-bin" >> "$GITHUB_PATH"
+          for cmd in Xvfb xvfb-run xdotool ffmpeg; do
+            command -v "$cmd" >/dev/null || { echo "WORLDSEAM_FILM_MISSING: $cmd"; exit 1; }
           done
+          ffmpeg -hide_banner -encoders 2>/dev/null | grep -q libx264 ||
+            { echo 'WORLDSEAM_FILM_MISSING_NATIVE_H264_ENCODER'; exit 1; }
+          ffmpeg -hide_banner -devices 2>/dev/null | grep -q x11grab ||
+            { echo 'WORLDSEAM_FILM_MISSING_REAL_X11_CAPTURE'; exit 1; }
+          echo WORLDSEAM_FILM_NATIVE_CAPTURE_DEPS_READY
       - name: Fetch actual released Sable + Create + Aeronautics + required mods
         working-directory: mods/worldseam
         run: |
