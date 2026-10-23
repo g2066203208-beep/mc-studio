@@ -17,12 +17,12 @@ import org.slf4j.Logger;
  * composition (sky, entities, Sable sublevels and transparent clip remain).
  *
  * No fake tile meshes, no cross-dimension BlockEntity copies, and no
- * synchronous chunks. All temporary BufferSource and dispatcher changes are
- * returned to the owning active world in a finally block.
+ * synchronous chunks. Foreign actor draws use the secondary LevelRenderer's
+ * OWN native RenderBuffers, never the active-world owner. The outer scoped
+ * context restores the original renderer and world in a finally block.
  */
 public final class SeamRemoteBlockEntities {
     private static final Logger LOG = LogUtils.getLogger();
-    private static final SeamRenderBuffers OWNED = new SeamRenderBuffers();
     private static final int WINDOW_RADIUS_CHUNKS = 2;
     private static final int MAX_RENDERED_PER_FRAME = 96;
     private static final double MAX_DISTANCE_SQ = 96.0 * 96.0;
@@ -30,6 +30,7 @@ public final class SeamRemoteBlockEntities {
     private static int lastEligible;
     private static int lastFailures;
     private static long framesWithNativeBlocks;
+    private static long nativeBufferFlushes;
     private static long totalRendererFailures;
     private static boolean warned;
 
@@ -45,7 +46,8 @@ public final class SeamRemoteBlockEntities {
         lastRendered = lastEligible = lastFailures = 0;
         Minecraft mc = Minecraft.getInstance();
         if (event.getPoseStack() == null || mc.level == null ||
-            mc.player == null || remote == null || targetEntry == null) return;
+            mc.player == null || remote == null || targetEntry == null ||
+            mc.level != remote || !SeamForeignActorWorldScope.active()) return;
         var cache = remote.getChunkSource();
         var dispatcher = mc.getBlockEntityRenderDispatcher();
         Vec3 camera = event.getCamera().getPosition();
@@ -89,7 +91,7 @@ public final class SeamRemoteBlockEntities {
                             event.getPoseStack().translate(xx,yy,zz);
                             usedBuffers=true;
                             dispatcher.render(tile,partial,event.getPoseStack(),
-                                OWNED.source());
+                                mc.renderBuffers().bufferSource());
                             lastRendered++;
                         } catch (RuntimeException failure) {
                             // A foreign BER may rely on an active-world
@@ -112,7 +114,10 @@ public final class SeamRemoteBlockEntities {
         } finally {
             if(lastRendered>0)framesWithNativeBlocks++;
             try {
-                if(usedBuffers)OWNED.flush();
+                if(usedBuffers) {
+                    mc.renderBuffers().bufferSource().endBatch();
+                    nativeBufferFlushes++;
+                }
             } finally {
                 if(switched)dispatcher.setLevel(mc.level);
             }
@@ -123,12 +128,12 @@ public final class SeamRemoteBlockEntities {
     public static int lastEligible(){return lastEligible;}
     public static int lastFailures(){return lastFailures;}
     public static long framesWithNativeBlocks(){return framesWithNativeBlocks;}
+    public static long nativeBufferFlushes(){return nativeBufferFlushes;}
     public static long totalRendererFailures(){return totalRendererFailures;}
 
     public static void reset() {
-        OWNED.release();
         lastRendered=lastEligible=lastFailures=0;
-        framesWithNativeBlocks=totalRendererFailures=0;
+        framesWithNativeBlocks=totalRendererFailures=nativeBufferFlushes=0;
         warned=false;
     }
 }
