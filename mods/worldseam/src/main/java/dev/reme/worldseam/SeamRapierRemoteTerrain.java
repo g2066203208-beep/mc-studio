@@ -50,6 +50,7 @@ public final class SeamRapierRemoteTerrain {
     private static int offsetY,edgeSection,centerX,centerZ;
     private static long sourceNativeScene;
     private static Method nativeAdd,nativeRemove,bake,colliderHandle;
+    private static Method nativeLinearVelocity,nativeAngularVelocity;
     private static Object destinationBakery;
     private static byte exposedVoxelState;
     private static final Map<BlockState,Integer> COLLIDER_CACHE=new IdentityHashMap<>();
@@ -199,6 +200,12 @@ public final class SeamRapierRemoteTerrain {
             int.class,int.class,int.class,boolean.class);
         nativeAdd.setAccessible(true);
         nativeRemove.setAccessible(true);
+        nativeLinearVelocity=nativeBridge.getDeclaredMethod("getLinearVelocity",
+            long.class,int.class,double[].class);
+        nativeAngularVelocity=nativeBridge.getDeclaredMethod("getAngularVelocity",
+            long.class,int.class,double[].class);
+        nativeLinearVelocity.setAccessible(true);
+        nativeAngularVelocity.setAccessible(true);
         Class<?> bakery=Class.forName(
             "dev.ryanhcode.sable.physics.impl.rapier.collider.RapierVoxelColliderBakery");
         Constructor<?> constructor=bakery.getConstructor(
@@ -296,6 +303,25 @@ public final class SeamRapierRemoteTerrain {
         }
         resetOnlyJavaState();
     }
+    /** Actual JNI Rapier velocity for the same authoritative body ID.
+     * No "contact" flag is inferred from this raw native measurement. */
+    public record Motion(double vx,double vy,double vz,
+                         double wx,double wy,double wz) {}
+
+    public static Motion motion(int nativeBodyID) throws ReflectiveOperationException {
+        if(!active || nativeLinearVelocity==null || nativeAngularVelocity==null)
+            throw new IllegalStateException("Native projected scene not active");
+        double[] linear=new double[3],angular=new double[3];
+        nativeLinearVelocity.invoke(null,sourceNativeScene,nativeBodyID,linear);
+        nativeAngularVelocity.invoke(null,sourceNativeScene,nativeBodyID,angular);
+        for(double v:linear)if(!Double.isFinite(v))
+            throw new IllegalStateException("Native Rapier returned nonfinite velocity");
+        for(double v:angular)if(!Double.isFinite(v))
+            throw new IllegalStateException("Native Rapier returned nonfinite angular velocity");
+        return new Motion(linear[0],linear[1],linear[2],
+                          angular[0],angular[1],angular[2]);
+    }
+
     public static boolean active(){return active;}
     public static long uploadedSections(){return totalNativeUploads;}
     public static long remoteColliderCells(){return totalRemoteSolidCells;}
