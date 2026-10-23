@@ -22,11 +22,10 @@ import org.slf4j.Logger;
  */
 public final class SeamRemoteEntities {
     private static final Logger LOG=LogUtils.getLogger();
-    private static final SeamRenderBuffers OWNED=new SeamRenderBuffers();
     private static final int MAX_ENTITIES=96;
     private static final double MAX_DISTANCE_SQ=96.0*96.0;
     private static int lastEligible,lastRendered,lastErrors;
-    private static long framesWithRealEntities,totalErrors;
+    private static long framesWithRealEntities,totalErrors,nativeBufferFlushes;
     private static boolean warned;
 
     private SeamRemoteEntities() {}
@@ -38,7 +37,7 @@ public final class SeamRemoteEntities {
         Minecraft mc=Minecraft.getInstance();
         if(event.getPoseStack()==null||mc.level==null||mc.player==null||
            remote==null||targetEntry==null||
-           (remote==mc.level && !SeamForeignActorWorldScope.active()))return;
+           mc.level!=remote || !SeamForeignActorWorldScope.active())return;
         var dispatcher=mc.getEntityRenderDispatcher();
         var camera=event.getCamera();
         Vec3 cameraPos=camera.getPosition();
@@ -72,7 +71,7 @@ public final class SeamRemoteEntities {
                     int light=dispatcher.getPackedLightCoords(entity,partial);
                     float yaw=entity.yRotO+(entity.getYRot()-entity.yRotO)*partial;
                     dispatcher.render(entity,dx,dy,dz,yaw,partial,
-                        event.getPoseStack(),OWNED.source(),light);
+                        event.getPoseStack(),mc.renderBuffers().bufferSource(),light);
                     lastRendered++;
                 } catch(RuntimeException failure) {
                     lastErrors++;
@@ -88,7 +87,10 @@ public final class SeamRemoteEntities {
         } finally {
             if(lastRendered>0)framesWithRealEntities++;
             try {
-                if(usedBuffers)OWNED.flush();
+                if(usedBuffers) {
+                    mc.renderBuffers().bufferSource().endBatch();
+                    nativeBufferFlushes++;
+                }
             } finally {
                 if(switched)dispatcher.prepare(mc.level,camera,mc.crosshairPickEntity);
             }
@@ -98,11 +100,11 @@ public final class SeamRemoteEntities {
     public static int lastEligible(){return lastEligible;}
     public static int lastRendered(){return lastRendered;}
     public static long framesWithRealEntities(){return framesWithRealEntities;}
+    public static long nativeBufferFlushes(){return nativeBufferFlushes;}
     public static long totalErrors(){return totalErrors;}
     public static void reset() {
-        OWNED.release();
         lastEligible=lastRendered=lastErrors=0;
-        framesWithRealEntities=totalErrors=0;
+        framesWithRealEntities=totalErrors=nativeBufferFlushes=0;
         warned=false;
     }
 }
