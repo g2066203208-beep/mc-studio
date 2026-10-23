@@ -55,6 +55,8 @@ public final class SeamRapierRemoteTerrain {
     private static Method nativeLinearVelocity,nativeAngularVelocity;
     private static Object destinationBakery;
     private static byte exposedVoxelState;
+    private static byte[] neighborhoodBytes;
+    private static Method hasCollisionCallback;
     private static final Map<BlockState,Integer> COLLIDER_CACHE=new IdentityHashMap<>();
     private static boolean active,faulted;
     private static long totalNativeUploads,totalRemoteSolidCells;
@@ -78,6 +80,12 @@ public final class SeamRapierRemoteTerrain {
             witnessPos=pos.immutable();
             nativeWitnessContacts.set(0);
             latestNativeImpactSpeed=0;
+            witnessColliderPacked=0;
+            // Re-upload the exact native section if the witness is registered
+            // after a section was already baked. Never alter other obsidian.
+            if(active && level==target)
+                enqueue(new NativeSection(Math.floorDiv(pos.getX(),16),
+                    Math.floorDiv(pos.getY(),16),Math.floorDiv(pos.getZ(),16)));
         } else {
             throw new IllegalArgumentException(
                 "Foreign Rapier witness must be a REAL Nether obsidian block");
@@ -100,6 +108,22 @@ public final class SeamRapierRemoteTerrain {
         int cx=Math.floorDiv(p.getX(),16),cz=Math.floorDiv(p.getZ(),16);
         if(Math.abs(cx-centerX)>WINDOW_RADIUS ||
            Math.abs(cz-centerZ)>WINDOW_RADIUS)return;
+        enqueueIfResident(cx,cy,cz);
+        // Native neighborhood classification depends on both sides of a
+        // section face. Re-bake a loaded adjacent section when the edit
+        // touches that face, rather than leaving stale native contacts.
+        if(Math.floorMod(p.getX(),16)==0)enqueueIfResident(cx-1,cy,cz);
+        if(Math.floorMod(p.getX(),16)==15)enqueueIfResident(cx+1,cy,cz);
+        if(Math.floorMod(p.getY(),16)==0)enqueueIfResident(cx,cy-1,cz);
+        if(Math.floorMod(p.getY(),16)==15)enqueueIfResident(cx,cy+1,cz);
+        if(Math.floorMod(p.getZ(),16)==0)enqueueIfResident(cx,cy,cz-1);
+        if(Math.floorMod(p.getZ(),16)==15)enqueueIfResident(cx,cy,cz+1);
+    }
+
+    private static void enqueueIfResident(int cx,int cy,int cz) {
+        if(cy>edgeSection || cy<edgeSection-SECTIONS_BELOW_EDGE+1 ||
+           Math.abs((long)cx-centerX)>WINDOW_RADIUS ||
+           Math.abs((long)cz-centerZ)>WINDOW_RADIUS)return;
         enqueue(new NativeSection(cx,cy,cz));
     }
 
@@ -245,10 +269,18 @@ public final class SeamRapierRemoteTerrain {
         colliderHandle=data.getMethod("handle");
         Class<?> neighborhood=Class.forName(
             "dev.ryanhcode.sable.physics.chunk.VoxelNeighborhoodState");
-        @SuppressWarnings({"unchecked","rawtypes"})
-        Object corner=Enum.valueOf((Class)neighborhood,"CORNER");
-        exposedVoxelState=((Number)neighborhood.getMethod("byteRepresentation")
-            .invoke(corner)).byteValue();
+        neighborhoodBytes=new byte[SeamRapierVoxelNeighbors.Kind.values().length];
+        Method representation=neighborhood.getMethod("byteRepresentation");
+        for(var kind:SeamRapierVoxelNeighbors.Kind.values()) {
+            @SuppressWarnings({"unchecked","rawtypes"})
+            Object nativeKind=Enum.valueOf((Class)neighborhood,kind.name());
+            neighborhoodBytes[kind.ordinal()]=((Number)representation
+                .invoke(nativeKind)).byteValue();
+        }
+        exposedVoxelState=neighborhoodBytes[SeamRapierVoxelNeighbors.Kind.CORNER.ordinal()];
+        hasCollisionCallback=Class.forName(
+            "dev.ryanhcode.sable.api.block.BlockWithSubLevelCollisionCallback")
+            .getMethod("hasCallback",BlockState.class);
         source=upper;target=lower;offsetY=shift;
         edgeSection=SeamRapierChartMath.topSection(SeamStackRuntime.top(lower));
         centerX=cx;centerZ=cz;
@@ -277,30 +309,35 @@ public final class SeamRapierRemoteTerrain {
         for(int by=0;by<16;by++)for(int bz=0;bz<16;bz++)for(int bx=0;bx<16;bx++) {
             BlockState state=section.getBlockState(bx,by,bz);
             if(state.isAir())continue;
-            Integer value=COLLIDER_CACHE.get(state);
-            if(value==null) {
+            int x=(s.cx()<<4)+bx,y=(s.cy()<<4)+by,z=(s.cz()<<4)+bz;
+            int index=bx+(bz<<4)+(by<<8);
+            // Only the ONE real Nether witness voxel may receive the JNI
+            // observer. A BlockState-wide cache made every obsidian block
+            // look like the witness, invalidating native-contact evidence.
+            if(witnessLevel==target && witnessPos!=null &&
+                state.is(net.minecraft.world.level.block.Blocks.OBSIDIAN) &&
+                SeamRapierVoxelNeighbors.matchesWitness(x,y,z,
+                    witnessPos.getX(),witnessPos.getY(),witnessPos.getZ())) {
+                if(witnessColliderPacked==0)
+                    witnessColliderPacked=createObservedObsidianCollider();
+                packed[index]=witnessColliderPacked;
+                filled++;
+                continue;
+            }
+            // Cache collider handles, NOT their neighborhood bytes: those
+            // depend on six real neighboring voxels and can change on edits.
+            Integer colliderBase=COLLIDER_CACHE.get(state);
+            if(colliderBase==null) {
                 Object collider=bake.invoke(destinationBakery,state);
                 int id=collider==null?-1:((Number)colliderHandle.invoke(collider)).intValue();
-                if(witnessPos!=null &&
-                    state.is(net.minecraft.world.level.block.Blocks.OBSIDIAN)) {
-                    if(witnessColliderPacked==0)
-                        witnessColliderPacked=createObservedObsidianCollider();
-                    value=witnessColliderPacked;
-                    COLLIDER_CACHE.put(state,value);
-                    packed[bx+(bz<<4)+(by<<8)]=value;
-                    filled++;
-                    continue;
-                }
-                // Sable's native format: (colliderID+1) << 16 | VoxelNeighborhoodState.
-                // 0 is air. CORNER is conservative and preserves custom box shape,
-                // but must be replaced by exact neighbor classification before
-                // declaring full physics acceptance.
                 if(id>=65535)throw new IllegalStateException("Native collider handle overflow");
-                value=id<0?0:((id+1)<<16)|(exposedVoxelState&0xFF);
-                COLLIDER_CACHE.put(state,value);
+                colliderBase=id<0?0:(id+1)<<16;
+                COLLIDER_CACHE.put(state,colliderBase);
             }
-            packed[bx+(bz<<4)+(by<<8)]=value;
-            if(value!=0)filled++;
+            if(colliderBase==0)continue;
+            var kind=classifyNativeVoxel(state,x,y,z);
+            packed[index]=colliderBase|(neighborhoodBytes[kind.ordinal()]&0xFF);
+            filled++;
         }
         int mappedCy=SeamRapierChartMath.mapSection(s.cy(),
             SeamStackRuntime.bottom(source),SeamStackRuntime.top(target));
@@ -317,6 +354,39 @@ public final class SeamRapierRemoteTerrain {
             LOG.info("WORLDSEAM_RAPIER_EXPERIMENT_NATIVE_TERRAIN: targetSection={} mappedSection={} sourceScene={} realColliderCells={} totalUploaded={} activeTerrainSections={} (ONE native solver, ZERO ship clones; contact impulses NOT VERIFIED)",
                 s.cy(),mappedCy,sourceNativeScene,filled,totalNativeUploads,
                 uploaded.size()+1);
+    }
+
+    // Only loaded, projected native terrain is allowed to contribute
+    // neighborhood support; never force-load a target chunk or use Nether
+    // roof voxels above its configured logical top.
+    private static boolean fullNativeNeighbor(int x,int y,int z) {
+        long low=((long)edgeSection-SECTIONS_BELOW_EDGE+1L)*16L;
+        long high=((long)edgeSection+1L)*16L;
+        if(y<low || y>=high || y<target.getMinBuildHeight() ||
+           y>=target.getMaxBuildHeight())return false;
+        LevelChunk chunk=target.getChunkSource().getChunkNow(
+            Math.floorDiv(x,16),Math.floorDiv(z,16));
+        if(chunk==null)return false;
+        BlockPos p=new BlockPos(x,y,z);
+        BlockState state=chunk.getBlockState(p);
+        return !state.isAir() && state.isCollisionShapeFullBlock(target,p);
+    }
+
+    private static SeamRapierVoxelNeighbors.Kind classifyNativeVoxel(
+        BlockState state,int x,int y,int z) throws ReflectiveOperationException {
+        BlockPos p=new BlockPos(x,y,z);
+        boolean full=state.isCollisionShapeFullBlock(target,p);
+        // Sable treats liquid and callback-bearing blocks conservatively.
+        // Kelp variants are likewise fluid-like despite not always liquid().
+        boolean special=state.liquid() ||
+            state.getBlock() instanceof net.minecraft.world.level.block.KelpBlock ||
+            state.getBlock() instanceof net.minecraft.world.level.block.KelpPlantBlock ||
+            Boolean.TRUE.equals(hasCollisionCallback.invoke(null,state));
+        if(!full || special)return SeamRapierVoxelNeighbors.Kind.CORNER;
+        return SeamRapierVoxelNeighbors.classify(true,true,false,
+            fullNativeNeighbor(x-1,y,z),fullNativeNeighbor(x+1,y,z),
+            fullNativeNeighbor(x,y-1,z),fullNativeNeighbor(x,y+1,z),
+            fullNativeNeighbor(x,y,z-1),fullNativeNeighbor(x,y,z+1));
     }
 
     /**
@@ -394,6 +464,8 @@ public final class SeamRapierRemoteTerrain {
         active=false;
         totalNativeUploads=totalRemoteSolidCells=0;
         witnessColliderPacked=0;
+        neighborhoodBytes=null;
+        hasCollisionCallback=null;
         witnessCallback=null;
         witnessPos=null;
         witnessLevel=null;
