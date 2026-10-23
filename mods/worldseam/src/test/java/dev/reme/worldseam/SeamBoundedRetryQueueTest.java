@@ -28,7 +28,7 @@ final class SeamBoundedRetryQueueTest {
         assertEquals(2, q.deferredCount());
         assertEquals("old0", q.poll());
         q.complete("old0");
-        assertEquals(0, q.deferredCount() == 0 ? 0 : 1); // both remain accounted for
+        assertEquals(1, q.deferredCount()); // second deferred edit remains accounted for
         assertEquals(2, q.size());
         assertEquals("old1", q.poll());
         q.complete("old1");
