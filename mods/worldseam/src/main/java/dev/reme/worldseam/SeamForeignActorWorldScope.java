@@ -67,6 +67,11 @@ public final class SeamForeignActorWorldScope {
             // dimension reference and restore it before vanilla resumes.
             particles.worldseam$setLevel(foreign);
             mc.getEntityRenderDispatcher().prepare(foreign,sourceCamera,null);
+            // Verify the real Minecraft and GameRenderer now use the
+            // secondary LevelRenderer's dedicated native buffer owner.
+            if(mc.renderBuffers()!=foreignBuffers ||
+               game.worldseam$getRenderBuffers()!=foreignBuffers)
+                throw new IllegalStateException("Foreign native buffer scope not installed");
         } catch(RuntimeException | Error failure) {
             failures++;
             restore(mc,originalWorld,originalRenderer,originalParticleWorld,
