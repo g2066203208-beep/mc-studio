@@ -124,6 +124,10 @@ public final class NpcCommands {
                     .then(Commands.argument("role", StringArgumentType.word())
                         .executes(ctx -> npcCameraStart(ctx.getSource(),
                             StringArgumentType.getString(ctx,"role"), NpcCameraController.Mode.CHASE)))))
+            .then(Commands.literal("emote")
+                .then(Commands.argument("action",StringArgumentType.word())
+                    .executes(ctx->PlayerEmoteActions.run(
+                        ctx.getSource(),StringArgumentType.getString(ctx,"action")))))
             .then(Commands.literal("city")
                 .executes(ctx -> cityHelp(ctx.getSource()))
                 .then(Commands.literal("survey")
