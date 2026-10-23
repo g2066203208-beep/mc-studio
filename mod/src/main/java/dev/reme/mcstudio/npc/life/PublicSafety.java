@@ -160,9 +160,11 @@ public final class PublicSafety {
             if (!guard.canPoliceSwing(tick)) return true;
             guard.markPoliceSwing(tick);
             guard.swing(net.minecraft.world.InteractionHand.MAIN_HAND);
-            boolean landed = suspect.getHealth() <= 2.0F
-                || suspect.hurt(guard.damageSources().mobAttack(guard),
-                    Math.min(1.0F, suspect.getHealth() - 2.0F));
+            // A harmless no-damage proximity "hit" is not evidence of a
+            // successful physical strike. Never drop health below one heart.
+            float nonlethal = Math.min(1.0F, suspect.getHealth() - 2.0F);
+            boolean landed = nonlethal > 0.0F
+                && suspect.hurt(guard.damageSources().mobAttack(guard), nonlethal);
             if (!landed) {
                 guard.setAction("nonlethal baton strike blocked; pursuing suspect");
                 return true;
