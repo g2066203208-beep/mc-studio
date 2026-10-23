@@ -215,6 +215,36 @@ public final class SeamShipFilmE2E {
             home.setBlock(canopy,Blocks.LIGHT_BLUE_STAINED_GLASS.defaultBlockState(),3);
             blocks.add(canopy);
 
+            // Stage a REAL PLAYER-OPERABLE cabin, not decorative cyan voxels.
+            // Sable 2.x includes a Create SeatBlock rider compatibility
+            // mixin; the Simulated project supplies native steering wheel
+            // and throttle lever. The pilot must actually interact with
+            // these through Minecraft input in a separate pilot acceptance
+            // test: their presence alone is NOT proof of manual flight.
+            var seat=net.minecraft.core.registries.BuiltInRegistries.BLOCK.get(
+                net.minecraft.resources.ResourceLocation.parse("create:blue_seat"));
+            var wheel=net.minecraft.core.registries.BuiltInRegistries.BLOCK.get(
+                net.minecraft.resources.ResourceLocation.parse("simulated:steering_wheel"));
+            var throttle=net.minecraft.core.registries.BuiltInRegistries.BLOCK.get(
+                net.minecraft.resources.ResourceLocation.parse("simulated:throttle_lever"));
+            if(seat==Blocks.AIR || wheel==Blocks.AIR || throttle==Blocks.AIR)
+                throw new IllegalStateException(
+                    "Official Create seat / Simulated steering wheel or throttle missing");
+            BlockPos seatPos=anchor.offset(0,2,1);
+            BlockPos wheelPos=anchor.offset(0,2,-2);
+            BlockPos throttlePos=anchor.offset(1,2,0);
+            for(var cabin:java.util.List.of(
+                    java.util.Map.entry(seatPos,seat.defaultBlockState()),
+                    java.util.Map.entry(wheelPos,wheel.defaultBlockState()),
+                    java.util.Map.entry(throttlePos,throttle.defaultBlockState()))) {
+                if(!home.setBlock(cabin.getKey(),cabin.getValue(),3))
+                    throw new IllegalStateException(
+                        "Could not place authentic pilot control "+cabin.getKey());
+                blocks.add(cabin.getKey());
+            }
+            LOG.info("WORLDSEAM_FILM_AUTHENTIC_COCKPIT_STAGED: seat={} wheel={} throttle={}, allNativeBlocks=true, actualPilotBoardingUnverified=true",
+                seatPos,wheelPos,throttlePos);
+
             // IMPORTANT: actually build Create:Aeronautics machinery instead
             // of a plain blue/yellow raft that our CI forcibly pushes.
             // Create Creative Motor is a real KineticBlockEntity (initial
