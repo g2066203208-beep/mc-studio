@@ -151,11 +151,24 @@ public final class ResidentBedLife {
             return false;
         }
 
-        // A bed is a fixed indoor destination, not a road waypoint. The
-        // generic RoadNavigator may prefer an outdoor pavement tile even
-        // when a usable doorway and bed aisle are immediately reachable.
-        // Only re-plan at 40-tick staggered intervals: at most four local
-        // vanilla A* requests per resident per interval, never chunk-load.
+        // Vanilla A* is bounded by the mob's FOLLOW_RANGE. Requesting a
+        // 20-40 block direct route from work to an indoor bed returns an
+        // unreachable path, even though roads and doors are connected.
+        // Commute using short real pavement waypoints first, then use the
+        // exact indoor aisle path once within 10 blocks of the HOME.
+        // This does not move the entity except through vanilla navigation.
+        if (npc.blockPosition().distSqr(npc.homePos()) > 100) {
+            if (MovementPolicy.due(tick, npc.getId(), 40)) {
+                if (RoadNavigator.moveToward(npc, level, npc.homePos(), 1.0))
+                    npc.setAction("walking home on physical streets before bed");
+                else
+                    npc.setAction("home commute path temporarily blocked");
+            }
+            return true;
+        }
+        // Once close, a bed is an indoor destination, NOT an outdoor road
+        // waypoint. Only re-plan at 40-tick staggered intervals: at most
+        // four bounded native A* requests per resident, no chunk tickets.
         if (MovementPolicy.due(tick, npc.getId(), 40)) {
             net.minecraft.world.level.pathfinder.Path route =
                 reachableBedSide(npc, level, bed);
