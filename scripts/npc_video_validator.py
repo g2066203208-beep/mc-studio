@@ -1,1 +1,1 @@
-print('hello')
+print('NPC footage verifier placeholder')
