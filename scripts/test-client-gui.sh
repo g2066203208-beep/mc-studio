@@ -168,8 +168,8 @@ if [[ "${REME_CITY_VISUAL:-0}" == "1" ]]; then
     # A real NeoForge client controls an OP in a disposable world.
     # Terrain preparation only happens here, NEVER in animation stage code.
     say_city '/kill @e[type=reme_studio:player_npc,distance=..30]' 2
-    say_city '/fill ~-14 ~-1 ~-12 ~14 ~-1 ~12 minecraft:stone' 4
-    say_city '/fill ~-14 ~ ~-12 ~14 ~7 ~12 minecraft:air' 4
+    say_city '/fill ~-25 ~-1 ~-24 ~25 ~-1 ~24 minecraft:smooth_stone' 4
+    say_city '/fill ~-25 ~ ~-24 ~25 ~7 ~24 minecraft:air' 4
     say_city '/summon minecraft:marker ~ ~ ~ {Tags:["reme_anim_origin"]}' 2
     # Start genuine continuous X11 recording BEFORE actual Minecraft actors
     # spawn. Not a stitched screenshot pseudo-animation.
@@ -193,9 +193,20 @@ if [[ "${REME_CITY_VISUAL:-0}" == "1" ]]; then
       name="${poses[$i]}"
       # /execute at moves the OBSERVER, not the NPC. All action clips are
       # already applied by the actual renderer to each separate NPC model.
-      say_city "/execute at @e[type=reme_studio:player_npc,tag=$tag,limit=1] run tp @s ~0 ~1.6 ~4 facing entity @e[type=reme_studio:player_npc,tag=$tag,limit=1] eyes" 2
+      # Fix the former invalid nested "facing entity" command. Camera
+      # positions are offset from the validated static origin marker and do
+      # not move any NPC. 3.2 blocks in front of each real actor gives a
+      # meaningful 150-250 pixel upright silhouette in a 720p frame.
+      dx=$(( (i % 6) * 4 - 10 ))
+      dz=$(( (i / 6) * 4 - 8 ))
+      camz=$(( dz + 3 ))
+      say_city "/execute at @e[type=minecraft:marker,tag=reme_anim_origin,limit=1] run tp @s ~${dx} ~2 ~${camz} facing ~${dx} ~1 ~${dz}" 1
       photo_city "client-gui-playeranimator-motion-$(printf '%02d' "$i")-$name.png"
-      printf '%02d %s tag=%s screenshot=client-gui-playeranimator-motion-%02d-%s.png\n' "$i" "$name" "$tag" "$i" "$name" >>client-gui-playeranimator-motion-manifest.txt
+      # Two genuinely separate frames, not two copies of a still. They
+      # reveal whether the actor actually moves during the clip timeline.
+      sleep 2
+      photo_city "client-gui-playeranimator-motion-$(printf '%02d' "$i")-$name-later.png"
+      printf '%02d %s tag=%s camera=(%s,%s) screenshot=client-gui-playeranimator-motion-%02d-%s.png paired=later\n' "$i" "$name" "$tag" "$dx" "$camz" "$i" "$name" >>client-gui-playeranimator-motion-manifest.txt
       echo "REME_NPC_REAL_GUI_MOTION_PHOTO index=$i name=$name"
     done
     kill -INT "$ANIM_VIDEO_PID" 2>/dev/null || true
@@ -211,6 +222,9 @@ if [[ "${REME_CITY_VISUAL:-0}" == "1" ]]; then
     for label in "${poses[@]}"; do
       grep -Fq "REME_NPC_REAL_MODEL_ANIMATED action=$label " client-gui.log || {
         echo "FAIL: original Minecraft PlayerModel renderer NEVER sampled $label bones"; exit 1
+      }
+      test -s "client-gui-playeranimator-motion-$(printf '%02d' "$(printf '%s\n' "${poses[@]}" | grep -n "^$label$" | cut -d: -f1 | awk '{printf "%d", $1-1}')")-$label-later.png" || {
+        echo "FAIL: real paired temporal screenshot missing for $label"; exit 1
       }
     done
     grep -Fq 'REME_NPC_REAL_CLIENT_SHARED_RIG playeranimator=true bothActorKinds=true registeredKeyframeClips=30' client-gui.log || {
