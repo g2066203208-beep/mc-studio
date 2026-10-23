@@ -66,6 +66,13 @@ jobs:
             echo 'Failed: no real Sable UUID ever moved under mass-scaled native Rapier Newton force'
             exit 1
           fi
+          # A Sable raft forced by external Newtons is not a powered
+          # Aeronautics aircraft. Require the true ACTOR + Create RPM +
+          # positive live thrust gate from a SEPARATE no-external-force test.
+          if ! grep -q 'WORLDSEAM_REAL_AERO_NATIVE_POWER_PASS' real-sable-gametest.log; then
+            echo 'Failed: authentic assembled Aeronautics smart propeller never received Create RPM and generated positive native thrust'
+            exit 1
+          fi
           echo 'WorldSeam real released-mod GameTest assembled and observed an actual Sable hull crossing the seam. Native dual-chart Rapier contacts still NOT implemented.'
 
       - name: Publish logs and version hashes, never redistribute third-party jars

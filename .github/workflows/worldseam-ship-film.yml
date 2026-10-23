@@ -29,7 +29,7 @@ jobs:
       - name: Install actual Minecraft X11 GPU renderer and native MP4 screen recorder
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y xvfb libgl1-mesa-dri libglx-mesa0 xdotool ffmpeg imagemagick
+          sudo apt-get install -y xvfb libgl1-mesa-dri libglx-mesa0 xdotool ffmpeg imagemagick x11-apps
       - name: Fetch actual released Sable + Create + Aeronautics + required mods
         working-directory: mods/worldseam
         run: |

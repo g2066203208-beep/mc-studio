@@ -42,6 +42,7 @@ public final class SeamShipFilmE2E {
     private static int x,z;
     private static UUID viewerId;
     private static ArrayList<BlockPos> stagingBlocks;
+    private static ArrayList<BlockPos> realRunwayBlocks;
     private static BlockPos stagingAnchor;
     private static ServerLevel stagingHome;
     private static int upTicks,downTicks,passes;
@@ -167,7 +168,22 @@ public final class SeamShipFilmE2E {
                 net.minecraft.world.effect.MobEffects.NIGHT_VISION,
                 20*60*20,0,false,false));
             home.setDayTime(6000L);
-            player.connection.teleport(x+8,-57,z+8,135,13);
+            player.connection.teleport(x+8,-52,z+8,135,29);
+            // Keep the ACTUAL Sable hull physically supported while the
+            // real client receives matching UUID/render data. In the prior
+            // film the ship fell through Y=-64 BEFORE the first recorded
+            // frame (downTick=0). This is a real 3x3 stone runway beneath
+            // the aircraft, NOT frozen pose, no gravity override or fake
+            // projected rendering. Remove it only after the first genuine
+            // ready screenshot/flight gate.
+            realRunwayBlocks = new ArrayList<>();
+            for(int dx=-1;dx<=1;dx++)for(int dz=-1;dz<=1;dz++){
+                BlockPos support=new BlockPos(x+dx,-59,z+dz);
+                if(!home.setBlock(support,Blocks.OBSIDIAN.defaultBlockState(),3))
+                    throw new IllegalStateException("Could not stage real runway "+support);
+                realRunwayBlocks.add(support);
+            }
+            LOG.info("WORLDSEAM_FILM_REAL_RUNWAY_READY: vanilla supportBlocks={} y=-59, real physics will stay grounded until client has tracked same ship UUID",realRunwayBlocks.size());
             // Genuine 9x7 Minecraft-block aircraft silhouette: tapered
             // nose, center fuselage, swept wings, lit engine and glass
             // canopy. Every voxel is a real world block *before* the
@@ -198,6 +214,36 @@ public final class SeamShipFilmE2E {
             BlockPos canopy=anchor.offset(0,2,-1);
             home.setBlock(canopy,Blocks.LIGHT_BLUE_STAINED_GLASS.defaultBlockState(),3);
             blocks.add(canopy);
+
+            // Stage a REAL PLAYER-OPERABLE cabin, not decorative cyan voxels.
+            // Sable 2.x includes a Create SeatBlock rider compatibility
+            // mixin; the Simulated project supplies native steering wheel
+            // and throttle lever. The pilot must actually interact with
+            // these through Minecraft input in a separate pilot acceptance
+            // test: their presence alone is NOT proof of manual flight.
+            var seat=net.minecraft.core.registries.BuiltInRegistries.BLOCK.get(
+                net.minecraft.resources.ResourceLocation.parse("create:blue_seat"));
+            var wheel=net.minecraft.core.registries.BuiltInRegistries.BLOCK.get(
+                net.minecraft.resources.ResourceLocation.parse("simulated:steering_wheel"));
+            var throttle=net.minecraft.core.registries.BuiltInRegistries.BLOCK.get(
+                net.minecraft.resources.ResourceLocation.parse("simulated:throttle_lever"));
+            if(seat==Blocks.AIR || wheel==Blocks.AIR || throttle==Blocks.AIR)
+                throw new IllegalStateException(
+                    "Official Create seat / Simulated steering wheel or throttle missing");
+            BlockPos seatPos=anchor.offset(0,2,1);
+            BlockPos wheelPos=anchor.offset(0,2,-2);
+            BlockPos throttlePos=anchor.offset(1,2,0);
+            for(var cabin:java.util.List.of(
+                    java.util.Map.entry(seatPos,seat.defaultBlockState()),
+                    java.util.Map.entry(wheelPos,wheel.defaultBlockState()),
+                    java.util.Map.entry(throttlePos,throttle.defaultBlockState()))) {
+                if(!home.setBlock(cabin.getKey(),cabin.getValue(),3))
+                    throw new IllegalStateException(
+                        "Could not place authentic pilot control "+cabin.getKey());
+                blocks.add(cabin.getKey());
+            }
+            LOG.info("WORLDSEAM_FILM_AUTHENTIC_COCKPIT_STAGED: seat={} wheel={} throttle={}, allNativeBlocks=true, actualPilotBoardingUnverified=true",
+                seatPos,wheelPos,throttlePos);
 
             // IMPORTANT: actually build Create:Aeronautics machinery instead
             // of a plain blue/yellow raft that our CI forcibly pushes.
@@ -403,6 +449,29 @@ public final class SeamShipFilmE2E {
             // Hold ship before motion until real rendered client sublevel
             // exists, then leave >=40 native ticks for actual render uploads.
             if(!shipClientRenderReady || sinceAssembly<40)return;
+            // Earlier recording falsely showed a DOWN marker on the first
+            // flight tick after 40 ticks of uncontrolled free-fall.
+            // Reject it: an aircraft must first be clearly parked above the
+            // seam in the same native world, then take off in the footage.
+            try {
+                var parked=currentHull();
+                if(parked.minY < PLANE+1.0 || parked.maxY <= PLANE)
+                    throw new IllegalStateException(
+                        "Real aircraft already fell through the seam before takeoff: "+parked);
+                if(realRunwayBlocks==null||realRunwayBlocks.size()!=9)
+                    throw new IllegalStateException("Missing 3x3 real runway");
+                ServerLevel home=stagingHome;
+                for(BlockPos support:realRunwayBlocks)
+                    if(!home.setBlock(support,Blocks.AIR.defaultBlockState(),3))
+                        throw new IllegalStateException(
+                            "Cannot clear real support before takeoff: "+support);
+                realRunwayBlocks.clear();
+                LOG.info("WORLDSEAM_FILM_REAL_TAKEOFF: uuid={} parkedMinY={} parkedMaxY={} removedNativeRunway=true, noTeleport=true",
+                    shipUuid,parked.minY,parked.maxY);
+            } catch(Exception e) {
+                fail("Real parked-ship takeoff fixture failed: "+e,e);
+                return;
+            }
             startedRealFlight=true;
             realFlightStartTick=server.getTickCount();
             LOG.info("WORLDSEAM_FILM_CLIENT_VISIBLE_SHIP_READY: sameUuid={} clientSeenFrames={} clientRenderableFrames={} realClientRenderData=true",
