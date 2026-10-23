@@ -5,6 +5,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.item.Item;
@@ -57,6 +58,12 @@ public final class ConvenienceStoreCrime {
             || shopper.isSleeping() || shopper.isDetained(tick)) return false;
 
         if (shopper.hasUnpaidShopItem(tick)) {
+            // Actually unconscious: no script-driven fleeing while knocked down.
+            if (shopper.isPoliceStunned(tick)) {
+                shopper.getNavigation().stop();
+                shopper.setAction("unconscious after nonlethal officer strikes; awaiting handcuffs");
+                return true;
+            }
             // Don't let hunger/social AI override an actual criminal escape.
             PlayerNpcEntity merchant = level.getEntity(shopper.unpaidMerchant())
                 instanceof PlayerNpcEntity s ? s : null;
@@ -87,13 +94,12 @@ public final class ConvenienceStoreCrime {
                 shopper.setAction("leaving staffed convenience store with stolen real food, unpaid");
                 return true;
             }
-            // A reported suspect must keep walking away unless apprehended.
-            if (MovementPolicy.due(tick, shopper.getId(), 20)) {
-                BlockPos exit = merchant.workPos().east(13);
-                if (DailyRoaming.inRange(shopper, exit) && level.hasChunkAt(exit)
-                    && shopper.blockPosition().distSqr(exit) > 4)
-                    RoadNavigator.moveToward(shopper, level, exit, 1.04);
-            }
+            // Continue REAL evasion after the initial shop door. The old
+            // east(13) stationary marker made a thief wait for the officer.
+            // Replan only when a genuine vanilla navigation path is exhausted.
+            if (MovementPolicy.due(tick, shopper.getId(), 20)
+                && shopper.getNavigation().isDone())
+                fleeAlongLoadedStreets(shopper, merchant, level);
             return true;
         }
 
@@ -130,6 +136,47 @@ public final class ConvenienceStoreCrime {
             >= escapeWithoutPayChance(nearbySecurity(seller, level, tick)))
             return false;
         return takeUnpaidFood(shopper, seller, level, tick);
+    }
+
+    /** Choose a real walkable street tile AWAY from the nearest pursuing
+     * officer. No teleport, fake escape event, generated terrain or chunk load.
+     * Returning false means the suspect is physically trapped, not escaped. */
+    private static boolean fleeAlongLoadedStreets(PlayerNpcEntity thief,
+                                                   PlayerNpcEntity merchant,
+                                                   ServerLevel level) {
+        PlayerNpcEntity pursuing = level.getEntitiesOfClass(
+            PlayerNpcEntity.class, thief.getBoundingBox().inflate(18),
+            npc -> npc.isAlive() && npc.profession() == PlayerNpcEntity.Profession.GUARD
+                && thief.getUUID().equals(npc.policeSuspect()))
+            .stream().min(Comparator.comparingDouble(thief::distanceToSqr))
+            .orElse(null);
+        BlockPos origin = thief.blockPosition();
+        BlockPos best = null;
+        double highest = Double.NEGATIVE_INFINITY;
+        for (Direction dir : Direction.Plane.HORIZONTAL) {
+            BlockPos goal = origin.relative(dir, 7);
+            if (!DailyRoaming.inRange(thief, goal) || !level.hasChunkAt(goal)
+                || !level.hasChunkAt(goal.below())
+                || !level.getBlockState(goal).isAir()
+                || !level.getBlockState(goal.above()).isAir()) continue;
+            var floor = level.getBlockState(goal.below());
+            if (!(floor.is(Blocks.GRAY_CONCRETE) || floor.is(Blocks.SMOOTH_STONE)
+                || floor.is(Blocks.WHITE_CONCRETE) || floor.is(Blocks.YELLOW_CONCRETE)
+                || floor.is(Blocks.STONE_BRICKS) || floor.is(Blocks.GRAVEL))) continue;
+            double score = goal.distSqr(merchant.blockPosition()) * 0.2;
+            if (pursuing != null) score += goal.distSqr(pursuing.blockPosition());
+            if (score > highest) { highest = score; best = goal; }
+        }
+        if (best == null) return false;
+        boolean moving = RoadNavigator.moveToward(thief, level, best, 1.32);
+        if (moving) {
+            thief.setAction("actively fleeing pursuing guard along physical city road");
+            System.out.println("REME_NPC_STORY stage=active_flight suspect="
+                + thief.getUUID() + " x=" + thief.getX() + " z=" + thief.getZ()
+                + " destination=" + best.toShortString()
+                + " officer=" + (pursuing == null ? "none" : pursuing.getUUID()));
+        }
+        return moving;
     }
 
     /**
