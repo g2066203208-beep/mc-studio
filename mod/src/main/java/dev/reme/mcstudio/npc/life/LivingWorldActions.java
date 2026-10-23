@@ -79,7 +79,9 @@ public final class LivingWorldActions {
                 npc.profession() == PlayerNpcEntity.Profession.SHOPKEEPER ||
                 npc.profession() == PlayerNpcEntity.Profession.GUARD ||
                 npc.profession() == PlayerNpcEntity.Profession.COURIER ||
-                npc.profession() == PlayerNpcEntity.Profession.SCOUT)));
+                npc.profession() == PlayerNpcEntity.Profession.SCOUT ||
+                npc.profession() == PlayerNpcEntity.Profession.MEDIC ||
+                npc.profession() == PlayerNpcEntity.Profession.LIBRARIAN)));
         }
         // Resolve native bed occupancy immediately after planning, before
         // cargo/work/social activities may override the path to bed.
@@ -135,6 +137,7 @@ public final class LivingWorldActions {
         // Scheduled work owns the clerk's walking and counter goal during
         // working hours; EAT/bed/flight still take priority.
         if (ShopCounter.tick(npc, level, tick)) return;
+        if (CivicServiceJobs.tick(npc, level, tick)) return;
         if (PlayerMiningActions.tick(npc, level)) return;
         // Follow the genuine item-entity drops from this NPC's authorized
         // break, rather than treating ground loot as virtual inventory.
