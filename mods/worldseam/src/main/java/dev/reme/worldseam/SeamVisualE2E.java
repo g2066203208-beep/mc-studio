@@ -117,6 +117,13 @@ public final class SeamVisualE2E {
             if(SeamRemoteBlockEntities.framesWithNativeBlocks()<1 ||
                 SeamRemoteBlockEntities.totalRendererFailures()>0)
                 LOG.error("WORLDSEAM_E2E_FAIL_NATIVE_BE_SCENE: target ClientLevel's real chest block entity was not rendered by native BER");
+            LOG.info("WORLDSEAM_E2E_NATIVE_ENTITY_SCENE: realRemoteEntityFrames={}, lastRendered={}, lastEligible={}, rendererErrors={} (zero frames means native remote entity tracking is STILL MISSING)",
+                SeamRemoteEntities.framesWithRealEntities(),
+                SeamRemoteEntities.lastRendered(),
+                SeamRemoteEntities.lastEligible(),
+                SeamRemoteEntities.totalErrors());
+            if(SeamRemoteEntities.framesWithRealEntities()<1)
+                LOG.warn("WORLDSEAM_E2E_NATIVE_ENTITY_TRACKING_MISSING: no genuine remote ClientLevel entity rendered; not a complete dual-world renderer");
             LOG.info("WORLDSEAM_E2E_LOGICAL_PLANE_NEIGHBORS: realCrossPlaneBlockLookups={}, NetherLogicalRoof128BelowVanillaBuildCeiling256=true",
                 SeamNativeGeometryClient.logicalPlaneNeighborReads());
             if(SeamNativeGeometryClient.logicalPlaneNeighborReads()<1)
@@ -555,6 +562,17 @@ public final class SeamVisualE2E {
         LOG.info("WORLDSEAM_E2E_NATIVE_BE_FIXTURE: dimension={}, pos={}, sourceOverworldHasSameBlock={}",
             nether.dimension().location(),chestPos,
             overworld.getBlockState(new BlockPos(x+1,-65,z+1)).getBlock()==Blocks.CHEST);
+        // A real, target-owned vanilla entity: no cloned entity in source.
+        // Deliberately diagnostic until foreign ClientLevel entity packets
+        // and tracking are genuinely available. A mesh alone is NOT a pass.
+        var markerEntity=net.minecraft.world.entity.EntityType.ARMOR_STAND.create(nether);
+        if(markerEntity!=null) {
+            markerEntity.setPos(x+2.5,126.5,z+2.5);
+            markerEntity.setNoGravity(true);
+            boolean spawned=nether.addFreshEntity(markerEntity);
+            LOG.info("WORLDSEAM_E2E_NATIVE_ENTITY_FIXTURE: realNetherArmorStandSpawned={}, uuid={}",
+                spawned,markerEntity.getUUID());
+        } else LOG.error("WORLDSEAM_E2E_NATIVE_ENTITY_FIXTURE_FAILED: could not create real armor stand");
         // The End visual benchmark must use NATURALLY GENERATED island
         // terrain, not a synthetic purpur/sea-lantern frame.
         LOG.info("WORLDSEAM_E2E_END_WITNESS: NO synthetic End blocks created");
