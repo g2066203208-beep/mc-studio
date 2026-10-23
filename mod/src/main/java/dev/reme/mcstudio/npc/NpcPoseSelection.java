@@ -14,6 +14,37 @@ public final class NpcPoseSelection {
 
     public static NpcPose select(PlayerNpcEntity npc, long tick) {
         var intent = npc.intent();
+        // These take precedence over generic moods. Each is backed by a
+        // real entity event/case, not a decorative "city simulation" string.
+        NpcPose urgent = classifyPhysical(
+            npc.isPoliceStunned(tick),
+            npc.isDetained(tick),
+            npc.escortedPrisoner() != null,
+            npc.policeSuspect() != null,
+            npc.hasUnpaidShopItem(tick),
+            npc.hurtTime > 0);
+        if (urgent != null) return urgent;
+        // Authentic home bedtime and frightened reactions outrank tiny
+        // residual velocity from vanilla collision/bed path completion.
+        boolean resting = (npc.isSleeping() ||
+            (RestPolicy.shouldRest(intent,
+                npc.profession() == PlayerNpcEntity.Profession.GUARD,
+                npc.energy())
+              && RestPolicy.atHome(npc.blockPosition(), npc.homePos())))
+              && !npc.isAfraid(tick);
+        if (resting) return NpcPose.REST;
+        if (npc.isAfraid(tick) || intent == LivingPlanner.Intent.ESCAPE)
+            return NpcPose.AFRAID;
+        if (!npc.onGround() && !npc.isInWater() && !npc.isPassenger()) return NpcPose.JUMP;
+        if (npc.getDeltaMovement().horizontalDistanceSqr() > 0.003) {
+            if (npc.isSprinting()) return NpcPose.RUN;
+            return NpcPose.WALK;
+        }
+        if (npc.isShiftKeyDown()) return NpcPose.CROUCH;
+        if (npc.isPassenger()) return NpcPose.SITTING;
+        if (npc.isUsingItem()) return NpcPose.EATING;
+        if (intent == LivingPlanner.Intent.SOCIALIZE
+            && npc.getNavigation().isDone()) return NpcPose.GREET;
         return classify(
             npc.isAfraid(tick) || intent == LivingPlanner.Intent.ESCAPE,
             npc.getTarget() != null && npc.getTarget().isAlive(),
@@ -28,6 +59,24 @@ public final class NpcPoseSelection {
                 && RestPolicy.atHome(npc.blockPosition(), npc.homePos())))
                 && !npc.isAfraid(tick)
         );
+    }
+
+    /** Strict, side-effect-free hierarchy of physically verifiable moments.
+     * A struck NPC may escape; a mere pursuit must never look handcuffed.
+     * This is independent of pathfinder timing and test fixtures.
+     */
+    public static NpcPose classifyPhysical(boolean unconscious, boolean detained,
+                                           boolean escorting, boolean pursuing,
+                                           boolean fleeing, boolean hurt) {
+        // Once walking under custody, show handcuffs rather than dragging
+        // a permanently horizontal collapsed model down the sidewalk.
+        if (detained) return NpcPose.CUFFED;
+        if (unconscious) return NpcPose.STUNNED;
+        if (hurt) return NpcPose.HIT;
+        if (escorting) return NpcPose.ESCORT;
+        if (pursuing) return NpcPose.CHASE;
+        if (fleeing) return NpcPose.FLEE;
+        return null;
     }
 
     /** Public pure function for deterministic test of precedence. Threat

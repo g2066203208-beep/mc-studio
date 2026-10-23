@@ -1,0 +1,66 @@
+{
+  "version": 1,
+  "name": "actor_strike",
+  "emote": {
+    "beginTick": 0,
+    "endTick": 24,
+    "stopTick": 25,
+    "isLoop": false,
+    "returnTick": 0,
+    "nsfw": false,
+    "degrees": false,
+    "moves": [
+      {
+        "tick": 0,
+        "easing": "INOUTSINE",
+        "rightArm": {
+          "pitch": -0.15
+        }
+      },
+      {
+        "tick": 8,
+        "easing": "INOUTSINE",
+        "rightArm": {
+          "pitch": -1.9,
+          "roll": 0.24
+        }
+      },
+      {
+        "tick": 8,
+        "easing": "INOUTSINE",
+        "torso": {
+          "yaw": 0.15
+        }
+      },
+      {
+        "tick": 16,
+        "easing": "INOUTSINE",
+        "rightArm": {
+          "pitch": 0.8,
+          "roll": -0.1
+        }
+      },
+      {
+        "tick": 16,
+        "easing": "INOUTSINE",
+        "torso": {
+          "yaw": -0.1
+        }
+      },
+      {
+        "tick": 24,
+        "easing": "INOUTSINE",
+        "rightArm": {
+          "pitch": 0
+        }
+      },
+      {
+        "tick": 24,
+        "easing": "INOUTSINE",
+        "torso": {
+          "yaw": 0
+        }
+      }
+    ]
+  }
+}

@@ -428,6 +428,7 @@ public class PlayerNpcEntity extends PathfinderMob {
         policeAlertUntil = 0L;
     }
     public int policeBlows() { return policeBlows; }
+    public long policeLastBlow() { return policeLastBlow; }
     public boolean isPoliceStunned(long tick) { return tick < policeStunnedUntil; }
     public boolean canPoliceSwing(long tick) { return tick >= policeNextSwing; }
     public void markPoliceSwing(long tick) { policeNextSwing = tick + 20L; }

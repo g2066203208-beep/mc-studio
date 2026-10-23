@@ -183,6 +183,17 @@ public final class PublicSafety {
             }
             suspect.getNavigation().stop();
             suspect.setAction("knocked unconscious by three real nonlethal contacts");
+            // Twenty REAL ticks of visible collapse before any handcuffs.
+            // No invisible instant conversion from impact to custody.
+            return true;
+        }
+        // Officer must remain within real reach during the knockdown.
+        // Only perform handcuffs after the visible twenty-tick collapse.
+        if (suspect.isPoliceStunned(tick)
+            && tick - suspect.policeLastBlow() < 20L) {
+            guard.getNavigation().stop();
+            guard.setAction("guarding genuinely unconscious suspect before handcuffs");
+            return true;
         }
         // Only an actually stunned, evidence-backed suspect can be handcuffed.
         // A native iron cell door is opened before the physical escort.

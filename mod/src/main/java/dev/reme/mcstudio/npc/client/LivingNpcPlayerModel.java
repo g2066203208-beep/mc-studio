@@ -4,6 +4,7 @@ import dev.reme.mcstudio.npc.NpcPose;
 import dev.reme.mcstudio.npc.PlayerNpcEntity;
 import net.minecraft.client.model.PlayerModel;
 import net.minecraft.client.model.geom.ModelPart;
+import net.neoforged.fml.ModList;
 
 /**
  * Faithful 6-cuboid / 64x64 Steve geometry with additive *NPC-native*
@@ -38,7 +39,9 @@ public final class LivingNpcPlayerModel extends PlayerModel<PlayerNpcEntity> {
             this.body.xRot += breath * 0.012F;
             this.head.yRot += step * 0.035F;
         }
-        switch (pose) {
+        // Exact same PlayerAnimator JSON keyframes as real players when present.
+        // Vanilla fallback remains playable without the optional library.
+        if (!ModList.get().isLoaded("playeranimator")) switch (pose) {
             case SOCIALIZE -> {
                 // Brief greeting, soft head nod; retain default head tracking.
                 this.rightArm.xRot -= 0.58F + step * 0.10F;
@@ -81,8 +84,10 @@ public final class LivingNpcPlayerModel extends PlayerModel<PlayerNpcEntity> {
                 this.leftArm.xRot += 0.10F;
                 this.rightArm.xRot += 0.10F;
             }
-            case IDLE -> { }
+            default -> { }
         }
+        if (ModList.get().isLoaded("playeranimator"))
+            KosmXNpcAnimation.apply(npc, this, ageInTicks - (float)Math.floor(ageInTicks));
 
         // Vanilla PlayerModel copies these BEFORE returning from its own
         // setupAnim, therefore we MUST copy again after applying our pose.

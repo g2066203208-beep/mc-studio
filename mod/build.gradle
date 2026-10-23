@@ -27,7 +27,8 @@ sourceSets.main.resources {
 }
 
 repositories {
-    // Add here additional repositories if required by some of the dependencies below.
+    // Official MIT Player Animator Maven. Not shaded or copied into this mod.
+    maven { name = 'KosmX'; url = 'https://maven.kosmx.dev/' }
 }
 
 base {
@@ -116,6 +117,11 @@ configurations {
 }
 
 dependencies {
+    // One canonical keyframe package for human players and NPC player rigs.
+    // Do not shade; installed as a separate optional NeoForge client mod.
+    compileOnly 'dev.kosmx.player-anim:player-animation-lib-forge:2.0.4+1.21.1'
+    localRuntime 'dev.kosmx.player-anim:player-animation-lib-forge:2.0.4+1.21.1'
+
     // Example optional mod dependency with JEI
     // The JEI API is declared for compile time use, while the full JEI artifact is used at runtime
     // compileOnly "mezz.jei:jei-${mc_version}-common-api:${jei_version}"

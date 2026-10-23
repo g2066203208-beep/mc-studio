@@ -9,6 +9,7 @@ on:
     branches:
       - feat/npc-urban-civic-campus-v073
       - feat/npc-connected-boulevards-v076
+      - feat/npc-expressive-actions-urban-v077
   pull_request:
     branches:
       - feat/npc-daily-routines-housing-v072
@@ -43,6 +44,10 @@ jobs:
           timeout --signal=INT --kill-after=15s 1180s \
             xvfb-run -a -s "-screen 0 1280x720x24" \
             bash scripts/test-client-gui.sh
+      - name: Assert native client loaded REAL player animation library and all shared rig clips
+        shell: bash
+        run: |
+          grep -F 'REME_NPC_REAL_CLIENT_SHARED_RIG playeranimator=true bothActorKinds=true registeredKeyframeClips=30' mod/client-gui.log
       - name: Always collect unmodified native Minecraft client artifacts
         if: always()
         uses: actions/upload-artifact@v4
