@@ -164,6 +164,64 @@ if [[ "${REME_CITY_VISUAL:-0}" == "1" ]]; then
     sleep 2
     xdotool key --clearmodifiers F1
   }
+  if [[ "${REME_ANIMATION_VISUAL:-0}" == "1" ]]; then
+    # A real NeoForge client controls an OP in a disposable world.
+    # Terrain preparation only happens here, NEVER in animation stage code.
+    say_city '/kill @e[type=reme_studio:player_npc,distance=..30]' 2
+    say_city '/fill ~-14 ~-1 ~-12 ~14 ~-1 ~12 minecraft:stone' 4
+    say_city '/fill ~-14 ~ ~-12 ~14 ~7 ~12 minecraft:air' 4
+    say_city '/summon minecraft:marker ~ ~ ~ {Tags:["reme_anim_origin"]}' 2
+    # Start genuine continuous X11 recording BEFORE actual Minecraft actors
+    # spawn. Not a stitched screenshot pseudo-animation.
+    ffmpeg -loglevel error -nostdin -y -f x11grab -video_size 1280x720 \
+      -framerate 12 -i "$DISPLAY" -c:v libx264 -preset ultrafast -crf 25 \
+      -pix_fmt yuv420p -movflags +faststart \
+      client-gui-actual-playeranimator-30-motions.mp4 \
+      >client-gui-playeranimator-ffmpeg.log 2>&1 &
+    ANIM_VIDEO_PID=$!
+    say_city '/npc animation stage' 8
+    say_city '/execute if entity @e[type=reme_studio:player_npc,tag=reme_anim_00] run say REME_REAL_PLAYERANIMATOR_STAGE_SPAWNED' 2
+    say_city '/gamemode spectator' 2
+    # Whole 6x5 motion tableau: the first frame must show real entities.
+    say_city '/execute at @e[type=minecraft:marker,tag=reme_anim_origin,limit=1] run tp @s ~0 ~18 ~20 facing ~0 ~1 ~0' 8
+    photo_city client-gui-playeranimator-00-all-real-actors.png
+    poses=(IDLE WORK CARRY SOCIALIZE GUARD AFRAID REST FLEE CHASE STRIKE HIT STUNNED CUFFED ESCORT SHOPPING EATING SITTING LOOK_AROUND CROUCH LAUGH SAD GREET WALK RUN JUMP LEAN HAND_HOLD BACK_CARRY WAKE SIT_DOWN)
+    [[ "${#poses[@]}" -eq 30 ]] || { echo 'FAIL: motion list not 30'; exit 1; }
+    printf 'AUTHENTIC Minecraft spectator-camera positions, captured live, no synthetic movements\n' >client-gui-playeranimator-motion-manifest.txt
+    for i in "${!poses[@]}"; do
+      tag=$(printf 'reme_anim_%02d' "$i")
+      name="${poses[$i]}"
+      # /execute at moves the OBSERVER, not the NPC. All action clips are
+      # already applied by the actual renderer to each separate NPC model.
+      say_city "/execute at @e[type=reme_studio:player_npc,tag=$tag,limit=1] run tp @s ~0 ~1.6 ~4 facing entity @e[type=reme_studio:player_npc,tag=$tag,limit=1] eyes" 2
+      photo_city "client-gui-playeranimator-motion-$(printf '%02d' "$i")-$name.png"
+      printf '%02d %s tag=%s screenshot=client-gui-playeranimator-motion-%02d-%s.png\n' "$i" "$name" "$tag" "$i" "$name" >>client-gui-playeranimator-motion-manifest.txt
+      echo "REME_NPC_REAL_GUI_MOTION_PHOTO index=$i name=$name"
+    done
+    kill -INT "$ANIM_VIDEO_PID" 2>/dev/null || true
+    wait "$ANIM_VIDEO_PID" || true
+    test -s client-gui-actual-playeranimator-30-motions.mp4 || {
+      echo 'FAIL: real Minecraft PlayerAnimator video was never recorded'; exit 1
+    }
+    ffprobe -v error -select_streams v:0 \
+      -show_entries stream=codec_name -of default=noprint_wrappers=1 \
+      client-gui-actual-playeranimator-30-motions.mp4 | grep -Fxq 'codec_name=h264' || {
+      echo 'FAIL: no native H264 video track'; exit 1
+    }
+    for label in "${poses[@]}"; do
+      grep -Fq "REME_NPC_REAL_MODEL_ANIMATED action=$label " client-gui.log || {
+        echo "FAIL: original Minecraft PlayerModel renderer NEVER sampled $label bones"; exit 1
+      }
+    done
+    grep -Fq 'REME_NPC_REAL_CLIENT_SHARED_RIG playeranimator=true bothActorKinds=true registeredKeyframeClips=30' client-gui.log || {
+      echo 'FAIL: PlayerAnimator not really loaded with all 30 animations'; exit 1
+    }
+    grep -Fq 'REME_NPC_ANIMATION_STAGE_REAL clips=30 actualEntities=30' client-gui.log || {
+      echo 'FAIL: actual registered Minecraft NPCs not created'; exit 1
+    }
+    echo "PASS: original real NeoForge client captured continuous video and sampled all 30 PlayerAnimator bone animations in thirty real UUID entities"
+    exit 0
+  fi
   # The initial /npc spawn is part of command-smoke coverage. Remove only
   # that one test entity from this disposable scratch-world before founding
   # the district; otherwise the subsequent 12-citizen census shows 13.

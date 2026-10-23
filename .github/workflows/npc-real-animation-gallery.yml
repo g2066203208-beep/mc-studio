@@ -1,0 +1,72 @@
+name: NPC REAL PlayerAnimator all-30 action film
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feat/npc-playeranimator-real-showcase-v080
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  real-player-animated-npcs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 26
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Validate actual 1.21.1 NeoForge dependency and safe animation resource path
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fxq 'minecraft_version=1.21.1' mod/gradle.properties
+          grep -Fxq 'neo_version=21.1.262' mod/gradle.properties
+          test "$(find mod/src/main/resources/assets/reme_studio/player_animations -name 'actor_*.json' | wc -l)" -eq 30
+          ! test -d mod/src/main/resources/assets/reme_studio/player_animation
+      - name: Install actual Minecraft GUI screen recorder and observer tools
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq xvfb xdotool imagemagick openbox ffmpeg
+      - name: Run actual NeoForge native-client PlayerAnimator rig demo on ALL 30 visible real NPCs
+        env:
+          REME_CITY_VISUAL: '1'
+          REME_ANIMATION_VISUAL: '1'
+          REME_URBAN_VISUAL: '0'
+          REME_COMMAND_SMOKE_ONLY: '0'
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout --signal=INT --kill-after=15s 1240s \
+            xvfb-run -a -s "-screen 0 1280x720x24" \
+            bash scripts/test-client-gui.sh
+      - name: Strict real screen plus actual renderer acceptance
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd mod
+          test -s client-gui-actual-playeranimator-30-motions.mp4
+          test "$(find . -maxdepth 1 -name 'client-gui-playeranimator-motion-*.png' | wc -l)" -eq 30
+          grep -Fq 'REME_NPC_ANIMATION_STAGE_REAL clips=30 actualEntities=30' client-gui.log
+          grep -Fq 'REME_NPC_REAL_CLIENT_SHARED_RIG playeranimator=true bothActorKinds=true registeredKeyframeClips=30' client-gui.log
+          test "$(grep -o 'REME_NPC_REAL_MODEL_ANIMATED action=[A-Z_]*' client-gui.log | sort -u | wc -l)" -eq 30
+          ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1 client-gui-actual-playeranimator-30-motions.mp4
+      - name: Preserve ALL original gameplay/screens/video and complete client logs even on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: real-npc-playeranimator-30-motions-video-and-individual-frames
+          if-no-files-found: warn
+          retention-days: 30
+          path: |
+            mod/client-gui-actual-playeranimator-30-motions.mp4
+            mod/client-gui-playeranimator-*.png
+            mod/client-gui-playeranimator-motion-manifest.txt
+            mod/client-gui-playeranimator-ffmpeg.log
+            mod/client-gui.log
+            mod/run/logs/*.log
+            mod/runs/**/logs/*.log

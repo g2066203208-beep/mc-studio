@@ -128,6 +128,16 @@ public final class NpcCommands {
                 .then(Commands.argument("action",StringArgumentType.word())
                     .executes(ctx->PlayerEmoteActions.run(
                         ctx.getSource(),StringArgumentType.getString(ctx,"action")))))
+            .then(Commands.literal("animation")
+                .requires(source -> source.hasPermission(2))
+                .then(Commands.literal("stage")
+                    .executes(ctx -> NpcAnimationShowcase.spawnCommand(ctx.getSource())))
+                .then(Commands.literal("play")
+                    .then(Commands.argument("pose", StringArgumentType.word())
+                        .executes(ctx -> NpcAnimationShowcase.playCommand(
+                            ctx.getSource(),StringArgumentType.getString(ctx,"pose")))))
+                .then(Commands.literal("clear")
+                    .executes(ctx -> NpcAnimationShowcase.clearCommand(ctx.getSource()))))
             .then(Commands.literal("city")
                 .executes(ctx -> cityHelp(ctx.getSource()))
                 .then(Commands.literal("survey")

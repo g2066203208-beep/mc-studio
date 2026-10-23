@@ -67,12 +67,17 @@ public class PlayerNpcEntity extends PathfinderMob {
         SynchedEntityData.defineId(PlayerNpcEntity.class, EntityDataSerializers.INT);
     private static final EntityDataAccessor<Integer> NPC_VISUAL_POSE =
         SynchedEntityData.defineId(PlayerNpcEntity.class, EntityDataSerializers.INT);
+    // Synced to the ACTUAL client renderer; server-only entity scoreboard
+    // tags never arrive in the ordinary Mob spawn packet.
+    private static final EntityDataAccessor<Boolean> NPC_SHOWCASE =
+        SynchedEntityData.defineId(PlayerNpcEntity.class, EntityDataSerializers.BOOLEAN);
 
     @Override
     protected void defineSynchedData(SynchedEntityData.Builder builder) {
         super.defineSynchedData(builder);
         builder.define(NPC_SKIN, 0);
         builder.define(NPC_VISUAL_POSE, NpcPose.IDLE.ordinal());
+        builder.define(NPC_SHOWCASE, false);
     }
 
     public enum Mode { LIVE, FOLLOW, STAY, WANDER, GUARD }
@@ -112,6 +117,24 @@ public class PlayerNpcEntity extends PathfinderMob {
     private int parcelsDelivered = 0;
     private int formationSlot = 0;
     private int roamingRadius = 48;
+    // Operator-only ANIMATION SHOWCASE state: deliberately ephemeral, never
+    // saved to resident NBT and never allowed to override LIVE gameplay.
+    // Real physical interactions continue to use the normal planner/combat.
+    private long showcasePoseUntil = -1L;
+    private NpcPose showcaseForcedPose = NpcPose.IDLE;
+    public void showAnimationFor(NpcPose pose, long ticks) {
+        if (level().isClientSide || mode != Mode.STAY) return;
+        showcaseForcedPose = pose;
+        showcasePoseUntil = level().getGameTime() + Math.clamp(ticks, 1L, 72000L);
+        setVisualPose(pose);
+        entityData.set(NPC_SHOWCASE, true);
+    }
+    public boolean showcasingAnimation(long tick) {
+        return mode == Mode.STAY && tick < showcasePoseUntil;
+    }
+    public NpcPose showcaseAnimation() { return showcaseForcedPose; }
+    public boolean isAnimationShowcase() { return this.entityData.get(NPC_SHOWCASE); }
+
     public int skinId() { return this.entityData.get(NPC_SKIN); }
     public NpcPose visualPose() {
         return NpcPose.fromNetworkId(this.entityData.get(NPC_VISUAL_POSE));
@@ -555,8 +578,14 @@ public class PlayerNpcEntity extends PathfinderMob {
             LivingWorldActions.tick(this, server);
             // 5 Hz server classification, only network-synced upon change.
             // Actual per-frame animation stays purely client-render-side.
-            if ((server.getGameTime() + getId()) % 4L == 0L)
-                setVisualPose(NpcPoseSelection.select(this, server.getGameTime()));
+            if ((server.getGameTime() + getId()) % 4L == 0L) {
+                if (!showcasingAnimation(server.getGameTime())
+                    && entityData.get(NPC_SHOWCASE))
+                    entityData.set(NPC_SHOWCASE, false);
+                setVisualPose(showcasingAnimation(server.getGameTime())
+                    ? showcaseForcedPose
+                    : NpcPoseSelection.select(this, server.getGameTime()));
+            }
         }
     }
 

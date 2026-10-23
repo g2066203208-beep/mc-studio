@@ -9,6 +9,8 @@ import dev.reme.mcstudio.npc.NpcPose;
 import dev.reme.mcstudio.npc.PlayerNpcEntity;
 import dev.reme.mcstudio.npc.SharedHumanoidMotion;
 import java.util.Map;
+import java.util.Set;
+import java.util.HashSet;
 import java.util.WeakHashMap;
 import net.minecraft.client.model.PlayerModel;
 import net.minecraft.client.model.geom.ModelPart;
@@ -22,6 +24,9 @@ import net.minecraft.client.model.geom.ModelPart;
 public final class KosmXNpcAnimation {
     private KosmXNpcAnimation() {}
     private static final Map<PlayerNpcEntity, Playback> TRACKS = new WeakHashMap<>();
+    // Only proof after this PlayerModel's setupAnim ACTUALLY runs on
+    // the Minecraft render thread with nonzero evaluated bone motion.
+    private static final Set<NpcPose> RENDERED_ACTIONS = new HashSet<>();
     private static final class Playback {
         NpcPose pose;
         IAnimation active;
@@ -54,18 +59,29 @@ public final class KosmXNpcAnimation {
         for (int i=0;i<elapsed;i++) track.active.tick();
         track.tick=npc.tickCount;
         track.active.setupAnim(tickDelta);
-        rotation(model.head,"head",track.active,tickDelta);
-        rotation(model.body,"torso",track.active,tickDelta);
-        rotation(model.rightArm,"rightArm",track.active,tickDelta);
-        rotation(model.leftArm,"leftArm",track.active,tickDelta);
-        rotation(model.rightLeg,"rightLeg",track.active,tickDelta);
-        rotation(model.leftLeg,"leftLeg",track.active,tickDelta);
+        float boneDelta=0.0F;
+        boneDelta+=rotation(model.head,"head",track.active,tickDelta);
+        boneDelta+=rotation(model.body,"torso",track.active,tickDelta);
+        boneDelta+=rotation(model.rightArm,"rightArm",track.active,tickDelta);
+        boneDelta+=rotation(model.leftArm,"leftArm",track.active,tickDelta);
+        boneDelta+=rotation(model.rightLeg,"rightLeg",track.active,tickDelta);
+        boneDelta+=rotation(model.leftLeg,"leftLeg",track.active,tickDelta);
+        if (npc.isAnimationShowcase() && boneDelta > 0.035F
+            && RENDERED_ACTIONS.add(pose)) {
+            System.out.println("REME_NPC_REAL_MODEL_ANIMATED action="+pose
+                +" uuid="+npc.getUUID()+" rotatedRadians="+boneDelta
+                +" playerAnimatorIPlayable=true actualModelRender=true"
+                +" distinctActions="+RENDERED_ACTIONS.size());
+        }
     }
-    private static void rotation(ModelPart part,String bone,IAnimation playerClip,float delta) {
+    private static float rotation(ModelPart part,String bone,IAnimation playerClip,float delta) {
         Vec3f start=new Vec3f(part.xRot,part.yRot,part.zRot);
         Vec3f value=playerClip.get3DTransform(bone,TransformType.ROTATION,delta,start);
         part.xRot=value.getX();
         part.yRot=value.getY();
         part.zRot=value.getZ();
+        return Math.abs(value.getX()-start.getX())
+            +Math.abs(value.getY()-start.getY())
+            +Math.abs(value.getZ()-start.getZ());
     }
 }

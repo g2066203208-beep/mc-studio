@@ -31,6 +31,9 @@ public final class ClientHumanoidMotionEvents {
             // Printed by the REAL client only, never by a mocked server test.
             System.out.println("REME_NPC_REAL_CLIENT_SHARED_RIG playeranimator=true"
                 +" bothActorKinds=true registeredKeyframeClips="+registered);
+            if (registered != 30)
+                System.err.println("REME_NPC_PLAYERANIMATOR_NOT_READY actualRegistered="
+                    +registered+" expected=30");
             checkedResources=true;
         }
         KosmXPlayerAnimation.sync(level);
