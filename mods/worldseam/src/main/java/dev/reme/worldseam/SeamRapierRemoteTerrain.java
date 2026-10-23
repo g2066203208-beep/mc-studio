@@ -368,7 +368,16 @@ public final class SeamRapierRemoteTerrain {
     // Only loaded, projected native terrain is allowed to contribute
     // neighborhood support; never force-load a target chunk or use Nether
     // roof voxels above its configured logical top.
-    private static boolean fullNativeNeighbor(int x,int y,int z) {
+    private static boolean fullNativeNeighbor(int ox,int oy,int oz,
+                                              int x,int y,int z) {
+        // The target world can have this neighbor loaded while its native
+        // Rapier section has not yet been projected (or has been evicted).
+        // Never hide a source collider face based on non-native support.
+        // Conservatively expose cross-section faces even if both sections
+        // happen to be resident, so eviction/upload ordering cannot create
+        // a transient invisible collision hole.
+        if(!SeamRapierVoxelNeighbors.sameNativeSection(
+                ox,oy,oz,x,y,z))return false;
         long low=((long)edgeSection-SECTIONS_BELOW_EDGE+1L)*16L;
         long high=((long)edgeSection+1L)*16L;
         if(y<low || y>=high || y<target.getMinBuildHeight() ||
@@ -393,9 +402,9 @@ public final class SeamRapierRemoteTerrain {
             Boolean.TRUE.equals(hasCollisionCallback.invoke(null,state));
         if(!full || special)return SeamRapierVoxelNeighbors.Kind.CORNER;
         return SeamRapierVoxelNeighbors.classify(true,true,false,
-            fullNativeNeighbor(x-1,y,z),fullNativeNeighbor(x+1,y,z),
-            fullNativeNeighbor(x,y-1,z),fullNativeNeighbor(x,y+1,z),
-            fullNativeNeighbor(x,y,z-1),fullNativeNeighbor(x,y,z+1));
+            fullNativeNeighbor(x,y,z,x-1,y,z),fullNativeNeighbor(x,y,z,x+1,y,z),
+            fullNativeNeighbor(x,y,z,x,y-1,z),fullNativeNeighbor(x,y,z,x,y+1,z),
+            fullNativeNeighbor(x,y,z,x,y,z-1),fullNativeNeighbor(x,y,z,x,y,z+1));
     }
 
     /**
