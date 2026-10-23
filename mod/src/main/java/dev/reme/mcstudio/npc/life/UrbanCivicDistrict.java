@@ -351,7 +351,9 @@ public final class UrbanCivicDistrict {
                 return new Result(false,"GameTest materialization rejected",placed,0);
             placed++;
         }
-        return new Result(true,"Native isolated zone "+zone,placed,0);
+        // Same physical registered NPC types, but no fake user or save edits.
+        int actual=spawn(level,center,zone,null,center);
+        return new Result(true,"Native isolated zone "+zone,placed,actual);
     }
 
     private static int spawn(ServerLevel level,BlockPos city,Zone zone,
@@ -379,6 +381,16 @@ public final class UrbanCivicDistrict {
         };
         int[][] spawnAt={{-12,-12},{12,-12},{-12,12},{11,10}};
         int[][] jobAt={{-11,-10},{12,-10},{-12,11},{10,10}};
+        if(zone==Zone.EDUCATION){
+            spawnAt[2]=new int[]{-10,-11}; // real student attends classroom
+            jobAt[2]=new int[]{-10,-11};
+        }
+        if(zone==Zone.GOVERNMENT){
+            jobAt[1]=new int[]{10,8}; // hotel reception in SE (not post office)
+            spawnAt[1]=new int[]{10,9};
+            jobAt[2]=new int[]{12,-10}; // post service in NE
+            spawnAt[2]=new int[]{12,-12};
+        }
         int count=0;
         for(int i=0;i<4;i++){
             PlayerNpcEntity npc=NpcRegistry.PLAYER_NPC.get().create(level);
