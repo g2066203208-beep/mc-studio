@@ -24,6 +24,17 @@ public final class NpcPoseSelection {
             npc.hasUnpaidShopItem(tick),
             npc.hurtTime > 0);
         if (urgent != null) return urgent;
+        // Authentic home bedtime and frightened reactions outrank tiny
+        // residual velocity from vanilla collision/bed path completion.
+        boolean resting = (npc.isSleeping() ||
+            (RestPolicy.shouldRest(intent,
+                npc.profession() == PlayerNpcEntity.Profession.GUARD,
+                npc.energy())
+              && RestPolicy.atHome(npc.blockPosition(), npc.homePos())))
+              && !npc.isAfraid(tick);
+        if (resting) return NpcPose.REST;
+        if (npc.isAfraid(tick) || intent == LivingPlanner.Intent.ESCAPE)
+            return NpcPose.AFRAID;
         if (!npc.onGround() && !npc.isInWater() && !npc.isPassenger()) return NpcPose.JUMP;
         if (npc.getDeltaMovement().horizontalDistanceSqr() > 0.003) {
             if (npc.isSprinting()) return NpcPose.RUN;
