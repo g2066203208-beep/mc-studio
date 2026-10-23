@@ -28,8 +28,22 @@ public final class CivicServiceJobs {
             || !DailyRoaming.inRange(staff, staff.workPos())) return false;
         if (staff.blockPosition().distSqr(staff.workPos()) > 9) {
             if (MovementPolicy.due(tick, staff.getId(), 40)) {
-                RoadNavigator.moveToward(staff, world, staff.workPos(), 0.92);
-                staff.setAction("commuting on foot to hospital or public library duty");
+                // Civic jobs are indoors behind REAL facades. Greedily
+                // navigating toward the desk through its solid wall stranded
+                // the librarian outside for the entire work shift. Prefer a
+                // fully reachable native route, then stage a genuine open
+                // building door. Never count a remote job as attendance.
+                var route = staff.getNavigation().createPath(staff.workPos(), 0);
+                if (route != null && route.canReach()
+                    && staff.getNavigation().moveTo(route, 0.92))
+                    staff.setAction("walking native reachable route to real civic desk");
+                else if (HomeEntranceRoute.moveTowardEntrance(
+                    staff, world, staff.workPos(), 0.92))
+                    staff.setAction("entering real hospital/library through open door");
+                else if (RoadNavigator.moveToward(staff, world, staff.workPos(), 0.92))
+                    staff.setAction("commuting on foot to hospital or public library duty");
+                else
+                    staff.setAction("civic desk unreachable: waiting without fake attendance");
             }
             return true;
         }
