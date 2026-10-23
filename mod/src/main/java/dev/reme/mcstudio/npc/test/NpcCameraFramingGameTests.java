@@ -2,6 +2,8 @@ package dev.reme.mcstudio.npc.test;
 
 import dev.reme.mcstudio.StudioMod;
 import dev.reme.mcstudio.npc.NpcCameraController;
+import dev.reme.mcstudio.npc.NpcRegistry;
+import dev.reme.mcstudio.npc.PlayerNpcEntity;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -50,6 +52,8 @@ public final class NpcCameraFramingGameTests {
             for (int dy=-1;dy<=3;dy++)
                 level.setBlock(center.offset(dx,dy,-2),
                     Blocks.STONE.defaultBlockState(),2);
+        PlayerNpcEntity actor = NpcRegistry.PLAYER_NPC.get().create(level);
+        if(actor==null) throw new AssertionError("Actual NPC type not registered");
         var lens = NpcCameraController.selectClearView(eye,0,
             p -> {
                 BlockPos cell=BlockPos.containing(p);
@@ -58,7 +62,7 @@ public final class NpcCameraFramingGameTests {
                         .getCollisionShape(level,cell).isEmpty();
             },
             p -> level.clip(new ClipContext(eye,p,
-                ClipContext.Block.COLLIDER,ClipContext.Fluid.NONE,null))
+                ClipContext.Block.COLLIDER,ClipContext.Fluid.NONE,actor))
                 .getType() == HitResult.Type.MISS);
         if(lens==null)
             throw new AssertionError("Camera failed to orbit around real shop wall");
