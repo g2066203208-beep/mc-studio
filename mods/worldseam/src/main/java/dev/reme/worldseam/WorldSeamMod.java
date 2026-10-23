@@ -16,7 +16,12 @@ public final class WorldSeamMod {
         NeoForge.EVENT_BUS.addListener(SeamPendingWorldPreset::apply);
         NeoForge.EVENT_BUS.addListener(SeamServer::entityTick);
         NeoForge.EVENT_BUS.addListener(SeamExplosionBridge::onDetonate);
-        NeoForge.EVENT_BUS.addListener(SeamTerrain::onChunkLoad);
+        // Do NOT mutate LevelChunk from ChunkEvent.Load: released Sable 2.x
+        // calls its Rapier VoxelNeighborhoodState from LevelChunk#setBlockState,
+        // and can synchronously request another chunk while FULL is loading.
+        // That deadlocks the integrated server (real ship-film JVM dump).
+        // Fresh-chunk bedrock carving is performed ONLY on ProtoChunk via
+        // SeamChunkGenerationMixin before LevelChunk publication.
         if (FMLEnvironment.dist == Dist.CLIENT) {
             modBus.addListener((net.neoforged.neoforge.client.event.RegisterClientReloadListenersEvent e)->
                 e.registerReloadListener(

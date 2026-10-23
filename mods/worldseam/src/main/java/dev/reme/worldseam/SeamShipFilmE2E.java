@@ -223,11 +223,42 @@ public final class SeamShipFilmE2E {
                 net.minecraft.core.Direction.UP);
             BlockPos motorPos=anchor.offset(0,1,-2);
             BlockPos rotorPos=motorPos.above();
-            home.setBlock(motorPos,motorState,3);
-            home.setBlock(rotorPos,rotor.defaultBlockState(),3);
+            var rotorState=rotor.defaultBlockState();
+            // Verified against OFFICIAL SmartPropellerBlock source:
+            // HORIZONTAL_AXIS only accepts X or Z, controlling hinge tilt.
+            // Its IRotate.getRotationAxis(...) is independently Y, and
+            // hasShaftTowards is DOWN for CEILING=false. Setting the
+            // blockstate AXIS=Y throws IllegalArgumentException at runtime!
+            // Let the actual released block report its drive axis instead.
+            if(!rotorState.hasProperty(
+                net.minecraft.world.level.block.state.properties.BlockStateProperties.HORIZONTAL_AXIS))
+                throw new IllegalStateException(
+                    "Released Aeronautics smart propeller has no HORIZONTAL_AXIS");
+            var hingeAxis=rotorState.getValue(
+                net.minecraft.world.level.block.state.properties.BlockStateProperties.HORIZONTAL_AXIS);
+            if(hingeAxis!=net.minecraft.core.Direction.Axis.X &&
+               hingeAxis!=net.minecraft.core.Direction.Axis.Z)
+                throw new IllegalStateException("Propeller hinge must be horizontal");
+            if(!home.setBlock(motorPos,motorState,3) ||
+               !home.setBlock(rotorPos,rotorState,3))
+                throw new IllegalStateException("Could not stage real Create/Aero drivetrain");
+            // Runtime reflection here preserves WorldSeam's genuinely
+            // independent build (Create/Aero are optional external jars).
+            Object driveAxis=rotor.getClass().getMethod(
+                "getRotationAxis",net.minecraft.world.level.block.state.BlockState.class)
+                .invoke(rotor,home.getBlockState(rotorPos));
+            boolean shaftFacesMotor=(boolean)rotor.getClass().getMethod(
+                "hasShaftTowards",net.minecraft.world.level.LevelReader.class,
+                BlockPos.class,net.minecraft.world.level.block.state.BlockState.class,
+                net.minecraft.core.Direction.class).invoke(
+                    rotor,home,rotorPos,rotorState,net.minecraft.core.Direction.DOWN);
+            if(driveAxis!=net.minecraft.core.Direction.Axis.Y || !shaftFacesMotor)
+                throw new IllegalStateException(
+                    "Actual Aeronautics kinetic axle does not face UP motor: "+
+                    driveAxis+" downFace="+shaftFacesMotor);
             blocks.add(rotorPos); // motor already replaces a counted hull voxel
-            LOG.info("WORLDSEAM_FILM_REAL_CREATE_AERO_MACHINERY: motor={} {}, propeller={} {}, intendedShaft=vertical, verify TRUE getSpeed()+scaledThrust AFTER assembly",
-                motorPos,motorState,rotorPos,rotor.defaultBlockState());
+            LOG.info("WORLDSEAM_FILM_REAL_CREATE_AERO_MACHINERY: motor={} {}, propeller={} {}, horizontalHingeAxis={}, kineticRotationAxis=Y, shaftFacesMotor=true, verify TRUE getSpeed()+scaledThrust AFTER assembly",
+                motorPos,motorState,rotorPos,rotorState,hingeAxis);
             stagingBlocks=blocks;
             stagingAnchor=anchor;
             stagingHome=home;

@@ -65,7 +65,7 @@ capture_jvm_diagnostics() {
   } >> real-ship-jvm-thread-dump.txt 2>&1
 }
 ready=0; returned=0; failure=0; ready_step=0; last_diag=0
-camera_ui_hidden=0; ready_still=0; descent_still=0; arena_seen=0; arena_step=0
+camera_ui_hidden=0; ready_still=0; client_visible_still=0; descent_still=0; arena_seen=0; arena_step=0
 for step in $(seq 1 240); do
   if [ "$arena_seen" = 0 ] &&
      grep -q "WORLDSEAM_FILM_ARENA_READY" real-ship-film-client.log; then
@@ -90,6 +90,13 @@ for step in $(seq 1 240); do
      grep -q "WORLDSEAM_FILM_RECORD_READY" real-ship-film-client.log; then
     xwd -root -silent | convert xwd:- -resize 960x540 -quality 82 real-ship-first-frame.jpg || true
     ready_still=1
+  fi
+  # A Sable object may exist in Java while its Minecraft GPU surface has
+  # zero visible pixels. Capture only AFTER same-UUID client render readiness.
+  if [[ "$client_visible_still" = 0 ]] &&
+     grep -q "WORLDSEAM_FILM_CLIENT_VISIBLE_SHIP_READY" real-ship-film-client.log; then
+    xwd -root -silent | convert xwd:- -resize 960x540 -quality 82 real-ship-client-visible.jpg || true
+    client_visible_still=1
   fi
   if [[ "$descent_still" = 0 ]] &&
      grep -q "WORLDSEAM_FILM_REAL_SHIP_DOWN" real-ship-film-client.log; then
@@ -158,6 +165,13 @@ if ! grep -q 'WORLDSEAM_FILM_CLIENT_VISIBLE_SHIP_READY' real-ship-film-client.lo
   echo 'WORLDSEAM_FILM_FAIL: native Sable ship never became ClientLevel renderable; MP4 cannot count as visible gameplay'
   exit 1
 fi
+# A complete MP4 and same-UUID server logs still do not prove the actual
+# aircraft was drawn on screen. Require colored native aircraft pixels in
+# initial rendered, below-seam and return frames; fail and retain the raw
+# explicitly UNVERIFIED MP4 if any stage is just sky/blackness.
+python3 ci/check_real_ship_pixels.py \
+  real-ship-client-visible.jpg real-ship-below-seam.jpg real-ship-returned.jpg
+
 # Never label externally-forced Rapier motion as Aeronautics-only
 # propulsion, or claim a chart-fused solver that does not exist.
 mv real-ship-attempt-UNVERIFIED.mp4 real-ship-bidirectional-EXTERNAL-FORCE-ONLY.mp4
