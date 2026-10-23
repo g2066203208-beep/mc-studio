@@ -29,8 +29,12 @@ public final class RoadNavigator {
         double current = npc.blockPosition().distSqr(destination);
         if (current < 5) return false;
         FootTrafficData traffic = FootTrafficData.get(level);
-        BlockPos best = null;
-        double bestScore = 0;
+        // Only four physically grounded nearby waypoints can invoke vanilla
+        // A*; old implementation picked ONE highest-scored surface even if
+        // a solid building separated the NPC from it, then got permanently
+        // stuck while a perfectly reachable sidewalk lay one block over.
+        BlockPos[] candidates = new BlockPos[4];
+        double[] scores = {0,0,0,0};
         BlockPos center = npc.blockPosition();
         // Use existing foot paths if they make progress toward destination.
         // Scan floor only within 7 blocks; no new chunk loads or global A*.
@@ -60,15 +64,31 @@ public final class RoadNavigator {
             if (progress <= 10) continue;
             double score = progress - dx * dx * 0.08 - dz * dz * 0.08
                 + Math.min(knownTraffic, 20) * 0.6;
-            if (score > bestScore) { bestScore = score; best = foot.immutable(); }
+            for(int slot=0;slot<candidates.length;slot++)
+                if(score>scores[slot]){
+                    for(int prev=candidates.length-1;prev>slot;prev--){
+                        candidates[prev]=candidates[prev-1];
+                        scores[prev]=scores[prev-1];
+                    }
+                    candidates[slot]=foot.immutable();
+                    scores[slot]=score;
+                    break;
+                }
         }
-        BlockPos waypoint = best == null ? destination : best;
-        boolean moving = npc.getNavigation().moveTo(waypoint.getX() + 0.5,
-            waypoint.getY(), waypoint.getZ() + 0.5, speed);
-        if (moving) {
-            npc.setAction(best == null ? "navigating toward destination"
-                : "following nearby road toward destination");
+        for (BlockPos waypoint:candidates) {
+            if(waypoint==null)break;
+            // Actual vanilla A* must accept a reachable route. The first
+            // candidate can be behind real blocks despite sharing a sidewalk
+            // height. Never declare a ghost route just for its lower distance.
+            if (npc.getNavigation().moveTo(waypoint.getX()+0.5,
+                    waypoint.getY(),waypoint.getZ()+0.5,speed)) {
+                npc.setAction("following accessible real paved street waypoint");
+                return true;
+            }
         }
-        return moving;
+        boolean direct = npc.getNavigation().moveTo(destination.getX()+0.5,
+            destination.getY(),destination.getZ()+0.5,speed);
+        if(direct)npc.setAction("navigating direct loaded-world vanilla route");
+        return direct;
     }
 }
