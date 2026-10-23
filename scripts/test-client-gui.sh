@@ -220,6 +220,7 @@ if [[ "${REME_CITY_VISUAL:-0}" == "1" ]]; then
     say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run fill ~-62 ~-1 ~-20 ~-22 ~-1 ~20 minecraft:stone' 4
     say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run fill ~-62 ~ ~-20 ~-22 ~11 ~20 minecraft:air' 4
     say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run fill ~-21 ~-1 ~-2 ~-21 ~-1 ~2 minecraft:stone' 3
+    say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run fill ~-21 ~ ~-2 ~-21 ~10 ~2 minecraft:air' 3
     say_city '/npc city zone survey hospital' 3
     say_city '/npc city zone hospital' 16
     say_city '/execute if entity @e[type=reme_studio:player_npc,tag=reme_urban_hospital_0] run say REME_URBAN_HOSPITAL_STAFF_REAL' 3
@@ -232,6 +233,7 @@ if [[ "${REME_CITY_VISUAL:-0}" == "1" ]]; then
     say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run fill ~-20 ~-1 ~-62 ~20 ~-1 ~-22 minecraft:stone' 4
     say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run fill ~-20 ~ ~-62 ~20 ~11 ~-22 minecraft:air' 4
     say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run fill ~-2 ~-1 ~-21 ~2 ~-1 ~-21 minecraft:stone' 3
+    say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run fill ~-2 ~ ~-21 ~2 ~10 ~-21 minecraft:air' 3
     say_city '/npc city zone survey education' 3
     say_city '/npc city zone education' 16
     say_city '/execute if entity @e[type=reme_studio:player_npc,tag=reme_urban_education_0] run say REME_URBAN_EDUCATION_STAFF_REAL' 3
@@ -257,6 +259,7 @@ if [[ "${REME_CITY_VISUAL:-0}" == "1" ]]; then
     say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run fill ~22 ~-1 ~-20 ~62 ~-1 ~20 minecraft:stone' 4
     say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run fill ~22 ~ ~-20 ~62 ~11 ~20 minecraft:air' 4
     say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run fill ~21 ~-1 ~-2 ~21 ~-1 ~2 minecraft:stone' 3
+    say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run fill ~21 ~ ~-2 ~21 ~10 ~2 minecraft:air' 3
     say_city '/npc city zone survey transport' 3
     say_city '/npc city zone transport' 16
     say_city '/execute if entity @e[type=reme_studio:player_npc,tag=reme_urban_transport_0] run say REME_URBAN_TRANSPORT_STAFF_REAL' 3
