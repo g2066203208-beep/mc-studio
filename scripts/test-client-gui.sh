@@ -219,12 +219,17 @@ if [[ "${REME_CITY_VISUAL:-0}" == "1" ]]; then
       client-gui-actual-playeranimator-30-motions.mp4 | grep -Fxq 'codec_name=h264' || {
       echo 'FAIL: no native H264 video track'; exit 1
     }
-    for label in "${poses[@]}"; do
+    for i in "${!poses[@]}"; do
+      label="${poses[$i]}"
+      ix=$(printf '%02d' "$i")
       grep -Fq "REME_NPC_REAL_MODEL_ANIMATED action=$label " client-gui.log || {
-        echo "FAIL: original Minecraft PlayerModel renderer NEVER sampled $label bones"; exit 1
+        echo "FAIL: actual PlayerModel renderer never sampled $label bones"; exit 1
       }
-      test -s "client-gui-playeranimator-motion-$(printf '%02d' "$(printf '%s\n' "${poses[@]}" | grep -n "^$label$" | cut -d: -f1 | awk '{printf "%d", $1-1}')")-$label-later.png" || {
-        echo "FAIL: real paired temporal screenshot missing for $label"; exit 1
+      test -s "client-gui-playeranimator-motion-$ix-$label.png" || {
+        echo "FAIL: camera never photographed real Minecraft NPC $label"; exit 1
+      }
+      test -s "client-gui-playeranimator-motion-$ix-$label-later.png" || {
+        echo "FAIL: second genuine temporal film frame missing for $label"; exit 1
       }
     done
     grep -Fq 'REME_NPC_REAL_CLIENT_SHARED_RIG playeranimator=true bothActorKinds=true registeredKeyframeClips=30' client-gui.log || {
