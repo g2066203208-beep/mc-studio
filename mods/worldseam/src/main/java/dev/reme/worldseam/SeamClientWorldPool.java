@@ -373,6 +373,11 @@ public final class SeamClientWorldPool {
             source.equals(from) && target.equals(to) ? remote : null;
     }
 
+    /** Renderer owned by exactly this secondary ClientLevel; never the active one. */
+    static LevelRenderer rendererFor(ClientLevel level) {
+        return level!=null && level==remote ? remoteRenderer : null;
+    }
+
     public static boolean hasPrewarmed(String destination) {
         return remote != null && target.equals(destination);
     }
