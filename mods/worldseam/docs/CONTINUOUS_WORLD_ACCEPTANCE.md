@@ -194,3 +194,31 @@ The previous `c676a1f` ship-film run [39906816126](https://github.com/g206620320
 ### 2026-10-23 16:30 CST — released Sable anchor regression added (await CI)
 
 [8146837](https://github.com/g2066203208-beep/mc-studio/commit/81468371a80969948eb3777d4ae065b14fdcee60) extends the existing **real released-Sable assembly GameTest**, not a mock: it requires the actual OW-owned Sable hull to supply the spectator-independent native terrain anchor, validates the derived X/Z chunk center, and rejects an expired 21-tick sample. Emits `WORLDSEAM_REAL_SABLE_UNATTENDED_TERRAIN_ANCHOR` only after the real assembly assertions. **This is not a JNI native-contact/torque pass and cannot replace a genuine no-player flight test.** CI for the latest HEAD must pass before the test can be called verified. Previous intermediate-head runs may be cancelled by GitHub Actions concurrency and must not be counted as successful.
+
+
+## 2026-10-23 17:18–17:30 CST — native remote entity pass + real film runner unblock (NOT final acceptance)
+
+**All five permanent gates at top remain unchecked. PR #98 stays Draft; no merge.**
+
+### Fresh evidence from previous HEAD `15468b1`
+- [Build 39925100089](https://github.com/g2066203208-beep/mc-studio/actions/runs/39925100089): success.
+- [Independent JUnit/GameTest 39925100333](https://github.com/g2066203208-beep/mc-studio/actions/runs/39925100333): success.
+- [Released Sable 2.0.6 / Create 6.0.10 / Aeronautics 1.3.2 integration 39925099948](https://github.com/g2066203208-beep/mc-studio/actions/runs/39925099948): limited GameTest success.
+- [Real GUI 39925100085](https://github.com/g2066203208-beep/mc-studio/actions/runs/39925100085): limited GUI success, artifact 12489732400.
+- [240-crossing long run 39925100008](https://github.com/g2066203208-beep/mc-studio/actions/runs/39925100008): limited long-run success, artifact 12489587312.
+- **[Real ship film 39925099966](https://github.com/g2066203208-beep/mc-studio/actions/runs/39925099966): FAILED before launching Minecraft**: apt downloaded a 65 MB ffmpeg/ImageMagick dependency chain from a slow Azure Ubuntu mirror and hit exit 124 at the 240-second timeout. No film/log artifact was created by that run. This is a CI infrastructure failure, not physical flight evidence.
+
+### Real code pushed (limited client-native rendering)
+- `486d9483`, `647f2200`, `5814bb3b`, `8495e589`, `99f29236`: `SeamRemoteEntities` now attempts a bounded native `EntityRenderDispatcher` pass for **actual entities already present in the foreign ClientLevel**, with correct Y chart translation, logical-plane eligibility, real remote light sampling, independent vertex buffers, source dispatcher restoration even if foreign prepare fails, lifecycle cleanup and pure-Java boundary JUnit tests. This is an actual Java/NeoForge render change, **not** a complete second `LevelRenderer` pass and does not create foreign entity packets or render Sable sublevels.
+- `dc05b8e`: disposable GUI E2E places a genuine Nether-owned vanilla armor stand with no gravity and logs `WORLDSEAM_E2E_NATIVE_ENTITY_SCENE`. Zero actual rendered foreign entity frames MUST be treated as **missing remote tracking**, not as a pass; the E2E telemetry is diagnostic until real foreign spawn/move/remove packets are implemented.
+- `8cdae4f` and `5f9cfc0`: replace the film job's apt ffmpeg/ImageMagick dependency chain with minimal X11 apt packages and pinned `imageio-ffmpeg==0.6.0`, still recording real X11 MP4 and direct real X11 screenshots, never synthesized or edited gameplay. These are runner repairs, **not** rendering/physics acceptance.
+
+### Specific upstream code and legal boundaries examined
+- [Immersive Portals 1.21 `MyGameRenderer.java`](https://github.com/iPortalTeam/ImmersivePortalsMod/blob/1.21/src/main/java/qouteall/imm_ptl/core/render/MyGameRenderer.java): the native second-world render saves and switches `Minecraft.level`, `LevelRenderer`, lightmap, camera, RenderBuffers, fixed section buffers, frustum, projection/modelview, fog/particles and transparency state, and then restores the source. Our new entity pass deliberately changes only the dispatcher and isolated buffers; **the required full context switch is still absent**.
+- [Sable native `Rapier3D`](https://github.com/STRELENA1/sable/blob/main/sable_rapier/src/main/java/dev/ryanhcode/sable/physics/impl/rapier/Rapier3D.java) + [`RapierPhysicsPipeline`](https://github.com/STRELENA1/sable/blob/main/sable_rapier/src/main/java/dev/ryanhcode/sable/physics/impl/rapier/RapierPhysicsPipeline.java): stock physics steps its own scene per ServerLevel, and the native callback returns tangent motion/removal, not the complete two-world contact impulses/torques. A witness callback count is not a same-substep dual-contact force measurement.
+- [IPSable `IplFusedStep`](https://github.com/r2smith141/IPSable/blob/f5e0471d59407a99c4abd0f084d5a4f2e236f2b8/src/main/java/ipl/sable/atlas/IplFusedStep.java) drives per-dimension pre-phases and one native step per substep. IPSable `LICENSE` at that commit is Apache-2.0, but [Sable `LICENSE.md`](https://github.com/STRELENA1/sable/blob/main/LICENSE.md) is **PolyForm Shield 1.0.0**, not Apache-2.0. No Sable source/native binaries copied or redistributed; ABI/derivative-use permission must be cleared before any native replacement.
+
+### Current-head tests (not silently promoted to pass)
+New HEAD after these commits must complete six fresh Actions: Build, independent JUnit/GameTest, released-mod integration, GUI, 240 crossings, real ship MP4. A green remote entity draw counter alone cannot establish entity tracking or continuity; the actual remote armor stand must appear in GUI and survive real packet updates. The film still uses externally imposed test forces; even a visible ship would NOT satisfy Create/Aeronautics autonomous propulsion.
+
+**Next actual architecture work**: (1) native full secondary `ClientLevel/LevelRenderer` compositing with all source state saved/restored, independent lightmap, sky, transparent depth, Sable client sublevel tracking and resources; (2) one ABI-compatible shared Rapier world with chart-keyed terrain, one authoritative body, image colliders and measured simultaneous source+foreign contact impulses/torques in the SAME substep. Only after these can autonomous powered down/up, passengers, mechanics and unedited MP4 be final-validated.
