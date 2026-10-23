@@ -14,6 +14,7 @@ on:
       - fix/npc-jail-rear-intake-physical-waypoints-v084
       - fix/npc-real-home-door-approach-v085
       - fix/npc-long-range-physical-custody-v086
+      - fix/npc-visible-collision-safe-follow-camera-v087
   pull_request:
     branches:
       - feat/npc-economy-market-fair-v069
