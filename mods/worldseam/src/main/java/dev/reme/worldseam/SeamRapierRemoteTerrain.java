@@ -227,6 +227,14 @@ public final class SeamRapierRemoteTerrain {
                     faulted=true;return;
                 }
                 i.remove();
+                // The native section has been removed, but the ship may
+                // remain at this seam while the authoritative target chunk
+                // streams out and back in. Without requeueing, this section
+                // stays absent from Rapier forever until the ship moves to
+                // another chunk and enqueueWindow() runs again.
+                // Retry asynchronously: upload() still requires getChunkNow,
+                // so this never forces a chunk load or invents a collider.
+                enqueue(s);
             }
         }
         int polls=pending.size();
