@@ -76,13 +76,18 @@ public final class LivingPlanner {
             last = Intent.EAT;
             return new Decision(Intent.EAT, 980, "critical hunger: eat existing food");
         }
+        if (c.raining() && c.exposedToWeather()) {
+            last = Intent.SEEK_SHELTER;
+            return new Decision(Intent.SEEK_SHELTER, 970, "weather safety before outdoor duties");
+        }
+        boolean scheduledMeal = (clock >= 900 && clock < 2100)
+            || (clock >= 5200 && clock < 6500)
+            || (clock >= 11000 && clock < 12200);
+        if (scheduledMeal && c.hunger() < 85) {
+            last = Intent.EAT;
+            return new Decision(Intent.EAT, 900, "real breakfast lunch or supper break");
+        }
         if (workHours && c.hasJobAndWorkplace() && c.energy() > 22) {
-            // Stable shift, avoids chatter/idle replacing workplace movement.
-            // Keep a genuine breakfast break only when actually hungry.
-            if (c.hunger() <= 43 && clock >= 5200L && clock < 6500L) {
-                last = Intent.EAT;
-                return new Decision(Intent.EAT, 900, "lunch break with real food");
-            }
             last = Intent.WORK;
             return new Decision(Intent.WORK, 950, "commuting or completing daytime paid work");
         }
