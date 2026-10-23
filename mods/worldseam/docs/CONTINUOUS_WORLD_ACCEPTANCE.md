@@ -84,3 +84,35 @@ Do not mark any as passed before reading the latest checks and real artifacts.
 2. Replace terrain-only late mesh draw with an actual **second ClientLevel/LevelRenderer full render pass** and seam-plane depth clip, proper sky/lightmap/transparent + entity/BE/Sable client sublevels. This is the main rendering blocker. Keep separated render buffers and restore all GL/client state even on exceptions. Inspect actual upper 1.21.1 NeoForge Immersive Portals implementation; do not transplant Fabric code blindly.
 3. Build/verify an ABI-matched, permission-cleared **Linux** Atlas extension (or secure upstream integration) for stock released Sable: chart-keyed terrain, same native body handle and nonmass image colliders, one solver step with simultaneous two-world contact torque. AABB candidate checks do NOT pass.
 4. After both foundations work: actual Create/Aeronautics-only thrust, repeat down/up, passenger & mechanical constraints, real frame-following MP4 and 240+ long-run FPS/tick/resource checks. Only actual game/video + native contact evidence count.
+
+
+## 2026-10-23 additional genuine development — remote BE rendering and notified terrain carving
+
+**Final acceptance gates are unchanged and REMAIN OPEN**: continuous both-ClientLevel rendering / lighting / all entities, truly fused single-body Rapier two-dimension contacts and torque, Create-only powered down/up, passenger continuity, fully clear uninterrupted GUI MP4, sustained performance.
+
+### Actual changes
+
+- [1b3aa0e](https://github.com/g2066203208-beep/mc-studio/commit/1b3aa0ecb41463fb7f684a3555abb03095617b6f) introduces `SeamRemoteBlockEntities`: directly renders real loaded target `ClientLevel` block entities with NeoForge 1.21.1 native `BlockEntityRenderDispatcher`, target-native block entity objects, mapped source-camera coordinates, frustum culling, isolated `SeamRenderBuffers`, and a `finally` restoration of the active world's dispatcher. Does not duplicate BE authority, does not call `getChunk` to generate missing chunks.
+- [e852850](https://github.com/g2066203208-beep/mc-studio/commit/e85285083b273de1d34197e17c10cf818d7d8c47) wires this native remote BE pass to actual `SeamNativeGeometryClient.render` and resource cleanup independently of VBO completion.
+- [675d6ae](https://github.com/g2066203208-beep/mc-studio/commit/675d6aec41ba456faac54c12a418d8c151dcbbe6) adds actual-native-rendered-frames/error counters, not a fake colored pixel.
+- [c6ac16a](https://github.com/g2066203208-beep/mc-studio/commit/c6ac16a485fd62aed2ba0fa5be47fa9adcae8d1c) installs a real Nether-owned CHEST BE in the disposable GUI scene, plus a fail-closed `WORLDSEAM_E2E_FAIL_NATIVE_BE_SCENE` assertion. Other BEs and Sable sublevels still need proper client/world context.
+- [690c13a](https://github.com/g2066203208-beep/mc-studio/commit/690c13a1eeea5adf103e5ae99f335154fcbff57e) separates the **published-chunk** carve into 128-cell/one-chunk-per-tick batches with real `ServerLevel#setBlock(...,3)` light/client/physics notification, replacing silent `ChunkAccess#setBlockState` on the loaded chunk. The generation-stage path remains intentionally distinct.
+- **Real CI failure surfaced and immediately repaired**: [independent run 39899289755](https://github.com/g2066203208-beep/mc-studio/actions/runs/39899289755) and [released-mod run 39899289724](https://github.com/g2066203208-beep/mc-studio/actions/runs/39899289724) failed to compile because `SeamChunkGenerationMixin` still invokes `SeamTerrain.replaceGeneratedBedrock` during *prepublication* worldgen. [643cb1c](https://github.com/g2066203208-beep/mc-studio/commit/643cb1c0073d20b2659c628f322b42651b6fbcbb) restores that exact worldgen method for safe construction-time `ChunkAccess` mutation; post-load notified changes remain asynchronous/bounded. Must be verified by *new* CI, not assumed successful.
+
+### Current code revision CI (643cb1c; pending at this review)
+
+- [Build](https://github.com/g2066203208-beep/mc-studio/actions/runs/39899530930)
+- [independent JUnit/GameTest](https://github.com/g2066203208-beep/mc-studio/actions/runs/39899530931)
+- [real Sable/Create/Aeronautics integration](https://github.com/g2066203208-beep/mc-studio/actions/runs/39899530897)
+- [real GUI native render](https://github.com/g2066203208-beep/mc-studio/actions/runs/39899530928)
+- [240 crossings and resource stress](https://github.com/g2066203208-beep/mc-studio/actions/runs/39899531026)
+- [raw real-client ship film](https://github.com/g2066203208-beep/mc-studio/actions/runs/39899530900)
+
+Do not label these passes before reviewing logs/artifacts. The **root architecture** remains insufficient: source-world late-pass VBO terrain and standalone BER are still not a true second `LevelRenderer` full sky/entity/Sable/transparent/depth-composited pass; Java VoxelShape candidates and externally injected forces do not equal foreign real terrain contact inside Sable's one native Rapier solver.
+
+### Priority
+
+1. Fix any regression on the **new final HEAD**. Download raw failed GUI/film artifact and JVM stack, not merely statuses; verify the Nether chest is rendered and bedrock load callback is no longer blocking. Probe 128-cell scheduling and chunk unload/reload cleanup.
+2. Implement real dual-ClientLevel full LevelRenderer compositing with seam-plane clip, independent render context/state and Sable tracking; validate native shader/lightmap, entities and resources.
+3. Develop a **permission-cleared native physics integration** for the released Linux Sable binary or documented safe release API. Translation-only OW(-64) to Nether(128) permits a 192-block transform, but stock Sable's per-Level scenes and collider-bakery packing must be accounted for. Do not claim `Rapier3D.addChunk` or AABB alone completes chart fusion. Prove same native body ID two-sided forces/torque in the SAME substep, then true unassisted Aeronautics propulsion and riders.
+4. Only after that: uninterrupted real MP4 down/up followed by user visual approval, with no PR merge before all gates pass.
