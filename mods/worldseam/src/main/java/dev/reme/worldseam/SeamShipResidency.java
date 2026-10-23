@@ -27,7 +27,9 @@ public final class SeamShipResidency {
     private static final int TICKET_DISTANCE=3;
     private static final int MAX_SHIPS=32;
     private static final long GRACE_TICKS=20;
-    private static final double APPROACH_MARGIN=16.0;
+    // Covers both native projected sections below the seam (32 blocks),
+    // including a ship whose center has already crossed the first section.
+    private static final double APPROACH_MARGIN=32.0;
     private static final TicketType<UUID> SHIP_TICKET=TicketType.create(
         "worldseam_sable_adjacent_terrain",Comparator.<UUID>naturalOrder());
 

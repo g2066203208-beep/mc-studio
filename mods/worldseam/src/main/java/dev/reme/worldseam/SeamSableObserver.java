@@ -34,6 +34,12 @@ public final class SeamSableObserver {
     private static int lastRemoteProbesTruncated;
     private static AABB sampleRemoteImage;
     private static String sampleRemoteDimension="";
+    // A real OW-owned Sable hull near the OW-bottom -> Nether-top seam.
+    // ServerLevel identity and a bounded tick age prevent reusing an anchor
+    // from an unloaded world or a previous integrated server.
+    private static AABB nativeRapierSourceHull;
+    private static ServerLevel nativeRapierHome,nativeRapierTarget;
+    private static long nativeRapierSampleTick=Long.MIN_VALUE;
     private static Snapshot latest=new Snapshot(false,false,0,0,0,"",0);
 
     public record Snapshot(boolean installed,boolean compatible,
@@ -53,6 +59,12 @@ public final class SeamSableObserver {
     /** Actual Sable sublevel projected hull. Broad phase only, server thread. */
     public static AABB sampleRemoteImage(){return sampleRemoteImage;}
     public static String sampleRemoteDimension(){return sampleRemoteDimension;}
+    /** Real Sable ship hull, never a synthetic camera/player proxy. */
+    public static AABB nativeRapierSourceHull(ServerLevel upper,ServerLevel lower,long now) {
+        return nativeRapierHome==upper && nativeRapierTarget==lower &&
+            SeamRapierAnchor.fresh(nativeRapierSampleTick,now)
+            ? nativeRapierSourceHull : null;
+    }
 
     public static void tick(MinecraftServer server,long tick,boolean worldSeamEnabled) {
         if(tick%INTERVAL_TICKS!=0)return;
@@ -63,6 +75,8 @@ public final class SeamSableObserver {
             lastRemoteCollisionCandidates=lastRemoteUnloadedBlocks=
                 lastRemoteProbesTruncated=0;
             sampleRemoteImage=null;sampleRemoteDimension="";
+            nativeRapierSourceHull=null;
+            nativeRapierHome=nativeRapierTarget=null;
             latest=new Snapshot(installed,false,0,0,tick,"",0);
             return;
         }
@@ -76,6 +90,8 @@ public final class SeamSableObserver {
             int possibleContactBlocks=0,unloadedCells=0,truncatedProbes=0;
             AABB currentSampleImage=null;
             String currentSampleDimension="";
+            AABB currentRapierHull=null;
+            double closestRapierDistance=Double.POSITIVE_INFINITY;
             var visited=new HashSet<UUID>();
             var straddled=new HashSet<UUID>();
             String sample="";
@@ -113,8 +129,23 @@ public final class SeamSableObserver {
                         // passenger nearby. Request the REAL neighbor's
                         // terrain *ahead* of collision time, via an ordinary
                         // bounded region ticket, without synchronous loads.
-                        if(SeamShipResidency.nearing(hull,homeY))
+                        if(SeamShipResidency.nearing(hull,homeY)) {
                             SeamShipResidency.touch(id,dest,hull,homeY,tick);
+                            // Stock Sable keeps the ship in its home world;
+                            // use that REAL hull to keep its foreign terrain
+                            // in the SAME native scene without any player.
+                            if(home.dimension()==net.minecraft.world.level.Level.OVERWORLD &&
+                               dest.dimension()==net.minecraft.world.level.Level.NETHER &&
+                               link.exit()==SeamGraph.EdgeSide.BOTTOM &&
+                               link.entry()==SeamGraph.EdgeSide.TOP) {
+                                double distance=Math.abs(hull.minY+
+                                    (hull.maxY-hull.minY)*0.5-homeY);
+                                if(distance<closestRapierDistance) {
+                                    closestRapierDistance=distance;
+                                    currentRapierHull=hull;
+                                }
+                            }
+                        }
                         if(hull.minY>=homeY || hull.maxY<=homeY)continue;
                         double destY=SeamGraph.boundaryY(link.entry(),
                             SeamStackRuntime.bottom(dest),SeamStackRuntime.top(dest));
@@ -145,6 +176,10 @@ public final class SeamSableObserver {
             lastRemoteProbesTruncated=truncatedProbes;
             sampleRemoteImage=currentSampleImage;
             sampleRemoteDimension=currentSampleDimension;
+            nativeRapierSourceHull=currentRapierHull;
+            nativeRapierHome=server.getLevel(net.minecraft.world.level.Level.OVERWORLD);
+            nativeRapierTarget=server.getLevel(net.minecraft.world.level.Level.NETHER);
+            nativeRapierSampleTick=tick;
             latest=new Snapshot(true,true,bodies,straddled.size(),tick,sample,charted);
             if(!straddled.isEmpty() && !previouslyStraddling)
                 LOG.warn("WORLDSEAM_SABLE_STRADDLE_DETECTED: {} real ships touching two dimension charts. NO unified Rapier contact bridge is installed; do NOT claim physics continuity. sample={}",
@@ -156,6 +191,8 @@ public final class SeamSableObserver {
             LOG.warn("WORLDSEAM_SABLE_READ_ONLY_PROBE_UNAVAILABLE: Sable API adapter unavailable; no changes to ships were attempted",ex);
             SeamShipResidency.clear();
             sampleRemoteImage=null;sampleRemoteDimension="";
+            nativeRapierSourceHull=null;
+            nativeRapierHome=nativeRapierTarget=null;
             latest=new Snapshot(true,false,0,0,tick,"",0);
         }
     }

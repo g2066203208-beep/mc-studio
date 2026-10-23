@@ -169,15 +169,24 @@ public final class SeamRapierRemoteTerrain {
             LOG.error("WORLDSEAM_RAPIER_EXPERIMENT_REJECT: unsupported seam map sourceY={} targetY={}",highEdge,lowEdge,ex);
             faulted=true;return;
         }
+        // The physics window must follow the real authoritative Sable hull,
+        // not a spectator. A ship without nearby players still requires the
+        // SAME native Rapier scene to retain both dimensions\u0027 terrain.
+        // This is a bounded two-section prototype, NOT fused Atlas physics.
+        long now=upper.getGameTime();
+        var shipHull=SeamSableObserver.nativeRapierSourceHull(upper,lower,now);
+        var shipAnchor=SeamRapierAnchor.fromHull(shipHull);
         var viewer=server.getPlayerList().getPlayers().stream()
             .filter(p->p.serverLevel()==upper && Math.abs(p.getY()-highEdge)<48)
             .findFirst().orElse(null);
-        if(viewer==null) {
+        if(shipAnchor==null && viewer==null) {
             if(active)close();
             return;
         }
-        int cx=Math.floorDiv(viewer.blockPosition().getX(),16);
-        int cz=Math.floorDiv(viewer.blockPosition().getZ(),16);
+        int cx=shipAnchor!=null?shipAnchor.chunkX():
+            Math.floorDiv(viewer.blockPosition().getX(),16);
+        int cz=shipAnchor!=null?shipAnchor.chunkZ():
+            Math.floorDiv(viewer.blockPosition().getZ(),16);
         if(active && (source!=upper||target!=lower||offsetY!=shift))close();
         if(!active) {
             try {
