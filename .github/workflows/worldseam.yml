@@ -8,7 +8,7 @@ concurrency:
 
 on:
   push:
-    branches: [main, feat/worldseam-standalone, feat/worldseam-continuous-seam-p2]
+    branches: [main, feat/worldseam-standalone]
     paths: ["mods/worldseam/**", ".github/workflows/worldseam.yml"]
   pull_request:
     paths: ["mods/worldseam/**", ".github/workflows/worldseam.yml"]

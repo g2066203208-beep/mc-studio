@@ -14,7 +14,7 @@ on:
       - "mods/worldseam/gradle.properties"
       - ".github/workflows/worldseam-stress-e2e.yml"
   push:
-    branches: [feat/worldseam-standalone, feat/worldseam-continuous-seam-p2]
+    branches: [feat/worldseam-standalone]
     paths:
       - "mods/worldseam/src/**"
       - "mods/worldseam/build.gradle"
