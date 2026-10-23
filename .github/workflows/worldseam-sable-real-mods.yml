@@ -1,5 +1,10 @@
 name: WorldSeam Real Sable Aeronautics Integration
 on:
+  push:
+    branches: [feat/worldseam-continuous-seam-p2]
+    paths:
+      - "mods/worldseam/**"
+      - ".github/workflows/worldseam-sable-real-mods.yml"
   pull_request:
     paths:
       - "mods/worldseam/**"

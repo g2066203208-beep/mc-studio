@@ -1,5 +1,10 @@
 name: WorldSeam Genuine Sable Ship Flight Video
 on:
+  push:
+    branches: [feat/worldseam-continuous-seam-p2]
+    paths:
+      - "mods/worldseam/**"
+      - ".github/workflows/worldseam-ship-film.yml"
   pull_request:
     paths:
       - "mods/worldseam/**"
