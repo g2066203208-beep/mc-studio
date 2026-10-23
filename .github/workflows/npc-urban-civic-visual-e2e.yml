@@ -8,6 +8,7 @@ on:
   push:
     branches:
       - feat/npc-urban-civic-campus-v073
+      - feat/npc-connected-boulevards-v076
   pull_request:
     branches:
       - feat/npc-daily-routines-housing-v072

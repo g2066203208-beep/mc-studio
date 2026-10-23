@@ -152,6 +152,16 @@ public final class NpcCommands {
                         .executes(ctx -> cityGrow(ctx.getSource(), net.minecraft.core.Direction.NORTH)))
                     .then(Commands.literal("south")
                         .executes(ctx -> cityGrow(ctx.getSource(), net.minecraft.core.Direction.SOUTH)))))
+                .then(Commands.literal("avenue")
+                    .requires(source -> source.hasPermission(2))
+                    .then(Commands.literal("east").then(Commands.argument("count",IntegerArgumentType.integer(1,3))
+                        .executes(ctx -> cityAvenue(ctx.getSource(),net.minecraft.core.Direction.EAST,IntegerArgumentType.getInteger(ctx,"count")))))
+                    .then(Commands.literal("west").then(Commands.argument("count",IntegerArgumentType.integer(1,3))
+                        .executes(ctx -> cityAvenue(ctx.getSource(),net.minecraft.core.Direction.WEST,IntegerArgumentType.getInteger(ctx,"count")))))
+                    .then(Commands.literal("north").then(Commands.argument("count",IntegerArgumentType.integer(1,3))
+                        .executes(ctx -> cityAvenue(ctx.getSource(),net.minecraft.core.Direction.NORTH,IntegerArgumentType.getInteger(ctx,"count")))))
+                    .then(Commands.literal("south").then(Commands.argument("count",IntegerArgumentType.integer(1,3))
+                        .executes(ctx -> cityAvenue(ctx.getSource(),net.minecraft.core.Direction.SOUTH,IntegerArgumentType.getInteger(ctx,"count"))))))
             .then(Commands.literal("mine").requires(source -> source.hasPermission(2))
                 .then(Commands.argument("target", BlockPosArgument.blockPos())
                     .executes(ctx -> authorizeMining(ctx.getSource(),
@@ -416,7 +426,8 @@ public final class NpcCommands {
             + "/npc city audit 实时查看店铺、顾客、逃单、报警与追捕。"
             + "/npc city zone survey hospital|education|government|transport 先检查，"
             + "/npc city zone <类型> 仅OP在城市十字路口中心建设专业新区。" 
-            + "演示不会自动填平、破坏现有建筑；NPC自主生存建设仍属另一系统。"), false);
+            + "/npc city avenue east|west|north|south 1..3 安全预检后连接真实五格宽道路及多个住宅商场街区。" 
+            + "演示不会自动填平、破坏现有建筑；NPC自主生存建设仍属另一系统."), false);
         return 1;
     }
 
@@ -497,6 +508,27 @@ public final class NpcCommands {
             + " 已报警=" + g + " 警察=" + h + " 追捕任务=" + i
             + " 在押=" + j + " 店铺周边警力=" + k
             + "。仅统计周围42格真实加载实体，不伪造抓捕。"), false);
+        return 1;
+    }
+
+    private static int cityAvenue(CommandSourceStack source,
+                                   net.minecraft.core.Direction way,int count)
+        throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        ServerPlayer user=source.getPlayerOrException();
+        BlockPos center=user.blockPosition().below();
+        String survey=CityDistrictExpansion.surveyAvenue(user.serverLevel(),center,way,count);
+        if(!survey.startsWith("通过")){
+            source.sendFailure(Component.literal("连续城区安全检查未通过："+survey));
+            return 0;
+        }
+        CityDistrictDemo.Result built=CityDistrictExpansion.growAvenue(
+            user.serverLevel(),center,way,count,user);
+        if(!built.success()){
+            source.sendFailure(Component.literal("城市施工未完全成功："+built.reason()));
+            return 0;
+        }
+        source.sendSuccess(() -> Component.literal(built.reason()
+            +"；新增方块="+built.blocks()+"；新增实际NPC="+built.citizens()),true);
         return 1;
     }
 

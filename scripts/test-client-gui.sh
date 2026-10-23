@@ -207,6 +207,7 @@ if [[ "${REME_CITY_VISUAL:-0}" == "1" ]]; then
     URBAN_VIDEO_PID=$!
     say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run fill ~-62 ~-1 ~-20 ~-22 ~-1 ~20 minecraft:stone' 4
     say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run fill ~-62 ~ ~-20 ~-22 ~11 ~20 minecraft:air' 4
+    say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run fill ~-21 ~-1 ~-2 ~-21 ~-1 ~2 minecraft:stone' 3
     say_city '/npc city zone survey hospital' 3
     say_city '/npc city zone hospital' 16
     say_city '/execute if entity @e[type=reme_studio:player_npc,tag=reme_urban_hospital_0] run say REME_URBAN_HOSPITAL_STAFF_REAL' 3
@@ -216,6 +217,7 @@ if [[ "${REME_CITY_VISUAL:-0}" == "1" ]]; then
 
     say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run fill ~-20 ~-1 ~-62 ~20 ~-1 ~-22 minecraft:stone' 4
     say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run fill ~-20 ~ ~-62 ~20 ~11 ~-22 minecraft:air' 4
+    say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run fill ~-2 ~-1 ~-21 ~2 ~-1 ~-21 minecraft:stone' 3
     say_city '/npc city zone survey education' 3
     say_city '/npc city zone education' 16
     say_city '/execute if entity @e[type=reme_studio:player_npc,tag=reme_urban_education_0] run say REME_URBAN_EDUCATION_STAFF_REAL' 3
@@ -225,6 +227,7 @@ if [[ "${REME_CITY_VISUAL:-0}" == "1" ]]; then
 
     say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run fill ~-20 ~-1 ~22 ~20 ~-1 ~62 minecraft:stone' 4
     say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run fill ~-20 ~ ~22 ~20 ~11 ~62 minecraft:air' 4
+    say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run fill ~-2 ~-1 ~21 ~2 ~-1 ~21 minecraft:stone' 3
     say_city '/npc city zone survey government' 3
     say_city '/npc city zone government' 16
     say_city '/execute if entity @e[type=reme_studio:player_npc,tag=reme_urban_government_0] run say REME_URBAN_GOVERNMENT_STAFF_REAL' 3
@@ -234,6 +237,7 @@ if [[ "${REME_CITY_VISUAL:-0}" == "1" ]]; then
 
     say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run fill ~22 ~-1 ~-20 ~62 ~-1 ~20 minecraft:stone' 4
     say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run fill ~22 ~ ~-20 ~62 ~11 ~20 minecraft:air' 4
+    say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run fill ~21 ~-1 ~-2 ~21 ~-1 ~2 minecraft:stone' 3
     say_city '/npc city zone survey transport' 3
     say_city '/npc city zone transport' 16
     say_city '/execute if entity @e[type=reme_studio:player_npc,tag=reme_urban_transport_0] run say REME_URBAN_TRANSPORT_STAFF_REAL' 3
@@ -350,7 +354,7 @@ if [[ "${REME_CITY_VISUAL:-0}" == "1" ]]; then
 import pathlib,re,sys
 text=pathlib.Path("client-gui.log").read_text(errors="replace")
 markers=["stage=unpaid_pickup","stage=police_report",
-         "stage=nonlethal_arrest","stage=jail_reached"]
+         "stage=police_contact","stage=post_stun_arrest","stage=jail_reached"]
 events=[]
 for marker in markers:
     m=re.search(r"^.*"+re.escape(marker)+r".*$",text,re.MULTILINE)
@@ -364,6 +368,12 @@ for m in events:
     uuids.append(x.group(1))
 if len(set(uuids))!=1:
     sys.exit("FAIL: theft/arrest/jail refer to DIFFERENT NPCs "+str(uuids))
+# Same live suspect must receive three real swings before handcuffing.
+contacts=re.findall(r"^.*stage=police_contact.*$",text,re.MULTILINE)
+real=[m for m in contacts if uuids[0] in m]
+progress=[re.search(r"blows=(\\d+) stunned=(true|false)",m) for m in real]
+if len(real)<3 or not any(m and m.group(1)=="3" and m.group(2)=="true" for m in progress):
+    sys.exit("FAIL: true GUI log lacks three melee contacts and knockdown")
 if not all(events[i].start()<events[i+1].start()
            for i in range(len(events)-1)):
     sys.exit("FAIL: real city incident timeline out of order")
@@ -372,7 +382,7 @@ if not gate: sys.exit("FAIL: no real Minecraft iron door locked after entry")
 pov=re.search(r"已连续跟踪真实NPC ([0-9a-f-]{36})：CHASE",text)
 if not pov or pov.group(1)!=uuids[0]:
     sys.exit("FAIL: native camera not tracking the REAL thief in incident")
-if not pov.start()<events[2].start():
+if not pov.start()<events[3].start():
     sys.exit("FAIL: follow camera started only after actual in-world arrest")
 print("REME_NPC_REAL_CLIENT_FULL_CASE_RECORDING_OK thief="+uuids[0]
       +" theft-report-arrest-cell=true camera-attached-before-arrest=true")
