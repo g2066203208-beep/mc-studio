@@ -151,25 +151,51 @@ public final class ResidentBedLife {
             return false;
         }
 
-        if (npc.getNavigation().isDone() ||
-            MovementPolicy.due(tick, npc.getId(), 40)) {
-            BlockPos access = accessibleSide(level, bed, npc.blockPosition());
-            if (access == null) {
-                // A moved furniture block must not hold the entire NPC AI
-                // hostage forever: allow ordinary at-home rest fallback.
-                npc.setAssignedBedPos(null);
-                npc.setAction("bed blocked; releasing claim until next scan");
-                return false;
-            }
-            if (RoadNavigator.moveToward(npc, level, access, 1.00))
-                npc.setAction("walking to reserved bed");
-            else if (npc.getNavigation().isDone()) {
-                npc.setAssignedBedPos(null);
-                npc.setAction("no valid path to bed; releasing claim");
-                return false;
+        // A bed is a fixed indoor destination, not a road waypoint. The
+        // generic RoadNavigator may prefer an outdoor pavement tile even
+        // when a usable doorway and bed aisle are immediately reachable.
+        // Only re-plan at 40-tick staggered intervals: at most four local
+        // vanilla A* requests per resident per interval, never chunk-load.
+        if (MovementPolicy.due(tick, npc.getId(), 40)) {
+            net.minecraft.world.level.pathfinder.Path route =
+                reachableBedSide(npc, level, bed);
+            if (route != null && npc.getNavigation().moveTo(route, 1.0)) {
+                npc.setAction("walking through real doorway to reserved bed");
+            } else {
+                // Preserve the bed claim and try again. Clearing it on every
+                // unsuccessful path makes residents race for other beds and
+                // creates an endless reserve/fail cycle at night.
+                npc.getNavigation().stop();
+                npc.setAction("bed aisle unreachable; waiting for a free route");
             }
         }
         return true; // keep ordinary AI from overwriting a live bed path
+    }
+
+    /**
+     * Select a genuinely path-reachable floor square beside the assigned
+     * bed. A geometrically free square behind a solid wall is not a route.
+     * Never use teleport or force-load a chunk to complete a sleep task.
+     */
+    @Nullable private static net.minecraft.world.level.pathfinder.Path reachableBedSide(
+            PlayerNpcEntity npc, ServerLevel level, BlockPos bed) {
+        net.minecraft.world.level.pathfinder.Path best = null;
+        int bestLength = Integer.MAX_VALUE;
+        for (Direction direction : Direction.Plane.HORIZONTAL) {
+            BlockPos side = bed.relative(direction);
+            if (!level.hasChunkAt(side)
+                || !level.getBlockState(side).isAir()
+                || !level.getBlockState(side.above()).isAir()
+                || !level.getBlockState(side.below()).isSolid()) continue;
+            net.minecraft.world.level.pathfinder.Path path =
+                npc.getNavigation().createPath(side, 0);
+            if (path == null || !path.canReach()) continue;
+            if (path.getNodeCount() < bestLength) {
+                best = path;
+                bestLength = path.getNodeCount();
+            }
+        }
+        return best;
     }
 
     @Nullable private static BlockPos accessibleSide(ServerLevel level,
