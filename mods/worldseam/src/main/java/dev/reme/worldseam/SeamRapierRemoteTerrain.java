@@ -75,14 +75,21 @@ public final class SeamRapierRemoteTerrain {
     }
 
     private static void enqueue(NativeSection s) {
-        if(queued.add(s) && pending.size()<MAX_PENDING)pending.offer(s);
-        else if(!pending.contains(s) && !uploaded.contains(s))queued.remove(s);
+        if(queued.contains(s))return;
+        if(pending.size()>=MAX_PENDING)return; // bounded; leave old native slice intact
+        queued.add(s);
+        pending.offer(s);
     }
 
     public static void tick(ServerTickEvent.Post event) {
         if(!enabled())return;
         MinecraftServer server=event.getServer();
-        if(owner!=null && owner!=server)close();
+        if(owner!=null && owner!=server) {
+            // The old MinecraftServer already disposed its native Rapier
+            // scenes; NEVER call nativeRemove using the stale handle.
+            resetOnlyJavaState();
+            faulted=false;
+        }
         owner=server;
         if(faulted)return;
         if(!SeamSettings.get(server).enabled()) {
@@ -260,15 +267,19 @@ public final class SeamRapierRemoteTerrain {
                 s.cx(),Math.addExact(s.cy(),offsetY/16),s.cz(),true);
     }
 
+    private static void resetOnlyJavaState() {
+        pending.clear();queued.clear();uploaded.clear();COLLIDER_CACHE.clear();
+        source=null;target=null;destinationBakery=null;
+        active=false;
+        totalNativeUploads=totalRemoteSolidCells=0;
+    }
+
     public static void close() {
         if(active && nativeRemove!=null) {
             for(var s:uploaded)try {remove(s);}
                 catch(Exception ex){LOG.error("WORLDSEAM_RAPIER_EXPERIMENT_CLEANUP_FAIL",ex);}
         }
-        pending.clear();queued.clear();uploaded.clear();COLLIDER_CACHE.clear();
-        source=null;target=null;destinationBakery=null;
-        active=false;
-        totalNativeUploads=totalRemoteSolidCells=0;
+        resetOnlyJavaState();
     }
     public static boolean active(){return active;}
     public static long uploadedSections(){return totalNativeUploads;}
