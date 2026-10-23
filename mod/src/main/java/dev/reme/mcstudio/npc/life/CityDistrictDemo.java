@@ -198,6 +198,10 @@ public final class CityDistrictDemo {
                 if (!(x == -17 && z == -17))
                     p.put(x, 4, z, Blocks.SMOOTH_QUARTZ);
         door(p, -6, -12, Direction.EAST);
+        // The library desk is genuinely inside the mall, rather than just
+        // giving a nonfunctional LIBRARIAN label to a random pedestrian.
+        p.put(-15, 1, -10, Blocks.BOOKSHELF);
+        p.put(-15, 1, -9, Blocks.LECTERN);
         for (int z = -16; z <= -8; z++)
             p.put(-5, 3, z, z % 2 == 0 ? Blocks.RED_CONCRETE : Blocks.YELLOW_CONCRETE);
         // Physical counters, real chest/barrel storage, display stalls.
@@ -274,6 +278,14 @@ public final class CityDistrictDemo {
         // shopworkers' beds or sleeping at the occupied iron-bar cell.
         bed(p, -16, 8);
         bed(p, -13, 8);
+        // Two additional civic staff sleeping places; public clinic and
+        // lending-library employees have their OWN real bed heads.
+        bed(p, -16, 11);
+        bed(p, -13, 11);
+        // Small physical community-care workstation; no GUI-only hospital.
+        p.put(-9, 1, 9, Blocks.SMOOTH_QUARTZ);
+        p.put(-9, 2, 9, Blocks.BREWING_STAND);
+        p.put(-8, 1, 9, Blocks.CAULDRON);
         p.put(-11, 1, 10, Blocks.LECTERN);
         p.put(-15, 1, 9, Blocks.CHEST);
         p.put(-10, 1, 9, Blocks.CRAFTING_TABLE);
@@ -324,7 +336,7 @@ public final class CityDistrictDemo {
                                                @Nullable ServerPlayer owner) {
         String[] names = {"商场经理","食品店员","烘焙店员","巡逻警察","值班警察",
             "街区农夫","农贸供应商","上班族甲","上班族乙","逛街顾客","公园居民","快递配送员",
-            "街区逃单者"};
+            "街区逃单者","社区医护","图书管理员"};
         PlayerNpcEntity.Profession[] jobs = {
             PlayerNpcEntity.Profession.SHOPKEEPER, PlayerNpcEntity.Profession.SHOPKEEPER,
             PlayerNpcEntity.Profession.BAKER, PlayerNpcEntity.Profession.GUARD,
@@ -332,12 +344,13 @@ public final class CityDistrictDemo {
             PlayerNpcEntity.Profession.FARMER, PlayerNpcEntity.Profession.RESIDENT,
             PlayerNpcEntity.Profession.RESIDENT, PlayerNpcEntity.Profession.RESIDENT,
             PlayerNpcEntity.Profession.RESIDENT, PlayerNpcEntity.Profession.COURIER,
-            PlayerNpcEntity.Profession.RESIDENT
+            PlayerNpcEntity.Profession.RESIDENT,
+            PlayerNpcEntity.Profession.MEDIC, PlayerNpcEntity.Profession.LIBRARIAN
         };
         int[][] spawn = {
             {-10,-10},{-10,-14},{-8,-8},{-7,-10},{-10,13},
             {10,11},{16,12},{9,-9},{15,-9},{-3,-12},{10,8},{3,12},
-            {-8,-11}
+            {-8,-11},{-10,10},{-14,-10}
         };
         int count=0;
         String region = "city_" + (center.getX()>>4) + "_" + (center.getZ()>>4);
@@ -346,7 +359,8 @@ public final class CityDistrictDemo {
         int[][] beds = {
             {7,-16},{9,-16},{14,-16},{-16,8},{-13,8},
             {16,-16},{7,-13},{9,-13},{14,-13},{16,-13},
-            {7,-10},{9,-10},{14,-10}
+            {7,-10},{9,-10},{14,-10},
+            {-16,11},{-13,11}
         };
         for (int i=0; i<names.length; i++) {
             PlayerNpcEntity npc = NpcRegistry.PLAYER_NPC.get().create(level);
@@ -370,6 +384,8 @@ public final class CityDistrictDemo {
                 npc.setPoliceJail(center.offset(-13,1,15));
             }
             else if (i < 7) npc.setWorkPos(center.offset(15,1,12));
+            else if (i == 13) npc.setWorkPos(center.offset(-10,1,10));
+            else if (i == 14) npc.setWorkPos(center.offset(-14,1,-10));
             else npc.setWorkPos(center.offset(-3,1,-12));
             if (owner != null) npc.setOwner(owner);
             npc.setCustomName(Component.literal(names[i]));
@@ -391,6 +407,12 @@ public final class CityDistrictDemo {
             } else if (jobs[i] == PlayerNpcEntity.Profession.FARMER) {
                 npc.backpack().addItem(new ItemStack(Items.CARROT, 18));
                 npc.backpack().addItem(new ItemStack(Items.BREAD, 2));
+            } else if (jobs[i] == PlayerNpcEntity.Profession.MEDIC) {
+                npc.backpack().addItem(new ItemStack(Items.GOLDEN_APPLE, 6));
+                npc.backpack().addItem(new ItemStack(Items.BREAD, 3));
+            } else if (jobs[i] == PlayerNpcEntity.Profession.LIBRARIAN) {
+                npc.backpack().addItem(new ItemStack(Items.BOOK, 12));
+                npc.backpack().addItem(new ItemStack(Items.BREAD, 3));
             } else if (jobs[i] == PlayerNpcEntity.Profession.RESIDENT) {
                 // 12th index is a low-honesty, cashless local. Honest
                 // customers get actual money and pay normally. No stolen
@@ -404,7 +426,7 @@ public final class CityDistrictDemo {
         System.out.println("REME_NPC_STORY stage=city_initial_population"
             + " tick=" + level.getGameTime() + " citizens=" + count
             + " realClerks=2 realGuards=2 dishonestCustomers=1"
-            + " realResidentialBeds=14 individualBedClaims=13");
+            + " realResidentialBeds=16 individualBedClaims=15 clinic=1 library=1");
         return count;
     }
 }
