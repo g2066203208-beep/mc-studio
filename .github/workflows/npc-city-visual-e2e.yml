@@ -22,6 +22,7 @@ on:
       - fix/npc-gui-install-cache-first-v092
       - fix/npc-playeranimator-resource-registry-v093
       - fix/npc-gui-runner-apt-visibility-v094
+      - test/npc-escort-cell-arrival-no-floor-fall-v095
   pull_request:
     branches:
       - feat/npc-economy-market-fair-v069

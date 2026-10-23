@@ -75,12 +75,16 @@ public final class CustodyOfficerLeashGameTests {
         helper.succeed();
     }
 
-    @GameTest(template="empty",timeoutTicks=350)
+    @GameTest(template="empty",timeoutTicks=500)
     public static void prisoner_waits_for_actual_walking_officer_then_moves(
         GameTestHelper helper) {
         ServerLevel level=helper.getLevel();
         BlockPos jail=helper.absolutePos(new BlockPos(10,2,10));
-        for(int x=-2;x<=25;x++)for(int z=-3;z<=3;z++){
+        // Include the real south-intake waypoint at z=+4 and its
+        // approach. The previous fixture stopped at z=+3, leaving a
+        // two-block fall at the mandatory intake and producing
+        // REME_NPC_JAIL_ROUTE_BLOCKED while this test still passed.
+        for(int x=-2;x<=25;x++)for(int z=-3;z<=6;z++){
             BlockPos tile=jail.offset(x,0,z);
             level.setBlock(tile.below(),Blocks.SMOOTH_STONE.defaultBlockState(),2);
             for(int y=0;y<3;y++)
@@ -95,9 +99,9 @@ public final class CustodyOfficerLeashGameTests {
                                     PlayerNpcEntity.Profession.GUARD);
         officer.setHomePos(jail);
         long now=level.getGameTime();
-        prisoner.detainAt(jail,now+900);
+        prisoner.detainAt(jail,now+1500);
         prisoner.assignCustodyOfficer(officer.getUUID());
-        officer.assignPrisonerEscort(prisoner.getUUID(),now+900);
+        officer.assignPrisonerEscort(prisoner.getUUID(),now+1500);
         final double initialX=prisoner.getX();
         // The suspect may NOT move independently while officer is >10 blocks
         // away. The officer must actually walk along the stone street.
@@ -107,15 +111,30 @@ public final class CustodyOfficerLeashGameTests {
                 helper.fail("Prisoner walked to cell alone before officer arrived",
                     prisoner.blockPosition());
         });
-        helper.runAfterDelay(270,()->{
-            if(!prisoner.isAlive()||!officer.isAlive())
+        helper.runAfterDelay(400,()->{
+            if(!prisoner.isAlive()||!officer.isAlive()) {
                 helper.fail("Physical escort actor disappeared",jail);
-            else if(Math.abs(prisoner.getX()-initialX)<0.7)
-                helper.fail("Prisoner never resumed physical escort after guard approached: "
+                return;
+            }
+            // Displacement alone is NOT an escort success: the old test
+            // passed after the prisoner fell two blocks into an unpaved
+            // intake, while native pathfinding logged ROUTE_BLOCKED.
+            if(!prisoner.blockPosition().equals(jail)
+                || !prisoner.isDetained(level.getGameTime())
+                || officer.distanceToSqr(prisoner)>100.0) {
+                helper.fail("Custody must physically reach its real cell on the "
+                    +"correct Y level with its own officer; not merely move: "
                     +"officer="+officer.blockPosition()
                     +" prisoner="+prisoner.blockPosition()
+                    +" cell="+jail
                     +" action="+prisoner.lastAction(),prisoner.blockPosition());
-            else helper.succeed();
+                return;
+            }
+            if(Math.abs(prisoner.getX()-initialX)<0.7) {
+                helper.fail("Prisoner never moved from arrest point",jail);
+                return;
+            }
+            helper.succeed();
         });
     }
 }
