@@ -21,6 +21,7 @@ on:
       - fix/npc-gui-apt-timeout-evidence-v091
       - fix/npc-gui-install-cache-first-v092
       - fix/npc-playeranimator-resource-registry-v093
+      - fix/npc-gui-runner-apt-visibility-v094
   pull_request:
     branches:
       - feat/npc-economy-market-fair-v069
@@ -30,7 +31,10 @@ permissions:
 
 jobs:
   city-client-visual:
-    runs-on: ubuntu-latest
+    # The 24.04.5 image repeatedly timed out in apt before Minecraft launched.
+    # Pin the independently maintained 22.04 runner to isolate mirror/image
+    # regressions; this does not waive actual-client video acceptance.
+    runs-on: ubuntu-22.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -46,12 +50,16 @@ jobs:
           grep -Fxq 'mod_version=0.7.2-dev' mod/gradle.properties
       - name: Verify shared NPC and real-player keyframe assets
         run: python3 scripts/check-npc-animation-assets.py
-      - name: Install GUI dependencies from runner cache first; bounded network fallback
+      - name: Install GUI dependencies with visible apt diagnostics and bounded fallback
         shell: bash
         run: |
           set -euo pipefail
           {
             echo "Runner: $(lsb_release -ds 2>/dev/null || uname -a)"
+            echo "APT source configuration (diagnostics only):"
+            grep -rhE "^(URIs:|Suites:|deb )" /etc/apt/sources.list /etc/apt/sources.list.d 2>/dev/null || true
+            echo "Package candidates:"
+            apt-cache policy xdotool imagemagick openbox ffmpeg | head -n 75 || true
             echo "Checking the actual GUI commands before attempting network apt update"
             required=(xvfb-run xdotool import openbox ffmpeg ffprobe)
             missing=()
@@ -69,16 +77,16 @@ jobs:
               if timeout --signal=TERM --kill-after=10s 150s \
                   sudo env DEBIAN_FRONTEND=noninteractive apt-get \
                     -o Acquire::Retries=0 -o Acquire::http::Timeout=15 \
-                    install -y -qq --no-install-recommends "${packages[@]}"; then
+                    install -y --no-install-recommends "${packages[@]}"; then
                 echo "CACHE_FIRST_APT_INSTALL_OK"
               else
                 echo "CACHE_FIRST_APT_INSTALL_FAILED; bounded apt index refresh, then one retry"
                 timeout --signal=TERM --kill-after=10s 75s \
-                  sudo apt-get -o Acquire::Retries=0 -o Acquire::http::Timeout=15 update -qq
+                  sudo apt-get -o Acquire::Retries=0 -o Acquire::http::Timeout=15 update
                 timeout --signal=TERM --kill-after=10s 150s \
                   sudo env DEBIAN_FRONTEND=noninteractive apt-get \
                     -o Acquire::Retries=0 -o Acquire::http::Timeout=15 \
-                    install -y -qq --no-install-recommends "${packages[@]}"
+                    install -y --no-install-recommends "${packages[@]}"
               fi
             else
               echo "ALL_GUI_TOOLS_ALREADY_PRESENT; skipping apt network calls"
