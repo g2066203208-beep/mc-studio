@@ -61,8 +61,10 @@ public final class SeamRemoteEntities {
                 if(dx*dx+dy*dy+dz*dz>MAX_DISTANCE_SQ)continue;
                 lastEligible++;
                 if(!switched) {
-                    dispatcher.prepare(remote,camera,null);
+                    // Mark before mutating the shared dispatcher: even a
+                    // failing prepare must restore the source in finally.
                     switched=true;
+                    dispatcher.prepare(remote,camera,null);
                 }
                 try {
                     usedBuffers=true;
