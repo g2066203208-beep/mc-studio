@@ -25,6 +25,7 @@ on:
       - test/npc-escort-cell-arrival-no-floor-fall-v095
       - test/npc-real-client-video-integrity-v096
       - fix/npc-gui-apt-dpkg-lock-v097
+      - feat/npc-physical-escort-pair-camera-v098
   pull_request:
     branches:
       - feat/npc-economy-market-fair-v069
