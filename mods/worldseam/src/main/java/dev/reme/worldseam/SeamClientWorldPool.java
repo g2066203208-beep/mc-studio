@@ -361,6 +361,15 @@ public final class SeamClientWorldPool {
         return found;
     }
 
+    /** Only expose the actual secondary ClientLevel for dimension-scoped
+     * native entity tracking; never confuse it with Minecraft.level. */
+    static ClientLevel remoteFor(String from,String to) {
+        Minecraft mc=Minecraft.getInstance();
+        return remote!=null && mc.level!=null &&
+            mc.level.dimension().location().toString().equals(from) &&
+            source.equals(from) && target.equals(to) ? remote : null;
+    }
+
     public static boolean hasPrewarmed(String destination) {
         return remote != null && target.equals(destination);
     }
