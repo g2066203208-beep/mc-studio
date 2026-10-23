@@ -4,7 +4,9 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.level.block.Blocks;
-import net.minecraft.world.level.chunk.ChunkAccess;
+import net.minecraft.world.level.chunk.LevelChunk;
+import java.util.HashMap;
+import java.util.Map;
 import net.neoforged.neoforge.event.level.ChunkEvent;
 import java.util.ArrayList;
 import java.util.List;
@@ -32,6 +34,11 @@ public final class SeamTerrain {
     private static final int MAX_PENDING = 4096;
     private static final int MAX_POLLS_PER_TICK = 32;
     private static final int MAX_CARVES_PER_TICK = 1;
+    // An entire 16x16x8 band can contain 2048 BEDROCK blocks. Native
+    // setBlock notifications are necessary for Sable, lighting, BE and
+    // client meshes, but MUST be spread over frames.
+    private static final int MAX_CELLS_PER_CHUNK_TICK = 128;
+    private static final Map<Pending,Integer> NEXT_CELL = new HashMap<>();
     private static MinecraftServer activeServer;
     private static long lastFullQueueWarningTick = Long.MIN_VALUE / 2;
 
@@ -117,12 +124,14 @@ public final class SeamTerrain {
             if(activeServer!=null) {
                 PENDING.clear();
                 QUEUED.clear();
+                NEXT_CELL.clear();
             }
             activeServer=server;
         }
         if(!SeamServer.shouldCarveNewChunk(server)) {
             PENDING.clear();
             QUEUED.clear();
+            NEXT_CELL.clear();
             return;
         }
         int polls=Math.min(PENDING.size(),MAX_POLLS_PER_TICK);
@@ -133,6 +142,7 @@ public final class SeamTerrain {
             ServerLevel level=server.getLevel(job.dimension());
             if(level==null) {
                 QUEUED.remove(job);
+                NEXT_CELL.remove(job);
                 continue;
             }
             var chunk=level.getChunkSource().getChunkNow(job.cx(),job.cz());
@@ -143,29 +153,52 @@ public final class SeamTerrain {
                 PENDING.offer(job);
                 continue;
             }
-            try {
-                replaceGeneratedBedrock(level,chunk);
-                carved++;
-            } finally {
+            // Each native block notification may cause Sable to rebuild
+            // collision voxels, so one chunk advances in small slices.
+            // A partially complete chunk stays in the bounded queue.
+            boolean finished=carveLoadedSlice(level,chunk,job);
+            carved++;
+            if(finished) {
+                NEXT_CELL.remove(job);
                 QUEUED.remove(job);
+            } else {
+                PENDING.offer(job);
             }
         }
     }
 
-    public static void replaceGeneratedBedrock(ServerLevel level,ChunkAccess chunk) {
-        MinecraftServer server=level.getServer();
-        if(server==null || !SeamServer.shouldCarveNewChunk(server))return;
+    /**
+     * Mutate a published FULL LevelChunk from the server tick, never from
+     * ChunkEvent.Load. ServerLevel#setBlock sends ordinary vanilla lighting,
+     * client update, and Sable/Rapier block-change notifications; the old
+     * ChunkAccess#setBlockState bypassed all of them and made physics/render
+     * disagree about whether bedrock was actually removed.
+     *
+     * @return whether every native cell in this chunk's seam bands was scanned
+     */
+    private static boolean carveLoadedSlice(ServerLevel level, LevelChunk chunk,
+                                            Pending job) {
         List<SeamBounds.CarveRange> bands=carveBands(level);
-        if(bands.isEmpty())return;
+        if(bands.isEmpty())return true;
+        int next=NEXT_CELL.getOrDefault(job,0);
+        int index=0,scanned=0;
         int ox=chunk.getPos().getMinBlockX(),oz=chunk.getPos().getMinBlockZ();
         BlockPos.MutableBlockPos pos=new BlockPos.MutableBlockPos();
-        for(var band:bands)for(int y=band.minY();y<=band.maxY();y++){
-            if(y<chunk.getMinBuildHeight() || y>=chunk.getMaxBuildHeight())continue;
-            for(int dz=0;dz<16;dz++)for(int dx=0;dx<16;dx++){
+        for(var band:bands)for(int y=band.minY();y<=band.maxY();y++) {
+            if(y<chunk.getMinBuildHeight() || y>=chunk.getMaxBuildHeight())
+                continue;
+            for(int dz=0;dz<16;dz++)for(int dx=0;dx<16;dx++) {
+                if(index++ < next)continue;
+                if(scanned>=MAX_CELLS_PER_CHUNK_TICK) {
+                    NEXT_CELL.put(job,index-1);
+                    return false;
+                }
+                scanned++;
                 pos.set(ox+dx,y,oz+dz);
                 if(chunk.getBlockState(pos).is(Blocks.BEDROCK))
-                    chunk.setBlockState(pos,Blocks.AIR.defaultBlockState(),false);
+                    level.setBlock(pos,Blocks.AIR.defaultBlockState(),3);
             }
         }
+        return true;
     }
 }
