@@ -175,14 +175,71 @@ public final class ResidentBedLife {
             if (route != null && npc.getNavigation().moveTo(route, 1.0)) {
                 npc.setAction("walking through real doorway to reserved bed");
             } else {
-                // Preserve the bed claim and try again. Clearing it on every
-                // unsuccessful path makes residents race for other beds and
-                // creates an endless reserve/fail cycle at night.
-                npc.getNavigation().stop();
-                npc.setAction("bed aisle unreachable; waiting for a free route");
+                // A* to an indoor aisle can exceed FOLLOW_RANGE even when
+                // Euclidean home distance is small: a resident must walk
+                // around the outside wall to the actual open front door.
+                BlockPos door = nearestOpenHomeDoor(npc, level);
+                boolean moving = false;
+                if (door != null && npc.blockPosition().distSqr(door) > 6) {
+                    moving = RoadNavigator.moveToward(npc, level, door, 1.0);
+                    if (moving)
+                        npc.setAction("walking along streets to open home door");
+                } else if (door != null) {
+                    Direction facing = level.getBlockState(door)
+                        .getValue(net.minecraft.world.level.block.DoorBlock.FACING);
+                    BlockPos interior = door.relative(facing.getOpposite());
+                    if (level.hasChunkAt(interior)
+                        && level.getBlockState(interior).isAir()
+                        && level.getBlockState(interior.above()).isAir()) {
+                        moving = npc.getNavigation().moveTo(interior.getX() + 0.5,
+                            interior.getY(), interior.getZ() + 0.5, 1.0);
+                        if (moving)
+                            npc.setAction("crossing actual open doorway into house");
+                    }
+                }
+                if (!moving) {
+                    // Preserve the claim; don't race other sleepers or fake
+                    // a bed teleport when a real door/path is blocked.
+                    npc.getNavigation().stop();
+                    npc.setAction("home doorway or bed aisle unreachable");
+                }
             }
         }
         return true; // keep ordinary AI from overwriting a live bed path
+    }
+
+    /** Find a nearby physically open vanilla home entrance, not a magic gate. */
+    @Nullable private static BlockPos nearestOpenHomeDoor(
+            PlayerNpcEntity npc, ServerLevel level) {
+        BlockPos home = npc.homePos();
+        BlockPos best = null;
+        double bestScore = Double.POSITIVE_INFINITY;
+        for (int dx = -12; dx <= 12; dx++)
+            for (int dz = -12; dz <= 12; dz++) {
+                if (dx * dx + dz * dz > 144) continue;
+                for (int dy = -1; dy <= 1; dy++) {
+                    BlockPos pos = home.offset(dx, dy, dz);
+                    if (!level.hasChunkAt(pos)) continue;
+                    BlockState state = level.getBlockState(pos);
+                    if (!(state.getBlock() instanceof
+                            net.minecraft.world.level.block.DoorBlock)
+                        || !state.hasProperty(
+                            net.minecraft.world.level.block.DoorBlock.OPEN)
+                        || !state.getValue(
+                            net.minecraft.world.level.block.DoorBlock.OPEN)
+                        || state.getValue(
+                            net.minecraft.world.level.block.DoorBlock.HALF)
+                            != net.minecraft.world.level.block.state.properties
+                                .DoubleBlockHalf.LOWER) continue;
+                    double score = npc.blockPosition().distSqr(pos)
+                        + home.distSqr(pos) * 0.2;
+                    if (score < bestScore) {
+                        bestScore = score;
+                        best = pos.immutable();
+                    }
+                }
+            }
+        return best;
     }
 
     /**
