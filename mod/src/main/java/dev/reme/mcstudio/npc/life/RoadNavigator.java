@@ -39,10 +39,19 @@ public final class RoadNavigator {
             if (!level.hasChunkAt(foot)) continue;
             if (!level.getBlockState(foot).isAir()) continue;
             BlockState floor = level.getBlockState(foot.below());
+            // Municipal road surfaces are REAL vanilla paving, not only
+            // ancient footpaths. Previously the AI ignored every concrete
+            // avenue and smooth-stone sidewalk, trying unreachable direct
+            // straight lines through homes instead of the available streets.
             boolean physicalRoad = floor.is(Blocks.DIRT_PATH)
                 || floor.is(Blocks.GRAVEL) || floor.is(Blocks.COBBLESTONE)
                 || floor.is(Blocks.STONE_BRICKS)
-                || floor.is(Blocks.MOSSY_COBBLESTONE);
+                || floor.is(Blocks.MOSSY_COBBLESTONE)
+                || floor.is(Blocks.GRAY_CONCRETE)
+                || floor.is(Blocks.WHITE_CONCRETE)
+                || floor.is(Blocks.YELLOW_CONCRETE)
+                || floor.is(Blocks.SMOOTH_STONE)
+                || floor.is(Blocks.POLISHED_ANDESITE);
             int knownTraffic = traffic.visits(foot);
             if (!physicalRoad && knownTraffic < 3) continue;
             if (!level.getBlockState(foot.above()).isAir()) continue;
