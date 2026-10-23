@@ -109,8 +109,6 @@ public final class CityDistrictGameTests {
         // by setting onGround=true or teleporting the merchant.
         // A source/target that exists does NOT pass if vanilla A* ends on the
         // wrong side of a solid wall; the path must reach the real city sidewalk.
-        System.out.println("REME_NPC_CITY_REAL_ENTRANCE verifiedStoreClerkUUID="
-            +storeClerk.getUUID()+" mallExitReachable=true nativeDoors=4 pedestrianArches=8");
         long merchants = people.stream().filter(p -> p.profession()
             == PlayerNpcEntity.Profession.SHOPKEEPER
             && p.backpack().countItem(Items.BREAD) > 0).count();
@@ -181,11 +179,10 @@ public final class CityDistrictGameTests {
         helper.runAfterDelay(12, () -> {
             var exitPath = storeClerk.getNavigation().createPath(center.offset(-5,1,-12),0);
             if (exitPath == null || !exitPath.canReach()) {
-                // These probes are read-only; they preserve the actual failed
-            // geometry for reproducible NeoForge server logs rather than
-            // claiming the door is fixed because its BlockState is OPEN.
+                // These probes are read-only; they preserve actual failed
+                // geometry rather than trusting the door OPEN flag alone.
                 var logger = com.mojang.logging.LogUtils.getLogger();
-            logger.error("REME_NPC_MALL_ROUTE_FAIL onGround={} uuid={} source={} destination={} "
+                logger.error("REME_NPC_MALL_ROUTE_FAIL onGround={} uuid={} source={} destination={} "
                     + "nativePath={} nodes={}",
                 storeClerk.onGround(), storeClerk.getUUID(), storeClerk.blockPosition(),
                 center.offset(-5,1,-12), exitPath != null,
@@ -206,8 +203,7 @@ public final class CityDistrictGameTests {
             }
                 helper.fail("Mall merchant still cannot walk out after actual native physics ticks", storeClerk.blockPosition());
                 return;
-        }
-            else {
+            } else {
                 com.mojang.logging.LogUtils.getLogger().info(
                     "REME_NPC_CITY_REAL_ENTRANCE nativeAfterPhysics=true uuid={} onGround={} nodes={}",
                     storeClerk.getUUID(), storeClerk.onGround(), exitPath.getNodeCount());
