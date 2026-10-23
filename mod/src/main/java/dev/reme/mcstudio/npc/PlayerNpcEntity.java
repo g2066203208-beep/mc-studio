@@ -165,6 +165,9 @@ public class PlayerNpcEntity extends PathfinderMob {
     // During a nonlethal arrest, an actual guard must escort the prisoner by
     // walking, rather than leaving while the thief 'auto-teleports' to jail.
     @Nullable private UUID escortedPrisoner;
+    // Optional, persisted reciprocal link. Legacy cells with no officer
+    // retain their old walk-to-cell behavior for existing saved worlds.
+    @Nullable private UUID custodyOfficer;
     private long escortUntil = 0L;
     @Nullable private BlockPos policeJail;
     private long detainedUntil = 0L;
@@ -449,6 +452,10 @@ public class PlayerNpcEntity extends PathfinderMob {
         escortedPrisoner = null;
         escortUntil = 0L;
     }
+    @Nullable public UUID custodyOfficer() { return custodyOfficer; }
+    public void assignCustodyOfficer(@Nullable UUID officer) {
+        custodyOfficer = officer;
+    }
     public boolean isDetained(long tick) {
         return detentionJail != null && tick < detainedUntil;
     }
@@ -464,6 +471,7 @@ public class PlayerNpcEntity extends PathfinderMob {
     public void releaseDetention() {
         detentionJail = null;
         detainedUntil = 0L;
+        custodyOfficer = null;
     }
     public void postponeRaid(long tick) { nextRaidTick = Math.max(nextRaidTick, tick); }
     @Nullable public UUID unpaidMerchant() { return unpaidMerchant; }
@@ -755,6 +763,7 @@ public class PlayerNpcEntity extends PathfinderMob {
         tag.putBoolean("NpcShopShiftActive", shopShiftActive);
         if (policeSuspect != null) tag.putUUID("NpcPoliceSuspect", policeSuspect);
         if (escortedPrisoner != null) tag.putUUID("NpcEscortedPrisoner", escortedPrisoner);
+        if (custodyOfficer != null) tag.putUUID("NpcCustodyOfficer", custodyOfficer);
         tag.putLong("NpcEscortUntil", escortUntil);
         tag.putLong("NpcPoliceAlertUntil", policeAlertUntil);
         tag.putInt("NpcPoliceBlows", policeBlows);
@@ -878,6 +887,8 @@ public class PlayerNpcEntity extends PathfinderMob {
             ? tag.getUUID("NpcPoliceSuspect") : null;
         escortedPrisoner = tag.hasUUID("NpcEscortedPrisoner")
             ? tag.getUUID("NpcEscortedPrisoner") : null;
+        custodyOfficer = tag.hasUUID("NpcCustodyOfficer")
+            ? tag.getUUID("NpcCustodyOfficer") : null;
         escortUntil = Math.max(0L, tag.getLong("NpcEscortUntil"));
         if (escortUntil <= level().getGameTime()) clearPrisonerEscort();
         policeAlertUntil = Math.max(0L, tag.getLong("NpcPoliceAlertUntil"));
