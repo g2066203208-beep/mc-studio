@@ -42,7 +42,7 @@ public final class CityPursuitGameTests {
                 level.setBlock(center.offset(x,y,z),Blocks.AIR.defaultBlockState(),2);
         }
         CityDistrictDemo.Result created=CityDistrictDemo.build(level,center,null);
-        if(!created.success()||created.citizens()!=13)
+        if(!created.success()||created.citizens()!=15)
             throw new AssertionError("Cannot start physical city pursuit: "+created);
         List<PlayerNpcEntity> people=level.getEntitiesOfClass(
             PlayerNpcEntity.class,new AABB(center).inflate(30));
