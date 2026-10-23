@@ -8,6 +8,7 @@ on:
   push:
     branches:
       - feat/npc-live-store-security-e2e-v071
+      - feat/npc-daily-routines-housing-v072
   pull_request:
     branches:
       - feat/npc-real-city-district-v070
@@ -25,11 +26,11 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
-      - name: Pin the exact native game/loader and 0.7.1 mod
+      - name: Pin the exact native game/loader and 0.7.2 mod
         run: |
           grep -Fxq 'minecraft_version=1.21.1' mod/gradle.properties
           grep -Fxq 'neo_version=21.1.262' mod/gradle.properties
-          grep -Fxq 'mod_version=0.7.1-dev' mod/gradle.properties
+          grep -Fxq 'mod_version=0.7.2-dev' mod/gradle.properties
       - name: Generate isolated native Minecraft GameTest world (NOT user world)
         run: python3 scripts/prepare-gametest-arena.py
       - name: Run ALL server-native NeoForge tests including the actual 24,000 tick store workday
