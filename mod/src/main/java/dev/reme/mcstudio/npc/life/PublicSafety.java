@@ -332,11 +332,17 @@ public final class PublicSafety {
         if (feet.getY() != jail.getY()) return exterior;
         // Do not confuse an NPC on the outside EAST wall with one inside
         // the cell: the prisoner must line up with the SOUTH intake first.
-        if (Math.abs(feet.getX() - jail.getX()) > 1
-            || feet.getZ() < jail.getZ() + 2)
+        if (Math.abs(feet.getX() - jail.getX()) > 1)
             return exterior;
-        if (feet.distSqr(interior) > 1)
+        // Already at the inner aisle: finish the last real step into the
+        // cell. Do NOT bounce back out through the rear entrance.
+        if (feet.getZ() == jail.getZ() + 1)
+            return jail;
+        // From the SOUTH public street or actual iron-door tile, continue
+        // through the open gate into the inner aisle.
+        if (feet.getZ() >= jail.getZ() + 2)
             return interior;
-        return jail;
+        // Aligned but still outside the cell's south entrance corridor.
+        return exterior;
     }
 }
