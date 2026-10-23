@@ -6,7 +6,7 @@ name: Server GameTests (experimental)
 on:
   workflow_dispatch:
   push:
-    branches: [feature/living-world-civic-v04, feature/living-world-natural-v05, feature/npc-resource-pickup-v058, feature/npc-emergent-roads-hamlets-v059, feature/npc-animation-art-pipeline-v060, feature/npc-real-player-actor-v061, feature/npc-local-justice-v062, feature/npc-physical-shopkeepers-v063, feature/npc-physical-workplaces-v064, fix/npc-v064-reliable-workplaces, feature/npc-mutual-aid-longrun-v065, fix/npc-command-access-v066, fix/npc-city-entrance-bed-claims-v083, fix/npc-jail-rear-intake-physical-waypoints-v084, fix/npc-real-home-door-approach-v085, fix/npc-long-range-physical-custody-v086, fix/npc-visible-collision-safe-follow-camera-v087, fix/npc-police-station-physical-detour-v088, fix/npc-escorted-custody-proximity-v089, fix/npc-unloaded-jail-custody-v090]
+    branches: [feature/living-world-civic-v04, feature/living-world-natural-v05, feature/npc-resource-pickup-v058, feature/npc-emergent-roads-hamlets-v059, feature/npc-animation-art-pipeline-v060, feature/npc-real-player-actor-v061, feature/npc-local-justice-v062, feature/npc-physical-shopkeepers-v063, feature/npc-physical-workplaces-v064, fix/npc-v064-reliable-workplaces, feature/npc-mutual-aid-longrun-v065, fix/npc-command-access-v066, fix/npc-city-entrance-bed-claims-v083, fix/npc-jail-rear-intake-physical-waypoints-v084, fix/npc-real-home-door-approach-v085, fix/npc-long-range-physical-custody-v086, fix/npc-visible-collision-safe-follow-camera-v087, fix/npc-police-station-physical-detour-v088, fix/npc-escorted-custody-proximity-v089, fix/npc-unloaded-jail-custody-v090, fix/npc-playeranimator-resource-registry-v093]
   pull_request:
 permissions:
   contents: read
@@ -20,6 +20,8 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
+      - name: Verify shared NPC and real-player keyframe assets
+        run: python3 scripts/check-npc-animation-assets.py
       - name: Prepare separate 48x24x48 GameTest structures (do not modify user saves)
         run: python3 scripts/prepare-gametest-arena.py
       - name: Run Minecraft 1.21.1 NeoForge GameTest server
