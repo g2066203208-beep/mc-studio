@@ -14,6 +14,21 @@ public final class NpcPoseSelection {
 
     public static NpcPose select(PlayerNpcEntity npc, long tick) {
         var intent = npc.intent();
+        // These take precedence over generic moods. Each is backed by a
+        // real entity event/case, not a decorative "city simulation" string.
+        NpcPose urgent = classifyPhysical(
+            npc.isPoliceStunned(tick),
+            npc.isDetained(tick),
+            npc.escortedPrisoner() != null,
+            npc.policeSuspect() != null,
+            npc.hasUnpaidShopItem(tick),
+            npc.hurtTime > 0);
+        if (urgent != null) return urgent;
+        if (npc.isShiftKeyDown()) return NpcPose.CROUCH;
+        if (npc.isPassenger()) return NpcPose.SITTING;
+        if (npc.isUsingItem()) return NpcPose.EATING;
+        if (intent == LivingPlanner.Intent.SOCIALIZE
+            && npc.getNavigation().isDone()) return NpcPose.GREET;
         return classify(
             npc.isAfraid(tick) || intent == LivingPlanner.Intent.ESCAPE,
             npc.getTarget() != null && npc.getTarget().isAlive(),
@@ -28,6 +43,22 @@ public final class NpcPoseSelection {
                 && RestPolicy.atHome(npc.blockPosition(), npc.homePos())))
                 && !npc.isAfraid(tick)
         );
+    }
+
+    /** Strict, side-effect-free hierarchy of physically verifiable moments.
+     * A struck NPC may escape; a mere pursuit must never look handcuffed.
+     * This is independent of pathfinder timing and test fixtures.
+     */
+    public static NpcPose classifyPhysical(boolean unconscious, boolean detained,
+                                           boolean escorting, boolean pursuing,
+                                           boolean fleeing, boolean hurt) {
+        if (unconscious) return NpcPose.STUNNED;
+        if (hurt) return NpcPose.HIT;
+        if (detained) return NpcPose.CUFFED;
+        if (escorting) return NpcPose.ESCORT;
+        if (pursuing) return NpcPose.CHASE;
+        if (fleeing) return NpcPose.FLEE;
+        return null;
     }
 
     /** Public pure function for deterministic test of precedence. Threat
