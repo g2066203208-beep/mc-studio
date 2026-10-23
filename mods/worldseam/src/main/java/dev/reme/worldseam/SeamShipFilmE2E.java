@@ -55,6 +55,7 @@ public final class SeamShipFilmE2E {
     private static volatile int clientSublevelRenderableFrames;
     private static long realFlightStartTick=-1;
     private static boolean startedRealFlight;
+    private static boolean departurePadRemoved;
 
     private SeamShipFilmE2E() {}
 
@@ -168,6 +169,17 @@ public final class SeamShipFilmE2E {
                 20*60*20,0,false,false));
             home.setDayTime(6000L);
             player.connection.teleport(x+8,-57,z+8,135,13);
+            // The real physical ship must not DROP during the 40-tick
+            // client-registration/warmup. This actual in-game temporary
+            // IRON_BLOCK pad is outside the Sable assembly region, never a
+            // physics teleport/kinematic duplicate. /fill air removes it
+            // once the REAL CLIENT and server are both ready to film.
+            for(int dx=-3;dx<=3;dx++)for(int dz=-4;dz<=4;dz++)
+                home.setBlock(new BlockPos(x+dx,-58,z+dz),
+                    Blocks.IRON_BLOCK.defaultBlockState(),3);
+            departurePadRemoved=false;
+            LOG.info("WORLDSEAM_FILM_NATIVE_TAKEOFF_PAD: real Overworld solid support y=-58, x±3,z±4; native /fill removes it before launch");
+
             // Genuine 9x7 Minecraft-block aircraft silhouette: tapered
             // nose, center fuselage, swept wings, lit engine and glass
             // canopy. Every voxel is a real world block *before* the
@@ -423,6 +435,22 @@ public final class SeamShipFilmE2E {
             // Hold ship before motion until real rendered client sublevel
             // exists, then leave >=40 native ticks for actual render uploads.
             if(!shipClientRenderReady || sinceAssembly<40)return;
+            // Strict preflight: the boat has to remain ABOVE the plane
+            // before we claim any DOWN crossing. Do not count falling during
+            // the 40-tick camera warmup as physical seam traversal.
+            var departure=currentHull();
+            if(departure.minY<=PLANE+2.0) {
+                fail("Sable ship fell through real support before flight gate: "+
+                    departure+" (no authentic documented down crossing)",null);
+                return;
+            }
+            if(!departurePadRemoved) {
+                nativeFill(server,stagingHome,-58,-58);
+                departurePadRemoved=true;
+                if(!stagingHome.getBlockState(new BlockPos(x,-58,z)).isAir())
+                    throw new IllegalStateException("Vanilla /fill failed to remove real native takeoff pad");
+                LOG.info("WORLDSEAM_FILM_NATIVE_TAKEOFF: real /fill cleared physical support y=-58; Sable body never teleported, startMinY={} from actual hull",departure.minY);
+            }
             startedRealFlight=true;
             realFlightStartTick=server.getTickCount();
             LOG.info("WORLDSEAM_FILM_CLIENT_VISIBLE_SHIP_READY: sameUuid={} clientSeenFrames={} clientRenderableFrames={} realClientRenderData=true",
@@ -444,7 +472,7 @@ public final class SeamShipFilmE2E {
             // An actual in-game spectator CAMERA follows the real hull.
             // The Sable rigid body itself is NEVER teleported.
             // Camera stays in Overworld, shooting into the other dimension.
-            if(ticks%3==0) {
+            {
                 ServerPlayer camera=viewerId==null?null:
                     server.getPlayerList().getPlayer(viewerId);
                 if(camera!=null && camera.serverLevel().dimension()==Level.OVERWORLD) {
