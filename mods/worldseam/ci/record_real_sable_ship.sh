@@ -151,5 +151,14 @@ if [[ "$returned" -ne 1 || "$failure" -eq 1 ]]; then
 fi
 # Only successful, completely real two-direction native impulse motion
 # may ever receive this name. It still does NOT prove dual-world contacts.
-mv real-ship-attempt-UNVERIFIED.mp4 real-ship-bidirectional-REAL-GAME.mp4
-echo 'WORLDSEAM_FILM_PASS: real recorded single-UUID Sable physical aircraft crossed seam and returned, with real /fill air arena and native Rapier impulses'
+# A server-side bbox crossing without the true Sable client sublevel is
+# NOT a visible ship recording. This explicitly catches the old success
+# whose real MP4 showed only sky, lava and a dark seam.
+if ! grep -q 'WORLDSEAM_FILM_CLIENT_VISIBLE_SHIP_READY' real-ship-film-client.log; then
+  echo 'WORLDSEAM_FILM_FAIL: native Sable ship never became ClientLevel renderable; MP4 cannot count as visible gameplay'
+  exit 1
+fi
+# Never label externally-forced Rapier motion as Aeronautics-only
+# propulsion, or claim a chart-fused solver that does not exist.
+mv real-ship-attempt-UNVERIFIED.mp4 real-ship-bidirectional-EXTERNAL-FORCE-ONLY.mp4
+echo 'WORLDSEAM_FILM_PHYSICS_ROUNDTRIP_ONLY: genuine same-UUID Sable native Rapier movement crossed plane both directions; real Create Aeronautics actor spun, BUT movement is externally forced, client pixels and true dual-chart contacts remain UNVERIFIED'
