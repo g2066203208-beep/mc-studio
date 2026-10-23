@@ -25,7 +25,16 @@ final class SeamRemoteEntitySender {
         double maxY=top?boundary:boundary+96;
         double x=viewer.getX(),z=viewer.getZ();
         if(!target.hasChunk(Math.floorDiv((int)Math.floor(x),16),
-                            Math.floorDiv((int)Math.floor(z),16)))return;
+                            Math.floorDiv((int)Math.floor(z),16))) {
+            // A previously tracked foreign entity must not remain visible
+            // when its authoritative ServerLevel chunk has been unloaded.
+            // A silent return leaves the client holding stale snapshots.
+            // Explicitly invalidate this source/target scope; do not load
+            // the chunk synchronously or manufacture a replacement entity.
+            PacketDistributor.sendToPlayer(viewer,
+                new SeamRemoteEntityPayload(source,link.target(),java.util.List.of()));
+            return;
+        }
         var box=new AABB(x-48,minY,z-48,x+48,maxY,z+48);
         var found=target.getEntities((Entity)null,box,
             e->e.isAlive() && !(e instanceof ServerPlayer));
