@@ -410,13 +410,14 @@ if [[ "${REME_CITY_VISUAL:-0}" == "1" ]]; then
   # merchant, officer, three actual hits, iron gate and physical cell.
   python3 ../scripts/verify-npc-gui-case.py client-gui.log
   # A file existing on disk does not prove the original H264 stream decodes.
-  ffmpeg -v error -xerror -i client-gui-city-full-crime-to-locked-jail.mp4 \\
+  ffmpeg -v error -xerror -i client-gui-city-full-crime-to-locked-jail.mp4 \
     -f null - || { echo "FAIL: actual continuous MP4 cannot fully decode"; exit 1; }
-  ffprobe -v error -select_streams v:0 \\
-    -show_entries stream=width,height -of csv=p=0 \\
+  ffprobe -v error -select_streams v:0 \
+    -show_entries stream=width,height -of csv=p=0 \
     client-gui-city-full-crime-to-locked-jail.mp4 | grep -Fxq '1280,720' || {
     echo "FAIL: original Minecraft 1280x720 RGB capture missing"; exit 1;
-  }  if ! test -s client-gui-city-physical-npc-follow.mp4; then
+  }
+  if ! test -s client-gui-city-physical-npc-follow.mp4; then
     echo "FAIL: no genuine H264 recording of Minecraft NPC pursuit/follow"; exit 1
   fi
   if ! grep -q '已连续跟踪真实NPC' "$log"; then
