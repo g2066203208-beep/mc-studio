@@ -103,33 +103,10 @@ public final class CityDistrictGameTests {
                 center.getX()+21, center.getY()+11, center.getZ()+21));
         PlayerNpcEntity storeClerk = people.stream().filter(p ->
                 p.getTags().contains("reme_city_clerk")).findFirst().orElseThrow();
-        var exitPath = storeClerk.getNavigation().createPath(center.offset(-5,1,-12),0);
-        if (exitPath == null || !exitPath.canReach()) {
-            // These probes are read-only; they preserve the actual failed
-            // geometry for reproducible NeoForge server logs rather than
-            // claiming the door is fixed because its BlockState is OPEN.
-            var logger = com.mojang.logging.LogUtils.getLogger();
-            logger.error("REME_NPC_MALL_ROUTE_FAIL uuid={} source={} destination={} "
-                    + "nativePath={} nodes={}",
-                storeClerk.getUUID(), storeClerk.blockPosition(),
-                center.offset(-5,1,-12), exitPath != null,
-                exitPath == null ? -1 : exitPath.getNodeCount());
-            for (int[] xz : new int[][]{
-                    {-10,-10},{-9,-10},{-8,-10},{-7,-10},
-                    {-7,-11},{-6,-11},{-5,-11},{-5,-12},
-                    {-7,-12},{-6,-12},{-5,-13}}) {
-                BlockPos probe = center.offset(xz[0],1,xz[1]);
-                var candidate = storeClerk.getNavigation().createPath(probe,0);
-                logger.error("REME_NPC_MALL_ROUTE_PROBE pos={} feet={} head={} floor={} "
-                        + "nativeReach={} nativeNodes={}", probe.toShortString(),
-                    level.getBlockState(probe).getBlock(),
-                    level.getBlockState(probe.above()).getBlock(),
-                    level.getBlockState(probe.below()).getBlock(),
-                    candidate != null && candidate.canReach(),
-                    candidate == null ? -1 : candidate.getNodeCount());
-            }
-            throw new AssertionError("Mall merchant cannot walk out of the actual mall door");
-        }
+        // Vanilla GroundPathNavigation cannot plan from a freshly created
+        // airborne entity before its first physics ticks. The actual
+        // walkability check is deferred to the living server, never faked
+        // by setting onGround=true or teleporting the merchant.
         // A source/target that exists does NOT pass if vanilla A* ends on the
         // wrong side of a solid wall; the path must reach the real city sidewalk.
         System.out.println("REME_NPC_CITY_REAL_ENTRANCE verifiedStoreClerkUUID="
@@ -201,7 +178,42 @@ public final class CityDistrictGameTests {
             +" cityWidth=41"
             +" roadCrossing=true mallRealStorage=true residentialBeds=16"
             +" distinctBedClaims="+bedClaims.size()+" clinicAndLibrary=true cityProtected=true");
-        helper.succeed();
+        helper.runAfterDelay(12, () -> {
+            var exitPath = storeClerk.getNavigation().createPath(center.offset(-5,1,-12),0);
+            if (exitPath == null || !exitPath.canReach()) {
+                // These probes are read-only; they preserve the actual failed
+            // geometry for reproducible NeoForge server logs rather than
+            // claiming the door is fixed because its BlockState is OPEN.
+                var logger = com.mojang.logging.LogUtils.getLogger();
+            logger.error("REME_NPC_MALL_ROUTE_FAIL onGround={} uuid={} source={} destination={} "
+                    + "nativePath={} nodes={}",
+                storeClerk.onGround(), storeClerk.getUUID(), storeClerk.blockPosition(),
+                center.offset(-5,1,-12), exitPath != null,
+                exitPath == null ? -1 : exitPath.getNodeCount());
+            for (int[] xz : new int[][]{
+                    {-10,-10},{-9,-10},{-8,-10},{-7,-10},
+                    {-7,-11},{-6,-11},{-5,-11},{-5,-12},
+                    {-7,-12},{-6,-12},{-5,-13}}) {
+                BlockPos probe = center.offset(xz[0],1,xz[1]);
+                var candidate = storeClerk.getNavigation().createPath(probe,0);
+                logger.error("REME_NPC_MALL_ROUTE_PROBE pos={} feet={} head={} floor={} "
+                        + "nativeReach={} nativeNodes={}", probe.toShortString(),
+                    level.getBlockState(probe).getBlock(),
+                    level.getBlockState(probe.above()).getBlock(),
+                    level.getBlockState(probe.below()).getBlock(),
+                    candidate != null && candidate.canReach(),
+                    candidate == null ? -1 : candidate.getNodeCount());
+            }
+                helper.fail("Mall merchant still cannot walk out after actual native physics ticks", storeClerk.blockPosition());
+                return;
+        }
+            else {
+                com.mojang.logging.LogUtils.getLogger().info(
+                    "REME_NPC_CITY_REAL_ENTRANCE nativeAfterPhysics=true uuid={} onGround={} nodes={}",
+                    storeClerk.getUUID(), storeClerk.onGround(), exitPath.getNodeCount());
+                helper.succeed();
+            }
+        });
     }
 
     @GameTest(template = "empty", timeoutTicks = 90)
