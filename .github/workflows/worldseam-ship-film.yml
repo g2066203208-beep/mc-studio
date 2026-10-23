@@ -28,8 +28,27 @@ jobs:
           python-version: '3.12'
       - name: Install actual Minecraft X11 GPU renderer and native MP4 screen recorder
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y xvfb libgl1-mesa-dri libglx-mesa0 xdotool ffmpeg imagemagick x11-apps
+          set -euo pipefail
+          export DEBIAN_FRONTEND=noninteractive
+          # Always preserve a bounded failure log: apt mirrors can stall
+          # indefinitely on an otherwise healthy GitHub runner. All five
+          # real X11/ffmpeg dependencies are necessary, not screenshots.
+          if command -v Xvfb >/dev/null && command -v xdotool >/dev/null &&
+             command -v ffmpeg >/dev/null && command -v convert >/dev/null &&
+             command -v xwd >/dev/null; then
+            echo "WORLDSEAM_FILM_X11_PACKAGES_ALREADY_PRESENT"
+          else
+            echo "WORLDSEAM_FILM_INSTALL_START"
+            timeout 180 sudo apt-get -o Acquire::Retries=2 update -qq
+            timeout 240 sudo apt-get -o Dpkg::Use-Pty=0 install -y --no-install-recommends \
+              xvfb libgl1-mesa-dri libglx-mesa0 xdotool ffmpeg imagemagick x11-apps
+          fi
+          for cmd in Xvfb xdotool ffmpeg convert xwd; do
+            command -v "$cmd" >/dev/null || {
+              echo "WORLDSEAM_FILM_X11_DEPENDENCY_MISSING: $cmd"
+              exit 1
+            }
+          done
       - name: Fetch actual released Sable + Create + Aeronautics + required mods
         working-directory: mods/worldseam
         run: |
