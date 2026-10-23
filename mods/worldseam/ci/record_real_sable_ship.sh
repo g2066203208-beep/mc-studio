@@ -149,6 +149,16 @@ if [[ "$returned" -ne 1 || "$failure" -eq 1 ]]; then
   tail -n 75 real-ship-flight-telemetry.log
   exit 1
 fi
+# Do not call a server-only trajectory a visible movie. Candidate colors
+# must appear together in EACH raw screenshot. This is only a necessary
+# pixel gate; a human still must review the uninterrupted MP4 and Sable UUID.
+python3 ci/verify_ship_pixels.py \
+  real-ship-first-frame.jpg \
+  real-ship-below-seam.jpg \
+  real-ship-returned.jpg || {
+    echo 'WORLDSEAM_FILM_FAIL: visible aircraft pixels not verified at all three stages';
+    exit 1;
+  }
 # Only successful, completely real two-direction native impulse motion
 # may ever receive this name. It still does NOT prove dual-world contacts.
 # A server-side bbox crossing without the true Sable client sublevel is
