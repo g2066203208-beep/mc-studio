@@ -114,12 +114,20 @@ public final class CityDistrictGameTests {
                 throw new AssertionError("Citizen lacks unique reachable physical bed: "
                     + resident.getName().getString() + " claim=" + claim);
         }
-        if (bedClaims.size() != 13)
-            throw new AssertionError("Not all 13 NPCs own a separate real bed");
+        if (bedClaims.size() != 15)
+            throw new AssertionError("Not all 15 NPCs own a separate real bed");
+        if (!level.getBlockState(center.offset(-15,1,-10)).is(Blocks.BOOKSHELF)
+            || !level.getBlockState(center.offset(-15,1,-9)).is(Blocks.LECTERN)
+            || !level.getBlockState(center.offset(-9,2,9)).is(Blocks.BREWING_STAND)
+            || people.stream().noneMatch(p -> p.profession()
+                == PlayerNpcEntity.Profession.MEDIC)
+            || people.stream().noneMatch(p -> p.profession()
+                == PlayerNpcEntity.Profession.LIBRARIAN))
+            throw new AssertionError("Town claims professions without real library / medical facility");
         BlockPos inmateSpot = center.offset(-13, 1, 15);
         if (merchants < 2 || guards < 2 || customers < 3
             || realDishonestShoppers != 1
-            || people.size() != 13
+            || people.size() != 15
             || !level.getBlockState(center.offset(-4,2,-10)).is(Blocks.BELL)
             || !level.getBlockState(center.offset(-8,1,-11)).isAir()
             || !dev.reme.mcstudio.npc.life.PublicSafety.holdingSpot(level, inmateSpot)
@@ -141,8 +149,8 @@ public final class CityDistrictGameTests {
             +" citizens="+outcome.citizens()+" shops="+merchants
             +" police="+guards+" customers="+customers
             +" cityWidth=41"
-            +" roadCrossing=true mallRealStorage=true residentialBeds=14"
-            +" distinctBedClaims="+bedClaims.size()+" cityProtected=true");
+            +" roadCrossing=true mallRealStorage=true residentialBeds=16"
+            +" distinctBedClaims="+bedClaims.size()+" clinicAndLibrary=true cityProtected=true");
         helper.succeed();
     }
 
