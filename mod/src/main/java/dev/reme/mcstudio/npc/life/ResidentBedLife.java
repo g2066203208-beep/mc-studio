@@ -1,6 +1,7 @@
 package dev.reme.mcstudio.npc.life;
 
 import dev.reme.mcstudio.npc.PlayerNpcEntity;
+import dev.reme.mcstudio.npc.life.LivingPlanner;
 import javax.annotation.Nullable;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -102,9 +103,12 @@ public final class ResidentBedLife {
 
     /** Only call from the actual server entity tick. */
     public static boolean tick(PlayerNpcEntity npc, ServerLevel level, long tick) {
+        boolean guard = npc.profession() == PlayerNpcEntity.Profession.GUARD;
         boolean wantsSleep = npc.mode() == PlayerNpcEntity.Mode.LIVE
-            && RestPolicy.shouldRest(npc.intent(),
-                npc.profession() == PlayerNpcEntity.Profession.GUARD, npc.energy())
+            && npc.intent() == LivingPlanner.Intent.SLEEP
+            && (RestPolicy.shouldRest(npc.intent(), guard, npc.energy())
+                || RestPolicy.lateWatchRecovery(guard,
+                    level.getDayTime() + npc.dailyShiftTicks(), npc.energy()))
             && !npc.isAfraid(tick) && !npc.isDetained(tick);
         if (npc.isSleeping()) {
             BlockPos sleeping = npc.getSleepingPos().orElse(null);
