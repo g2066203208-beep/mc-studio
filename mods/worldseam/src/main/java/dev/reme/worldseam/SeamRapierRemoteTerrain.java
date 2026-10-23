@@ -45,6 +45,10 @@ public final class SeamRapierRemoteTerrain {
     private record NativeSection(int cx,int cy,int cz) {}
     private static final ArrayDeque<NativeSection> pending = new ArrayDeque<>();
     private static final Set<NativeSection> queued = new HashSet<>();
+    // Native section edits/unloads cannot be silently discarded while the
+    // bounded upload queue is full. Deferred work remains within the same
+    // fixed 5x5x2 window and is drained without synchronous chunk loads.
+    private static final Set<NativeSection> overflow = new HashSet<>();
     private static final Set<NativeSection> uploaded = new HashSet<>();
 
     private static MinecraftServer owner;
@@ -129,9 +133,22 @@ public final class SeamRapierRemoteTerrain {
 
     private static void enqueue(NativeSection s) {
         if(queued.contains(s))return;
-        if(pending.size()>=MAX_PENDING)return; // bounded; leave old native slice intact
+        if(pending.size()>=MAX_PENDING) {
+            overflow.add(s);
+            return;
+        }
+        overflow.remove(s);
         queued.add(s);
         pending.offer(s);
+    }
+
+    private static void drainOverflow() {
+        if(overflow.isEmpty() || pending.size()>=MAX_PENDING)return;
+        for(var it=overflow.iterator();it.hasNext() && pending.size()<MAX_PENDING;) {
+            NativeSection section=it.next();
+            it.remove();
+            if(queued.add(section))pending.offer(section);
+        }
     }
 
     public static void tick(ServerTickEvent.Post event) {
@@ -203,6 +220,7 @@ public final class SeamRapierRemoteTerrain {
             // delayed chunks could reintroduce ghost colliders out of view.
             pending.clear();
             queued.clear();
+            overflow.clear();
             // Old foreign chunks must not remain collidable after moving.
             for(var i=uploaded.iterator();i.hasNext();) {
                 var s=i.next();
@@ -255,6 +273,7 @@ public final class SeamRapierRemoteTerrain {
             uploaded.add(s);
             uploads++;
         }
+        drainOverflow();
     }
 
     private static void initialize(ServerLevel upper,ServerLevel lower,int shift,
@@ -485,7 +504,7 @@ public final class SeamRapierRemoteTerrain {
     }
 
     private static void resetOnlyJavaState() {
-        pending.clear();queued.clear();uploaded.clear();COLLIDER_CACHE.clear();
+        pending.clear();queued.clear();overflow.clear();uploaded.clear();COLLIDER_CACHE.clear();
         source=null;target=null;destinationBakery=null;
         active=false;
         totalNativeUploads=totalRemoteSolidCells=0;
