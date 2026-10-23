@@ -90,6 +90,9 @@ public final class BedsideArrivalGameTests {
         level.setBlock(foot, level.getBlockState(foot)
             .setValue(BedBlock.OCCUPIED, false), 2);
         for (Direction dir : Direction.Plane.HORIZONTAL) {
+            // SOUTH is the real vanilla bed FOOT, not an aisle. Never
+            // overwrite it to manufacture a blocked-bed test.
+            if (dir == Direction.SOUTH) continue;
             BlockPos neighbor = head.relative(dir);
             level.setBlock(neighbor, Blocks.STONE.defaultBlockState(), 2);
         }
