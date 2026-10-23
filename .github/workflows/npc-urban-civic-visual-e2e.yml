@@ -11,6 +11,7 @@ on:
       - feat/npc-connected-boulevards-v076
       - feat/npc-expressive-actions-urban-v077
       - feat/npc-player-emote-network-v078
+      - feat/npc-real-bed-routing-and-city-film-v079
   pull_request:
     branches:
       - feat/npc-daily-routines-housing-v072
