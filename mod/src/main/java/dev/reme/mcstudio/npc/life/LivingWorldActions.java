@@ -81,7 +81,11 @@ public final class LivingWorldActions {
                 npc.profession() == PlayerNpcEntity.Profession.COURIER ||
                 npc.profession() == PlayerNpcEntity.Profession.SCOUT ||
                 npc.profession() == PlayerNpcEntity.Profession.MEDIC ||
-                npc.profession() == PlayerNpcEntity.Profession.LIBRARIAN)));
+                npc.profession() == PlayerNpcEntity.Profession.LIBRARIAN ||
+                npc.profession() == PlayerNpcEntity.Profession.TEACHER ||
+                npc.profession() == PlayerNpcEntity.Profession.HOTELIER ||
+                npc.profession() == PlayerNpcEntity.Profession.CIVIC_CLERK ||
+                npc.profession() == PlayerNpcEntity.Profession.MECHANIC)));
         }
         // Resolve native bed occupancy immediately after planning, before
         // cargo/work/social activities may override the path to bed.
@@ -138,6 +142,7 @@ public final class LivingWorldActions {
         // working hours; EAT/bed/flight still take priority.
         if (ShopCounter.tick(npc, level, tick)) return;
         if (CivicServiceJobs.tick(npc, level, tick)) return;
+        if (UrbanServiceJobs.tick(npc, level, tick)) return;
         if (PlayerMiningActions.tick(npc, level)) return;
         // Follow the genuine item-entity drops from this NPC's authorized
         // break, rather than treating ground loot as virtual inventory.

@@ -1,0 +1,58 @@
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+name: NPC urban civic REAL client hospital school town hall parking visual
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feat/npc-urban-civic-campus-v073
+  pull_request:
+    branches:
+      - feat/npc-daily-routines-housing-v072
+
+permissions:
+  contents: read
+
+jobs:
+  actual-neo-city-camera:
+    runs-on: ubuntu-latest
+    timeout-minutes: 23
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Verify exact native NeoForge city client
+        run: |
+          grep -Fxq 'minecraft_version=1.21.1' mod/gradle.properties
+          grep -Fxq 'neo_version=21.1.262' mod/gradle.properties
+      - name: Install actual RGB screen and original continuous video capture
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq xvfb xdotool imagemagick openbox ffmpeg
+      - name: Boot real NeoForge GUI, build 4 districts, photograph each and follow citizens
+        env:
+          REME_CITY_VISUAL: '1'
+          REME_URBAN_VISUAL: '1'
+          REME_COMMAND_SMOKE_ONLY: '0'
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout --signal=INT --kill-after=15s 1180s \
+            xvfb-run -a -s "-screen 0 1280x720x24" \
+            bash scripts/test-client-gui.sh
+      - name: Always collect unmodified native Minecraft client artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: npc-real-urban-hospital-school-cityhall-hotel-garage-screens-and-video
+          if-no-files-found: warn
+          path: |
+            mod/client-gui-city-zone-*.png
+            mod/client-gui-city-four-public-service-zones.mp4
+            mod/client-gui-city-full-crime-to-locked-jail.mp4
+            mod/client-gui-city-*.png
+            mod/client-gui.log
+            mod/run/logs/*.log
+            mod/runs/**/logs/*.log
