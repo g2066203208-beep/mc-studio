@@ -38,9 +38,9 @@ import java.util.Set;
  */
 public final class SeamRapierRemoteTerrain {
     private static final Logger LOG = LogUtils.getLogger();
-    private static final int SECTIONS_BELOW_EDGE = 2;
+    private static final int SECTIONS_BELOW_EDGE = 4;
     private static final int WINDOW_RADIUS = 2;
-    private static final int MAX_NATIVE_UPLOADS_PER_TICK = 1;
+    private static final int MAX_NATIVE_UPLOADS_PER_TICK = 2;
     private static final int MAX_PENDING = (2*WINDOW_RADIUS+1)*(2*WINDOW_RADIUS+1)*SECTIONS_BELOW_EDGE;
     private record NativeSection(int cx,int cy,int cz) {}
     // A tested bounded FIFO retains both unloaded-chunk retries and edits
@@ -51,7 +51,7 @@ public final class SeamRapierRemoteTerrain {
 
     private static MinecraftServer owner;
     private static ServerLevel source,target;
-    private static int offsetY,edgeSection,centerX,centerZ;
+    private static int offsetY,edgeSection,windowBottomSection,windowTopSection,centerX,centerZ;
     private static long sourceNativeScene;
     private static Method nativeAdd,nativeRemove,bake,colliderHandle;
     private static Method nativeLinearVelocity,nativeAngularVelocity;
@@ -106,7 +106,7 @@ public final class SeamRapierRemoteTerrain {
     public static void markBlockChanged(ServerLevel level,BlockPos p) {
         if(!active || level!=target)return;
         int cy=Math.floorDiv(p.getY(),16);
-        if(cy>edgeSection || cy<edgeSection-SECTIONS_BELOW_EDGE+1)return;
+        if(cy>windowTopSection || cy<windowBottomSection)return;
         int cx=Math.floorDiv(p.getX(),16),cz=Math.floorDiv(p.getZ(),16);
         if(Math.abs(cx-centerX)>WINDOW_RADIUS ||
            Math.abs(cz-centerZ)>WINDOW_RADIUS)return;
@@ -123,7 +123,7 @@ public final class SeamRapierRemoteTerrain {
     }
 
     private static void enqueueIfResident(int cx,int cy,int cz) {
-        if(cy>edgeSection || cy<edgeSection-SECTIONS_BELOW_EDGE+1 ||
+        if(cy>windowTopSection || cy<windowBottomSection ||
            Math.abs((long)cx-centerX)>WINDOW_RADIUS ||
            Math.abs((long)cz-centerZ)>WINDOW_RADIUS)return;
         enqueue(new NativeSection(cx,cy,cz));
@@ -171,7 +171,7 @@ public final class SeamRapierRemoteTerrain {
         // The physics window must follow the real authoritative Sable hull,
         // not a spectator. A ship without nearby players still requires the
         // SAME native Rapier scene to retain both dimensions\u0027 terrain.
-        // This is a bounded two-section prototype, NOT fused Atlas physics.
+        // This is a bounded sliding chart window, NOT fused Atlas physics.
         long now=upper.getGameTime();
         var shipHull=SeamSableObserver.nativeRapierSourceHull(upper,lower,now);
         var shipAnchor=SeamRapierAnchor.fromHull(shipHull);
@@ -196,8 +196,17 @@ public final class SeamRapierRemoteTerrain {
                 return;
             }
         }
-        if(cx!=centerX || cz!=centerZ) {
+        // Follow the real Sable hull DOWN the foreign chart; the previous
+        // fixed Nether Y96..127 slice left empty native space below Y=-96.
+        var vertical=SeamRapierChartWindow.select(
+            shipHull==null?Double.NaN:shipHull.minY,shift,
+            lower.getMinSection(),edgeSection,SECTIONS_BELOW_EDGE);
+        if(cx!=centerX || cz!=centerZ ||
+           vertical.bottom()!=windowBottomSection ||
+           vertical.top()!=windowTopSection) {
             centerX=cx;centerZ=cz;
+            windowBottomSection=vertical.bottom();
+            windowTopSection=vertical.top();
             // Drop queued old-window work BEFORE rescheduling. Otherwise
             // delayed chunks could reintroduce ghost colliders out of view.
             UPLOAD_QUEUE.clear();
@@ -205,7 +214,8 @@ public final class SeamRapierRemoteTerrain {
             for(var i=uploaded.iterator();i.hasNext();) {
                 var s=i.next();
                 if(Math.abs(s.cx()-cx)>WINDOW_RADIUS ||
-                   Math.abs(s.cz()-cz)>WINDOW_RADIUS) {
+                   Math.abs(s.cz()-cz)>WINDOW_RADIUS ||
+                   s.cy()<windowBottomSection || s.cy()>windowTopSection) {
                     try {remove(s);} catch(ReflectiveOperationException ex) {
                         LOG.error("WORLDSEAM_RAPIER_EXPERIMENT_REMOVE_FAIL",ex);
                         faulted=true;return;
@@ -298,6 +308,10 @@ public final class SeamRapierRemoteTerrain {
             .getMethod("hasCallback",BlockState.class);
         source=upper;target=lower;offsetY=shift;
         edgeSection=SeamRapierChartMath.topSection(SeamStackRuntime.top(lower));
+        var initial=SeamRapierChartWindow.select(Double.NaN,shift,
+            lower.getMinSection(),edgeSection,SECTIONS_BELOW_EDGE);
+        windowBottomSection=initial.bottom();
+        windowTopSection=initial.top();
         centerX=cx;centerZ=cz;
         active=true;
         enqueueWindow();
@@ -307,7 +321,7 @@ public final class SeamRapierRemoteTerrain {
     }
 
     private static void enqueueWindow() {
-        for(int cy=edgeSection;cy>edgeSection-SECTIONS_BELOW_EDGE;cy--)
+        for(int cy=windowTopSection;cy>=windowBottomSection;cy--)
             for(int dz=-WINDOW_RADIUS;dz<=WINDOW_RADIUS;dz++)
                 for(int dx=-WINDOW_RADIUS;dx<=WINDOW_RADIUS;dx++)
                     enqueue(new NativeSection(centerX+dx,cy,centerZ+dz));
@@ -384,8 +398,8 @@ public final class SeamRapierRemoteTerrain {
         // a transient invisible collision hole.
         if(!SeamRapierVoxelNeighbors.sameNativeSection(
                 ox,oy,oz,x,y,z))return false;
-        long low=((long)edgeSection-SECTIONS_BELOW_EDGE+1L)*16L;
-        long high=((long)edgeSection+1L)*16L;
+        long low=((long)windowBottomSection)*16L;
+        long high=((long)windowTopSection+1L)*16L;
         if(y<low || y>=high || y<target.getMinBuildHeight() ||
            y>=target.getMaxBuildHeight())return false;
         LevelChunk chunk=target.getChunkSource().getChunkNow(
@@ -485,6 +499,7 @@ public final class SeamRapierRemoteTerrain {
     private static void resetOnlyJavaState() {
         UPLOAD_QUEUE.clear();uploaded.clear();COLLIDER_CACHE.clear();
         source=null;target=null;destinationBakery=null;
+        windowBottomSection=windowTopSection=0;
         active=false;
         totalNativeUploads=totalRemoteSolidCells=0;
         witnessColliderPacked=0;

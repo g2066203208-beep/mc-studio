@@ -129,15 +129,26 @@ public final class SeamSableObserver {
                         // passenger nearby. Request the REAL neighbor's
                         // terrain *ahead* of collision time, via an ordinary
                         // bounded region ticket, without synchronous loads.
-                        if(SeamShipResidency.nearing(hull,homeY)) {
-                            SeamShipResidency.touch(id,dest,hull,homeY,tick);
+                        boolean fixedChart=
+                            home.dimension()==net.minecraft.world.level.Level.OVERWORLD &&
+                            dest.dimension()==net.minecraft.world.level.Level.NETHER &&
+                            link.exit()==SeamGraph.EdgeSide.BOTTOM &&
+                            link.entry()==SeamGraph.EdgeSide.TOP;
+                        boolean insideChart=fixedChart && SeamRapierChartWindow.intersects(
+                            hull.minY,hull.maxY,homeY,
+                            SeamStackRuntime.bottom(dest),SeamStackRuntime.top(dest),32.0);
+                        // Keep destination chunks and the SAME native body anchor
+                        // while the real hull is below the seam inside Nether.
+                        if(SeamShipResidency.nearing(hull,homeY)||insideChart) {
+                            if(fixedChart)
+                                SeamShipResidency.touchProjected(id,dest,hull,homeY,
+                                    SeamStackRuntime.bottom(dest),
+                                    SeamStackRuntime.top(dest),tick);
+                            else SeamShipResidency.touch(id,dest,hull,homeY,tick);
                             // Stock Sable keeps the ship in its home world;
                             // use that REAL hull to keep its foreign terrain
                             // in the SAME native scene without any player.
-                            if(home.dimension()==net.minecraft.world.level.Level.OVERWORLD &&
-                               dest.dimension()==net.minecraft.world.level.Level.NETHER &&
-                               link.exit()==SeamGraph.EdgeSide.BOTTOM &&
-                               link.entry()==SeamGraph.EdgeSide.TOP) {
+                            if(fixedChart) {
                                 double distance=Math.abs(hull.minY+
                                     (hull.maxY-hull.minY)*0.5-homeY);
                                 if(distance<closestRapierDistance) {

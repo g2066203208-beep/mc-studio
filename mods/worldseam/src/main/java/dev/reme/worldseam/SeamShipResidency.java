@@ -68,6 +68,20 @@ public final class SeamShipResidency {
     public static void touch(UUID ship,ServerLevel other,AABB hull,
                              double homePlane,long tick) {
         if(ship==null||other==null||!nearing(hull,homePlane))return;
+        pin(ship,other,hull,tick);
+    }
+
+    /** Retain real target chunks throughout the translated vertical chart. */
+    public static void touchProjected(UUID ship,ServerLevel other,AABB hull,
+                                      double homePlane,double targetBottom,
+                                      double targetTop,long tick) {
+        if(ship==null||other==null||hull==null ||
+           !SeamRapierChartWindow.intersects(hull.minY,hull.maxY,
+               homePlane,targetBottom,targetTop,APPROACH_MARGIN))return;
+        pin(ship,other,hull,tick);
+    }
+
+    private static void pin(UUID ship,ServerLevel other,AABB hull,long tick) {
         int centerX=(int)Math.floor(hull.minX+(hull.maxX-hull.minX)*0.5);
         int centerZ=(int)Math.floor(hull.minZ+(hull.maxZ-hull.minZ)*0.5);
         if(!other.getWorldBorder().isWithinBounds(
