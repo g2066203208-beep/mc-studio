@@ -103,11 +103,13 @@ public final class SeamRapierRemoteTerrain {
         // chart has been wired for this experiment. Reject all others.
         int highEdge=SeamStackRuntime.bottom(upper);
         int lowEdge=SeamStackRuntime.top(lower);
-        int shift=highEdge-lowEdge;
-        if(Math.floorMod(shift,16)!=0) {
-            LOG.error("WORLDSEAM_RAPIER_EXPERIMENT_REJECT: section-unaligned Y shift {}",shift);
-            faulted=true;
-            return;
+        int shift;
+        try {
+            shift=Math.subtractExact(highEdge,lowEdge);
+            SeamRapierChartMath.sectionShift(highEdge,lowEdge);
+        } catch(IllegalArgumentException | ArithmeticException ex) {
+            LOG.error("WORLDSEAM_RAPIER_EXPERIMENT_REJECT: unsupported seam map sourceY={} targetY={}",highEdge,lowEdge,ex);
+            faulted=true;return;
         }
         var viewer=server.getPlayerList().getPlayers().stream()
             .filter(p->p.serverLevel()==upper && Math.abs(p.getY()-highEdge)<48)
@@ -204,7 +206,7 @@ public final class SeamRapierRemoteTerrain {
         exposedVoxelState=((Number)neighborhood.getMethod("byteRepresentation")
             .invoke(corner)).byteValue();
         source=upper;target=lower;offsetY=shift;
-        edgeSection=Math.floorDiv(SeamStackRuntime.top(lower)-1,16);
+        edgeSection=SeamRapierChartMath.topSection(SeamStackRuntime.top(lower));
         centerX=cx;centerZ=cz;
         active=true;
         enqueueWindow();
@@ -246,10 +248,12 @@ public final class SeamRapierRemoteTerrain {
             packed[bx+(bz<<4)+(by<<8)]=value;
             if(value!=0)filled++;
         }
-        int mappedCy=Math.addExact(s.cy(),offsetY/16);
+        int mappedCy=SeamRapierChartMath.mapSection(s.cy(),
+            SeamStackRuntime.bottom(source),SeamStackRuntime.top(target));
         // Only project terrain into currently unoccupied slice of the
         // source native Rapier scene; never overwrite source-world voxels.
-        if(mappedCy>=Math.floorDiv(SeamStackRuntime.bottom(source),16))
+        if(!SeamRapierChartMath.entirelyBelowSource(mappedCy,
+                SeamStackRuntime.bottom(source)))
             throw new IllegalStateException("Remote native terrain overlaps source dimension");
         nativeAdd.invoke(null,sourceNativeScene,s.cx(),mappedCy,s.cz(),
             packed,true,-1);
@@ -264,7 +268,9 @@ public final class SeamRapierRemoteTerrain {
     private static void remove(NativeSection s) throws ReflectiveOperationException {
         if(nativeRemove!=null)
             nativeRemove.invoke(null,sourceNativeScene,
-                s.cx(),Math.addExact(s.cy(),offsetY/16),s.cz(),true);
+                s.cx(),SeamRapierChartMath.mapSection(s.cy(),
+                    SeamStackRuntime.bottom(source),
+                    SeamStackRuntime.top(target)),s.cz(),true);
     }
 
     private static void resetOnlyJavaState() {
