@@ -223,17 +223,40 @@ public final class SeamShipFilmE2E {
                 net.minecraft.core.Direction.UP);
             BlockPos motorPos=anchor.offset(0,1,-2);
             BlockPos rotorPos=motorPos.above();
-            // The released propeller defaults to axis=X; an UP-facing Create
-            // motor needs a Y-aligned shaft. Never infer working thrust from
-            // a visible propeller with a disconnected kinetic axis.
+            // Released SmartPropellerBlock extends HorizontalAxisKineticBlock:
+            // HORIZONTAL_AXIS sets hinge orientation X/Z, but the actual
+            // kinetic shaft is always Y. The floor mount takes Create's
+            // rotation from BELOW, ceiling=false. Verify published methods.
             var rotorState=rotor.defaultBlockState();
-            if(!rotorState.hasProperty(
-                net.minecraft.world.level.block.state.properties.BlockStateProperties.AXIS))
+            var hinge=net.minecraft.world.level.block.state.properties.BlockStateProperties.HORIZONTAL_AXIS;
+            if(!rotorState.hasProperty(hinge))
                 throw new IllegalStateException(
-                    "Released Aeronautics smart propeller missing AXIS");
-            rotorState=rotorState.setValue(
-                net.minecraft.world.level.block.state.properties.BlockStateProperties.AXIS,
-                net.minecraft.core.Direction.Axis.Y);
+                    "Aeronautics smart propeller missing HORIZONTAL_AXIS: "+
+                    rotorState.getProperties());
+            rotorState=rotorState.setValue(hinge,net.minecraft.core.Direction.Axis.X);
+            var ceilingProperty=rotor.getStateDefinition().getProperty("ceiling");
+            if(!(ceilingProperty instanceof
+                net.minecraft.world.level.block.state.properties.BooleanProperty ceiling))
+                throw new IllegalStateException("Aeronautics smart propeller missing ceiling");
+            rotorState=rotorState.setValue(ceiling,false);
+            try {
+                Object axis=rotor.getClass().getMethod("getRotationAxis",
+                    net.minecraft.world.level.block.state.BlockState.class)
+                    .invoke(rotor,rotorState);
+                Object acceptsDown=rotor.getClass().getMethod("hasShaftTowards",
+                    net.minecraft.world.level.LevelReader.class,BlockPos.class,
+                    net.minecraft.world.level.block.state.BlockState.class,
+                    net.minecraft.core.Direction.class)
+                    .invoke(rotor,home,rotorPos,rotorState,net.minecraft.core.Direction.DOWN);
+                if(axis!=net.minecraft.core.Direction.Axis.Y ||
+                    !Boolean.TRUE.equals(acceptsDown))
+                    throw new IllegalStateException(
+                        "Released Aeronautics shaft mismatch: axis="+axis+
+                        " shaftFacingDown="+acceptsDown);
+            } catch(ReflectiveOperationException ex) {
+                throw new IllegalStateException(
+                    "Cannot verify released Aeronautics kinetic contract",ex);
+            }
             home.setBlock(motorPos,motorState,3);
             home.setBlock(rotorPos,rotorState,3);
             blocks.add(rotorPos); // motor already replaces a counted hull voxel
