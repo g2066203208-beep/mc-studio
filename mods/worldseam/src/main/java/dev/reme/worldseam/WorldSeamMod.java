@@ -18,6 +18,7 @@ public final class WorldSeamMod {
         NeoForge.EVENT_BUS.addListener(SeamExplosionBridge::onDetonate);
         NeoForge.EVENT_BUS.addListener(SeamTerrain::onChunkLoad);
         NeoForge.EVENT_BUS.addListener(SeamTerrain::onServerTick);
+        NeoForge.EVENT_BUS.addListener(SeamRapierRemoteTerrain::tick);
         if (FMLEnvironment.dist == Dist.CLIENT) {
             modBus.addListener((net.neoforged.neoforge.client.event.RegisterClientReloadListenersEvent e)->
                 e.registerReloadListener(
