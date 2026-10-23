@@ -6,7 +6,7 @@ name: Server GameTests (experimental)
 on:
   workflow_dispatch:
   push:
-    branches: [feature/living-world-civic-v04, feature/living-world-natural-v05, feature/npc-resource-pickup-v058, feature/npc-emergent-roads-hamlets-v059, feature/npc-animation-art-pipeline-v060, feature/npc-real-player-actor-v061, feature/npc-local-justice-v062, feature/npc-physical-shopkeepers-v063, feature/npc-physical-workplaces-v064, fix/npc-v064-reliable-workplaces, feature/npc-mutual-aid-longrun-v065, fix/npc-command-access-v066]
+    branches: [feature/living-world-civic-v04, feature/living-world-natural-v05, feature/npc-resource-pickup-v058, feature/npc-emergent-roads-hamlets-v059, feature/npc-animation-art-pipeline-v060, feature/npc-real-player-actor-v061, feature/npc-local-justice-v062, feature/npc-physical-shopkeepers-v063, feature/npc-physical-workplaces-v064, fix/npc-v064-reliable-workplaces, feature/npc-mutual-aid-longrun-v065, fix/npc-command-access-v066, fix/npc-city-entrance-bed-claims-v083]
   pull_request:
 permissions:
   contents: read

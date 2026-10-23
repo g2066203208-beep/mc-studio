@@ -122,10 +122,21 @@ public final class ResidentBedLife {
         if (!wantsSleep) return false;
 
         BlockPos bed = npc.assignedBedPos();
-        if (bed != null && !assignedBedAvailable(npc, level, bed)) {
-            // A removed, occupied or contested old bed is not a permanent claim.
-            npc.setAssignedBedPos(null);
-            bed = null;
+        if (bed != null) {
+            // The persisted bed is owned by this NPC, not an expendable
+            // navigation cache. A visiting player sleeping in it, an
+            // unloaded chunk, or a blocked aisle must NOT erase its NBT claim.
+            if (!level.hasChunkAt(bed)) {
+                npc.setAction("assigned home bed chunk unloaded; waiting without forced chunk load");
+                return true;
+            }
+            if (!valid(level, bed) || claimedByOther(npc, level, bed)) {
+                npc.setAssignedBedPos(null);
+                bed = null;
+            } else if (occupied(level, bed)) {
+                npc.setAction("own bed temporarily occupied; retain claim and wait");
+                return true;
+            }
         }
         if (bed == null) {
             // Scan staggered over many NPCs; no global per-tick searches.
@@ -141,12 +152,15 @@ public final class ResidentBedLife {
         // must actually reach that tile before vanilla startSleeping is used.
         BlockPos nearSide = accessibleSide(level, bed, npc.blockPosition());
         if (nearSide == null) {
-            npc.setAssignedBedPos(null);
-            npc.setAction("bed physical access blocked; reassign on next scan");
-            return false;
+            // Obstructed today does not mean the resident has moved house.
+            npc.getNavigation().stop();
+            npc.setAction("bedside temporarily obstructed; retain saved bed ownership");
+            return true;
         }
-        if (npc.blockPosition().distSqr(nearSide) <= 2
-            && npc.blockPosition().distSqr(bed) <= 6) {
+        // Euclidean distance <=2 admitted the wrong side of a wall or a
+        // diagonal tile. The feet must stand ON an actual free orthogonal
+        // neighbor of this bed's HEAD, not merely somewhere nearby.
+        if (isActualBedside(level, bed, npc.blockPosition())) {
             if (!assignedBedAvailable(npc, level, bed)) {
                 npc.setAssignedBedPos(null);
                 return false;
@@ -206,6 +220,15 @@ public final class ResidentBedLife {
             }
         }
         return best;
+    }
+
+    /** Package-local deterministic physical arrival gate used by native GameTests. */
+    public static boolean isActualBedside(ServerLevel level, BlockPos head, BlockPos feet) {
+        if (feet.getY() != head.getY()
+            || Math.abs(feet.getX() - head.getX())
+                + Math.abs(feet.getZ() - head.getZ()) != 1)
+            return false;
+        return isStandingSide(level, feet);
     }
 
     private static boolean isStandingSide(ServerLevel level, BlockPos pos) {
