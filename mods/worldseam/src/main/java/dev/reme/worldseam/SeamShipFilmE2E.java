@@ -223,11 +223,28 @@ public final class SeamShipFilmE2E {
                 net.minecraft.core.Direction.UP);
             BlockPos motorPos=anchor.offset(0,1,-2);
             BlockPos rotorPos=motorPos.above();
-            home.setBlock(motorPos,motorState,3);
-            home.setBlock(rotorPos,rotor.defaultBlockState(),3);
+            var rotorState=rotor.defaultBlockState();
+            // Actual released 1.3.2 propeller defaults to AXIS=X, while
+            // Create's creative motor below faces UP. Those shafts were at
+            // right angles in the previous footage: spin/thrust could never
+            // pass the genuine Aeronautics powertrain acceptance gate.
+            if(!rotorState.hasProperty(
+                net.minecraft.world.level.block.state.properties.BlockStateProperties.AXIS))
+                throw new IllegalStateException(
+                    "Released Aeronautics propeller lacks expected AXIS property");
+            rotorState=rotorState.setValue(
+                net.minecraft.world.level.block.state.properties.BlockStateProperties.AXIS,
+                net.minecraft.core.Direction.Axis.Y);
+            if(!home.setBlock(motorPos,motorState,3) ||
+               !home.setBlock(rotorPos,rotorState,3))
+                throw new IllegalStateException("Could not stage real Create/Aero drivetrain");
+            if(home.getBlockState(rotorPos).getValue(
+                    net.minecraft.world.level.block.state.properties.BlockStateProperties.AXIS)
+                    !=net.minecraft.core.Direction.Axis.Y)
+                throw new IllegalStateException("Aeronautics rotor axis changed during staging");
             blocks.add(rotorPos); // motor already replaces a counted hull voxel
-            LOG.info("WORLDSEAM_FILM_REAL_CREATE_AERO_MACHINERY: motor={} {}, propeller={} {}, intendedShaft=vertical, verify TRUE getSpeed()+scaledThrust AFTER assembly",
-                motorPos,motorState,rotorPos,rotor.defaultBlockState());
+            LOG.info("WORLDSEAM_FILM_REAL_CREATE_AERO_MACHINERY: motor={} {}, propeller={} {}, shaftAxis=Y, matchingRealUpwardMotor=true, require TRUE getSpeed()+scaledThrust AFTER assembly",
+                motorPos,motorState,rotorPos,rotorState);
             stagingBlocks=blocks;
             stagingAnchor=anchor;
             stagingHome=home;
