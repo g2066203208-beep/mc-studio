@@ -13,6 +13,7 @@ import dev.reme.mcstudio.npc.life.NeighborhoodMarket;
 import dev.reme.mcstudio.npc.life.ConvenienceStoreCrime;
 import dev.reme.mcstudio.npc.life.CityDistrictDemo;
 import dev.reme.mcstudio.npc.life.CityDistrictExpansion;
+import dev.reme.mcstudio.npc.life.UrbanCivicDistrict;
 import net.minecraft.world.level.block.BedBlock;
 import net.minecraft.world.level.block.state.properties.BedPart;
 import dev.reme.mcstudio.npc.life.FootTrafficData;
@@ -134,6 +135,13 @@ public final class NpcCommands {
                 .then(Commands.literal("demo")
                     .requires(source -> source.hasPermission(2))
                     .executes(ctx -> cityDemo(ctx.getSource())))
+                .then(Commands.literal("zone")
+                    .then(Commands.literal("survey")
+                        .then(Commands.argument("type", StringArgumentType.word())
+                            .executes(ctx -> cityZone(ctx.getSource(), StringArgumentType.getString(ctx, "type"), true))))
+                    .then(Commands.argument("type", StringArgumentType.word())
+                        .requires(source -> source.hasPermission(2))
+                        .executes(ctx -> cityZone(ctx.getSource(), StringArgumentType.getString(ctx, "type"), false))))
                 .then(Commands.literal("grow")
                     .requires(source -> source.hasPermission(2))
                     .then(Commands.literal("east")
@@ -376,11 +384,38 @@ public final class NpcCommands {
         return 1;
     }
 
+    private static int cityZone(CommandSourceStack source, String type, boolean survey)
+        throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        ServerPlayer p=source.getPlayerOrException();
+        UrbanCivicDistrict.Zone zone=UrbanCivicDistrict.Zone.from(type);
+        if(zone==null){
+            source.sendFailure(Component.literal(
+                "城区类型仅支持：hospital / education / government / transport"));
+            return 0;
+        }
+        if(survey){
+            String report=UrbanCivicDistrict.survey(p.serverLevel(),p.blockPosition(),zone);
+            source.sendSuccess(() -> Component.literal(report),false);
+            return 1;
+        }
+        UrbanCivicDistrict.Result result=UrbanCivicDistrict.build(
+            p.serverLevel(),p.blockPosition(),zone,p);
+        if(!result.success()){
+            source.sendFailure(Component.literal("城市扩建失败："+result.message()));
+            return 0;
+        }
+        source.sendSuccess(() -> Component.literal("城市扩建成功：" + result.message()
+            + "；真实方块=" + result.blocks() + "；真实居民=" + result.citizens()),true);
+        return 1;
+    }
+
     private static int cityHelp(CommandSourceStack source) {
         source.sendSuccess(() -> Component.literal(
             "NPC 城市工作室：/npc city survey 检查当前位置的41×41平坦空地；"
             + "/npc city demo 仅OP允许，在全新平坦测试世界真正放置城市方块和13个居民。"
-            + "/npc city audit 实时查看店铺、顾客、逃单、报警与追捕。" 
+            + "/npc city audit 实时查看店铺、顾客、逃单、报警与追捕。"
+            + "/npc city zone survey hospital|education|government|transport 先检查，"
+            + "/npc city zone <类型> 仅OP在城市十字路口中心建设专业新区。" 
             + "演示不会自动填平、破坏现有建筑；NPC自主生存建设仍属另一系统。"), false);
         return 1;
     }
