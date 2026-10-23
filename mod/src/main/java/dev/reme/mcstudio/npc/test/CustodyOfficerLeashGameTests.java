@@ -40,7 +40,7 @@ public final class CustodyOfficerLeashGameTests {
         GameTestHelper helper) {
         ServerLevel level=helper.getLevel();
         BlockPos base=helper.absolutePos(new BlockPos(8,2,8));
-        PlayerNpcEntity prisoner=npc(level,base,PlayerNpcEntity.Profession.CITIZEN);
+        PlayerNpcEntity prisoner=npc(level,base,PlayerNpcEntity.Profession.RESIDENT);
         PlayerNpcEntity officer=npc(level,base.east(13),
                                     PlayerNpcEntity.Profession.GUARD);
         PlayerNpcEntity bystander=npc(level,base.east(1),
@@ -90,7 +90,7 @@ public final class CustodyOfficerLeashGameTests {
         if(!PublicSafety.holdingSpot(level,jail))
             throw new AssertionError("Physical custody holding spot missing");
         PlayerNpcEntity prisoner=npc(level,jail.east(5),
-                                     PlayerNpcEntity.Profession.CITIZEN);
+                                     PlayerNpcEntity.Profession.RESIDENT);
         PlayerNpcEntity officer=npc(level,jail.east(22),
                                     PlayerNpcEntity.Profession.GUARD);
         officer.setHomePos(jail);
