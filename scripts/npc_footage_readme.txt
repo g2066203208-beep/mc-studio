@@ -1,1 +1,1 @@
-Native Minecraft recording verification is under development.
+Native Minecraft recordings require decoded frames, not only nonempty files.
