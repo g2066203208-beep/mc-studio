@@ -5,7 +5,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.chunk.ChunkAccess;
-import net.neoforged.neoforge.event.level.ChunkEvent;
+import net.minecraft.world.level.chunk.ProtoChunk;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -58,13 +58,19 @@ public final class SeamTerrain {
         return changed;
     }
 
-    public static void onChunkLoad(ChunkEvent.Load event) {
-        if(!event.isNewChunk() || !(event.getLevel() instanceof ServerLevel level))
-            return;
-        replaceGeneratedBedrock(level,event.getChunk());
-    }
-
+    /**
+     * Called only by SeamChunkGenerationMixin during the genuine worldgen
+     * stage, BEFORE the fully loaded LevelChunk is published to NeoForge and
+     * Sable/Rapier. Never carve a published LevelChunk in its Load callback:
+     * its setBlockState fires Sable's physics block-change hook which may
+     * recursively load chunks while a chunk FULL task is waiting (the real
+     * 2026-10-23 integrated server JVM stack proved this hang).
+     *
+     * If the generation stage changes or the chunk is already full, fail
+     * closed: the explicit test-world /fill remains available instead.
+     */
     public static void replaceGeneratedBedrock(ServerLevel level,ChunkAccess chunk) {
+        if(!(chunk instanceof ProtoChunk))return;
         MinecraftServer server=level.getServer();
         if(server==null || !SeamServer.shouldCarveNewChunk(server))return;
         List<SeamBounds.CarveRange> bands=carveBands(level);
