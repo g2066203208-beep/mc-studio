@@ -1,6 +1,7 @@
 package dev.reme.mcstudio.npc.life;
 
 import dev.reme.mcstudio.npc.PlayerNpcEntity;
+import dev.reme.mcstudio.npc.life.LivingPlanner;
 import javax.annotation.Nullable;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -102,9 +103,12 @@ public final class ResidentBedLife {
 
     /** Only call from the actual server entity tick. */
     public static boolean tick(PlayerNpcEntity npc, ServerLevel level, long tick) {
+        boolean guard = npc.profession() == PlayerNpcEntity.Profession.GUARD;
         boolean wantsSleep = npc.mode() == PlayerNpcEntity.Mode.LIVE
-            && RestPolicy.shouldRest(npc.intent(),
-                npc.profession() == PlayerNpcEntity.Profession.GUARD, npc.energy())
+            && npc.intent() == LivingPlanner.Intent.SLEEP
+            && (RestPolicy.shouldRest(npc.intent(), guard, npc.energy())
+                || RestPolicy.lateWatchRecovery(guard,
+                    level.getDayTime() + npc.dailyShiftTicks(), npc.energy()))
             && !npc.isAfraid(tick) && !npc.isDetained(tick);
         if (npc.isSleeping()) {
             BlockPos sleeping = npc.getSleepingPos().orElse(null);
@@ -188,14 +192,24 @@ public final class ResidentBedLife {
                 // While outside, continue towards the apartment door/home
                 // instead of dropping a valid bed claim just because the
                 // inner-room path is temporarily unavailable.
-                var homeRoute = npc.getNavigation().createPath(npc.homePos(), 0);
-                if (homeRoute != null && homeRoute.canReach()
-                    && npc.getNavigation().moveTo(homeRoute, 0.98))
-                    npc.setAction("walking to real home entrance before bedside");
-                else if (RoadNavigator.moveToward(npc, level, npc.homePos(), 0.94))
-                    npc.setAction("following actual road/door route home before bed");
-                else
-                    npc.setAction("real house/bed path blocked; no fake teleport or sleeping");
+                // Bed/home coordinates lie INSIDE a real walled house.
+                // Routing straight toward that hidden target leaves the NPC
+                // pacing at the nearest solid facade. Instead, walk to an
+                // actually OPEN, loaded wooden doorway, first OUTSIDE then
+                // INSIDE; re-probe the native bedside from the interior.
+                // This route uses no new saved fields and never teleports.
+                if (HomeEntranceRoute.moveTowardEntrance(npc, level, 0.98)) {
+                    // The entrance helper records the physical stage.
+                } else {
+                    var homeRoute = npc.getNavigation().createPath(npc.homePos(), 0);
+                    if (homeRoute != null && homeRoute.canReach()
+                        && npc.getNavigation().moveTo(homeRoute, 0.98))
+                        npc.setAction("walking through native reachable route home");
+                    else if (RoadNavigator.moveToward(npc, level, npc.homePos(), 0.94))
+                        npc.setAction("following actual road/door route home before bed");
+                    else
+                        npc.setAction("real house/bed path blocked; no fake teleport or sleeping");
+                }
             }
         }
         return true; // preserve the real navigation through bedtime

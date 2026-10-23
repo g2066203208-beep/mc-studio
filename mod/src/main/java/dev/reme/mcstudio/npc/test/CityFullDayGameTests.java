@@ -122,6 +122,19 @@ public final class CityFullDayGameTests {
                         npc.assignedBedPos()==null ? "none" : npc.assignedBedPos().toShortString(),
                         npc.intent(), npc.energy(), npc.getNavigation().isDone(), npc.lastAction());
             }
+            // A pass on bedtime is not a pass on actual day-shift work.
+            // Preserve per-UUID evidence of any missed job in uploaded logs.
+            for (PlayerNpcEntity npc : citizens) {
+                if (npc.profession() != PlayerNpcEntity.Profession.RESIDENT
+                    && !actuallyWorked.contains(npc.getUUID()))
+                    com.mojang.logging.LogUtils.getLogger().error(
+                        "REME_NPC_CITY_NO_DAY_JOB uuid={} npc={} profession={} "
+                        + "pos={} work={} home={} intent={} energy={} pathDone={} action={}",
+                        npc.getUUID(), npc.getName().getString(), npc.profession(),
+                        npc.blockPosition().toShortString(), npc.workPos().toShortString(),
+                        npc.homePos().toShortString(), npc.intent(), npc.energy(),
+                        npc.getNavigation().isDone(), npc.lastAction());
+            }
             if(actuallySlept.size()!=citizens.size())
                 helper.fail("Hard acceptance: all residents must physically use own vanilla beds, only "
                     +actuallySlept.size()+"/"+citizens.size()+" slept",center);

@@ -27,6 +27,19 @@ public final class RestPolicy {
         return intent == LivingPlanner.Intent.SLEEP && !guardOnWatch(guard, energy);
     }
 
+    /**
+     * Rotating guards still need a finite nightly rest opportunity. A guard
+     * above the emergency 35-energy watch threshold could previously patrol
+     * all night and only become tired AFTER sunrise, never using its bed.
+     * This is an actual time/need gate, not a test-specific instant sleep:
+     * the officer must still walk home through a real door to a native bed.
+     */
+    public static boolean lateWatchRecovery(boolean guard, long shiftedDayTime,
+                                            int energy) {
+        long clock = Math.floorMod(shiftedDayTime, 24000L);
+        return guard && clock >= 18000L && energy < 55;
+    }
+
     public static boolean blocksRoutine(LivingPlanner.Intent intent,
                                         boolean guard, int energy) {
         return intent == LivingPlanner.Intent.ESCAPE
@@ -37,8 +50,12 @@ public final class RestPolicy {
     public static int energyDelta(LivingPlanner.Intent intent, boolean guard,
                                   int energy, boolean sleepingInBed,
                                   boolean reachedHome, boolean afraid, boolean detained) {
-        if (!shouldRest(intent, guard, energy) || afraid || detained) return -3;
-        if (sleepingInBed) return 12;
+        if (afraid || detained) return -3;
+        // Once a tired watch officer is PHYSICALLY asleep in a vanilla bed,
+        // real rest restores energy just like every other citizen; the
+        // regular watch threshold must not make bed sleep drain energy.
+        if (intent == LivingPlanner.Intent.SLEEP && sleepingInBed) return 12;
+        if (!shouldRest(intent, guard, energy)) return -3;
         return reachedHome ? 2 : -3;
     }
 }
