@@ -216,6 +216,9 @@ public final class SeamChunkSender {
      * including dynamic block and block-entity state from native packet.
      */
     public static void markBlockChanged(ServerLevel level,BlockPos pos) {
+        // Keep already-projected target blocks in the ONE Sable Rapier solver
+        // up-to-date when real gameplay mutates the other ServerLevel.
+        SeamRapierRemoteTerrain.markBlockChanged(level,pos);
         int x=Math.floorDiv(pos.getX(),16),z=Math.floorDiv(pos.getZ(),16);
         long key=((long)x<<32)|(z&0xffffffffL);
         for(Session s:sessions.values()) {
