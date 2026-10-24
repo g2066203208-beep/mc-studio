@@ -10,6 +10,7 @@ import net.minecraft.core.Direction;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.DoorBlock;
 import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
@@ -35,6 +36,58 @@ public final class CityCustodyRouteGameTests {
             ||!PublicSafety.custodyWaypoint(jail,jail.south(2)).equals(jail.south(1))
             ||!PublicSafety.custodyWaypoint(jail,jail.south(1)).equals(jail))
             throw new AssertionError("Custody stage jumps outside after crossing gate");
+        helper.succeed();
+    }
+
+    /** A corrupted door pair is NOT a safe, operable holding-cell gate.
+     * Test the actual native upper/lower block states; do not fake an event.
+     */
+    @GameTest(template="empty",timeoutTicks=100)
+    public static void iron_cell_gate_requires_matching_real_door_halves(
+        GameTestHelper helper) {
+        ServerLevel level=helper.getLevel();
+        BlockPos jail=helper.absolutePos(new BlockPos(4,2,4));
+        BlockPos gate=CityJailGate.gateFor(jail);
+        level.setBlock(gate.below(),Blocks.STONE.defaultBlockState(),2);
+        var low=Blocks.IRON_DOOR.defaultBlockState()
+            .setValue(DoorBlock.FACING,Direction.SOUTH)
+            .setValue(DoorBlock.HALF,DoubleBlockHalf.LOWER);
+        var up=low.setValue(DoorBlock.HALF,DoubleBlockHalf.UPPER);
+        // Deliberately inject a broken persisted pair. Ordinary vanilla
+        // neighbor shape updates REPAIR mismatched door halves automatically,
+        // so bypass only those updates in this isolated negative fixture.
+        int corruptFixtureFlags=Block.UPDATE_CLIENTS | Block.UPDATE_KNOWN_SHAPE;
+        level.setBlock(gate,low,corruptFixtureFlags);
+        level.setBlock(gate.above(),
+            up.setValue(DoorBlock.FACING,Direction.NORTH),corruptFixtureFlags);
+        if(level.getBlockState(gate).getValue(DoorBlock.FACING)
+            ==level.getBlockState(gate.above()).getValue(DoorBlock.FACING))
+            throw new AssertionError("Fixture was auto-repaired before gate validation");
+        if(CityJailGate.isGate(level,jail)
+            ||CityJailGate.setOpen(level,jail,true))
+            throw new AssertionError("Different facing halves authorized custody");
+        if(level.getBlockState(gate).getValue(DoorBlock.OPEN)
+            ||level.getBlockState(gate.above()).getValue(DoorBlock.OPEN))
+            throw new AssertionError("Invalid cell door was mutated");
+        // Even matching materials and facing cannot excuse a split open state.
+        level.setBlock(gate.above(),
+            up.setValue(DoorBlock.OPEN,true),corruptFixtureFlags);
+        if(level.getBlockState(gate).getValue(DoorBlock.OPEN)
+            ==level.getBlockState(gate.above()).getValue(DoorBlock.OPEN))
+            throw new AssertionError("Split-open fixture was auto-repaired");
+        if(CityJailGate.isGate(level,jail)
+            ||CityJailGate.setOpen(level,jail,true))
+            throw new AssertionError("Split OPEN states authorized custody");
+        level.setBlock(gate.above(),up,corruptFixtureFlags);
+        if(!CityJailGate.isGate(level,jail)
+            ||!CityJailGate.setOpen(level,jail,true)
+            ||!level.getBlockState(gate).getValue(DoorBlock.OPEN)
+            ||!level.getBlockState(gate.above()).getValue(DoorBlock.OPEN))
+            throw new AssertionError("Intact native iron gate failed to open both halves");
+        if(!CityJailGate.setOpen(level,jail,false)
+            ||level.getBlockState(gate).getValue(DoorBlock.OPEN)
+            ||level.getBlockState(gate.above()).getValue(DoorBlock.OPEN))
+            throw new AssertionError("Intact native iron gate failed to lock");
         helper.succeed();
     }
 

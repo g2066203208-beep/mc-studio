@@ -24,9 +24,16 @@ public final class CityJailGate {
         BlockPos at=gateFor(holding);
         if(!level.hasChunkAt(at)||!level.hasChunkAt(at.above()))return false;
         BlockState low=level.getBlockState(at),up=level.getBlockState(at.above());
+        // A two-block door is ONE vanilla structure. A mismatched upper
+        // half can appear after interrupted world edits or save recovery.
+        // Never open/lock a pair of unrelated halves as a lawful cell gate.
         return low.is(Blocks.IRON_DOOR) && up.is(Blocks.IRON_DOOR)
             && low.getValue(DoorBlock.HALF)==DoubleBlockHalf.LOWER
-            && up.getValue(DoorBlock.HALF)==DoubleBlockHalf.UPPER;
+            && up.getValue(DoorBlock.HALF)==DoubleBlockHalf.UPPER
+            && low.getValue(DoorBlock.FACING)==up.getValue(DoorBlock.FACING)
+            && low.getValue(DoorBlock.HINGE)==up.getValue(DoorBlock.HINGE)
+            && low.getValue(DoorBlock.OPEN)==up.getValue(DoorBlock.OPEN)
+            && low.getValue(DoorBlock.POWERED)==up.getValue(DoorBlock.POWERED);
     }
 
     public static boolean isOpen(ServerLevel level, BlockPos holding) {
