@@ -117,6 +117,41 @@ public final class SeamNativeGeometryClient {
         return sourceBorderInvalidations;
     }
 
+    // Native target blocks may change while the player remains in the source
+    // dimension. A previously uploaded GPU section must not keep the old
+    // collision/visual block state or a stale fluid face after that edit.
+    // Invalidate both neighboring horizontal chunks AND adjacent vertical
+    // sections when the edited voxel touches a 16-block section boundary.
+    // This path never loads a missing chunk or rebuilds a mesh in the event.
+    private static long remoteBlockInvalidations;
+
+    public static void onRemoteBlockChanged(ClientLevel changedLevel,
+                                            BlockPos changed) {
+        Minecraft mc=Minecraft.getInstance();
+        if(changedLevel!=queuedRemote || queuedLink==null ||
+           source.isEmpty() || mc.level==null || mc.player==null ||
+           !source.equals(mc.level.dimension().location().toString()))return;
+        long bandLow=queuedLink.entry()==SeamGraph.EdgeSide.TOP
+            ? (long)targetBoundary-VERTICAL_SECTIONS*16L : targetBoundary;
+        long bandHigh=bandLow+VERTICAL_SECTIONS*16L;
+        long y=changed.getY();
+        if(y<bandLow || y>=bandHigh)return;
+        int cx=Math.floorDiv(changed.getX(),16);
+        int cz=Math.floorDiv(changed.getZ(),16);
+        int playerCx=Math.floorDiv(mc.player.blockPosition().getX(),16);
+        int playerCz=Math.floorDiv(mc.player.blockPosition().getZ(),16);
+        if(Math.abs((long)cx-playerCx)>2 ||
+           Math.abs((long)cz-playerCz)>2)return;
+        BUILD_QUEUE.invalidateWithNeighbors(cx,cz,
+            (int)Math.max(bandLow,y-1L),
+            (int)Math.min(bandHigh,y+2L));
+        remoteBlockInvalidations++;
+    }
+
+    public static long remoteBlockInvalidations() {
+        return remoteBlockInvalidations;
+    }
+
     /** Actual native mesher cross-plane neighbor samples (not packets). */
     public static long logicalPlaneNeighborReads() {
         return logicalPlaneNeighborReads;
