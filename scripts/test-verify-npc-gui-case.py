@@ -101,7 +101,7 @@ class GenuineGuiCaseRegression(unittest.TestCase):
         lines = episode(A, 100)
         late_lock = lines.pop()
         with self.assertRaisesRegex(ValueError, "never locked after officer handoff"):
-            case.verify(filmed(lines) + late_lock + "\\n")
+            case.verify(filmed(lines) + late_lock + "\n")
 
     def test_same_tick_handoff_then_lock_is_valid(self):
         # Event order is authoritative when two events share a game tick.
