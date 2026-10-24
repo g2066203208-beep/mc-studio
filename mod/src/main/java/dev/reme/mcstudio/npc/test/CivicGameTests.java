@@ -1659,6 +1659,8 @@ public final class CivicGameTests {
         clerk.moveTo(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5, 0, 0);
         clerk.setProfession(PlayerNpcEntity.Profession.SHOPKEEPER);
         clerk.setMode(PlayerNpcEntity.Mode.LIVE);
+        clerk.setWorkPos(pos);
+        clerk.setDecision(new LivingPlanner.Decision(LivingPlanner.Intent.WORK, 100, "staffed counter"));
         clerk.backpack().addItem(new ItemStack(Items.BREAD, 2));
         if (!level.addFreshEntity(clerk)) throw new AssertionError("Real clerk not spawned");
         var buyer = FakePlayerFactory.getMinecraft(level);
@@ -1687,6 +1689,8 @@ public final class CivicGameTests {
         clerk.moveTo(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5, 0, 0);
         clerk.setProfession(PlayerNpcEntity.Profession.SHOPKEEPER);
         clerk.setMode(PlayerNpcEntity.Mode.LIVE);
+        clerk.setWorkPos(pos);
+        clerk.setDecision(new LivingPlanner.Decision(LivingPlanner.Intent.WORK, 100, "staffed counter"));
         clerk.backpack().setItem(0, new ItemStack(Items.BREAD, 2));
         for (int i = 1; i < clerk.backpack().getContainerSize(); i++)
             clerk.backpack().setItem(i, new ItemStack(Items.DIRT, 64));
@@ -1695,6 +1699,10 @@ public final class CivicGameTests {
         buyer.getInventory().clearContent();
         buyer.moveTo(pos.getX() + 1.5, pos.getY(), pos.getZ() + 0.5, 0, 0);
         buyer.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.EMERALD, 1));
+        // This must exercise the FULL cash drawer, not silently pass because
+        // the new shop-hours guard considers an unstaffed fixture closed.
+        if (!ShopCounter.openForResidentSales(clerk))
+            throw new AssertionError("Full-till fixture must be a physically open shop");
         if (ShopCounter.purchase(clerk, buyer, buyer.getMainHandItem())
             || clerk.backpack().countItem(Items.BREAD) != 2
             || clerk.backpack().countItem(Items.EMERALD) != 0
