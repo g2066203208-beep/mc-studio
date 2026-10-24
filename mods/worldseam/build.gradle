@@ -56,9 +56,10 @@ neoForge {
             client()
             if (project.hasProperty('worldseamE2E')) {
                 systemProperty 'worldseam.e2e', 'true'
-                // Run a real secondary GPU color+depth FBO pass in the GUI.
-                // The result is NOT yet composited into the player view.
+                // Exercise actual foreign depth pixels against native source depth
+                // in a disposable GUI test; NOT a final seamlessness gate.
                 systemProperty 'worldseam.experimentalOffscreenTerrain', 'true'
+                systemProperty 'worldseam.experimentalDepthComposite', 'true'
             }
             if (project.hasProperty('worldseamStress')) {
                 systemProperty 'worldseam.e2e', 'true'
@@ -66,6 +67,8 @@ neoForge {
             }
             if (project.hasProperty('worldseamShipFilm')) {
                 systemProperty 'worldseam.shipFilm', 'true'
+                systemProperty 'worldseam.experimentalOffscreenTerrain', 'true'
+                systemProperty 'worldseam.experimentalDepthComposite', 'true'
                 // Disposable native-only validation: map actual Nether physics
                 // voxels into ONE authoritative Overworld Sable Rapier scene.
                 systemProperty 'worldseam.experimentalRemoteRapier', 'true'
