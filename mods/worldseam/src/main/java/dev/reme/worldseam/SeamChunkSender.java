@@ -169,21 +169,26 @@ public final class SeamChunkSender {
 
         int slot=SeamChunkPriority.chooseSlot(centerX,centerZ,OFFSETS,
             session.lastSent,session.dirty,tick,REFRESH_TICKS,DIRTY_COOLDOWN);
-        if(slot<0)return; // ALL targets still resident/fresh
+        if(slot<0)return; // No new, changed or expired chunks.
         int cx=centerX+OFFSETS[slot][0],cz=centerZ+OFFSETS[slot][1];
-        long key=((long)cx<<32)|(cz&0xffffffffL);
 
-        // A controlled, bounded one-chunk fetch occurs only for unsent/stale
-        // data. Temporary residency keeps the remaining chunks loaded.
+        // Region tickets schedule actual chunk loads asynchronously. Their
+        // completion order is not center-first: one unavailable inner chunk
+        // previously blocked ALL other ready chunks because chooseSlot kept
+        // returning the same unready slot every scheduler tick. Stream the
+        // nearest resident alternative instead, still at ONE packet/tick.
+        // Never synchronously generate an unready target chunk.
         if(!target.hasChunk(cx,cz)) {
-            // The region ticket has already requested this chunk from the
-            // NORMAL server chunk scheduler. Synchronous getChunk() here
-            // forces expensive terrain generation or disk I/O on the server
-            // main thread. Wait for the ticket to complete asynchronously;
-            // leave the item unsent so it is revisited next tick.
             session.waitingForAsyncChunks++;
-            return;
+            slot=SeamChunkPriority.chooseSlot(centerX,centerZ,OFFSETS,
+                session.lastSent,session.dirty,tick,REFRESH_TICKS,
+                DIRTY_COOLDOWN,index -> target.hasChunk(
+                    centerX+OFFSETS[index][0],centerZ+OFFSETS[index][1]));
+            if(slot<0)return; // All eligible chunks are still loading.
+            cx=centerX+OFFSETS[slot][0];
+            cz=centerZ+OFFSETS[slot][1];
         }
+        long key=((long)cx<<32)|(cz&0xffffffffL);
         ClientboundLevelChunkWithLightPacket vanilla =
             new ClientboundLevelChunkWithLightPacket(
                 target.getChunk(cx,cz),target.getLightEngine(),null,null);
