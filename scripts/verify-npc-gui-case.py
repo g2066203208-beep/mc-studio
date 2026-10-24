@@ -7,6 +7,7 @@ This checks native integrated-server stdout, not GameTest fixture output.
 """
 from __future__ import annotations
 
+import math
 import pathlib
 import re
 import sys
@@ -88,6 +89,52 @@ def verify(text: str) -> str:
     cell = xyz(jail.group(), "cell")
     if holding is None or cell != holding:
         fail("Filmed prisoner never reached his originally assigned real cell")
+    # A filmed booking is not evidence of a physical escort by itself.
+    # Require time-ordered, same-UUID positions of BOTH moving actors from
+    # the integrated Minecraft server, strictly inside this video's window.
+    # Bounded 40-tick trace samples are evidence, not per-frame animation.
+    escort_samples = []
+    for line in lines:
+        if not (arrest.start() < line.start() < jail.start()):
+            continue
+        record = line.group()
+        if "REME_NPC_ESCORT_PAIR" not in record:
+            continue
+        if key(record, "officer") != key(arrest.group(), "guard") or key(record, "prisoner") != target:
+            continue
+        officer_feet = xyz(record, "officerFeet")
+        prisoner_feet = xyz(record, "prisonerFeet")
+        sample_tick = key(record, "tick")
+        distance = key(record, "distanceSq")
+        if officer_feet is None or prisoner_feet is None or sample_tick is None or distance is None:
+            fail("Same-UUID escort trace missing real positions, distance or tick")
+        try:
+            escort_samples.append((int(sample_tick), officer_feet, prisoner_feet,
+                                   float(distance), key(record, "prisonerMayAdvance")))
+        except ValueError:
+            fail("Same-UUID escort trace contains invalid numeric evidence")
+    if len(escort_samples) < 3:
+        fail("Filmed custody lacks three same-UUID physical escort position samples")
+    if any(not math.isfinite(sample[3]) or sample[3] > 16.0 or sample[3] < 0.0
+           for sample in escort_samples):
+        fail("Real escort exceeded four-block officer-prisoner leash")
+    if not any(sample[4] == "true" for sample in escort_samples):
+        fail("No filmed prisoner movement authorized by the real escort officer")
+    for before, after in zip(escort_samples, escort_samples[1:]):
+        elapsed = after[0] - before[0]
+        if elapsed <= 0:
+            fail("Physical escort trace ticks are not strictly increasing")
+        # The floor-position trace is sampled every ~40 game ticks. Permit
+        # normal native navigation plus block-coordinate quantization, but
+        # reject implausibly large leaps masquerading as continuous walking.
+        max_step = 0.25 * elapsed + 1.5
+        if math.dist(before[1], after[1]) > max_step or math.dist(before[2], after[2]) > max_step:
+            fail("Physical escort trace has an implausible position jump")
+    first, last = escort_samples[0], escort_samples[-1]
+    if math.dist(first[1], last[1]) < 6.0 or math.dist(first[2], last[2]) < 6.0:
+        fail("Filmed guard and prisoner did not both walk a meaningful distance")
+    if math.dist(first[2], holding) - math.dist(last[2], holding) < 4.0:
+        fail("Filmed prisoner did not make physical progress toward assigned cell")
     locked_at = (holding[0], holding[1], holding[2] + 2)
     # The real officer acknowledges custody at jail_reached BEFORE the
     # prisoner's subsequent server tick locks the iron gate. PR #154's
@@ -107,7 +154,8 @@ def verify(text: str) -> str:
     return ("REME_NPC_REAL_CLIENT_FULL_CASE_RECORDING_OK thief=" + target
             + " ticks=" + ",".join(str(t) for t in ticks)
             + " three_real_hits=true same_guard=true actual_cell=true"
-            + " locked_iron_gate=true camera_before_arrest=true")
+            + " locked_iron_gate=true camera_before_arrest=true"
+            + " physical_pair=true escort_samples=" + str(len(escort_samples)))
 
 
 def main() -> int:
