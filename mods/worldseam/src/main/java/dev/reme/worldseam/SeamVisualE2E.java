@@ -457,28 +457,41 @@ public final class SeamVisualE2E {
         } else if (phase==10 && now-startTick>1540) {
             phase=11;
             String status=SeamClientWorldPool.remoteStatus();
+            // GPU-native rendering can use ZERO legacy fallback buffers.
+            // Requiring a positive disposal count incorrectly fails that
+            // clean path. Instead require exact creation/disposal balance,
+            // plus release of BOTH experimental GPU render targets.
             boolean cleared=!SeamStackClient.enabled() &&
                 "NO TARGET ClientLevel".equals(status) &&
                 SeamNativeGeometryClient.visibleBlockCount()==0 &&
                 SeamNativeGeometryClient.pendingRebuilds()==0 &&
                 !SeamNativeGeometryClient.ownBuffersActive() &&
-                SeamNativeGeometryClient.bufferDisposals()>0 &&
+                SeamNativeGeometryClient.bufferCreations()==
+                    SeamNativeGeometryClient.bufferDisposals() &&
+                !SeamForeignOffscreenPass.allocated() &&
+                !SeamForeignDepthCompositor.allocated() &&
                 SeamClientWorldPool.dedicatedRendererActive()<=1 &&
                 !SeamClientWorldPool.remoteHasDedicatedBuffers() &&
                 SeamClientWorldPool.dedicatedRendererReleased()>0;
             if(cleared)
-                LOG.info("WORLDSEAM_E2E_PASS_DISABLE_CLEARED: OFF synced; remotes freed, active world buffers retained only where necessary. proxyDisposals={}, nativeCreated={}, nativeReleased={}, nativeActive={}",
+                LOG.info("WORLDSEAM_E2E_PASS_DISABLE_CLEARED: OFF synced; remotes freed; proxyCreated={}, proxyDisposals={}, offscreenAllocated={}, compositorAllocated={}, nativeCreated={}, nativeReleased={}, nativeActive={}",
+                    SeamNativeGeometryClient.bufferCreations(),
                     SeamNativeGeometryClient.bufferDisposals(),
+                    SeamForeignOffscreenPass.allocated(),
+                    SeamForeignDepthCompositor.allocated(),
                     SeamClientWorldPool.dedicatedRendererCreated(),
                     SeamClientWorldPool.dedicatedRendererReleased(),
                     SeamClientWorldPool.dedicatedRendererActive());
             else
-                LOG.error("WORLDSEAM_E2E_FAIL_DISABLE: enabled={}, remote={}, geometry={}, pending={}, ownBuffersActive={}, disposed={}, nativeCreated={}, nativeReleased={}, nativeActive={}",
+                LOG.error("WORLDSEAM_E2E_FAIL_DISABLE: enabled={}, remote={}, geometry={}, pending={}, ownBuffersActive={}, created={}, disposed={}, offscreenAllocated={}, compositorAllocated={}, nativeCreated={}, nativeReleased={}, nativeActive={}",
                     SeamStackClient.enabled(),status,
                     SeamNativeGeometryClient.visibleBlockCount(),
                     SeamNativeGeometryClient.pendingRebuilds(),
                     SeamNativeGeometryClient.ownBuffersActive(),
+                    SeamNativeGeometryClient.bufferCreations(),
                     SeamNativeGeometryClient.bufferDisposals(),
+                    SeamForeignOffscreenPass.allocated(),
+                    SeamForeignDepthCompositor.allocated(),
                     SeamClientWorldPool.dedicatedRendererCreated(),
                     SeamClientWorldPool.dedicatedRendererReleased(),
                     SeamClientWorldPool.dedicatedRendererActive());
