@@ -103,7 +103,7 @@ public final class CustodyOfficerLeashGameTests {
         prisoner.assignCustodyOfficer(officer.getUUID());
         officer.assignPrisonerEscort(prisoner.getUUID(),now+1500);
         final double initialX=prisoner.getX();
-        // The suspect may NOT move independently while officer is >10 blocks
+        // The suspect may NOT move independently while officer is >4 blocks
         // away. The officer must actually walk along the stone street.
         helper.runAfterDelay(8,()->{
             if(Math.abs(prisoner.getX()-initialX)>0.5
@@ -121,7 +121,7 @@ public final class CustodyOfficerLeashGameTests {
             // intake, while native pathfinding logged ROUTE_BLOCKED.
             if(!prisoner.blockPosition().equals(jail)
                 || !prisoner.isDetained(level.getGameTime())
-                || officer.distanceToSqr(prisoner)>100.0) {
+                || officer.distanceToSqr(prisoner)>16.0) {
                 helper.fail("Custody must physically reach its real cell on the "
                     +"correct Y level with its own officer; not merely move: "
                     +"officer="+officer.blockPosition()
@@ -136,5 +136,34 @@ public final class CustodyOfficerLeashGameTests {
             }
             helper.succeed();
         });
+    }
+
+    /** The real arresting officer, not a nearby impostor, must stay close
+     * enough to be visible beside the prisoner. No teleport, mount or NBT
+     * migration is needed; old saves without an officer remain supported.
+     */
+    @GameTest(template="empty",timeoutTicks=100)
+    public static void linked_prisoner_stops_five_blocks_ahead_and_resumes_at_four(
+        GameTestHelper helper) {
+        ServerLevel level=helper.getLevel();
+        BlockPos base=helper.absolutePos(new BlockPos(8,2,8));
+        PlayerNpcEntity prisoner=npc(level,base,PlayerNpcEntity.Profession.RESIDENT);
+        PlayerNpcEntity officer=npc(level,base.east(5),PlayerNpcEntity.Profession.GUARD);
+        long now=level.getGameTime();
+        prisoner.detainAt(base.south(4),now+400);
+        prisoner.assignCustodyOfficer(officer.getUUID());
+        officer.assignPrisonerEscort(prisoner.getUUID(),now+400);
+        if(PublicSafety.escortedPrisonerMayAdvance(prisoner,level,now))
+            throw new AssertionError("Five-block officer gap allowed solo custody walking");
+        officer.moveTo(base.getX()+4.5,base.getY(),base.getZ()+0.5,0,0);
+        if(!PublicSafety.escortedPrisonerMayAdvance(prisoner,level,now))
+            throw new AssertionError("Four-block officer gap did not resume foot escort");
+        officer.clearPrisonerEscort();
+        if(PublicSafety.escortedPrisonerMayAdvance(prisoner,level,now))
+            throw new AssertionError("Expired reciprocal escort still allowed movement");
+        prisoner.assignCustodyOfficer(null);
+        if(!PublicSafety.escortedPrisonerMayAdvance(prisoner,level,now))
+            throw new AssertionError("Legacy saved detainee without officer was frozen");
+        helper.succeed();
     }
 }
