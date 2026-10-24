@@ -172,7 +172,10 @@ public final class SeamRapierRemoteTerrain {
     }
 
     public static void tick(ServerTickEvent.Post event) {
-        if(!enabled())return;
+        if(!enabled()) {
+            if(active || ticketLevel!=null)close();
+            return;
+        }
         MinecraftServer server=event.getServer();
         if(owner!=null && owner!=server) {
             // The old MinecraftServer already disposed its native Rapier
@@ -207,7 +210,9 @@ public final class SeamRapierRemoteTerrain {
             SeamRapierChartMath.sectionShift(highEdge,lowEdge);
         } catch(IllegalArgumentException | ArithmeticException ex) {
             LOG.error("WORLDSEAM_RAPIER_EXPERIMENT_REJECT: unsupported seam map sourceY={} targetY={}",highEdge,lowEdge,ex);
-            faulted=true;return;
+            faulted=true;
+            if(active || ticketLevel!=null)close();
+            return;
         }
         // The physics window must follow the real authoritative Sable hull,
         // not a spectator. A ship without nearby players still requires the
