@@ -8,6 +8,8 @@ import dev.reme.worldseam.SeamGpuSectionRenderer.Cell;
 import dev.reme.worldseam.SeamGpuSectionRenderer.Key;
 import dev.reme.worldseam.SeamGpuSectionRenderer.Section;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.Camera;
+import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.LightTexture;
 import net.minecraft.client.renderer.MultiBufferSource;
@@ -89,6 +91,42 @@ public final class SeamNativeGeometryClient {
     private static long logicalPlaneNeighborReads;
 
     private SeamNativeGeometryClient() {}
+
+    /**
+     * The target chart is translated vertically, not teleported. Keep the
+     * source Camera immutable and use a separate native Camera with the
+     * real target ClientLevel for its sky/biome lookups.
+     */
+    private static final class ForeignSkyCamera extends Camera {
+        void relocate(Vec3 mapped, Camera source) {
+            setPosition(mapped);
+            setRotation(source.getYRot(), source.getXRot(), source.getRoll());
+        }
+    }
+
+    private static void drawNativeForeignSky(RenderLevelStageEvent event) {
+        ClientLevel foreign = queuedRemote;
+        LevelRenderer renderer = SeamClientWorldPool.rendererFor(foreign);
+        Camera sourceCamera = event.getCamera();
+        if (renderer == null || sourceCamera == null ||
+            sourceCamera.getEntity() == null) return;
+        float partial = event.getPartialTick().getGameTimeDeltaPartialTick(false);
+        ForeignSkyCamera mapped = new ForeignSkyCamera();
+        mapped.setup(foreign, sourceCamera.getEntity(), false, false, partial);
+        Vec3 position = sourceCamera.getPosition();
+        mapped.relocate(new Vec3(position.x,
+            position.y + ((double)targetBoundary - sourceBoundary),
+            position.z), sourceCamera);
+        // Render the real target LevelRenderer sky under the genuine target
+        // ClientLevel/RenderBuffers scope, not a painted background. The sky
+        // callback deliberately does not claim full independent fog setup;
+        // fog and seam-depth compositing remain required.
+        try (SeamForeignActorWorldScope.Scope ignored =
+                 SeamForeignActorWorldScope.bind(foreign, sourceCamera)) {
+            renderer.renderSky(event.getModelViewMatrix(),
+                event.getProjectionMatrix(), partial, mapped, false, () -> {});
+        }
+    }
 
     public static void install() {
         NeoForge.EVENT_BUS.addListener(SeamNativeGeometryClient::render);
@@ -519,6 +557,7 @@ public final class SeamNativeGeometryClient {
                 if(EXPERIMENTAL_NATIVE_OFFSCREEN && GPU.cachedCount()>0 &&
                    (++offscreenFrameCounter % 30)==1) {
                     SeamForeignOffscreenPass.drawOpaque(mc,
+                        () -> drawNativeForeignSky(event),
                         () -> GPU.draw(sections,pose,camera));
                     if(SeamForeignOffscreenPass.opaqueReady())
                         pendingOffscreenTranslucent=List.copyOf(sections);
