@@ -103,12 +103,14 @@ public final class SeamVisualE2E {
                     SeamNativeGeometryClient.gpuCachedVertexBytes()/1048576.0),
                 SeamNativeGeometryClient.gpuEvictions(),
                 SeamNativeGeometryClient.gpuBackendDisabled());
-            LOG.info("WORLDSEAM_E2E_GPU_FLUID_SCENE: nativeFluidCells={}, drawnGpuFluidCells={}",
+            LOG.info("WORLDSEAM_E2E_GPU_FLUID_SCENE: nativeFluidCells={}, drawnGpuFluidCells={}, nativePostTranslucentDrawCalls={}",
                 SeamNativeGeometryClient.countFluidCells(),
-                SeamNativeGeometryClient.lastFrameGpuFluidCells());
+                SeamNativeGeometryClient.lastFrameGpuFluidCells(),
+                SeamNativeGeometryClient.lastFrameTranslucentDrawCalls());
             if(SeamNativeGeometryClient.countFluidCells()<2 ||
-               SeamNativeGeometryClient.lastFrameGpuFluidCells()<1)
-                LOG.error("WORLDSEAM_E2E_FAIL_GPU_FLUID_SCENE: real target water/lava/waterlogged sections not drawn");
+               SeamNativeGeometryClient.lastFrameGpuFluidCells()<1 ||
+               SeamNativeGeometryClient.lastFrameTranslucentDrawCalls()<1)
+                LOG.error("WORLDSEAM_E2E_FAIL_GPU_FLUID_SCENE: real target water/lava/waterlogged native translucent VBOs not submitted after source translucency");
             LOG.info("WORLDSEAM_E2E_REMOTE_LIGHTMAP: created={}, boundFrames={}, failures={}, released={}",
                 SeamRemoteLightmaps.creations(), SeamRemoteLightmaps.boundFrames(),
                 SeamRemoteLightmaps.failures(), SeamRemoteLightmaps.releases());
