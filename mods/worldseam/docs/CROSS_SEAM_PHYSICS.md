@@ -2,7 +2,14 @@
 
 Date: 2026-10-21. WorldSeam alone; no modifications to the Create/Aeronautics studio, NPC, or PEAK climbing code.
 
-## Current verified boundaries (at v0.9.2)
+## v0.13.0-dev: physically joined boundary, verified scope
+
+- The native target GPU section mesher now uses **logical** seam heights, never the vanilla dimension build ceiling for seam-adjacent occlusion. A Nether TOP=128 seam is below vanilla build-height 256: native Nether Y128 is **not** the adjoining terrain; `SeamJoinedBlockView` redirects that neighboring query to Overworld Y=-64.
+- Player/ordinary entity transit now performs a **two-world, one-envelope collision check** using `SeamBodySplit` and `SeamArrival.hasJoinedClearance`: clip the body's full AABB on the join plane, query real `ServerLevel.noCollision` against each half in its own dimension, and refuse overlaps on **either** side. No forced chunk loads, false air blocks or feet-column-only checks.
+- Unit tests assert sub-block-precise Overworld↔Nether and custom-height splits. Real NeoForge 1.21.1 GameTest validates native stone in both source and destination separately blocks the same straddling entity envelope, while unrelated Nether Y128 stone must not affect Overworld-owned space. GUI E2E validates that native GPU cross-plane neighbors are actually queried.
+- These conservative checks occur only at player/ordinary entity handoff, **not every Rapier substep**. Not yet complete: Sable single-rigid-body inter-dimensional image collider solver, ship geometry clipped on both sides, continuous chunk/entity render, multiplayer deep compatibility. This is not a certified seamless full release.
+
+## Historical verified boundaries (at v0.9.2)
 
 - Players have an experimental no-respawn handoff (both server and real GUI client validated).
 - Vanilla non-player entities use event-driven `EntityTickEvent.Post` and `changeDimension`, **excluding vehicles, passengers, riders, and ender dragons**. This is not fully visually or physically seamless.

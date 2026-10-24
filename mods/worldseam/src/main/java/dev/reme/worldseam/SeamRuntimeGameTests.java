@@ -152,6 +152,58 @@ public final class SeamRuntimeGameTests {
             }
             nether.setBlock(remoteWitness,
                 net.minecraft.world.level.block.Blocks.GLASS.defaultBlockState(),3);
+
+            // Actual REAL ServerLevel collision checks on BOTH sides while
+            // one native entity AABB straddles the Nether Y128 -> OW Y-64
+            // plane. Nether's hidden native Y128 blocks MUST NOT be allowed
+            // to collide with the body belonging to the Overworld there.
+            int px=x+5,pz=z+5;
+            int pcx=Math.floorDiv(px,16),pcz=Math.floorDiv(pz,16);
+            over.getChunk(pcx,pcz);
+            nether.getChunk(pcx,pcz);
+            var pig=helper.spawn(net.minecraft.world.entity.EntityType.PIG,
+                new net.minecraft.core.BlockPos(1,1,1));
+            var down=SeamStack.defaults().from("minecraft:overworld").stream()
+                .filter(l->l.exit()==SeamGraph.EdgeSide.BOTTOM)
+                .findFirst().orElseThrow();
+            var pos=new net.minecraft.core.BlockPos(px,-64,pz);
+            var netherPos=new net.minecraft.core.BlockPos(px,127,pz);
+            for(int y=-64;y<=-61;y++)
+                over.setBlock(pos.atY(y),
+                    net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(),3);
+            nether.setBlock(netherPos,
+                net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(),3);
+            // This native block exists ABOVE THE LOGICAL ROOF, but its
+            // physical space is owned by Overworld at the contact plane.
+            nether.setBlock(netherPos.above(),
+                net.minecraft.world.level.block.Blocks.STONE.defaultBlockState(),3);
+            if(!SeamArrival.hasJoinedClearance(over,nether,down,-64,128,
+                px+.5,127.875,pz+.5,pig)) {
+                helper.fail("Joined collision rejected clear OW+Nether halves because of unrelated native Nether Y128 stone");
+                return;
+            }
+            over.setBlock(pos,
+                net.minecraft.world.level.block.Blocks.STONE.defaultBlockState(),3);
+            if(SeamArrival.hasJoinedClearance(over,nether,down,-64,128,
+                px+.5,127.875,pz+.5,pig)) {
+                helper.fail("Joined collision ignored real OW floor solid touching top of straddling entity");
+                return;
+            }
+            over.setBlock(pos,
+                net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(),3);
+            nether.setBlock(netherPos,
+                net.minecraft.world.level.block.Blocks.STONE.defaultBlockState(),3);
+            if(SeamArrival.hasJoinedClearance(over,nether,down,-64,128,
+                px+.5,127.875,pz+.5,pig)) {
+                helper.fail("Joined collision ignored real Nether roof solid under straddling entity");
+                return;
+            }
+            nether.setBlock(netherPos,
+                net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(),3);
+            pig.discard();
+            com.mojang.logging.LogUtils.getLogger().info(
+                "WORLDSEAM_JOINED_VOXEL_COLLISION_PASS: single entity envelope tested against TWO native ServerLevels; hidden Nether Y128 terrain excluded");
+
             options.setEnabled(true);
             options.setCrossSeamExplosions(true);
             over.explode(null,x+0.5,-63.75,z+0.5,4.0f,

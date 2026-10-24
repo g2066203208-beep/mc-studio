@@ -37,6 +37,8 @@ public final class SeamCommands {
                     .requires(src -> src.hasPermission(2))
                     .then(Commands.literal("enable").executes(ctx -> terrain(ctx,true)))
                     .then(Commands.literal("disable").executes(ctx -> terrain(ctx,false))))
+                .then(Commands.literal("ships")
+                    .then(Commands.literal("status").executes(SeamCommands::shipsStatus)))
                 .then(Commands.literal("probe").executes(SeamCommands::probe))
                 .then(Commands.literal("trace").executes(SeamCommands::trace)));
     }
@@ -162,6 +164,32 @@ public final class SeamCommands {
                 ", within near preview radius="+(distance<=32)
             ),false);
         }
+        return 1;
+    }
+
+    private static int shipsStatus(CommandContext<CommandSourceStack> ctx) {
+        var src=ctx.getSource();
+        var s=SeamSableObserver.snapshot();
+        String error=SeamSableObserver.problem();
+        src.sendSuccess(() -> Component.literal(
+            "[WorldSeam ships] Sable installed="+s.installed()+
+            ", API compatible="+s.compatible()+
+            ", loaded native hulls="+s.liveBodies()+
+            ", straddling two charts="+s.straddlingBodies()+
+            ", remote ship chunk tickets="+SeamShipResidency.active()+
+            ", ticketAdds="+SeamShipResidency.added()+
+            ", ticketReleases="+SeamShipResidency.removed()+
+            ", rejectedByLimit="+SeamShipResidency.rejected()+
+            ", remoteVoxelCandidates(BROAD_PHASE_ONLY)="+
+                SeamSableObserver.remoteCollisionCandidates()+
+            ", remoteVoxelsNotLoaded="+
+                SeamSableObserver.remoteUnloadedBlocks()+
+            ", remoteProbesTruncated="+
+                SeamSableObserver.remoteProbesTruncated()+
+            ", physical image-collider bridge=NOT IMPLEMENTED"+
+            ", sample="+s.sampleShip()+
+            (error.isBlank()?"":", probe error="+error)
+        ),false);
         return 1;
     }
 

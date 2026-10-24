@@ -19,7 +19,6 @@ import org.slf4j.Logger;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -67,6 +66,9 @@ public final class SeamServer {
             SeamSectionSender.tick(server, player, tick, enabled && !ready);
         }
         seamEnabled = enabled;
+        // READ-ONLY observation of live Sable sublevels. Actual Rapier
+        // two-chart impulse coupling is not active and cannot be faked.
+        SeamSableObserver.tick(server,tick,enabled);
         terrainEnabled = enabled && SeamSettings.get(server).carveNewChunks();
         // Release any ticket held by disconnected players within five seconds,
         // even if world-seam was subsequently disabled.
@@ -185,29 +187,28 @@ public final class SeamServer {
                         landingCx,landingCz,link.target());
                     break;
                 }
-                if (!SeamArrival.hasClearance(target, arrival, player)) {
+                if (!SeamArrival.hasJoinedClearance(
+                    source,target,link,sourceBoundary,targetBoundary,
+                    player.getX(),nextY,player.getZ(),player)) {
                     if(trace)LOG.warn("WORLDSEAM_STRESS_SERVER_BLOCKED: destination has COLLISION at {} in {}",
                         arrival,link.target());
                     break;
                 }
-                boolean success;
-                if (useExperimental) {
-                    SeamDirectTransfer.move(player, target,
-                        new Vec3(player.getX(),nextY,player.getZ()),
-                        player.getYRot(),player.getXRot());
-                    success = true;
-                } else {
-                    success = player.teleportTo(target, player.getX(), nextY,
-                        player.getZ(), Set.of(), player.getYRot(), player.getXRot());
+                // Seam continuity is a HARD requirement. If the native
+                // client-world handoff is disabled, refuse the crossing;
+                // NEVER silently fall back to ServerPlayer.teleportTo
+                // (vanilla respawn/loading screen, lost remote world mesh).
+                if (!useExperimental) {
+                    if(trace) LOG.warn("WORLDSEAM_SEAM_BLOCKED: native continuous handoff disabled, loading-screen teleport strictly forbidden");
+                    break;
                 }
-                if (success) {
-                    player.setDeltaMovement(previousVelocity);
-                    player.fallDistance = previousFall;
-                    lastCross.put(player.getUUID(), tick);
-                    RETURN_GUARD.landed(player.getUUID(), link.target(), link.entry());
-                } else {
-                    LOG.warn("Seam teleport rejected: {} -> {}", dim, link.target());
-                }
+                SeamDirectTransfer.move(player,target,
+                    new Vec3(player.getX(),nextY,player.getZ()),
+                    player.getYRot(),player.getXRot());
+                player.setDeltaMovement(previousVelocity);
+                player.fallDistance = previousFall;
+                lastCross.put(player.getUUID(), tick);
+                RETURN_GUARD.landed(player.getUUID(), link.target(), link.entry());
                 break;
             }
         }
@@ -269,7 +270,9 @@ public final class SeamServer {
             // not currently loaded, defer the entity migration until it is.
             if(!target.hasChunk(Math.floorDiv(dest.getX(),16),
                                 Math.floorDiv(dest.getZ(),16)))return;
-            if (!SeamArrival.hasClearance(target, dest, entity)) return;
+            if (!SeamArrival.hasJoinedClearance(
+                source,target,link,sourceBoundary,targetBoundary,
+                entity.getX(),y,entity.getZ(),entity)) return;
             Vec3 motion = entity.getDeltaMovement();
             float fall = entity.fallDistance;
             Entity moved = entity.changeDimension(new DimensionTransition(

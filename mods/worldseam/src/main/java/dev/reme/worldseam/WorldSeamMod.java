@@ -17,6 +17,8 @@ public final class WorldSeamMod {
         NeoForge.EVENT_BUS.addListener(SeamServer::entityTick);
         NeoForge.EVENT_BUS.addListener(SeamExplosionBridge::onDetonate);
         NeoForge.EVENT_BUS.addListener(SeamTerrain::onChunkLoad);
+        NeoForge.EVENT_BUS.addListener(SeamTerrain::onServerTick);
+        NeoForge.EVENT_BUS.addListener(SeamRapierRemoteTerrain::tick);
         if (FMLEnvironment.dist == Dist.CLIENT) {
             modBus.addListener((net.neoforged.neoforge.client.event.RegisterClientReloadListenersEvent e)->
                 e.registerReloadListener(
@@ -28,7 +30,11 @@ public final class WorldSeamMod {
             SeamClientWorldPool.install();
             SeamNativeGeometryClient.install();
             SeamClientDiagnostic.install();
-            if (Boolean.getBoolean("worldseam.stress")) {
+            if (Boolean.getBoolean("worldseam.shipFilm")) {
+                // Dedicated disposable CI cinematography with REAL Sable.
+                // Never coexist with older E2E harnesses manipulating worlds.
+                SeamShipFilmE2E.install();
+            } else if (Boolean.getBoolean("worldseam.stress")) {
                 // A dedicated long-run world: do not spend the first 1500+
                 // ticks running the unrelated historical-stack visual E2E.
                 SeamLongRunE2E.install();

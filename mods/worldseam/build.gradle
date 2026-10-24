@@ -56,10 +56,27 @@ neoForge {
             client()
             if (project.hasProperty('worldseamE2E')) {
                 systemProperty 'worldseam.e2e', 'true'
+                // Exercise actual foreign depth pixels against native source depth
+                // in a disposable GUI test; NOT a final seamlessness gate.
+                systemProperty 'worldseam.experimentalOffscreenTerrain', 'true'
+                systemProperty 'worldseam.experimentalDepthComposite', 'true'
+            }
+            if (project.hasProperty('worldseamFullNativeE2E')) {
+                // Exercise actual target LevelRenderer.renderLevel in a disposable
+                // graphical client; a passing smoke test is NOT seamlessness.
+                systemProperty 'worldseam.experimentalFullNativeLevel', 'true'
             }
             if (project.hasProperty('worldseamStress')) {
                 systemProperty 'worldseam.e2e', 'true'
                 systemProperty 'worldseam.stress', 'true'
+            }
+            if (project.hasProperty('worldseamShipFilm')) {
+                systemProperty 'worldseam.shipFilm', 'true'
+                systemProperty 'worldseam.experimentalOffscreenTerrain', 'true'
+                systemProperty 'worldseam.experimentalDepthComposite', 'true'
+                // Disposable native-only validation: map actual Nether physics
+                // voxels into ONE authoritative Overworld Sable Rapier scene.
+                systemProperty 'worldseam.experimentalRemoteRapier', 'true'
             }
             // Comma-separated list of namespaces to load gametests from. Empty = all namespaces.
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
@@ -77,6 +94,9 @@ neoForge {
         gameTestServer {
             type = "gameTestServer"
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+            if (project.hasProperty('worldseamRequireExternalMods')) {
+                systemProperty 'worldseam.requireExternalMods', 'true'
+            }
         }
 
         data {

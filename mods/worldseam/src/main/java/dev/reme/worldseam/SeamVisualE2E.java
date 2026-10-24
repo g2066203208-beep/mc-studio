@@ -36,6 +36,8 @@ public final class SeamVisualE2E {
     private static boolean dualStableChecked;
     private static boolean liveChangeStarted;
     private static boolean liveChangeVerified;
+    private static boolean borderEditStarted,borderEditVerified;
+    private static long borderInvalidationsAtStart;
     private static boolean stableBaselineTaken;
     private static boolean crossTntSpawned;
     private static boolean crossTntVerified;
@@ -101,6 +103,91 @@ public final class SeamVisualE2E {
                     SeamNativeGeometryClient.gpuCachedVertexBytes()/1048576.0),
                 SeamNativeGeometryClient.gpuEvictions(),
                 SeamNativeGeometryClient.gpuBackendDisabled());
+            LOG.info("WORLDSEAM_E2E_GPU_FLUID_SCENE: nativeFluidCells={}, drawnGpuFluidCells={}, nativePostTranslucentDrawCalls={}",
+                SeamNativeGeometryClient.countFluidCells(),
+                SeamNativeGeometryClient.lastFrameGpuFluidCells(),
+                SeamNativeGeometryClient.lastFrameTranslucentDrawCalls());
+            if(SeamNativeGeometryClient.countFluidCells()<2 ||
+               SeamNativeGeometryClient.lastFrameGpuFluidCells()<1 ||
+               SeamNativeGeometryClient.lastFrameTranslucentDrawCalls()<1)
+                LOG.error("WORLDSEAM_E2E_FAIL_GPU_FLUID_SCENE: real target water/lava/waterlogged native translucent VBOs not submitted after source translucency");
+            // The experimental secondary GPU framebuffer must preserve the
+            // opaque depth attachment while submitting real translucent
+            // foreign VBOs later in the SAME native GUI frame.
+            if(Boolean.getBoolean("worldseam.experimentalOffscreenTerrain")) {
+                LOG.info("WORLDSEAM_E2E_OFFSCREEN_DEPTH_PAIR: opaquePasses={}, actorPasses={}, translucentPasses={}, restoreFailures={}, allocated={}",
+                    SeamForeignOffscreenPass.opaquePasses(),
+                    SeamForeignOffscreenPass.actorPasses(),
+                    SeamForeignOffscreenPass.translucentPasses(),
+                    SeamForeignOffscreenPass.restoreFailures(),
+                    SeamForeignOffscreenPass.allocated());
+                LOG.info("WORLDSEAM_E2E_NATIVE_SECONDARY_SKY: realLevelRendererSkyCalls={}, opaqueFboPasses={}, depthCompositeReady=false",
+                    SeamNativeGeometryClient.nativeSkyMethodCalls(),
+                    SeamForeignOffscreenPass.opaquePasses());
+                if(SeamNativeGeometryClient.nativeSkyMethodCalls()<1 ||
+                   SeamNativeGeometryClient.nativeSkyMethodCalls()>
+                       SeamForeignOffscreenPass.opaquePasses())
+                    LOG.error("WORLDSEAM_E2E_FAIL_NATIVE_SECONDARY_SKY: no real target LevelRenderer sky invocation in the experimental FBO");
+                if(SeamForeignOffscreenPass.opaquePasses()<1 ||
+                   SeamForeignOffscreenPass.actorPasses()<1 ||
+                   SeamForeignOffscreenPass.actorPasses()>
+                       SeamForeignOffscreenPass.opaquePasses() ||
+                   SeamForeignOffscreenPass.translucentPasses()<1 ||
+                   SeamForeignOffscreenPass.translucentPasses()>
+                       SeamForeignOffscreenPass.opaquePasses() ||
+                   SeamForeignOffscreenPass.restoreFailures()>0)
+                    LOG.error("WORLDSEAM_E2E_FAIL_OFFSCREEN_DEPTH_PAIR: secondary color/depth target did not receive real opaque/actor/translucent passes");
+                if(Boolean.getBoolean("worldseam.experimentalDepthComposite")) {
+                    LOG.info("WORLDSEAM_E2E_NATIVE_DEPTH_COMPOSITE: submittedFrames={}, shaderOrGlFailures={}, sourceDepthSnapshot=true, foreignDepthWritten=true, finalAcceptance=false",
+                        SeamForeignDepthCompositor.composites(),
+                        SeamForeignDepthCompositor.failures());
+                    if(SeamForeignDepthCompositor.composites()<1 ||
+                       SeamForeignDepthCompositor.failures()>0)
+                        LOG.error("WORLDSEAM_E2E_FAIL_NATIVE_DEPTH_COMPOSITE: no real foreign-depth pixel pass or shader/GL failure; FBO-only success is insufficient");
+                }
+            }
+            LOG.info("WORLDSEAM_E2E_REMOTE_LIGHTMAP: created={}, boundFrames={}, failures={}, released={}",
+                SeamRemoteLightmaps.creations(), SeamRemoteLightmaps.boundFrames(),
+                SeamRemoteLightmaps.failures(), SeamRemoteLightmaps.releases());
+            if (SeamRemoteLightmaps.boundFrames()<1 || SeamRemoteLightmaps.failures()>0)
+                LOG.error("WORLDSEAM_E2E_FAIL_REMOTE_LIGHTMAP: target ClientLevel lighting not bound successfully");
+            LOG.info("WORLDSEAM_E2E_FOREIGN_ACTOR_CONTEXT: entered={}, restored={}, failures={}, active={}",
+                SeamForeignActorWorldScope.entered(),
+                SeamForeignActorWorldScope.restored(),
+                SeamForeignActorWorldScope.failures(),
+                SeamForeignActorWorldScope.active());
+            if(SeamForeignActorWorldScope.entered()<1 ||
+               SeamForeignActorWorldScope.entered()!=SeamForeignActorWorldScope.restored() ||
+               SeamForeignActorWorldScope.failures()>0 ||
+               SeamForeignActorWorldScope.active())
+                LOG.error("WORLDSEAM_E2E_FAIL_FOREIGN_ACTOR_CONTEXT: source client state not safely restored");
+            LOG.info("WORLDSEAM_E2E_NATIVE_BE_SCENE: actualRemoteBlockEntityFrames={}, lastRendered={}, lastEligible={}, rendererErrors={}",
+                SeamRemoteBlockEntities.framesWithNativeBlocks(),
+                SeamRemoteBlockEntities.lastRendered(),
+                SeamRemoteBlockEntities.lastEligible(),
+                SeamRemoteBlockEntities.totalRendererFailures());
+            if(SeamRemoteBlockEntities.framesWithNativeBlocks()<1 ||
+                SeamRemoteBlockEntities.totalRendererFailures()>0)
+                LOG.error("WORLDSEAM_E2E_FAIL_NATIVE_BE_SCENE: target ClientLevel's real chest block entity was not rendered by native BER");
+            LOG.info("WORLDSEAM_E2E_NATIVE_ENTITY_SCENE: realRemoteEntityFrames={}, lastRendered={}, lastEligible={}, rendererErrors={} (zero frames means native remote entity tracking is STILL MISSING)",
+                SeamRemoteEntities.framesWithRealEntities(),
+                SeamRemoteEntities.lastRendered(),
+                SeamRemoteEntities.lastEligible(),
+                SeamRemoteEntities.totalErrors());
+            if(SeamRemoteEntities.framesWithRealEntities()<1)
+                LOG.warn("WORLDSEAM_E2E_NATIVE_ENTITY_TRACKING_MISSING: no genuine remote ClientLevel entity rendered; not a complete dual-world renderer");
+            LOG.info("WORLDSEAM_E2E_NATIVE_FOREIGN_BUFFERS: realBEFlushes={}, realEntityFlushes={}, foreignContextEntered={}, restored={}",
+                SeamRemoteBlockEntities.nativeBufferFlushes(),
+                SeamRemoteEntities.nativeBufferFlushes(),
+                SeamForeignActorWorldScope.entered(),
+                SeamForeignActorWorldScope.restored());
+            if(SeamRemoteBlockEntities.nativeBufferFlushes()<1 ||
+               SeamRemoteEntities.nativeBufferFlushes()<1)
+                LOG.error("WORLDSEAM_E2E_FAIL_NATIVE_FOREIGN_BUFFERS: real remote BE/entity draws did not flush secondary LevelRenderer native buffers");
+            LOG.info("WORLDSEAM_E2E_LOGICAL_PLANE_NEIGHBORS: realCrossPlaneBlockLookups={}, NetherLogicalRoof128BelowVanillaBuildCeiling256=true",
+                SeamNativeGeometryClient.logicalPlaneNeighborReads());
+            if(SeamNativeGeometryClient.logicalPlaneNeighborReads()<1)
+                LOG.error("WORLDSEAM_E2E_FAIL_LOGICAL_PLANE_NEIGHBORS: Nether native mesher still considers blocks above Y128 within its own world");
             // The old screen had only a few thousand cherry-picked blocks.
             // This is a REAL client-frame coverage gate, not a packet count:
             // more than half the frustum-visible complete GPU sections must
@@ -154,6 +241,16 @@ public final class SeamVisualE2E {
                 nether.setBlock(marker,Blocks.DIAMOND_BLOCK.defaultBlockState(),3);
                 LOG.info("WORLDSEAM_E2E_MUTATE_REMOTE_NETHER: changed block at {} while player remains in Overworld",marker);
             });
+        } else if(phase==1 && !borderEditStarted && now-startTick>360) {
+            borderEditStarted=true;
+            borderInvalidationsAtStart=SeamNativeGeometryClient.sourceBorderInvalidations();
+            server.execute(() -> {
+                var overworld=server.getLevel(Level.OVERWORLD);
+                if(overworld==null)return;
+                BlockPos touching=new BlockPos(witnessX+3,-64,witnessZ+3);
+                overworld.setBlock(touching,Blocks.STONE.defaultBlockState(),3);
+                LOG.info("WORLDSEAM_E2E_SOURCE_BOUNDARY_EDIT: placed source-native stone against real Nether Y127 glowstone at {}",touching);
+            });
         } else if (phase==1 && !liveChangeVerified && now-startTick>415) {
             liveChangeVerified=true;
             BlockPos marker=new BlockPos(witnessX+2,126,witnessZ+2);
@@ -166,6 +263,19 @@ public final class SeamVisualE2E {
                 LOG.error("WORLDSEAM_E2E_FAIL_LIVE_BLOCK: native secondary client chunk did not update when target block changed");
             if(client25<25)
                 LOG.error("WORLDSEAM_E2E_FAIL_CLIENT_WINDOW: remote client 5x5 cache missing chunks: {}/25",client25);
+        } else if (phase==1 && !borderEditVerified && now-startTick>445) {
+            borderEditVerified=true;
+            long total=SeamNativeGeometryClient.sourceBorderInvalidations();
+            LOG.info("WORLDSEAM_E2E_SOURCE_NEIGHBOR_INVALIDATION: before={}, after={}",
+                borderInvalidationsAtStart,total);
+            if(total<=borderInvalidationsAtStart)
+                LOG.error("WORLDSEAM_E2E_FAIL_SOURCE_NEIGHBOR_INVALIDATION: actual source-side block update did not invalidate joined Nether GPU seam geometry");
+            server.execute(() -> {
+                var overworld=server.getLevel(Level.OVERWORLD);
+                if(overworld!=null)overworld.setBlock(
+                    new BlockPos(witnessX+3,-64,witnessZ+3),
+                    Blocks.AIR.defaultBlockState(),3);
+            });
         } else if (phase==1 && !stableBaselineTaken && now-startTick>465) {
             stableBaselineTaken=true;
             server.execute(() -> {
@@ -214,6 +324,9 @@ public final class SeamVisualE2E {
             String clientDimension=mc.level.dimension().location().toString();
             if (clientDimension.equals(DEST)) {
                 LOG.info("WORLDSEAM_E2E_PASS_CLIENT: real client now in Nether without vanilla respawn");
+                if(SeamClientWorldPool.activeBuffersMatchRenderer())
+                    LOG.info("WORLDSEAM_E2E_PASS_HANDOFF_BUFFER_OWNER: active Nether Minecraft/GameRenderer native buffers match its LevelRenderer");
+                else LOG.error("WORLDSEAM_E2E_FAIL_HANDOFF_BUFFER_OWNER: active Nether renderer/buffer identities diverged");
                 phase=4;
             } else {
                 LOG.error("WORLDSEAM_E2E_FAIL_CLIENT: still in {}, expected {}, native packets={}",
@@ -287,8 +400,12 @@ public final class SeamVisualE2E {
         } else if (phase==5 && now-startTick>1080) {
             phase=6;
             String clientDimension=mc.level.dimension().location().toString();
-            if (clientDimension.equals("minecraft:overworld"))
+            if (clientDimension.equals("minecraft:overworld")) {
                 LOG.info("WORLDSEAM_E2E_PASS_RETURN_CLIENT: live Nether -> Overworld direct handoff");
+                if(SeamClientWorldPool.activeBuffersMatchRenderer())
+                    LOG.info("WORLDSEAM_E2E_PASS_RETURN_BUFFER_OWNER: restored Overworld Minecraft/GameRenderer native buffers match original LevelRenderer");
+                else LOG.error("WORLDSEAM_E2E_FAIL_RETURN_BUFFER_OWNER: restored Overworld renderer/buffer identities diverged");
+            }
             else LOG.error("WORLDSEAM_E2E_FAIL_RETURN_CLIENT: still in {}",clientDimension);
             server.execute(() -> {
                 ServerPlayer p=server.getPlayerList().getPlayer(playerId);
@@ -340,28 +457,41 @@ public final class SeamVisualE2E {
         } else if (phase==10 && now-startTick>1540) {
             phase=11;
             String status=SeamClientWorldPool.remoteStatus();
+            // GPU-native rendering can use ZERO legacy fallback buffers.
+            // Requiring a positive disposal count incorrectly fails that
+            // clean path. Instead require exact creation/disposal balance,
+            // plus release of BOTH experimental GPU render targets.
             boolean cleared=!SeamStackClient.enabled() &&
                 "NO TARGET ClientLevel".equals(status) &&
                 SeamNativeGeometryClient.visibleBlockCount()==0 &&
                 SeamNativeGeometryClient.pendingRebuilds()==0 &&
                 !SeamNativeGeometryClient.ownBuffersActive() &&
-                SeamNativeGeometryClient.bufferDisposals()>0 &&
+                SeamNativeGeometryClient.bufferCreations()==
+                    SeamNativeGeometryClient.bufferDisposals() &&
+                !SeamForeignOffscreenPass.allocated() &&
+                !SeamForeignDepthCompositor.allocated() &&
                 SeamClientWorldPool.dedicatedRendererActive()<=1 &&
                 !SeamClientWorldPool.remoteHasDedicatedBuffers() &&
                 SeamClientWorldPool.dedicatedRendererReleased()>0;
             if(cleared)
-                LOG.info("WORLDSEAM_E2E_PASS_DISABLE_CLEARED: OFF synced; remotes freed, active world buffers retained only where necessary. proxyDisposals={}, nativeCreated={}, nativeReleased={}, nativeActive={}",
+                LOG.info("WORLDSEAM_E2E_PASS_DISABLE_CLEARED: OFF synced; remotes freed; proxyCreated={}, proxyDisposals={}, offscreenAllocated={}, compositorAllocated={}, nativeCreated={}, nativeReleased={}, nativeActive={}",
+                    SeamNativeGeometryClient.bufferCreations(),
                     SeamNativeGeometryClient.bufferDisposals(),
+                    SeamForeignOffscreenPass.allocated(),
+                    SeamForeignDepthCompositor.allocated(),
                     SeamClientWorldPool.dedicatedRendererCreated(),
                     SeamClientWorldPool.dedicatedRendererReleased(),
                     SeamClientWorldPool.dedicatedRendererActive());
             else
-                LOG.error("WORLDSEAM_E2E_FAIL_DISABLE: enabled={}, remote={}, geometry={}, pending={}, ownBuffersActive={}, disposed={}, nativeCreated={}, nativeReleased={}, nativeActive={}",
+                LOG.error("WORLDSEAM_E2E_FAIL_DISABLE: enabled={}, remote={}, geometry={}, pending={}, ownBuffersActive={}, created={}, disposed={}, offscreenAllocated={}, compositorAllocated={}, nativeCreated={}, nativeReleased={}, nativeActive={}",
                     SeamStackClient.enabled(),status,
                     SeamNativeGeometryClient.visibleBlockCount(),
                     SeamNativeGeometryClient.pendingRebuilds(),
                     SeamNativeGeometryClient.ownBuffersActive(),
+                    SeamNativeGeometryClient.bufferCreations(),
                     SeamNativeGeometryClient.bufferDisposals(),
+                    SeamForeignOffscreenPass.allocated(),
+                    SeamForeignDepthCompositor.allocated(),
                     SeamClientWorldPool.dedicatedRendererCreated(),
                     SeamClientWorldPool.dedicatedRendererReleased(),
                     SeamClientWorldPool.dedicatedRendererActive());
@@ -481,6 +611,48 @@ public final class SeamVisualE2E {
             if(nether.setBlock(at,Blocks.GLOWSTONE.defaultBlockState(),3))
                 markers++;
         }
+        // Native target-world liquids must appear through the vertical seam.
+        // Vanilla fluid tessellation is exercised: one WATER block, one LAVA
+        // block, and one WATERLOGGED slab with a simultaneous model+fluid.
+        // Avoid the central player clearance and the TNT witness.
+        // A tiny transparent containment ring prevents real flowing water/
+        // lava from flooding the player's automated cross-seam landing path.
+        // The top remains open, exposing the actual native fluid surface.
+        for(int[] fixture:new int[][]{{3,-1},{-3,1}}) {
+            int fx=x+fixture[0],fz=z+fixture[1];
+            for(int[] side:new int[][]{{1,0},{-1,0},{0,1},{0,-1}})
+                nether.setBlock(new BlockPos(fx+side[0],127,fz+side[1]),
+                    Blocks.GLASS.defaultBlockState(),3);
+        }
+        nether.setBlock(new BlockPos(x+3,127,z-1),
+            Blocks.WATER.defaultBlockState(),3);
+        nether.setBlock(new BlockPos(x-3,127,z+1),
+            Blocks.LAVA.defaultBlockState(),3);
+        nether.setBlock(new BlockPos(x+4,127,z+2),
+            Blocks.OAK_SLAB.defaultBlockState().setValue(
+                net.minecraft.world.level.block.SlabBlock.WATERLOGGED,true),3);
+        LOG.info("WORLDSEAM_E2E_FLUID_FIXTURES: placed native Nether WATER LAVA and waterlogged slab at roof for real client render");
+        // A genuine target-owned BlockEntity, deliberately absent from the
+        // Overworld. It must be rendered with Minecraft's native BER using
+        // the preloaded Nether ClientLevel, not a duplicated item model.
+        BlockPos chestPos=new BlockPos(x+1,127,z+1);
+        nether.setBlock(chestPos,Blocks.CHEST.defaultBlockState(),3);
+        if(nether.getBlockEntity(chestPos)==null)
+            LOG.error("WORLDSEAM_E2E_FAIL_NATIVE_BE_SETUP: native Nether chest BE missing");
+        LOG.info("WORLDSEAM_E2E_NATIVE_BE_FIXTURE: dimension={}, pos={}, sourceOverworldHasSameBlock={}",
+            nether.dimension().location(),chestPos,
+            overworld.getBlockState(new BlockPos(x+1,-65,z+1)).getBlock()==Blocks.CHEST);
+        // A real, target-owned vanilla entity: no cloned entity in source.
+        // Deliberately diagnostic until foreign ClientLevel entity packets
+        // and tracking are genuinely available. A mesh alone is NOT a pass.
+        var markerEntity=net.minecraft.world.entity.EntityType.ARMOR_STAND.create(nether);
+        if(markerEntity!=null) {
+            markerEntity.setPos(x+2.5,126.5,z+2.5);
+            markerEntity.setNoGravity(true);
+            boolean spawned=nether.addFreshEntity(markerEntity);
+            LOG.info("WORLDSEAM_E2E_NATIVE_ENTITY_FIXTURE: realNetherArmorStandSpawned={}, uuid={}",
+                spawned,markerEntity.getUUID());
+        } else LOG.error("WORLDSEAM_E2E_NATIVE_ENTITY_FIXTURE_FAILED: could not create real armor stand");
         // The End visual benchmark must use NATURALLY GENERATED island
         // terrain, not a synthetic purpur/sea-lantern frame.
         LOG.info("WORLDSEAM_E2E_END_WITNESS: NO synthetic End blocks created");

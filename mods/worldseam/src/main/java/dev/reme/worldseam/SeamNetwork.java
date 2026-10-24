@@ -28,6 +28,12 @@ public final class SeamNetwork {
             (message, context) ->
                 context.enqueueWork(() -> SeamClientWorldPool.acceptChunk(message))
         );
+        event.registrar("4").playToClient(
+            SeamRemoteEntityPayload.TYPE,
+            SeamRemoteEntityPayload.CODEC,
+            (message, context) ->
+                context.enqueueWork(() -> SeamRemoteEntityClient.accept(message))
+        );
         event.registrar("4").playToServer(
             SeamReadyPayload.TYPE,
             SeamReadyPayload.CODEC,

@@ -156,6 +156,11 @@ public final class SeamChunkSender {
         int centerX=Math.floorDiv(player.blockPosition().getX(),16);
         int centerZ=Math.floorDiv(player.blockPosition().getZ(),16);
         session.updateTicket(target,new ChunkPos(centerX,centerZ));
+        // A second native ClientLevel does not receive vanilla entity
+        // tracking packets from the other ServerLevel automatically.
+        // Stream bounded real server entity snapshots independently of
+        // chunk refresh; no server-side clone or extra physics authority.
+        SeamRemoteEntitySender.tick(player,sourceId,selected,target,tick);
 
         // Warm the crossing-critical 3x3 rapidly, then the 5x5 visual
         // window. Once resident, send only bounded dirty-block updates or
@@ -216,6 +221,9 @@ public final class SeamChunkSender {
      * including dynamic block and block-entity state from native packet.
      */
     public static void markBlockChanged(ServerLevel level,BlockPos pos) {
+        // Keep already-projected target blocks in the ONE Sable Rapier solver
+        // up-to-date when real gameplay mutates the other ServerLevel.
+        SeamRapierRemoteTerrain.markBlockChanged(level,pos);
         int x=Math.floorDiv(pos.getX(),16),z=Math.floorDiv(pos.getZ(),16);
         long key=((long)x<<32)|(z&0xffffffffL);
         for(Session s:sessions.values()) {

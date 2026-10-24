@@ -8,6 +8,8 @@ import dev.reme.worldseam.SeamGpuSectionRenderer.Cell;
 import dev.reme.worldseam.SeamGpuSectionRenderer.Key;
 import dev.reme.worldseam.SeamGpuSectionRenderer.Section;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.Camera;
+import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.LightTexture;
 import net.minecraft.client.renderer.MultiBufferSource;
@@ -35,13 +37,27 @@ import java.util.Map;
  * ClientLevel chunk data instead of relying solely on sparse preview packets.
  *
  * This is an instrumented first render path. It uses bounded vanilla block
- * model draws; it is not yet a framebuffer/stencil portal or fluid renderer.
+ * model draws; it is not yet a framebuffer/stencil portal or full renderer.
  */
 public final class SeamNativeGeometryClient {
     /** Immutable native 16^3 segment; clip ONCE before drawing its models. */
     private record Slice(int sectionY,List<Cell> cells,AABB bounds,Section gpuSection) {}
     private static final Logger LOG=LogUtils.getLogger();
     private static final SeamGpuSectionRenderer GPU=new SeamGpuSectionRenderer();
+    // Development-only REAL GPU target pass; no fake color or unsafe full-screen blit.
+    private static final boolean EXPERIMENTAL_NATIVE_OFFSCREEN =
+        Boolean.getBoolean("worldseam.experimentalOffscreenTerrain");
+    // Opt-in REAL seam-plane depth composition. Never substitute a flat sky
+    // or ignore native source depth. Keep disabled for unverified modpacks.
+    private static final boolean EXPERIMENTAL_DEPTH_COMPOSITE =
+        EXPERIMENTAL_NATIVE_OFFSCREEN &&
+        Boolean.getBoolean("worldseam.experimentalDepthComposite");
+    private static final boolean EXPERIMENTAL_FULL_NATIVE_LEVEL =
+        EXPERIMENTAL_DEPTH_COMPOSITE &&
+        Boolean.getBoolean("worldseam.experimentalFullNativeLevel");
+    private static long offscreenFrameCounter;
+    private static long nativeSkyMethodCalls;
+    public static long nativeSkyMethodCalls() { return nativeSkyMethodCalls; }
     private static boolean gpuDisabled=Boolean.getBoolean("worldseam.legacyBlockPreview");
     private static volatile boolean gpuReloadPending;
     private static int lastFrameGpuModels;
@@ -62,6 +78,12 @@ public final class SeamNativeGeometryClient {
     private static final SeamRenderBudget DRAW_BUDGET = new SeamRenderBudget();
     private static final SeamRenderBuffers OWNED_BUFFERS = new SeamRenderBuffers();
     private static volatile long lastFrameDrawCpuNanos;
+    // NeoForge 1.21.1 recommends AFTER_TRIPWIRE_BLOCKS rather than the
+    // broken-in-Fabulous AFTER_TRANSLUCENT_BLOCKS for custom transparency.
+    private static List<Section> pendingTranslucent=List.of();
+    // The experimental FBO must finish its translucent pass in the SAME
+    // vanilla frame as its opaque pass, preserving the target's real depth.
+    private static List<Section> pendingOffscreenTranslucent=List.of();
     private static ClientLevel queuedRemote;
     private static SeamGraph.Link queuedLink;
     private static final int[][] NEIGHBORS = {
@@ -76,8 +98,50 @@ public final class SeamNativeGeometryClient {
     private static int blocksBuilt;
     private static int lastFrameDrawn;
     private static int lastFrameEndStone;
+    private static long logicalPlaneNeighborReads;
 
     private SeamNativeGeometryClient() {}
+
+    /**
+     * The target chart is translated vertically, not teleported. Keep the
+     * source Camera immutable and use a separate native Camera with the
+     * real target ClientLevel for its sky/biome lookups.
+     */
+    private static final class ForeignSkyCamera extends Camera {
+        void relocate(Vec3 mapped, Camera source) {
+            setPosition(mapped);
+            setRotation(source.getYRot(), source.getXRot(), source.getRoll());
+        }
+    }
+
+    private static void drawNativeForeignSky(RenderLevelStageEvent event) {
+        ClientLevel foreign = queuedRemote;
+        LevelRenderer renderer = SeamClientWorldPool.rendererFor(foreign);
+        Camera sourceCamera = event.getCamera();
+        if (renderer == null || sourceCamera == null ||
+            sourceCamera.getEntity() == null) return;
+        float partial = event.getPartialTick().getGameTimeDeltaPartialTick(false);
+        ForeignSkyCamera mapped = new ForeignSkyCamera();
+        mapped.setup(foreign, sourceCamera.getEntity(), false, false, partial);
+        Vec3 position = sourceCamera.getPosition();
+        mapped.relocate(new Vec3(position.x,
+            position.y + ((double)targetBoundary - sourceBoundary),
+            position.z), sourceCamera);
+        // Render the real target LevelRenderer sky under the genuine target
+        // ClientLevel/RenderBuffers scope, not a painted background. The sky
+        // callback deliberately does not claim full independent fog setup;
+        // fog and seam-depth compositing remain required.
+        try (SeamForeignActorWorldScope.Scope ignored =
+                 SeamForeignActorWorldScope.bind(foreign, mapped, sourceCamera)) {
+            renderer.renderSky(event.getModelViewMatrix(),
+                event.getProjectionMatrix(), partial, mapped, false, () -> {});
+            nativeSkyMethodCalls++;
+            if(nativeSkyMethodCalls==1 || nativeSkyMethodCalls%120==0)
+                LOG.info("WORLDSEAM_NATIVE_SECONDARY_SKY: calls={}, target={}, mappedCameraY={}, completeLevelRenderer=false, compositeReady=false",
+                    nativeSkyMethodCalls, foreign.dimension().location(),
+                    mapped.getPosition().y);
+        }
+    }
 
     public static void install() {
         NeoForge.EVENT_BUS.addListener(SeamNativeGeometryClient::render);
@@ -85,6 +149,75 @@ public final class SeamNativeGeometryClient {
         NeoForge.EVENT_BUS.addListener(
             (ClientPlayerNetworkEvent.LoggingOut e) -> reset()
         );
+    }
+
+    // Source edits can change occlusion and fluid surfaces on TARGET side.
+    // Rebuild only the physically adjacent section and horizontal neighbors.
+    private static long sourceBorderInvalidations;
+
+    public static void onSourceBoundaryBlockChanged(ClientLevel changedLevel,
+                                                     BlockPos changed) {
+        Minecraft mc=Minecraft.getInstance();
+        if(mc.level!=changedLevel || queuedLink==null || queuedRemote==null ||
+           source.isEmpty() || !source.equals(
+               changedLevel.dimension().location().toString())) return;
+        int touchingY=sourceBoundary+
+            (queuedLink.exit()==SeamGraph.EdgeSide.TOP?-1:0);
+        if(changed.getY()!=touchingY)return;
+        if(mc.player==null)return;
+        int cx=Math.floorDiv(changed.getX(),16),cz=Math.floorDiv(changed.getZ(),16);
+        int pcx=Math.floorDiv(mc.player.blockPosition().getX(),16);
+        int pcz=Math.floorDiv(mc.player.blockPosition().getZ(),16);
+        if(Math.abs((long)cx-pcx)>2 || Math.abs((long)cz-pcz)>2)return;
+        int nativeSectionY=Math.floorDiv(targetBoundary-
+            (queuedLink.entry()==SeamGraph.EdgeSide.TOP?1:0),16);
+        BUILD_QUEUE.invalidateWithNeighbors(cx,cz,
+            nativeSectionY*16,nativeSectionY*16+16);
+        sourceBorderInvalidations++;
+    }
+
+    public static long sourceBorderInvalidations() {
+        return sourceBorderInvalidations;
+    }
+
+    // Native target blocks may change while the player remains in the source
+    // dimension. A previously uploaded GPU section must not keep the old
+    // collision/visual block state or a stale fluid face after that edit.
+    // Invalidate both neighboring horizontal chunks AND adjacent vertical
+    // sections when the edited voxel touches a 16-block section boundary.
+    // This path never loads a missing chunk or rebuilds a mesh in the event.
+    private static long remoteBlockInvalidations;
+
+    public static void onRemoteBlockChanged(ClientLevel changedLevel,
+                                            BlockPos changed) {
+        Minecraft mc=Minecraft.getInstance();
+        if(changedLevel!=queuedRemote || queuedLink==null ||
+           source.isEmpty() || mc.level==null || mc.player==null ||
+           !source.equals(mc.level.dimension().location().toString()))return;
+        long bandLow=queuedLink.entry()==SeamGraph.EdgeSide.TOP
+            ? (long)targetBoundary-VERTICAL_SECTIONS*16L : targetBoundary;
+        long bandHigh=bandLow+VERTICAL_SECTIONS*16L;
+        long y=changed.getY();
+        if(y<bandLow || y>=bandHigh)return;
+        int cx=Math.floorDiv(changed.getX(),16);
+        int cz=Math.floorDiv(changed.getZ(),16);
+        int playerCx=Math.floorDiv(mc.player.blockPosition().getX(),16);
+        int playerCz=Math.floorDiv(mc.player.blockPosition().getZ(),16);
+        if(Math.abs((long)cx-playerCx)>2 ||
+           Math.abs((long)cz-playerCz)>2)return;
+        BUILD_QUEUE.invalidateWithNeighbors(cx,cz,
+            (int)Math.max(bandLow,y-1L),
+            (int)Math.min(bandHigh,y+2L));
+        remoteBlockInvalidations++;
+    }
+
+    public static long remoteBlockInvalidations() {
+        return remoteBlockInvalidations;
+    }
+
+    /** Actual native mesher cross-plane neighbor samples (not packets). */
+    public static long logicalPlaneNeighborReads() {
+        return logicalPlaneNeighborReads;
     }
 
     public static void onChunk(SeamChunkPayload packet, ClientLevel remote) {
@@ -155,13 +288,21 @@ public final class SeamNativeGeometryClient {
             return;
         }
         int ox=cx<<4,oz=cz<<4;
+        ClientLevel sourceLevel=Minecraft.getInstance().level;
+        SeamJoinedBlockView joined=sourceLevel==null?null:
+            new SeamJoinedBlockView(remote,sourceLevel,
+                sourceBoundary,targetBoundary,link.entry());
         var cells=new ArrayList<Cell>(512);
         BlockPos.MutableBlockPos pos=new BlockPos.MutableBlockPos();
         for(int y=begin;y<end;y++) {
             for(int z=0;z<16;z++)for(int x=0;x<16;x++) {
                 BlockState state=section.getBlockState(x,y&15,z);
-                if(state.isAir()||state.getRenderShape()!=RenderShape.MODEL)continue;
-                if(isBuried(cache,chunk,x,y,z))continue;
+                if(state.isAir())continue;
+                // Preserve fluid-only and waterlogged native voxels.
+                if(state.getRenderShape()!=RenderShape.MODEL &&
+                   state.getFluidState().isEmpty())continue;
+                if(isBuried(cache,chunk,x,y,z,joined,
+                    targetBoundary,link.entry()))continue;
                 pos.set(ox+x,y,oz+z);
                 int block=remote.getBrightness(LightLayer.BLOCK,pos);
                 int sky=remote.getBrightness(LightLayer.SKY,pos);
@@ -213,9 +354,23 @@ public final class SeamNativeGeometryClient {
      */
     private static boolean isBuried(
         net.minecraft.client.multiplayer.ClientChunkCache cache,
-        LevelChunk chunk,int x,int y,int z) {
+        LevelChunk chunk,int x,int y,int z,SeamJoinedBlockView joined,
+        int logicalBoundary,SeamGraph.EdgeSide targetEntry) {
         for(int[] d:NEIGHBORS) {
             int nx=x+d[0],ny=y+d[1],nz=z+d[2];
+            // CRITICAL: use the CONFIGURED contact plane, not vanilla's
+            // getMaxBuildHeight. Example: Nether logical top is Y=128, yet
+            // Nether's actual chunk storage extends to Y=256! At Y=127
+            // the touching Y=128 block belongs to the OVERWORLD Y=-64,
+            // never to Nether's unrelated vanilla blocks above its roof.
+            if(SeamNeighborMapping.outsideTarget(ny,logicalBoundary,targetEntry)) {
+                if(joined==null)return false;
+                BlockPos neighbor=new BlockPos(
+                    (chunk.getPos().x<<4)+nx,ny,(chunk.getPos().z<<4)+nz);
+                logicalPlaneNeighborReads++;
+                if(!joined.getBlockState(neighbor).canOcclude())return false;
+                continue;
+            }
             if(ny<chunk.getMinBuildHeight()||ny>=chunk.getMaxBuildHeight())
                 return false;
             int cx=chunk.getPos().x+Math.floorDiv(nx,16);
@@ -317,7 +472,7 @@ public final class SeamNativeGeometryClient {
                     pendingVisible.add(slice.gpuSection());
             try {
                 GPU.compileVisible(mc,queuedRemote,pendingVisible,mc.player.position(),
-                    sourceBoundary,targetBoundary);
+                    sourceBoundary,targetBoundary,queuedLink.entry());
             } catch(RuntimeException | Error ex) {
                 LOG.error("WorldSeam GPU tick pre-upload failed; falling back to safe section preview",ex);
                 gpuDisabled=true;
@@ -327,8 +482,25 @@ public final class SeamNativeGeometryClient {
     }
 
     private static void render(RenderLevelStageEvent event) {
+        // The nested real foreign LevelRenderer emits the same NeoForge stages.
+        // Do not recursively draw the source proxy or start a second FBO.
+        if (SeamForeignFullLevelPass.active()) return;
+        if(event.getStage()==RenderLevelStageEvent.Stage.AFTER_LEVEL) {
+            renderComposite(event);
+            return;
+        }
+        if(event.getStage()==RenderLevelStageEvent.Stage.AFTER_TRIPWIRE_BLOCKS) {
+            renderTranslucent(event);
+            return;
+        }
         if (event.getStage()!=RenderLevelStageEvent.Stage.AFTER_BLOCK_ENTITIES)
             return;
+        pendingTranslucent=List.of();
+        pendingOffscreenTranslucent=List.of();
+        SeamForeignOffscreenPass.beginFrame();
+        // Full native target rendering occurs after the source AFTER_LEVEL
+        // stage, not inside its unfinished block-entity/transparent stages.
+        if (EXPERIMENTAL_FULL_NATIVE_LEVEL) return;
         lastFrameDrawn=0;
         lastFrameEndStone=0;
         lastFrameGpuModels=0;
@@ -344,7 +516,7 @@ public final class SeamNativeGeometryClient {
         // A quiet, still-resident remote world must NOT expire after 2400
         // ticks without packets. Cache lifetime follows the actual remote
         // ClientLevel, not an arbitrary traffic timer.
-        if (columns.isEmpty() || event.getPoseStack()==null) return;
+        if (event.getPoseStack()==null) return;
         // Window pruning and geometry recount already happen in the 20 TPS
         // client tick. Doing another 25-column scan at EVERY render frame
         // (possibly >120 FPS) is redundant.
@@ -352,6 +524,19 @@ public final class SeamNativeGeometryClient {
         // Chunk prewarming continues independently for immediate handoff.
         if(!SeamSectionLayout.nearPlane(mc.player.getY(),
                 sourceBoundary,NEAR_PLANE_RENDER_RANGE)) return;
+        // Scope a distinct real target-dimension lightmap across the whole
+        // foreign terrain/BE/entity pass. Restore the active sampler even on
+        // early return or a third-party renderer exception.
+        try (SeamRemoteLightmaps.Scope ignored =
+                 SeamRemoteLightmaps.bind(queuedRemote)) {
+        // Foreign block entities and ordinary entities must be submitted
+        // AFTER our own terrain depth writes. The old order drew them first,
+        // then let the remote VBOs overwrite/occlude their pixels even when
+        // both belonged to the same foreign ClientLevel.
+        if(columns.isEmpty()) {
+            renderForeignActors(event);
+            return;
+        }
         long drawStarted=System.nanoTime();
         PoseStack pose=event.getPoseStack();
         Vec3 camera=event.getCamera().getPosition();
@@ -369,19 +554,53 @@ public final class SeamNativeGeometryClient {
             else lastCulledSlices++;
         }
         lastVisibleSlices=visible.size();
-        if(visible.isEmpty())return;
+        if(visible.isEmpty()) {
+            renderForeignActors(event);
+            return;
+        }
         if(!gpuDisabled) {
             try {
                 long gpuStart=System.nanoTime();
                 var sections=new ArrayList<Section>(visible.size());
                 for(var slice:visible)sections.add(slice.gpuSection());
-                GPU.compileVisible(mc,queuedRemote,sections,camera,
-                    sourceBoundary,targetBoundary);
-                GPU.draw(sections,pose,camera);
+                // Retain only the native section identities for this one
+                // frame's second, post-source-translucency GPU pass.
+                pendingTranslucent=List.copyOf(sections);
+                // Native section baking/upload is deliberately restricted to
+                // ClientTickEvent.Post above. Recompiling here used to block
+                // the actual render stage on modded block-model tessellation
+                // and GPU uploads, creating frame-time spikes exactly when
+                // the camera looked through the seam. Render only already
+                // committed VBOs; still-pending slices are drawn by the
+                // bounded legacy fallback below until the next client tick.
+                // Build the independent COLOR+DEPTH target from real remote
+                // VBOs, preserving the currently bound vanilla/shader FBO.
+                // Until native sky/fog and geometric depth compositing exist,
+                // never blit this incomplete pass into the player's view.
+                // Sample one of every 30 frames to keep the temporary
+                // architecture check from doubling normal render cost.
+                if(EXPERIMENTAL_NATIVE_OFFSCREEN && GPU.cachedCount()>0 &&
+                   (EXPERIMENTAL_DEPTH_COMPOSITE ||
+                    (++offscreenFrameCounter % 30)==1)) {
+                    SeamForeignOffscreenPass.drawOpaque(mc,
+                        () -> drawNativeForeignSky(event),
+                        () -> GPU.draw(sections,pose,camera));
+                    if(SeamForeignOffscreenPass.opaqueReady())
+                        pendingOffscreenTranslucent=List.copyOf(sections);
+                }
+                // The real depth compositor owns the foreign image. Do not
+                // contaminate the source depth buffer with preview geometry:
+                // that would make the source/foreign depth test self-occlude.
+                if (!EXPERIMENTAL_DEPTH_COMPOSITE)
+                    GPU.draw(sections,pose,camera);
                 lastFrameGpuModels=GPU.lastFrameModelsVisible();
                 lastFrameGpuSections=GPU.lastFrameCachedSections();
                 lastFrameEndStone=GPU.lastFrameEndStoneModels();
                 lastFrameGpuCpuNanos=Math.max(0,System.nanoTime()-gpuStart);
+                if (EXPERIMENTAL_DEPTH_COMPOSITE) {
+                    renderForeignActors(event);
+                    return;
+                }
                 // All cached sections stay visible with NO per-frame model
                 // selection cap. Only sections still uploading need the
                 // legacy fallback. This fixes the previous "floating sparse
@@ -395,11 +614,13 @@ public final class SeamNativeGeometryClient {
                 if(visible.isEmpty()) {
                     lastFrameDrawCpuNanos=lastFrameGpuCpuNanos;
                     DRAW_CPU_SAMPLES.add(lastFrameGpuCpuNanos);
+                    renderForeignActors(event);
                     return;
                 }
             } catch (RuntimeException | Error failure) {
                 LOG.error("WorldSeam GPU section pipeline failed; falling back to safe legacy model drawing",failure);
                 gpuDisabled=true;
+                pendingTranslucent=List.of();
                 GPU.release();
             }
         }
@@ -463,6 +684,118 @@ public final class SeamNativeGeometryClient {
             DRAW_BUDGET.observe(drawnFallback,
                 Math.max(0,lastFrameDrawCpuNanos-lastFrameGpuCpuNanos));
         }
+        renderForeignActors(event);
+        }
+    }
+
+    /**
+     * Submit actual foreign water/lava/glass VBOs in the same stage family
+     * as vanilla source translucency. This fixes the previous guaranteed
+     * wrong ordering (remote translucent before source translucent).
+     * A complete second native LevelRenderer with per-pixel depth and fog
+     * composition is still required for final acceptance.
+     */
+    private static void renderTranslucent(RenderLevelStageEvent event) {
+        List<Section> sections=pendingTranslucent;
+        List<Section> offscreenSections=pendingOffscreenTranslucent;
+        pendingTranslucent=List.of();
+        pendingOffscreenTranslucent=List.of();
+        if(sections.isEmpty() || gpuDisabled || event.getPoseStack()==null ||
+           queuedRemote==null || Minecraft.getInstance().level==null ||
+           !source.equals(Minecraft.getInstance().level.dimension()
+               .location().toString()))return;
+        try(SeamRemoteLightmaps.Scope ignored=
+                SeamRemoteLightmaps.bind(queuedRemote)) {
+            long started=System.nanoTime();
+            // Finish the experimental secondary color+depth target with
+            // ACTUAL target-world water/lava/glass VBOs. This pass retains
+            // opaque depth and is deliberately not composited into the
+            // source frame until geometric seam clipping is correct.
+            if(!offscreenSections.isEmpty())
+                SeamForeignOffscreenPass.drawTranslucent(
+                    Minecraft.getInstance(),
+                    () -> GPU.drawTranslucent(offscreenSections,
+                        event.getPoseStack(),event.getCamera().getPosition()));
+            if (!EXPERIMENTAL_DEPTH_COMPOSITE)
+                GPU.drawTranslucent(sections,event.getPoseStack(),
+                    event.getCamera().getPosition());
+            lastFrameGpuModels=GPU.lastFrameModelsVisible();
+            lastFrameGpuSections=GPU.lastFrameCachedSections();
+            lastFrameGpuCpuNanos+=Math.max(0,System.nanoTime()-started);
+            lastFrameDrawn=Math.max(lastFrameDrawn,lastFrameGpuModels);
+            lastFrameEndStone=Math.max(lastFrameEndStone,
+                GPU.lastFrameEndStoneModels());
+        } catch(RuntimeException | Error failure) {
+            LOG.error("WorldSeam foreign native translucent pass failed",failure);
+            gpuDisabled=true;
+            GPU.release();
+        }
+    }
+
+    private static void renderForeignActors(RenderLevelStageEvent event) {
+        if(queuedRemote==null || queuedLink==null)return;
+        // The experimental native FBO already contains the REAL remote
+        // opaque terrain and its depth. Submit actual foreign BEs/entities
+        // against that SAME depth before the late translucent pass. Draw
+        // them again to the existing visible preview until a genuine native
+        // two-world depth compositor replaces the preview entirely.
+        if(EXPERIMENTAL_NATIVE_OFFSCREEN &&
+           SeamForeignOffscreenPass.opaqueReady()) {
+            SeamForeignOffscreenPass.drawActors(Minecraft.getInstance(),
+                () -> drawForeignActorsNative(event));
+        }
+        if (!EXPERIMENTAL_DEPTH_COMPOSITE)
+            drawForeignActorsNative(event);
+    }
+
+    /** Real foreign FBO pixels are admitted only BEHIND the seam and in
+     *  front of actual source-world depth, never by a fullscreen fake blit. */
+    private static void renderComposite(RenderLevelStageEvent event) {
+        if (!EXPERIMENTAL_DEPTH_COMPOSITE || gpuDisabled ||
+            event.getCamera()==null || Minecraft.getInstance().level==null ||
+            !source.equals(Minecraft.getInstance().level.dimension()
+                .location().toString()) || queuedLink==null) return;
+        if (EXPERIMENTAL_FULL_NATIVE_LEVEL) {
+            if (!SeamForeignFullLevelPass.render(event, queuedRemote,
+                    sourceBoundary, targetBoundary)) return;
+        } else if (!SeamForeignOffscreenPass.frameComplete()) return;
+        SeamForeignDepthCompositor.composite(Minecraft.getInstance(),
+            SeamForeignOffscreenPass.colorTextureId(),
+            SeamForeignOffscreenPass.depthTextureId(),
+            event.getModelViewMatrix(), event.getProjectionMatrix(),
+            (float)(sourceBoundary-event.getCamera().getPosition().y),
+            queuedLink.exit()==SeamGraph.EdgeSide.BOTTOM);
+    }
+
+    private static void drawForeignActorsNative(RenderLevelStageEvent event) {
+        // These are actual foreign ClientLevel objects, not decorative
+        // overlays. Their depth ordering relative to WorldSeam terrain is
+        // now correct; native LevelRenderer compositing, sky, translucent
+        // depth and Sable sublevels remain separate unfinished work.
+        // Render genuine foreign actors with their OWN ClientLevel and
+        // LevelRenderer installed, while retaining the translated source
+        // camera. Restore all singleton state before vanilla resumes.
+        try (SeamForeignActorWorldScope.Scope ignored =
+                 SeamForeignActorWorldScope.bind(queuedRemote,event.getCamera())) {
+            SeamRemoteBlockEntities.draw(event,queuedRemote,sourceBoundary,
+                targetBoundary,queuedLink.entry());
+            SeamRemoteEntities.draw(event,queuedRemote,sourceBoundary,
+                targetBoundary,queuedLink.entry());
+        }
+    }
+
+    public static int countFluidCells() {
+        int count=0;
+        for(var col:columns.values())for(var slice:col)
+            for(Cell cell:slice.cells())
+                if(!cell.state().getFluidState().isEmpty())count++;
+        return count;
+    }
+    public static int lastFrameGpuFluidCells() {
+        return GPU.lastFrameFluidCells();
+    }
+    public static int lastFrameTranslucentDrawCalls() {
+        return GPU.lastFrameTranslucentDrawCalls();
     }
 
     public static int countEndStone() {
@@ -512,7 +845,10 @@ public final class SeamNativeGeometryClient {
 
     public static void reset() {
         columns.clear();
+        pendingTranslucent=List.of();
+        pendingOffscreenTranslucent=List.of();
         blocksBuilt=0;
+        logicalPlaneNeighborReads=0;
         lastFrameDrawn=0;
         lastFrameEndStone=0;
         lastVisibleSlices=0;
@@ -523,6 +859,9 @@ public final class SeamNativeGeometryClient {
         queuedLink=null;
         BUILD_QUEUE.clear();
         GPU.release();
+        SeamForeignOffscreenPass.release();
+        SeamForeignDepthCompositor.release();
+        offscreenFrameCounter=0;
         gpuReloadPending=false;
         lastFrameGpuModels=0;
         lastFrameGpuSections=0;
@@ -531,6 +870,8 @@ public final class SeamNativeGeometryClient {
         DRAW_CPU_SAMPLES.clear();
         REBUILD_CPU_SAMPLES.clear();
         OWNED_BUFFERS.release();
+        SeamRemoteBlockEntities.reset();
+        SeamRemoteEntities.reset();
         DRAW_BUDGET.reset();
         lastFrameDrawCpuNanos=0;
     }
