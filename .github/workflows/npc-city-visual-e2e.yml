@@ -42,6 +42,7 @@ on:
       - fix/npc-camera-narrow-side-angles-v112
       - fix/npc-camera-pair-to-safe-single-v113
       - fix/npc-escort-walking-slack-v114
+      - fix/npc-jail-lock-after-officer-handoff-v115
   pull_request:
     branches:
       - feat/npc-economy-market-fair-v069

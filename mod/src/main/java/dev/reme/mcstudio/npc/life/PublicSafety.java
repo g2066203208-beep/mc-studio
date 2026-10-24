@@ -284,6 +284,11 @@ public final class PublicSafety {
             System.out.println("REME_NPC_STORY stage=jail_reached tick=" + tick
                 + " guard=" + guard.getUUID() + " prisoner=" + prisoner.getUUID()
                 + " cell=" + jail.toShortString());
+            // Handoff is complete only here, beside the actual cell.
+            // Release the active escort UUID on the detainee as well: the
+            // next prisoner tick can then lock the real gate. Until this
+            // moment the prisoner must never lock the officer outside.
+            prisoner.assignCustodyOfficer(null);
             guard.clearPrisonerEscort();
             return true;
         }
@@ -374,8 +379,18 @@ public final class PublicSafety {
         }
         suspect.setTarget(null);
         if (suspect.blockPosition().equals(jail)) {
-            CityJailGate.setOpen(level, jail, false);
             suspect.getNavigation().stop();
+            // Reaching the holding block is NOT the same as the arresting
+            // officer physically arriving. Keep the existing iron gate open
+            // until the reciprocal four-block handoff completes. Otherwise
+            // the prisoner can lock the officer outside while the officer
+            // is still navigating around the station.
+            if (suspect.custodyOfficer() != null
+                && !escortedPrisonerMayAdvance(suspect, level, tick)) {
+                suspect.setAction("inside real cell; waiting for arresting officer before gate lock");
+                return true;
+            }
+            CityJailGate.setOpen(level, jail, false);
             suspect.setAction("held at designated iron-bar holding spot until release");
             return true;
         }
