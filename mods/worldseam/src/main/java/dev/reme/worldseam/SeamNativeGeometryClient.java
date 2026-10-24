@@ -52,6 +52,9 @@ public final class SeamNativeGeometryClient {
     private static final boolean EXPERIMENTAL_DEPTH_COMPOSITE =
         EXPERIMENTAL_NATIVE_OFFSCREEN &&
         Boolean.getBoolean("worldseam.experimentalDepthComposite");
+    private static final boolean EXPERIMENTAL_FULL_NATIVE_LEVEL =
+        EXPERIMENTAL_DEPTH_COMPOSITE &&
+        Boolean.getBoolean("worldseam.experimentalFullNativeLevel");
     private static long offscreenFrameCounter;
     private static long nativeSkyMethodCalls;
     public static long nativeSkyMethodCalls() { return nativeSkyMethodCalls; }
@@ -479,6 +482,9 @@ public final class SeamNativeGeometryClient {
     }
 
     private static void render(RenderLevelStageEvent event) {
+        // The nested real foreign LevelRenderer emits the same NeoForge stages.
+        // Do not recursively draw the source proxy or start a second FBO.
+        if (SeamForeignFullLevelPass.active()) return;
         if(event.getStage()==RenderLevelStageEvent.Stage.AFTER_LEVEL) {
             renderComposite(event);
             return;
@@ -492,6 +498,9 @@ public final class SeamNativeGeometryClient {
         pendingTranslucent=List.of();
         pendingOffscreenTranslucent=List.of();
         SeamForeignOffscreenPass.beginFrame();
+        // Full native target rendering occurs after the source AFTER_LEVEL
+        // stage, not inside its unfinished block-entity/transparent stages.
+        if (EXPERIMENTAL_FULL_NATIVE_LEVEL) return;
         lastFrameDrawn=0;
         lastFrameEndStone=0;
         lastFrameGpuModels=0;
@@ -743,10 +752,13 @@ public final class SeamNativeGeometryClient {
      *  front of actual source-world depth, never by a fullscreen fake blit. */
     private static void renderComposite(RenderLevelStageEvent event) {
         if (!EXPERIMENTAL_DEPTH_COMPOSITE || gpuDisabled ||
-            !SeamForeignOffscreenPass.frameComplete() ||
             event.getCamera()==null || Minecraft.getInstance().level==null ||
             !source.equals(Minecraft.getInstance().level.dimension()
                 .location().toString()) || queuedLink==null) return;
+        if (EXPERIMENTAL_FULL_NATIVE_LEVEL) {
+            if (!SeamForeignFullLevelPass.render(event, queuedRemote,
+                    sourceBoundary, targetBoundary)) return;
+        } else if (!SeamForeignOffscreenPass.frameComplete()) return;
         SeamForeignDepthCompositor.composite(Minecraft.getInstance(),
             SeamForeignOffscreenPass.colorTextureId(),
             SeamForeignOffscreenPass.depthTextureId(),
