@@ -81,6 +81,24 @@ public final class HomeEntranceRouteGameTests {
         helper.succeed();
     }
 
+    @GameTest(template="empty",timeoutTicks=70)
+    public static void indoor_citizen_does_not_reverse_back_out_of_real_open_home_door(
+        GameTestHelper helper) {
+        BlockPos center = house(helper, true);
+        HomeEntranceRoute.Entrance entry =
+            HomeEntranceRoute.nearestOpenDoor(helper.getLevel(), center.north());
+        if (entry == null) throw new AssertionError("Actual open house door not found");
+        if (!HomeEntranceRoute.nextDoorStage(entry, center).equals(entry.inside())
+            || !HomeEntranceRoute.nextDoorStage(entry, center.south(1)).equals(entry.inside()))
+            throw new AssertionError("Indoor citizen was routed back onto the street");
+        if (!HomeEntranceRoute.nextDoorStage(entry, entry.outside()).equals(entry.inside())
+            || !HomeEntranceRoute.nextDoorStage(entry, center.south(5)).equals(entry.inside()))
+            throw new AssertionError("Citizen standing at the physical entrance did not enter");
+        if (!HomeEntranceRoute.nextDoorStage(entry, center.south(6)).equals(entry.outside()))
+            throw new AssertionError("Distant outdoor citizen skipped the exterior approach");
+        helper.succeed();
+    }
+
     @GameTest(template="empty",timeoutTicks=40)
     public static void tired_night_watch_officer_recovers_only_in_real_bed(
         GameTestHelper helper) {
