@@ -95,6 +95,50 @@ public final class NpcEscortPairCameraGameTests {
         helper.succeed();
     }
 
+    /** Reproduces a narrow real-world corridor: all coarse 0/60/115/180
+     * candidate azimuths are obstructed, but the side-on 90-degree lens
+     * sees BOTH real actors. A POV fallback here fills the entire screen
+     * with one detainee's face instead of filming the escorted pair.
+     */
+    @GameTest(template="empty", timeoutTicks=100)
+    public static void pair_camera_finds_narrow_side_corridor_lens(
+            GameTestHelper helper) {
+        Vec3 detainee = new Vec3(4.5, 5.5, 4.5);
+        Vec3 officer = new Vec3(6.5, 5.5, 4.5);
+        Vec3 mid = detainee.add(officer).scale(0.5);
+        var lens = NpcCameraController.selectPairView(
+            detainee, officer, 0,
+            p -> Math.abs(p.z - mid.z) < 0.02
+                && p.x > mid.x + 4.0
+                && Math.abs(p.y - mid.y - 0.32) < 0.02,
+            p -> true);
+        if (lens == null || Math.abs(lens.z() - mid.z) > 0.02
+            || lens.x() <= mid.x + 4.0)
+            throw new AssertionError("Narrow 90-degree pair view was missed");
+        // An occluded target is never a valid shot, regardless of angle.
+        if (NpcCameraController.selectPairView(detainee, officer, 0,
+                p -> true, p -> false) != null)
+            throw new AssertionError("Pair camera bypassed sightline validation");
+        helper.succeed();
+    }
+
+    /** A single citizen in a tight market aisle may only have a 30-degree
+     * opening. This must remain a third-person real-world lens, not POV.
+     */
+    @GameTest(template="empty", timeoutTicks=100)
+    public static void chase_camera_finds_narrow_thirty_degree_lens(
+            GameTestHelper helper) {
+        Vec3 eye = new Vec3(5.5, 5.5, 5.5);
+        var lens = NpcCameraController.selectClearView(eye, 0,
+            p -> p.x > eye.x + 1.4 && p.x < eye.x + 1.8
+                && p.z < eye.z - 2.7 && p.z > eye.z - 3.0
+                && Math.abs(p.y - eye.y - 0.32) < 0.02,
+            p -> true);
+        if (lens == null)
+            throw new AssertionError("Clear 30-degree market aisle lens missed");
+        helper.succeed();
+    }
+
     @GameTest(template="empty", timeoutTicks=100)
     public static void spectator_eye_clear_but_body_in_stone_is_rejected(
             GameTestHelper helper) {
