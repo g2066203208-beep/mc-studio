@@ -33,10 +33,22 @@ def verify(text: str) -> str:
     camera = re.search(r"已连续跟踪真实NPC (" + UUID + r")：CHASE", text)
     if camera is None:
         fail("No actual first CHASE camera attachment to a real UUID")
+    # The previous verifier read the ENTIRE client session. It could accept
+    # a cell arrival AFTER ffmpeg had already stopped, falsely labeling a
+    # shop-counter-only MP4 as a full crime-to-cell recording.
+    start = re.search(r"REME_NPC_CASE_VIDEO_START", text)
+    end = re.search(r"REME_NPC_CASE_VIDEO_END", text)
+    if start is None or end is None or start.start() >= end.start():
+        fail("No ordered real Minecraft video start/end markers in client log")
+    if not (start.start() < camera.start() < end.start()):
+        fail("First CHASE camera was not attached during the recorded video")
     target = camera.group(1)
     lines = list(re.finditer(r"^.*$", text, re.MULTILINE))
     events: dict[str, list[re.Match[str]]] = {}
     for m in lines:
+        # Ignore crimes from before recording or after ffmpeg stopped.
+        if not (start.start() < m.start() < end.start()):
+            continue
         match = re.search(r"REME_NPC_STORY stage=([a-z_]+)", m.group())
         if match:
             events.setdefault(match.group(1), []).append(m)
