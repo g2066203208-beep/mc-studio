@@ -93,6 +93,17 @@ public final class SeamForeignFullLevelPass {
         float seamY=(float)(sourceBoundary-sourceCamera.getPosition().y);
         Matrix4f clipped=ENABLE_CLIP ? SeamNativeClipProjection.beyondSeam(
             event.getProjectionMatrix(),event.getModelViewMatrix(),seamY,remoteBelow) : null;
+        // The native clip is not an optional visual optimization. Without it,
+        // wrong-side terrain writes the foreign depth buffer BEFORE the final
+        // compositor and permanently hides the valid far-side geometry. A
+        // screen-space discard cannot recover that geometry. Fail closed for
+        // this frame instead of silently rendering with vanilla projection.
+        if (ENABLE_CLIP && clipped == null) {
+            if (completed == 0 || completed % 120 == 0)
+                LOG.warn("WORLDSEAM_NATIVE_CLIP_UNAVAILABLE: cameraSeamY={} below={} foreign={} nativeFrameSkipped=true finalAcceptance=false",
+                    seamY, remoteBelow, foreign.dimension().location());
+            return false;
+        }
         Matrix4f nativeProjection=clipped==null?event.getProjectionMatrix():clipped;
 
         SeamMinecraftAccess client = (SeamMinecraftAccess) mc;
