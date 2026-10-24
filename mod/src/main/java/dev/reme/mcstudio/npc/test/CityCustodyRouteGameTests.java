@@ -38,6 +38,46 @@ public final class CityCustodyRouteGameTests {
         helper.succeed();
     }
 
+    /** A corrupted door pair is NOT a safe, operable holding-cell gate.
+     * Test the actual native upper/lower block states; do not fake an event.
+     */
+    @GameTest(template="empty",timeoutTicks=100)
+    public static void iron_cell_gate_requires_matching_real_door_halves(
+        GameTestHelper helper) {
+        ServerLevel level=helper.getLevel();
+        BlockPos jail=helper.absolutePos(new BlockPos(4,2,4));
+        BlockPos gate=CityJailGate.gateFor(jail);
+        level.setBlock(gate.below(),Blocks.STONE.defaultBlockState(),2);
+        var low=Blocks.IRON_DOOR.defaultBlockState()
+            .setValue(DoorBlock.FACING,Direction.SOUTH)
+            .setValue(DoorBlock.HALF,DoubleBlockHalf.LOWER);
+        var up=low.setValue(DoorBlock.HALF,DoubleBlockHalf.UPPER);
+        level.setBlock(gate,low,2);
+        level.setBlock(gate.above(),up.setValue(DoorBlock.FACING,Direction.NORTH),2);
+        if(CityJailGate.isGate(level,jail)
+            ||CityJailGate.setOpen(level,jail,true))
+            throw new AssertionError("Different facing halves authorized custody");
+        if(level.getBlockState(gate).getValue(DoorBlock.OPEN)
+            ||level.getBlockState(gate.above()).getValue(DoorBlock.OPEN))
+            throw new AssertionError("Invalid cell door was mutated");
+        // Even matching materials and facing cannot excuse a split open state.
+        level.setBlock(gate.above(),up.setValue(DoorBlock.OPEN,true),2);
+        if(CityJailGate.isGate(level,jail)
+            ||CityJailGate.setOpen(level,jail,true))
+            throw new AssertionError("Split OPEN states authorized custody");
+        level.setBlock(gate.above(),up,2);
+        if(!CityJailGate.isGate(level,jail)
+            ||!CityJailGate.setOpen(level,jail,true)
+            ||!level.getBlockState(gate).getValue(DoorBlock.OPEN)
+            ||!level.getBlockState(gate.above()).getValue(DoorBlock.OPEN))
+            throw new AssertionError("Intact native iron gate failed to open both halves");
+        if(!CityJailGate.setOpen(level,jail,false)
+            ||level.getBlockState(gate).getValue(DoorBlock.OPEN)
+            ||level.getBlockState(gate.above()).getValue(DoorBlock.OPEN))
+            throw new AssertionError("Intact native iron gate failed to lock");
+        helper.succeed();
+    }
+
     @GameTest(template="empty",timeoutTicks=300)
     public static void detainee_physically_enters_built_cell_via_rear_intake(
         GameTestHelper helper) {
