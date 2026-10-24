@@ -62,8 +62,8 @@ public final class SeamNativeGeometryClient {
     private static final SeamRenderBudget DRAW_BUDGET = new SeamRenderBudget();
     private static final SeamRenderBuffers OWNED_BUFFERS = new SeamRenderBuffers();
     private static volatile long lastFrameDrawCpuNanos;
-    // Real target translucent layers must be submitted after vanilla source
-    // translucent blocks, not in the opaque/BE phase.
+    // NeoForge 1.21.1 recommends AFTER_TRIPWIRE_BLOCKS rather than the
+    // broken-in-Fabulous AFTER_TRANSLUCENT_BLOCKS for custom transparency.
     private static List<Section> pendingTranslucent=List.of();
     private static ClientLevel queuedRemote;
     private static SeamGraph.Link queuedLink;
@@ -422,7 +422,7 @@ public final class SeamNativeGeometryClient {
     }
 
     private static void render(RenderLevelStageEvent event) {
-        if(event.getStage()==RenderLevelStageEvent.Stage.AFTER_TRANSLUCENT_BLOCKS) {
+        if(event.getStage()==RenderLevelStageEvent.Stage.AFTER_TRIPWIRE_BLOCKS) {
             renderTranslucent(event);
             return;
         }
