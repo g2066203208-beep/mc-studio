@@ -198,15 +198,18 @@ if [[ "${REME_CITY_VISUAL:-0}" == "1" ]]; then
   say_city '/gamemode spectator' 1
   say_city '/npc camera chase shoplifter' 2
   import -window root client-gui-city-full-case-t0.png
-  sleep 13
+  # Five spaced real screenshots document changing chase/escort phases.
+  # Do not pad a completed arrest with 60+ seconds of static prison bars:
+  # the continuous MP4 ends after the filmed case completes, not a timer.
+  sleep 5
   import -window root client-gui-city-full-case-t1.png
-  sleep 17
+  sleep 5
   import -window root client-gui-city-full-case-t2.png
-  sleep 17
+  sleep 5
   import -window root client-gui-city-full-case-t3.png
-  sleep 18
+  sleep 5
   import -window root client-gui-city-full-case-t4.png
-  sleep 15
+  sleep 5
   import -window root client-gui-city-full-case-t5.png
   # The former harness stopped ffmpeg after ~100s even if the tracked thief
   # had not yet reached the REAL cell. The same UUID's later server event
@@ -230,6 +233,11 @@ PY
       fi
       sleep 2
     done
+  fi
+  if (( case_reached == 1 )); then
+    # A short genuine final-cell hold makes the handoff visible without
+    # filling the rest of the recording with a motionless detained actor.
+    sleep 8
   fi
   say_city '/say REME_NPC_CASE_VIDEO_END' 1
   say_city '/npc camera stop' 1
