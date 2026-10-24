@@ -35,6 +35,13 @@ public final class NpcCameraController {
     /** Whether a physically clear shot includes both linked custody actors. */
     public record EscortView(CameraPose pose, boolean sharedLens) {}
     private record Follow(UUID target, Mode mode) {}
+    /** Last collision-checked spectator lens, anchored to the filmed actor(s).
+     *  Retaining a safe relative lens avoids 180-degree camera cuts whenever
+     *  an NPC turns while walking. No NPC position is ever changed.
+     */
+    private record StableShot(Vec3 anchor, CameraPose pose,
+                              @Nullable UUID partnerId, boolean sharedLens) {}
+    private static final Map<UUID, StableShot> STABLE_SHOTS = new HashMap<>();
     private static final Map<UUID, Follow> ACTIVE = new HashMap<>();
     // A cramped corridor may offer no collision-free third-person lens.
     // Native spectator POV is the honest fallback, never a wall-clipping shot.
@@ -78,6 +85,7 @@ public final class NpcCameraController {
 
     public static void stop(ServerPlayer player) {
         ACTIVE.remove(player.getUUID());
+        STABLE_SHOTS.remove(player.getUUID());
         POV_FALLBACK.remove(player.getUUID());
         if (player.getCamera() != player) player.setCamera(player);
     }
@@ -199,6 +207,39 @@ public final class NpcCameraController {
         return null;
     }
 
+    /** Translate an existing camera lens with its real actor(s), rather than
+     *  instantly orbiting to the opposite side when a walking NPC turns.
+     *  Revalidate the entire spectator body and all required actor raycasts
+     *  against the CURRENT world. Unsafe, stale or distant shots are rejected.
+     *  This is only a camera calculation; no entity is moved or force-loaded.
+     */
+    @Nullable
+    public static CameraPose retainSafeShot(CameraPose previous, Vec3 oldAnchor,
+            Vec3 currentAnchor, Predicate<Vec3> clearLens,
+            Predicate<Vec3> visible) {
+        if (previous == null || oldAnchor == null || currentAnchor == null
+            || !Double.isFinite(previous.x()) || !Double.isFinite(previous.y())
+            || !Double.isFinite(previous.z())
+            || !Double.isFinite(oldAnchor.x) || !Double.isFinite(oldAnchor.y)
+            || !Double.isFinite(oldAnchor.z)
+            || !Double.isFinite(currentAnchor.x) || !Double.isFinite(currentAnchor.y)
+            || !Double.isFinite(currentAnchor.z)) return null;
+        Vec3 travel = currentAnchor.subtract(oldAnchor);
+        // An actor teleported by another mod or a stale saved shot must not
+        // drag the spectator across an unobserved area.
+        if (travel.lengthSqr() > 16.0) return null;
+        Vec3 lens = new Vec3(previous.x(), previous.y(), previous.z()).add(travel);
+        double distanceSq = lens.distanceToSqr(currentAnchor);
+        if (distanceSq < 4.0 || distanceSq > 121.0
+            || !clearLens.test(lens) || !visible.test(lens)) return null;
+        Vec3 focus = currentAnchor.add(0, -0.32, 0);
+        double dx = focus.x - lens.x, dz = focus.z - lens.z;
+        float yaw = (float) (Math.toDegrees(Math.atan2(dz, dx)) - 90);
+        float pitch = (float) -Math.toDegrees(
+            Math.atan2(focus.y - lens.y, Math.sqrt(dx * dx + dz * dz)));
+        return new CameraPose(lens.x, lens.y, lens.z, yaw, pitch);
+    }
+
     /** Vanilla server teleport positions the FEET, not the eye camera.
      * Never silently substitute eye coordinates for player feet.
      */
@@ -296,6 +337,31 @@ public final class NpcCameraController {
             chosen = selectClearView(eye, target.getYRot(),
                 clearLens, targetVisible);
         }
+        // Keep a safe previous camera-relative orbit through ordinary turns.
+        // If a wall, iron door or partner occludes it, immediately use the
+        // freshly raycast candidate above instead. Never trust stale geometry.
+        UUID partnerIdForShot = partner == null ? null : partner.getUUID();
+        Vec3 anchor = sharedLens
+            ? eye.add(partner.getEyePosition()).scale(0.5) : eye;
+        StableShot previous = STABLE_SHOTS.get(player.getUUID());
+        if (chosen != null && previous != null
+            && java.util.Objects.equals(previous.partnerId(), partnerIdForShot)
+            && previous.sharedLens() == sharedLens) {
+            Predicate<Vec3> currentSight = targetVisible;
+            if (sharedLens) {
+                Vec3 officerEye = partner.getEyePosition();
+                currentSight = lens -> targetVisible.test(lens)
+                    && level.clip(new ClipContext(officerEye, lens,
+                        ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE,
+                        partner)).getType() == HitResult.Type.MISS;
+            }
+            CameraPose retained = retainSafeShot(previous.pose(),
+                previous.anchor(), anchor, clearLens, currentSight);
+            if (retained != null) chosen = retained;
+        }
+        if (chosen == null) STABLE_SHOTS.remove(player.getUUID());
+        else STABLE_SHOTS.put(player.getUUID(),
+            new StableShot(anchor, chosen, partnerIdForShot, sharedLens));
         if (partner != null && player.tickCount % 40 == 0) {
             com.mojang.logging.LogUtils.getLogger().info(
                 "REME_NPC_CAMERA_PAIR_VIEW observer={} target={} partner={} "
