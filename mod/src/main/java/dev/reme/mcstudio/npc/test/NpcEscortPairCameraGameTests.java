@@ -402,4 +402,42 @@ public final class NpcEscortPairCameraGameTests {
             throw new AssertionError("Non-finite camera lens accepted");
         helper.succeed();
     }
+
+    /** A clear camera EYE is insufficient when its torso intersects a real
+     * citizen standing just to the side. Spectator collision must use the
+     * entire player volume, including the feet, before accepting a lens.
+     */
+    @GameTest(template="empty", timeoutTicks=100)
+    public static void real_citizen_blocks_spectator_torso_even_when_eye_clear(
+            GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos origin = helper.absolutePos(new BlockPos(8, 3, 8));
+        Vec3 eye = new Vec3(origin.getX() + 0.5,
+            origin.getY() + 1.62, origin.getZ() + 0.5);
+        PlayerNpcEntity bystander = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (bystander == null)
+            throw new AssertionError("Real citizen entity registration missing");
+        bystander.moveTo(eye.x + 0.7, eye.y - 1.62, eye.z, 0, 0);
+        if (!level.addFreshEntity(bystander))
+            throw new AssertionError("Could not spawn real bystander");
+        var citizens = level.getEntitiesOfClass(PlayerNpcEntity.class,
+            bystander.getBoundingBox().inflate(4), PlayerNpcEntity::isAlive);
+        // The bystander's expanded box misses the lens eye itself, but
+        // intersects the spectator's 0.6-block-wide torso.
+        if (!NpcCameraController.lensClearOfNpcBodies(eye, citizens, 0.2))
+            throw new AssertionError("Test precondition: camera eye is occluded");
+        if (NpcCameraController.spectatorBodyClearOfNpcBodies(
+                eye, 1.62, 0.6, 1.8, citizens, 0.2))
+            throw new AssertionError("Camera torso clipped a real citizen");
+        bystander.moveTo(eye.x + 4, eye.y - 1.62, eye.z, 0, 0);
+        if (!NpcCameraController.spectatorBodyClearOfNpcBodies(
+                eye, 1.62, 0.6, 1.8, citizens, 0.2))
+            throw new AssertionError("Unobstructed spectator body was rejected");
+        if (NpcCameraController.spectatorBodyClearOfNpcBodies(
+                eye, 1.62, Double.NaN, 1.8, citizens, 0.2)
+            || NpcCameraController.spectatorBodyClearOfNpcBodies(
+                eye, 1.62, 0.6, 1.8, citizens, -1.0))
+            throw new AssertionError("Invalid spectator geometry was accepted");
+        helper.succeed();
+    }
 }
