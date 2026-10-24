@@ -48,6 +48,8 @@ public final class SeamNativeGeometryClient {
     private static final boolean EXPERIMENTAL_NATIVE_OFFSCREEN =
         Boolean.getBoolean("worldseam.experimentalOffscreenTerrain");
     private static long offscreenFrameCounter;
+    private static long nativeSkyMethodCalls;
+    public static long nativeSkyMethodCalls() { return nativeSkyMethodCalls; }
     private static boolean gpuDisabled=Boolean.getBoolean("worldseam.legacyBlockPreview");
     private static volatile boolean gpuReloadPending;
     private static int lastFrameGpuModels;
@@ -125,6 +127,11 @@ public final class SeamNativeGeometryClient {
                  SeamForeignActorWorldScope.bind(foreign, sourceCamera)) {
             renderer.renderSky(event.getModelViewMatrix(),
                 event.getProjectionMatrix(), partial, mapped, false, () -> {});
+            nativeSkyMethodCalls++;
+            if(nativeSkyMethodCalls==1 || nativeSkyMethodCalls%120==0)
+                LOG.info("WORLDSEAM_NATIVE_SECONDARY_SKY: calls={}, target={}, mappedCameraY={}, completeLevelRenderer=false, compositeReady=false",
+                    nativeSkyMethodCalls, foreign.dimension().location(),
+                    mapped.getPosition().y);
         }
     }
 
