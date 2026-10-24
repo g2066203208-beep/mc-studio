@@ -56,6 +56,9 @@ neoForge {
             client()
             if (project.hasProperty('worldseamE2E')) {
                 systemProperty 'worldseam.e2e', 'true'
+                // Run a real secondary GPU color+depth FBO pass in the GUI.
+                // The result is NOT yet composited into the player view.
+                systemProperty 'worldseam.experimentalOffscreenTerrain', 'true'
             }
             if (project.hasProperty('worldseamStress')) {
                 systemProperty 'worldseam.e2e', 'true'
