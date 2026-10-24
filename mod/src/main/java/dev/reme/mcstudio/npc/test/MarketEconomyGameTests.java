@@ -10,6 +10,8 @@ import dev.reme.mcstudio.npc.life.ResidentMemory;
 import dev.reme.mcstudio.npc.life.ShopCounter;
 import dev.reme.mcstudio.npc.life.SocietyRules;
 import net.minecraft.core.BlockPos;
+import net.minecraft.world.InteractionHand;
+import net.neoforged.neoforge.common.util.FakePlayerFactory;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.nbt.CompoundTag;
@@ -254,5 +256,53 @@ public final class MarketEconomyGameTests {
                 helper.fail("Autonomous vanilla-world customer did not pay shop for real bread", origin);
             else helper.succeed();
         });
+    }
+
+    /**
+     * Server-side player-interaction regression. FakePlayer is used ONLY as
+     * a test caller, not as an NPC actor or a substitute for GUI acceptance.
+     * No time-of-day mutation escapes this synchronous test.
+     */
+    @GameTest(template = "empty", timeoutTicks = 120)
+    public static void player_shop_interaction_requires_real_shift_and_held_payment(
+        GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos at = helper.absolutePos(new BlockPos(5, 9, 5));
+        PlayerNpcEntity clerk = spawn(level, at, PlayerNpcEntity.Profession.SHOPKEEPER);
+        var buyer = FakePlayerFactory.getMinecraft(level);
+        buyer.moveTo(at.getX() + 1.5, at.getY(), at.getZ() + 0.5, 0, 0);
+        buyer.getInventory().clearContent();
+        buyer.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.EMERALD, 3));
+        clerk.backpack().addItem(new ItemStack(Items.BREAD, 3));
+        long oldDayTime = level.getDayTime();
+        try {
+            work(clerk);
+            level.setDayTime(13000);
+            if (ShopCounter.purchase(clerk, buyer, buyer.getMainHandItem()))
+                throw new AssertionError("Human customer bought from a CLOSED night shop");
+            level.setDayTime(1000);
+            clerk.setDecision(new LivingPlanner.Decision(
+                LivingPlanner.Intent.SLEEP, 100, "clerk off duty"));
+            if (ShopCounter.purchase(clerk, buyer, buyer.getMainHandItem()))
+                throw new AssertionError("Human customer bought from a SLEEPING clerk");
+            work(clerk);
+            if (ShopCounter.purchase(clerk, buyer, new ItemStack(Items.EMERALD, 1)))
+                throw new AssertionError("Detached payment minted a physical shop item");
+            if (clerk.backpack().countItem(Items.BREAD) != 3
+                || clerk.backpack().countItem(Items.EMERALD) != 0
+                || buyer.getMainHandItem().getCount() != 3
+                || buyer.getInventory().countItem(Items.BREAD) != 0)
+                throw new AssertionError("Refused player sale mutated goods or currency");
+            if (!ShopCounter.purchase(clerk, buyer, buyer.getMainHandItem())
+                || clerk.backpack().countItem(Items.BREAD) != 2
+                || clerk.backpack().countItem(Items.EMERALD) != 1
+                || buyer.getMainHandItem().getCount() != 2
+                || buyer.getInventory().countItem(Items.BREAD) != 1)
+                throw new AssertionError("Real held emerald did not buy exactly one stocked bread");
+        } finally {
+            level.setDayTime(oldDayTime);
+            buyer.getInventory().clearContent();
+        }
+        helper.succeed();
     }
 }
