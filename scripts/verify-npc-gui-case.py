@@ -89,11 +89,20 @@ def verify(text: str) -> str:
     if holding is None or cell != holding:
         fail("Filmed prisoner never reached his originally assigned real cell")
     locked_at = (holding[0], holding[1], holding[2] + 2)
+    # The real officer acknowledges custody at jail_reached BEFORE the
+    # prisoner's subsequent server tick locks the iron gate. PR #154's
+    # previously correct Minecraft GUI failed because this verifier still
+    # required the unsafe pre-handoff locking order.
+    premature = [m for m in events.get("jail_gate_locked", ())
+                 if arrest.start() < m.start() < jail.start()
+                 and xyz(m.group(), "location") == locked_at]
+    if premature:
+        fail("Real iron gate locked before officer acknowledged cell handoff")
     locked = [m for m in events.get("jail_gate_locked", ())
-              if arrest.start() < m.start() < jail.start()
+              if m.start() > jail.start()
               and xyz(m.group(), "location") == locked_at]
     if not locked:
-        fail("Real iron door at this prisoner's SOUTH cell gate never locked")
+        fail("Real iron door at this prisoner's SOUTH cell gate never locked after officer handoff during filming")
     ticks = [key(m.group(), "tick") for m in (pickup, report, arrest, jail)]
     return ("REME_NPC_REAL_CLIENT_FULL_CASE_RECORDING_OK thief=" + target
             + " ticks=" + ",".join(str(t) for t in ticks)
