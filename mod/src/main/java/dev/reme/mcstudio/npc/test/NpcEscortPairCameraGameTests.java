@@ -360,4 +360,46 @@ public final class NpcEscortPairCameraGameTests {
             throw new AssertionError("Old camera passed through a real stone block");
         helper.succeed();
     }
+
+    /** Real GUI regression: spectator mode has no entity collision, so the
+     *  previous "block-clear" orbit could park INSIDE a moving NPC's head.
+     *  Use a genuinely spawned citizen and its vanilla bounding box; a
+     *  different, still clear third-person angle must be selected instead.
+     */
+    @GameTest(template="empty", timeoutTicks=100)
+    public static void real_npc_body_blocks_face_filling_spectator_lens(
+            GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos origin = helper.absolutePos(new BlockPos(8, 3, 8));
+        Vec3 targetEye = new Vec3(origin.getX() + 0.5,
+            origin.getY() + 1.62, origin.getZ() + 0.5);
+        var first = NpcCameraController.selectClearView(
+            targetEye, 0, p -> true, p -> true);
+        if (first == null) throw new AssertionError("Missing baseline chase lens");
+        PlayerNpcEntity bystander = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (bystander == null) throw new AssertionError("NPC registry unavailable");
+        bystander.moveTo(first.x(), first.y() - bystander.getEyeHeight(),
+            first.z(), 0, 0);
+        if (!level.addFreshEntity(bystander))
+            throw new AssertionError("Could not spawn real camera-occluding NPC");
+        var nearby = level.getEntitiesOfClass(PlayerNpcEntity.class,
+            bystander.getBoundingBox().inflate(12), PlayerNpcEntity::isAlive);
+        Vec3 firstEye = new Vec3(first.x(), first.y(), first.z());
+        if (NpcCameraController.lensClearOfNpcBodies(firstEye, nearby, 0.75))
+            throw new AssertionError("Spectator lens accepted NPC face collision");
+        var recovered = NpcCameraController.selectClearView(
+            targetEye, 0,
+            p -> NpcCameraController.lensClearOfNpcBodies(p, nearby, 0.75),
+            p -> true);
+        if (recovered == null)
+            throw new AssertionError("Safe alternative third-person lens missed");
+        Vec3 recoveredEye = new Vec3(recovered.x(), recovered.y(), recovered.z());
+        if (recoveredEye.distanceToSqr(firstEye) < 0.1
+            || !NpcCameraController.lensClearOfNpcBodies(recoveredEye, nearby, 0.75))
+            throw new AssertionError("Camera still clips the real bystander");
+        if (NpcCameraController.lensClearOfNpcBodies(
+                new Vec3(Double.NaN, 2, 3), nearby, 0.75))
+            throw new AssertionError("Non-finite camera lens accepted");
+        helper.succeed();
+    }
 }
