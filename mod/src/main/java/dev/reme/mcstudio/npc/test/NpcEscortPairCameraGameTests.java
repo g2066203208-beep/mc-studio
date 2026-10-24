@@ -139,6 +139,81 @@ public final class NpcEscortPairCameraGameTests {
         helper.succeed();
     }
 
+    /** A hidden guard must not force a face-filling POV when the real
+     * prisoner still has a collision-free, visible third-person lens.
+     * A genuine two-actor view always wins if both are visible.
+     */
+    @GameTest(template="empty", timeoutTicks=100)
+    public static void blocked_officer_uses_safe_prisoner_only_camera(
+            GameTestHelper helper) {
+        Vec3 prisoner = new Vec3(4.5, 5.5, 4.5);
+        Vec3 officer = new Vec3(10.5, 5.5, 4.5);
+        var solo = NpcCameraController.selectEscortView(prisoner, officer, 0,
+            p -> true, p -> true, p -> false);
+        if (solo == null || solo.sharedLens()
+            || new Vec3(solo.pose().x(), solo.pose().y(), solo.pose().z())
+                .distanceTo(prisoner) < 1.8)
+            throw new AssertionError("Occluded officer forced a closeup despite clear prisoner lens");
+        var paired = NpcCameraController.selectEscortView(prisoner, officer, 0,
+            p -> true, p -> true, p -> true);
+        if (paired == null || !paired.sharedLens())
+            throw new AssertionError("Clear two-actor view lost priority");
+        if (NpcCameraController.selectEscortView(prisoner, officer, 0,
+                p -> true, p -> false, p -> true) != null
+            || NpcCameraController.selectEscortView(prisoner, officer, 0,
+                p -> false, p -> true, p -> true) != null)
+            throw new AssertionError("Camera saw through an occlusion or solid body");
+        helper.succeed();
+    }
+
+    /** Real native stone partition: two loaded Minecraft NPCs on opposite
+     * sides cannot share a clear raycast. The prisoner-side spectator must
+     * remain in an actual free body volume and never look through the wall.
+     */
+    @GameTest(template="empty", timeoutTicks=100)
+    public static void real_stone_wall_blocks_pair_but_allows_safe_solo(
+            GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos base = helper.absolutePos(new BlockPos(10, 2, 10));
+        for (int dx = -4; dx <= 12; dx++)
+            for (int dz = -10; dz <= 10; dz++) {
+                BlockPos tile = base.offset(dx, 0, dz);
+                level.setBlock(tile.below(), Blocks.SMOOTH_STONE.defaultBlockState(), 2);
+                for (int dy = 0; dy < 5; dy++)
+                    level.setBlock(tile.above(dy), Blocks.AIR.defaultBlockState(), 2);
+            }
+        for (int dz = -9; dz <= 9; dz++)
+            for (int dy = 0; dy < 5; dy++)
+                level.setBlock(base.offset(3, dy, dz),
+                    Blocks.STONE.defaultBlockState(), 2);
+        PlayerNpcEntity prisoner = NpcRegistry.PLAYER_NPC.get().create(level);
+        PlayerNpcEntity officer = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (prisoner == null || officer == null)
+            throw new AssertionError("Real NPC entity registration missing");
+        prisoner.moveTo(base.getX() + 0.5, base.getY(), base.getZ() + 0.5, 0, 0);
+        officer.moveTo(base.getX() + 6.5, base.getY(), base.getZ() + 0.5, 0, 0);
+        if (!level.addFreshEntity(prisoner) || !level.addFreshEntity(officer))
+            throw new AssertionError("Could not spawn real custody pair around stone wall");
+        Vec3 first = prisoner.getEyePosition();
+        Vec3 second = officer.getEyePosition();
+        java.util.function.Predicate<Vec3> clear = p ->
+            NpcCameraController.spectatorBodyClearInWorld(level, p, 1.62, 0.6, 1.8);
+        java.util.function.Predicate<Vec3> seesFirst = p ->
+            level.clip(new ClipContext(first, p, ClipContext.Block.COLLIDER,
+                ClipContext.Fluid.NONE, prisoner)).getType() == HitResult.Type.MISS;
+        java.util.function.Predicate<Vec3> seesSecond = p ->
+            level.clip(new ClipContext(second, p, ClipContext.Block.COLLIDER,
+                ClipContext.Fluid.NONE, officer)).getType() == HitResult.Type.MISS;
+        var shot = NpcCameraController.selectEscortView(first, second, 0,
+            clear, seesFirst, seesSecond);
+        if (shot == null || shot.sharedLens())
+            throw new AssertionError("Real stone wall was ignored or safe solo view missed");
+        Vec3 lens = new Vec3(shot.pose().x(), shot.pose().y(), shot.pose().z());
+        if (!clear.test(lens) || !seesFirst.test(lens) || seesSecond.test(lens))
+            throw new AssertionError("Solo spectator intersected a real wall or saw officer through stone");
+        helper.succeed();
+    }
+
     @GameTest(template="empty", timeoutTicks=100)
     public static void spectator_eye_clear_but_body_in_stone_is_rejected(
             GameTestHelper helper) {
