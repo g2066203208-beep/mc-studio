@@ -204,6 +204,13 @@ public final class SeamForeignDepthCompositor {
         boolean blendEnabled = GL11.glIsEnabled(GL11.GL_BLEND);
         boolean cullEnabled = GL11.glIsEnabled(GL11.GL_CULL_FACE);
         boolean depthMask = GL11.glGetBoolean(GL11.GL_DEPTH_WRITEMASK);
+        // Native translucent/weather stages may leave color channels masked or
+        // an unrelated scissor rectangle active. A fullscreen seam triangle
+        // would then write depth without the matching foreign color, leaving
+        // visually black/incomplete regions despite successful draw counters.
+        java.nio.ByteBuffer oldColorMask = BufferUtils.createByteBuffer(4);
+        GL11.glGetBooleanv(GL11.GL_COLOR_WRITEMASK, oldColorMask);
+        boolean scissorEnabled = GL11.glIsEnabled(GL11.GL_SCISSOR_TEST);
         int oldDepthFunc = GL11.glGetInteger(GL11.GL_DEPTH_FUNC);
         try {
             ensureProgram();
@@ -226,6 +233,8 @@ public final class SeamForeignDepthCompositor {
             GL11.glEnable(GL11.GL_DEPTH_TEST);
             GL11.glDepthFunc(GL11.GL_ALWAYS);
             GL11.glDepthMask(true);
+            GL11.glColorMask(true, true, true, true);
+            GL11.glDisable(GL11.GL_SCISSOR_TEST);
             GL11.glDisable(GL11.GL_BLEND);
             GL11.glDisable(GL11.GL_CULL_FACE);
             GL20.glUseProgram(program);
@@ -275,6 +284,11 @@ public final class SeamForeignDepthCompositor {
             else GL11.glDisable(GL11.GL_CULL_FACE);
             GL11.glDepthFunc(oldDepthFunc);
             GL11.glDepthMask(depthMask);
+            GL11.glColorMask(oldColorMask.get(0) != 0,
+                oldColorMask.get(1) != 0, oldColorMask.get(2) != 0,
+                oldColorMask.get(3) != 0);
+            if (scissorEnabled) GL11.glEnable(GL11.GL_SCISSOR_TEST);
+            else GL11.glDisable(GL11.GL_SCISSOR_TEST);
             GlStateManager._glBindFramebuffer(GL30.GL_FRAMEBUFFER, oldFbo);
             // Restore the caller's independently bound READ/DRAW attachments
             // after synchronizing Minecraft's framebuffer state cache.
