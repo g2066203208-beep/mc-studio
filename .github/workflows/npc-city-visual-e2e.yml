@@ -31,6 +31,7 @@ on:
       - fix/npc-camera-partial-block-clearance-v101
       - fix/npc-escort-pair-elevated-clear-lens-v102
       - fix/npc-iron-jail-door-half-integrity-v103
+      - fix/npc-custody-close-escort-leash-v104
   pull_request:
     branches:
       - feat/npc-economy-market-fair-v069
