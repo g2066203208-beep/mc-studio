@@ -109,15 +109,34 @@ def verify(text: str) -> str:
         if officer_feet is None or prisoner_feet is None or sample_tick is None or distance is None:
             fail("Same-UUID escort trace missing real positions, distance or tick")
         try:
-            escort_samples.append((int(sample_tick), officer_feet, prisoner_feet,
-                                   float(distance), key(record, "prisonerMayAdvance")))
+            parsed_tick = int(sample_tick)
+            parsed_distance_sq = float(distance)
         except ValueError:
             fail("Same-UUID escort trace contains invalid numeric evidence")
+        if (not math.isfinite(parsed_distance_sq) or parsed_distance_sq > 16.0
+                or parsed_distance_sq < 0.0):
+            fail("Real escort exceeded four-block officer-prisoner leash")
+        # The server logs precise entity distanceSq alongside integer
+        # BlockPos feet. Each floored coordinate differs from the precise
+        # coordinate by <1, so the pair's Euclidean distance can differ by
+        # at most sqrt(3). Reject a fake 'close escort' number that disagrees
+        # with the two actors' real block positions.
+        block_distance = math.dist(officer_feet, prisoner_feet)
+        if abs(block_distance - math.sqrt(parsed_distance_sq)) > math.sqrt(3.0) + 1e-6:
+            fail("Escort distanceSq contradicts real officer/prisoner coordinates")
+        escort_samples.append((parsed_tick, officer_feet, prisoner_feet,
+                               parsed_distance_sq, key(record, "prisonerMayAdvance")))
     if len(escort_samples) < 3:
         fail("Filmed custody lacks three same-UUID physical escort position samples")
-    if any(not math.isfinite(sample[3]) or sample[3] > 16.0 or sample[3] < 0.0
-           for sample in escort_samples):
-        fail("Real escort exceeded four-block officer-prisoner leash")
+    try:
+        arrest_tick = int(key(arrest.group(), "tick"))
+        jail_tick = int(key(jail.group(), "tick"))
+    except (TypeError, ValueError):
+        fail("Arrest or jail event lacks a valid game tick")
+    if jail_tick <= arrest_tick or any(
+        not arrest_tick < sample[0] < jail_tick for sample in escort_samples
+    ):
+        fail("Physical escort trace game ticks outside arrest-to-jail window")
     if not any(sample[4] == "true" for sample in escort_samples):
         fail("No filmed prisoner movement authorized by the real escort officer")
     for before, after in zip(escort_samples, escort_samples[1:]):
