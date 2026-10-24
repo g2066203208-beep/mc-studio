@@ -68,28 +68,44 @@ public final class SeamForeignDepthCompositor {
         }
 
         void main() {
-            float remoteZ = texture(foreignDepth, texCoord).r;
-            // The far-plane/sky depth is not a real foreign surface.
-            if (remoteZ >= 0.999999) discard;
+            // Test the physical join FIRST, including rays which reach a
+            // native foreign sky rather than a solid foreign surface.
             vec3 farPoint = reconstruct(texCoord, 1.0);
             if (abs(farPoint.y) < 0.00001) discard;
             float seamFraction = seamCameraY / farPoint.y;
             if (seamFraction <= 0.0 || seamFraction >= 1.0) discard;
-
             float seamDistance = length(farPoint * seamFraction);
+
+            // Never paint over a source-world surface in front of the seam.
+            float sourceZ = texture(sourceDepth, texCoord).r;
+            if (sourceZ < 0.999999) {
+                vec3 sourcePoint = reconstruct(texCoord, sourceZ);
+                if (length(sourcePoint) < seamDistance - 0.001) discard;
+            }
+
+            float remoteZ = texture(foreignDepth, texCoord).r;
+            vec4 realForeign = texture(foreignColor, texCoord);
+            // An untouched FBO has alpha zero. In particular, vanilla
+            // Nether has no sky: do NOT invent a colored background there.
+            if (realForeign.a <= 0.001) discard;
+
+            if (remoteZ >= 0.999999) {
+                // Native target LevelRenderer sky writes COLOR but normally
+                // not DEPTH. Previously every such pixel was discarded,
+                // making the genuine secondary sky permanently invisible.
+                // Only show its real color when the ray crosses the seam and
+                // no source geometry occludes that seam.
+                fragColor = vec4(realForeign.rgb, 1.0);
+                gl_FragDepth = 1.0;
+                return;
+            }
+
             vec3 remotePoint = reconstruct(texCoord, remoteZ);
             // A remote surface on the camera's side is never composited.
             if (length(remotePoint) <= seamDistance + 0.001) discard;
             if (remoteBelow != 0 && remotePoint.y >= seamCameraY) discard;
             if (remoteBelow == 0 && remotePoint.y <= seamCameraY) discard;
 
-            float sourceZ = texture(sourceDepth, texCoord).r;
-            if (sourceZ < 0.999999) {
-                vec3 sourcePoint = reconstruct(texCoord, sourceZ);
-                if (length(sourcePoint) < seamDistance - 0.001) discard;
-            }
-            vec4 realForeign = texture(foreignColor, texCoord);
-            if (realForeign.a <= 0.001) discard;
             fragColor = vec4(realForeign.rgb, 1.0);
             // Keep the final framebuffer's depth consistent with the real
             // foreign surface selected by the seam-plane ray test.
