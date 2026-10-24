@@ -61,6 +61,11 @@ neoForge {
                 systemProperty 'worldseam.experimentalOffscreenTerrain', 'true'
                 systemProperty 'worldseam.experimentalDepthComposite', 'true'
             }
+            if (project.hasProperty('worldseamFullNativeE2E')) {
+                // Exercise actual target LevelRenderer.renderLevel in a disposable
+                // graphical client; a passing smoke test is NOT seamlessness.
+                systemProperty 'worldseam.experimentalFullNativeLevel', 'true'
+            }
             if (project.hasProperty('worldseamStress')) {
                 systemProperty 'worldseam.e2e', 'true'
                 systemProperty 'worldseam.stress', 'true'
