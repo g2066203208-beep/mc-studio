@@ -4,6 +4,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.function.IntPredicate;
 
 /**
  * Pure, side-effect-free 5x5 chunk planner; no Minecraft classloader needed.
@@ -30,6 +31,22 @@ public final class SeamChunkPriority {
     public static int chooseSlot(int centerX,int centerZ,int[][] offsets,
             Map<Long,Long> sent,Set<Long> dirty,
             long tick,long refreshTicks,long changeCooldown) {
+        return chooseSlot(centerX,centerZ,offsets,sent,dirty,tick,
+            refreshTicks,changeCooldown,slot -> true);
+    }
+
+    /**
+     * Prefer the nearest unsent chunk that is ACTUALLY resident. A missing
+     * center chunk must not block already-resident neighboring sections:
+     * server tickets load asynchronously and their completion order is not
+     * guaranteed. The caller must never synchronously generate a chunk here.
+     * The predicate receives the offset-array index, not a world chunk key.
+     */
+    public static int chooseSlot(int centerX,int centerZ,int[][] offsets,
+            Map<Long,Long> sent,Set<Long> dirty,
+            long tick,long refreshTicks,long changeCooldown,
+            IntPredicate resident) {
+        if(resident==null)throw new IllegalArgumentException("Missing residency predicate");
         if(offsets.length>(2*MAX_RADIUS+1)*(2*MAX_RADIUS+1) || offsets.length<1 ||
             refreshTicks<=0||changeCooldown<=0)
             throw new IllegalArgumentException("Invalid bounded window planner");
@@ -46,7 +63,9 @@ public final class SeamChunkPriority {
                     tick-previous>=refreshTicks;
                 if(priority==0 && unseen ||
                    priority==1 && changed ||
-                   priority==2 && expired)return i;
+                   priority==2 && expired) {
+                    if(resident.test(i)) return i;
+                }
             }
         }
         return -1;
