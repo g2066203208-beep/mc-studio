@@ -61,11 +61,14 @@ public final class StoreFullDayGameTests {
             throw new AssertionError("Failed actual NeoForge spawn");
 
         final int startingTill=shop.backpack().countItem(Items.EMERALD);
+        final int startingBuyerEmeralds=buyer.backpack().countItem(Items.EMERALD);
+        final int startingTotalEmeralds=startingTill+startingBuyerEmeralds;
         AtomicInteger storeOpenSamples=new AtomicInteger();
         AtomicInteger storeClosedSamples=new AtomicInteger();
         AtomicInteger employeeAtHomeAfterClose=new AtomicInteger();
         AtomicInteger moneyReceived=new AtomicInteger();
         AtomicInteger inPersonPaidTransactions=new AtomicInteger();
+        AtomicInteger currencyDriftSamples=new AtomicInteger();
         final int[] prevEmerald={startingTill};
         final long started=System.nanoTime();
         for(int age=200;age<24000;age+=200){
@@ -85,6 +88,11 @@ public final class StoreFullDayGameTests {
                     inPersonPaidTransactions.incrementAndGet();
                 }
                 prevEmerald[0]=cash;
+                // There are exactly two NPCs in this fixture, no farmer and no
+                // emerald source/sink. A paid sale must transfer, never mint.
+                if(cash+buyer.backpack().countItem(Items.EMERALD)
+                    !=startingTotalEmeralds)
+                    currencyDriftSamples.incrementAndGet();
             });
         }
         helper.runAfterDelay(24000,()->{
@@ -93,6 +101,10 @@ public final class StoreFullDayGameTests {
                 +" closedSamples="+storeClosedSamples.get()
                 +" afterShiftHome="+employeeAtHomeAfterClose.get()
                 +" paidEmeralds="+moneyReceived.get()
+                +" startingEmeralds="+startingTotalEmeralds
+                +" remainingEmeralds="+(shop.backpack().countItem(Items.EMERALD)
+                    +buyer.backpack().countItem(Items.EMERALD))
+                +" currencyDriftSamples="+currencyDriftSamples.get()
                 +" salesTransitions="+inPersonPaidTransactions.get()
                 +" realShopInventory="+ShopCounter.stockedFood(shop.backpack())
                 +" actualBuyersEmerald="+buyer.backpack().countItem(Items.EMERALD)
@@ -103,9 +115,17 @@ public final class StoreFullDayGameTests {
                 helper.fail("Shopper or clerk disappeared during full game day",at);
             else if(storeOpenSamples.get()<5||storeClosedSamples.get()<5)
                 helper.fail("No observable real open/close shift in 24000 Minecraft ticks",at);
+            else if(employeeAtHomeAfterClose.get()==0)
+                helper.fail("Clerk never physically returned home after shift",at);
+            else if(currencyDriftSamples.get()!=0
+                ||shop.backpack().countItem(Items.EMERALD)
+                    +buyer.backpack().countItem(Items.EMERALD)!=startingTotalEmeralds)
+                helper.fail("Emeralds minted or lost during 24000-tick resident shopping",at);
             else if(moneyReceived.get()==0
-                ||buyer.backpack().countItem(Items.EMERALD)>=4)
-                helper.fail("No actual paying NPC customer served during full live shop day",at);
+                ||buyer.backpack().countItem(Items.EMERALD)>=startingBuyerEmeralds
+                ||shop.backpack().countItem(Items.EMERALD)-startingTill
+                    !=startingBuyerEmeralds-buyer.backpack().countItem(Items.EMERALD))
+                helper.fail("Customer payment does not match real merchant income",at);
             else helper.succeed();
         });
     }
