@@ -129,12 +129,15 @@ class GenuineGuiCaseRegression(unittest.TestCase):
     def test_both_actors_must_actually_walk(self):
         lines = [line.replace("officerFeet=-12, 65, 14", "officerFeet=-8, 65, 14")
                      .replace("officerFeet=-17, 65, 14", "officerFeet=-8, 65, 14")
+                     .replace("prisonerFeet=-14, 65, 14", "prisonerFeet=-10, 65, 14")
+                     .replace("prisonerFeet=-19, 65, 14", "prisonerFeet=-10, 65, 14")
                  for line in episode(A, 100)]
         with self.assertRaisesRegex(ValueError, "did not both walk"):
             case.verify(filmed(lines))
 
     def test_implausible_jump_cannot_masquerade_as_native_walk(self):
         lines = [line.replace("officerFeet=-12, 65, 14", "officerFeet=50, 65, 14")
+                     .replace("prisonerFeet=-14, 65, 14", "prisonerFeet=48, 65, 14")
                  for line in episode(A, 100)]
         with self.assertRaisesRegex(ValueError, "implausible position jump"):
             case.verify(filmed(lines))
