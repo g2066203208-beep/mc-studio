@@ -137,6 +137,14 @@ public final class SeamVisualE2E {
                        SeamForeignOffscreenPass.opaquePasses() ||
                    SeamForeignOffscreenPass.restoreFailures()>0)
                     LOG.error("WORLDSEAM_E2E_FAIL_OFFSCREEN_DEPTH_PAIR: secondary color/depth target did not receive real opaque/actor/translucent passes");
+                if(Boolean.getBoolean("worldseam.experimentalDepthComposite")) {
+                    LOG.info("WORLDSEAM_E2E_NATIVE_DEPTH_COMPOSITE: submittedFrames={}, shaderOrGlFailures={}, sourceDepthSnapshot=true, foreignDepthWritten=true, finalAcceptance=false",
+                        SeamForeignDepthCompositor.composites(),
+                        SeamForeignDepthCompositor.failures());
+                    if(SeamForeignDepthCompositor.composites()<1 ||
+                       SeamForeignDepthCompositor.failures()>0)
+                        LOG.error("WORLDSEAM_E2E_FAIL_NATIVE_DEPTH_COMPOSITE: no real foreign-depth pixel pass or shader/GL failure; FBO-only success is insufficient");
+                }
             }
             LOG.info("WORLDSEAM_E2E_REMOTE_LIGHTMAP: created={}, boundFrames={}, failures={}, released={}",
                 SeamRemoteLightmaps.creations(), SeamRemoteLightmaps.boundFrames(),
