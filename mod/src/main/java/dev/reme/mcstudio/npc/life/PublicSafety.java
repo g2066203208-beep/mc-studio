@@ -275,7 +275,10 @@ public final class PublicSafety {
                 + " officerPathDone=" + guard.getNavigation().isDone());
         }
         boolean prisonerAtCell = prisoner.blockPosition().equals(jail);
-        if (prisonerAtCell && guard.distanceToSqr(prisoner) <= 36) {
+        // A cell arrival is not an escorted handoff while the officer is
+        // still five or six blocks away. Use the same four-block reciprocal
+        // leash enforced during the walk, including at the final cell.
+        if (prisonerAtCell && guard.distanceToSqr(prisoner) <= 16.0) {
             guard.getNavigation().stop();
             guard.setAction("on-foot escort completed: prisoner reached REAL iron-bar cell");
             System.out.println("REME_NPC_STORY stage=jail_reached tick=" + tick
