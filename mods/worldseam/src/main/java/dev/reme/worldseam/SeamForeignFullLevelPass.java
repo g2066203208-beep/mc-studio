@@ -2,12 +2,14 @@ package dev.reme.worldseam;
 
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.logging.LogUtils;
+import com.mojang.blaze3d.systems.RenderSystem;
 import dev.reme.worldseam.mixin.SeamGameRendererAccess;
 import dev.reme.worldseam.mixin.SeamMinecraftAccess;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.LevelRenderer;
+import net.minecraft.client.renderer.DimensionSpecialEffects;
 import net.minecraft.client.renderer.FogRenderer;
 import net.minecraft.util.Mth;
 import net.minecraft.world.phys.Vec3;
@@ -84,6 +86,20 @@ public final class SeamForeignFullLevelPass {
         SeamGameRendererAccess game = (SeamGameRendererAccess) mc.gameRenderer;
         active = true;
         try {
+            // GameRenderer normally clears its real scene target to the
+            // biome's fog color before LevelRenderer draws. Our nested pass
+            // previously cleared transparent black instead. Dimensions with
+            // SkyType.NONE (notably vanilla Nether) have NO native sky draw
+            // to cover that black background, so legitimate uncovered rays
+            // remained visibly black even when native geometry rendered.
+            // Use the actual target FogRenderer's computed shader fog RGB,
+            // not a hard-coded color, screenshot, or substitute terrain.
+            // Keep alpha=1 only for no-sky dimensions; normal/End sky must
+            // still be drawn by the target's real LevelRenderer.
+            applyWorldFog(mc, foreign, mapped, partial);
+            float[] nativeNoSkyFog = foreign.effects().skyType()
+                == DimensionSpecialEffects.SkyType.NONE
+                ? RenderSystem.getShaderFogColor().clone() : null;
             boolean drawn = SeamForeignOffscreenPass.drawFullLevel(mc, () -> {
                 RenderTarget sourceTarget = mc.getMainRenderTarget();
                 Camera originalGameCamera = mc.gameRenderer.getMainCamera();
@@ -98,10 +114,8 @@ public final class SeamForeignFullLevelPass {
                         SeamForeignOffscreenPass.currentTarget());
                     game.worldseam$setMainCamera(mapped);
                     try {
-                        // Unlike LevelRenderer, GameRenderer sets the dimension's
-                        // biome/sky fog color. Without this, the genuine Nether
-                        // or End renderer inherits Overworld fog from the caller.
-                        applyWorldFog(mc, foreign, mapped, partial);
+                        // Target fog is already initialized before the FBO
+                        // clear, and remains active throughout native rendering.
                         // GameRenderer normally initializes the culling frustum
                         // before entering LevelRenderer.renderLevel. We invoke
                         // LevelRenderer directly in a nested native pass, so
@@ -117,13 +131,8 @@ public final class SeamForeignFullLevelPass {
                         game.worldseam$setMainCamera(originalGameCamera);
                         client.worldseam$setMainRenderTarget(sourceTarget);
                     }
-                } finally {
-                    // The world/buffer/lightmap scopes have already restored
-                    // Minecraft.level. Rebuild the source fog for the next
-                    // vanilla frame stage, even when the foreign renderer fails.
-                    applyWorldFog(mc, sourceLevel, sourceCamera, partial);
                 }
-            });
+            }, nativeNoSkyFog);
             if (drawn) {
                 completed++;
                 if (completed == 1 || completed % 120 == 0)
@@ -137,7 +146,14 @@ public final class SeamForeignFullLevelPass {
             LOG.error("WorldSeam experimental full secondary LevelRenderer failed; disabled to protect vanilla frame", failure);
             return false;
         } finally {
-            active = false;
+            // Also restore source fog when the FBO could not be allocated,
+            // a nested native pass threw, or no native pixels were produced.
+            // All world/lightmap scopes close before this outer finally.
+            try {
+                applyWorldFog(mc, sourceLevel, sourceCamera, partial);
+            } finally {
+                active = false;
+            }
         }
     }
 }

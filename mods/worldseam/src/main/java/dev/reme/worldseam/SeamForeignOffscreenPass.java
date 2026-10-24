@@ -54,10 +54,22 @@ public final class SeamForeignOffscreenPass {
 
     /** Draw the real target LevelRenderer, not the proxy section VBOs. */
     public static boolean drawFullLevel(Minecraft mc, Runnable foreignLevelDraw) {
+        return drawFullLevel(mc, foreignLevelDraw, null);
+    }
+
+    /**
+     * For dimensions with no native sky, clear to the genuine target biome
+     * fog produced by FogRenderer, matching vanilla's no-sky background.
+     * The depth remains 1.0: this is NOT geometry or a successful chunk
+     * coverage signal. A sky-bearing dimension must use a transparent clear
+     * and let its own LevelRenderer draw the real sky instead.
+     */
+    public static boolean drawFullLevel(Minecraft mc, Runnable foreignLevelDraw,
+                                        float[] nativeNoSkyFog) {
         opaqueReady = false;
         frameComplete = false;
         actorsSubmitted = false;
-        if (!drawScoped(mc, foreignLevelDraw, true)) return false;
+        if (!drawScoped(mc, foreignLevelDraw, true, nativeNoSkyFog)) return false;
         fullLevelPasses++;
         frameComplete = true;
         return true;
@@ -156,7 +168,18 @@ public final class SeamForeignOffscreenPass {
      */
     private static boolean drawScoped(Minecraft mc, Runnable foreignDraw,
                                       boolean clear) {
+        return drawScoped(mc, foreignDraw, clear, null);
+    }
+
+    private static boolean drawScoped(Minecraft mc, Runnable foreignDraw,
+                                      boolean clear, float[] nativeNoSkyFog) {
         RenderSystem.assertOnRenderThread();
+        if (nativeNoSkyFog != null &&
+            (nativeNoSkyFog.length < 3 ||
+             !Float.isFinite(nativeNoSkyFog[0]) ||
+             !Float.isFinite(nativeNoSkyFog[1]) ||
+             !Float.isFinite(nativeNoSkyFog[2])))
+            throw new IllegalArgumentException("Invalid native target biome fog RGB");
         if (active) throw new IllegalStateException("Nested WorldSeam offscreen pass");
         RenderTarget source = mc.getMainRenderTarget();
         if (source == null || source.width <= 0 || source.height <= 0) return false;
@@ -199,7 +222,15 @@ public final class SeamForeignOffscreenPass {
                 // second ClientLevel, regardless of the source render stage.
                 GL11.glDepthMask(true);
                 GL11.glColorMask(true, true, true, true);
-                target.setClearColor(0f, 0f, 0f, 0f);
+                if (nativeNoSkyFog == null) {
+                    target.setClearColor(0f, 0f, 0f, 0f);
+                } else {
+                    // This is the target ClientLevel's actual vanilla
+                    // FogRenderer RGB. Do not paint fake chunks or change
+                    // depth: missing geometry must remain measurable.
+                    target.setClearColor(nativeNoSkyFog[0],
+                        nativeNoSkyFog[1], nativeNoSkyFog[2], 1f);
+                }
                 target.clear(true);
             }
             target.bindWrite(true);
