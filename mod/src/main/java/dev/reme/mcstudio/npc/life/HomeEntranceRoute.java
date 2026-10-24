@@ -39,6 +39,15 @@ public final class HomeEntranceRoute {
      * All probes are loaded-only and bounded to 33x33x3 around saved home.
      */
     @Nullable public static Entrance nearestOpenDoor(ServerLevel level, BlockPos home) {
+        return nearestDoor(level, home, false);
+    }
+
+    /** Route planning may also find a closed, hand-openable wooden door.
+     * The public open-only query stays strict for callers that require
+     * immediate passage; a closed iron or redstone-only gate is never used.
+     */
+    @Nullable private static Entrance nearestDoor(ServerLevel level,
+            BlockPos home, boolean includeClosedWood) {
         BlockPos bestDoor = null;
         Entrance best = null;
         double bestScore = Double.POSITIVE_INFINITY;
@@ -51,7 +60,9 @@ public final class HomeEntranceRoute {
                     if (!(state.getBlock() instanceof DoorBlock)
                         || state.is(Blocks.IRON_DOOR)
                         || state.getValue(DoorBlock.HALF) != DoubleBlockHalf.LOWER
-                        || !state.getValue(DoorBlock.OPEN)) continue;
+                        || (!state.getValue(DoorBlock.OPEN)
+                            && (!includeClosedWood
+                                || !DoorBlock.isWoodenDoor(state)))) continue;
                     Direction normal = state.getValue(DoorBlock.FACING);
                     BlockPos a = door.relative(normal);
                     BlockPos b = door.relative(normal.getOpposite());
@@ -111,19 +122,37 @@ public final class HomeEntranceRoute {
     public static boolean moveTowardEntrance(PlayerNpcEntity npc,
                                               ServerLevel level,
                                               BlockPos indoorGoal, double speed) {
-        Entrance entrance = nearestOpenDoor(level, indoorGoal);
+        if (!level.getServer().isSameThread() || !npc.isAlive()) return false;
+        Entrance entrance = nearestDoor(level, indoorGoal, true);
         if (entrance == null) return false;
         BlockPos here = npc.blockPosition();
+        // Only a resident actually standing beside their selected house/work
+        // entrance may operate its wooden door. Vanilla setOpen updates BOTH
+        // halves and emits the genuine opening sound; no block is fabricated.
+        // Never open iron doors, powered gates or doors in unloaded chunks.
+        BlockPos outside = entrance.outside(), inside = entrance.inside();
+        BlockPos door = new BlockPos((outside.getX() + inside.getX()) / 2,
+            outside.getY(), (outside.getZ() + inside.getZ()) / 2);
+        if (here.distSqr(outside) <= 2 || here.distSqr(inside) <= 2) {
+            BlockState state = level.getBlockState(door);
+            if (state.getBlock() instanceof DoorBlock block
+                && DoorBlock.isWoodenDoor(state)
+                && state.getValue(DoorBlock.HALF) == DoubleBlockHalf.LOWER
+                && !state.getValue(DoorBlock.OPEN)) {
+                block.setOpen(npc, level, state, door, true);
+                npc.setAction("physically opened the wooden home/work door");
+            }
+        }
         BlockPos target = nextDoorStage(entrance, here);
         if (here.equals(target)) return false;
         Path path = npc.getNavigation().createPath(target, 0);
         if (path != null && path.canReach()
             && npc.getNavigation().moveTo(path, speed)) {
-            npc.setAction("walking physically to open residential doorway");
+            npc.setAction("walking through a real home/work doorway");
             return true;
         }
         if (RoadNavigator.moveToward(npc, level, target, speed)) {
-            npc.setAction("approaching actual open home door along paved road");
+            npc.setAction("approaching actual home/work door along paved road");
             return true;
         }
         return false;
