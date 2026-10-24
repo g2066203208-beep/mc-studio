@@ -62,6 +62,9 @@ public final class SeamNativeGeometryClient {
     private static final SeamRenderBudget DRAW_BUDGET = new SeamRenderBudget();
     private static final SeamRenderBuffers OWNED_BUFFERS = new SeamRenderBuffers();
     private static volatile long lastFrameDrawCpuNanos;
+    // Real target translucent layers must be submitted after vanilla source
+    // translucent blocks, not in the opaque/BE phase.
+    private static List<Section> pendingTranslucent=List.of();
     private static ClientLevel queuedRemote;
     private static SeamGraph.Link queuedLink;
     private static final int[][] NEIGHBORS = {
@@ -419,8 +422,13 @@ public final class SeamNativeGeometryClient {
     }
 
     private static void render(RenderLevelStageEvent event) {
+        if(event.getStage()==RenderLevelStageEvent.Stage.AFTER_TRANSLUCENT_BLOCKS) {
+            renderTranslucent(event);
+            return;
+        }
         if (event.getStage()!=RenderLevelStageEvent.Stage.AFTER_BLOCK_ENTITIES)
             return;
+        pendingTranslucent=List.of();
         lastFrameDrawn=0;
         lastFrameEndStone=0;
         lastFrameGpuModels=0;
@@ -483,6 +491,9 @@ public final class SeamNativeGeometryClient {
                 long gpuStart=System.nanoTime();
                 var sections=new ArrayList<Section>(visible.size());
                 for(var slice:visible)sections.add(slice.gpuSection());
+                // Retain only the native section identities for this one
+                // frame's second, post-source-translucency GPU pass.
+                pendingTranslucent=List.copyOf(sections);
                 // Native section baking/upload is deliberately restricted to
                 // ClientTickEvent.Post above. Recompiling here used to block
                 // the actual render stage on modded block-model tessellation
@@ -514,6 +525,7 @@ public final class SeamNativeGeometryClient {
             } catch (RuntimeException | Error failure) {
                 LOG.error("WorldSeam GPU section pipeline failed; falling back to safe legacy model drawing",failure);
                 gpuDisabled=true;
+                pendingTranslucent=List.of();
                 GPU.release();
             }
         }
@@ -581,6 +593,38 @@ public final class SeamNativeGeometryClient {
         }
     }
 
+    /**
+     * Submit actual foreign water/lava/glass VBOs in the same stage family
+     * as vanilla source translucency. This fixes the previous guaranteed
+     * wrong ordering (remote translucent before source translucent).
+     * A complete second native LevelRenderer with per-pixel depth and fog
+     * composition is still required for final acceptance.
+     */
+    private static void renderTranslucent(RenderLevelStageEvent event) {
+        List<Section> sections=pendingTranslucent;
+        pendingTranslucent=List.of();
+        if(sections.isEmpty() || gpuDisabled || event.getPoseStack()==null ||
+           queuedRemote==null || Minecraft.getInstance().level==null ||
+           !source.equals(Minecraft.getInstance().level.dimension()
+               .location().toString()))return;
+        try(SeamRemoteLightmaps.Scope ignored=
+                SeamRemoteLightmaps.bind(queuedRemote)) {
+            long started=System.nanoTime();
+            GPU.drawTranslucent(sections,event.getPoseStack(),
+                event.getCamera().getPosition());
+            lastFrameGpuModels=GPU.lastFrameModelsVisible();
+            lastFrameGpuSections=GPU.lastFrameCachedSections();
+            lastFrameGpuCpuNanos+=Math.max(0,System.nanoTime()-started);
+            lastFrameDrawn=Math.max(lastFrameDrawn,lastFrameGpuModels);
+            lastFrameEndStone=Math.max(lastFrameEndStone,
+                GPU.lastFrameEndStoneModels());
+        } catch(RuntimeException | Error failure) {
+            LOG.error("WorldSeam foreign native translucent pass failed",failure);
+            gpuDisabled=true;
+            GPU.release();
+        }
+    }
+
     private static void renderForeignActors(RenderLevelStageEvent event) {
         if(queuedRemote==null || queuedLink==null)return;
         // These are actual foreign ClientLevel objects, not decorative
@@ -608,6 +652,9 @@ public final class SeamNativeGeometryClient {
     }
     public static int lastFrameGpuFluidCells() {
         return GPU.lastFrameFluidCells();
+    }
+    public static int lastFrameTranslucentDrawCalls() {
+        return GPU.lastFrameTranslucentDrawCalls();
     }
 
     public static int countEndStone() {
@@ -657,6 +704,7 @@ public final class SeamNativeGeometryClient {
 
     public static void reset() {
         columns.clear();
+        pendingTranslucent=List.of();
         blocksBuilt=0;
         logicalPlaneNeighborReads=0;
         lastFrameDrawn=0;
