@@ -10,6 +10,7 @@ import net.minecraft.core.Direction;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.DoorBlock;
 import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
@@ -52,8 +53,16 @@ public final class CityCustodyRouteGameTests {
             .setValue(DoorBlock.FACING,Direction.SOUTH)
             .setValue(DoorBlock.HALF,DoubleBlockHalf.LOWER);
         var up=low.setValue(DoorBlock.HALF,DoubleBlockHalf.UPPER);
-        level.setBlock(gate,low,2);
-        level.setBlock(gate.above(),up.setValue(DoorBlock.FACING,Direction.NORTH),2);
+        // Deliberately inject a broken persisted pair. Ordinary vanilla
+        // neighbor shape updates REPAIR mismatched door halves automatically,
+        // so bypass only those updates in this isolated negative fixture.
+        int corruptFixtureFlags=Block.UPDATE_CLIENTS | Block.UPDATE_KNOWN_SHAPE;
+        level.setBlock(gate,low,corruptFixtureFlags);
+        level.setBlock(gate.above(),
+            up.setValue(DoorBlock.FACING,Direction.NORTH),corruptFixtureFlags);
+        if(level.getBlockState(gate).getValue(DoorBlock.FACING)
+            ==level.getBlockState(gate.above()).getValue(DoorBlock.FACING))
+            throw new AssertionError("Fixture was auto-repaired before gate validation");
         if(CityJailGate.isGate(level,jail)
             ||CityJailGate.setOpen(level,jail,true))
             throw new AssertionError("Different facing halves authorized custody");
@@ -61,11 +70,15 @@ public final class CityCustodyRouteGameTests {
             ||level.getBlockState(gate.above()).getValue(DoorBlock.OPEN))
             throw new AssertionError("Invalid cell door was mutated");
         // Even matching materials and facing cannot excuse a split open state.
-        level.setBlock(gate.above(),up.setValue(DoorBlock.OPEN,true),2);
+        level.setBlock(gate.above(),
+            up.setValue(DoorBlock.OPEN,true),corruptFixtureFlags);
+        if(level.getBlockState(gate).getValue(DoorBlock.OPEN)
+            ==level.getBlockState(gate.above()).getValue(DoorBlock.OPEN))
+            throw new AssertionError("Split-open fixture was auto-repaired");
         if(CityJailGate.isGate(level,jail)
             ||CityJailGate.setOpen(level,jail,true))
             throw new AssertionError("Split OPEN states authorized custody");
-        level.setBlock(gate.above(),up,2);
+        level.setBlock(gate.above(),up,corruptFixtureFlags);
         if(!CityJailGate.isGate(level,jail)
             ||!CityJailGate.setOpen(level,jail,true)
             ||!level.getBlockState(gate).getValue(DoorBlock.OPEN)
