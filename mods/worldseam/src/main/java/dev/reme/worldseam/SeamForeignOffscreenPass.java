@@ -32,6 +32,7 @@ public final class SeamForeignOffscreenPass {
     private static long resizes;
     private static long opaquePasses;
     private static long nativeSkyPasses;
+    private static long fullLevelPasses;
     private static long translucentPasses;
     private static long actorPasses;
     private static boolean actorsSubmitted;
@@ -44,6 +45,23 @@ public final class SeamForeignOffscreenPass {
 
     public static long opaquePasses() { return opaquePasses; }
     public static long nativeSkyPasses() { return nativeSkyPasses; }
+    public static long fullLevelPasses() { return fullLevelPasses; }
+    static RenderTarget currentTarget() {
+        if (!active || target == null)
+            throw new IllegalStateException("Foreign framebuffer is not bound");
+        return target;
+    }
+
+    /** Draw the real target LevelRenderer, not the proxy section VBOs. */
+    public static boolean drawFullLevel(Minecraft mc, Runnable foreignLevelDraw) {
+        opaqueReady = false;
+        frameComplete = false;
+        actorsSubmitted = false;
+        if (!drawScoped(mc, foreignLevelDraw, true)) return false;
+        fullLevelPasses++;
+        frameComplete = true;
+        return true;
+    }
     public static long translucentPasses() { return translucentPasses; }
     public static long actorPasses() { return actorPasses; }
     public static boolean opaqueReady() { return opaqueReady; }
