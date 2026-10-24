@@ -78,6 +78,14 @@ public final class SeamForeignFullLevelPass {
                         SeamForeignOffscreenPass.currentTarget());
                     game.worldseam$setMainCamera(mapped);
                     try {
+                        // GameRenderer normally initializes the culling frustum
+                        // before entering LevelRenderer.renderLevel. We invoke
+                        // LevelRenderer directly in a nested native pass, so
+                        // prepare the TARGET renderer's own frustum explicitly.
+                        // Without this, setupRender -> offsetFrustum receives
+                        // a null matrix and the real GUI throws NPE.
+                        renderer.prepareCullFrustum(mapped.getPosition(),
+                            event.getModelViewMatrix(), event.getProjectionMatrix());
                         renderer.renderLevel(event.getPartialTick(), false, mapped,
                             mc.gameRenderer, mc.gameRenderer.lightTexture(),
                             event.getModelViewMatrix(), event.getProjectionMatrix());
