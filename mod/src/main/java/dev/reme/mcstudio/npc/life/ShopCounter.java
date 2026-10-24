@@ -5,6 +5,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.block.entity.ChestBlockEntity;
 import net.minecraft.world.Container;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.entity.player.Player;
@@ -22,9 +23,15 @@ import net.minecraft.world.item.Items;
 public final class ShopCounter {
     private ShopCounter() {}
 
+    /** Coordinates alone never authorize a transaction across dimensions. */
+    public static boolean samePhysicalWorld(Entity first, Entity second) {
+        return first.level() == second.level();
+    }
+
     public static boolean purchase(PlayerNpcEntity clerk, Player buyer,
                                    ItemStack payment) {
-        if (clerk.profession() != PlayerNpcEntity.Profession.SHOPKEEPER
+        if (!samePhysicalWorld(clerk, buyer)
+            || clerk.profession() != PlayerNpcEntity.Profession.SHOPKEEPER
             || clerk.mode() != PlayerNpcEntity.Mode.LIVE
             || clerk.isDetained(clerk.level().getGameTime())
             || !clerk.isAlive() || !buyer.isAlive()
@@ -99,7 +106,8 @@ public final class ShopCounter {
 
     public static boolean purchaseByResident(PlayerNpcEntity shop, PlayerNpcEntity customer,
                                               long tick) {
-        if (shop == customer || !shop.isAlive() || !customer.isAlive()
+        if (shop == customer || !samePhysicalWorld(shop, customer)
+            || !shop.isAlive() || !customer.isAlive()
             || shop.mode() != PlayerNpcEntity.Mode.LIVE
             || customer.mode() != PlayerNpcEntity.Mode.LIVE
             || !openForResidentSales(shop)
@@ -144,7 +152,8 @@ public final class ShopCounter {
      */
     public static boolean buyHarvestFromFarmer(PlayerNpcEntity shop, PlayerNpcEntity farmer,
                                                long tick) {
-        if (shop == farmer || !shop.isAlive() || !farmer.isAlive()
+        if (shop == farmer || !samePhysicalWorld(shop, farmer)
+            || !shop.isAlive() || !farmer.isAlive()
             || shop.profession() != PlayerNpcEntity.Profession.SHOPKEEPER
             || farmer.profession() != PlayerNpcEntity.Profession.FARMER
             || shop.mode() != PlayerNpcEntity.Mode.LIVE
@@ -218,7 +227,8 @@ public final class ShopCounter {
      */
     public static int restock(PlayerNpcEntity clerk, ServerLevel level) {
         BlockPos spot = clerk.shopStockChest();
-        if (spot == null || clerk.profession() != PlayerNpcEntity.Profession.SHOPKEEPER
+        if (spot == null || clerk.level() != level
+            || clerk.profession() != PlayerNpcEntity.Profession.SHOPKEEPER
             || clerk.mode() != PlayerNpcEntity.Mode.LIVE || !clerk.isAlive()
             || clerk.isDetained(level.getGameTime())
             || !DailyRoaming.inRange(clerk, spot)
