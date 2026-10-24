@@ -37,6 +37,7 @@ on:
       - test/npc-full-day-store-conservation-v107
       - fix/npc-cross-dimension-trade-guard-v108
       - fix/npc-home-door-inside-stage-v109
+      - fix/npc-cell-arrival-officer-four-block-v110
   pull_request:
     branches:
       - feat/npc-economy-market-fair-v069

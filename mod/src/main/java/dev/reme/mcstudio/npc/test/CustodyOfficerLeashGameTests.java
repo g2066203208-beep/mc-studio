@@ -198,4 +198,43 @@ public final class CustodyOfficerLeashGameTests {
             throw new AssertionError("Absent-prisoner escort did not expire on time");
         helper.succeed();
     }
+
+    /** Reaching the real cell does not finish an escort with the arresting
+     * officer still five blocks away. The last handoff must respect the same
+     * four-block leash as the rest of the physical walking route.
+     */
+    @GameTest(template="empty",timeoutTicks=100)
+    public static void real_cell_handoff_waits_for_own_officer_within_four_blocks(
+        GameTestHelper helper) {
+        ServerLevel level=helper.getLevel();
+        BlockPos jail=helper.absolutePos(new BlockPos(10,2,10));
+        for(int dx=-1;dx<=7;dx++)for(int dz=-2;dz<=2;dz++) {
+            BlockPos tile=jail.offset(dx,0,dz);
+            level.setBlock(tile.below(),Blocks.SMOOTH_STONE.defaultBlockState(),2);
+            for(int dy=0;dy<3;dy++)
+                level.setBlock(tile.above(dy),Blocks.AIR.defaultBlockState(),2);
+        }
+        level.setBlock(jail.north(),Blocks.IRON_BARS.defaultBlockState(),2);
+        if(!PublicSafety.holdingSpot(level,jail))
+            throw new AssertionError("Real iron-bar holding cell fixture invalid");
+        PlayerNpcEntity prisoner=npc(level,jail,PlayerNpcEntity.Profession.RESIDENT);
+        PlayerNpcEntity officer=npc(level,jail.east(5),PlayerNpcEntity.Profession.GUARD);
+        officer.setHomePos(jail);
+        long now=level.getGameTime();
+        prisoner.detainAt(jail,now+400);
+        prisoner.assignCustodyOfficer(officer.getUUID());
+        officer.assignPrisonerEscort(prisoner.getUUID(),now+400);
+        if(!PublicSafety.tickGuard(officer,level,now)
+            || !prisoner.getUUID().equals(officer.escortedPrisoner()))
+            throw new AssertionError("Five-block officer gap falsely completed jail escort");
+        // Arrange the boundary position in the test fixture only; the
+        // production escort must continue using vanilla foot navigation.
+        officer.moveTo(jail.getX()+4.5,jail.getY(),jail.getZ()+0.5,0,0);
+        if(!PublicSafety.tickGuard(officer,level,now)
+            || officer.escortedPrisoner()!=null)
+            throw new AssertionError("Officer at four blocks failed to complete real cell handoff");
+        if(!prisoner.isDetained(now) || !prisoner.blockPosition().equals(jail))
+            throw new AssertionError("Handoff changed real prisoner position or detention");
+        helper.succeed();
+    }
 }
