@@ -181,6 +181,10 @@ if [[ "${REME_CITY_VISUAL:-0}" == "1" ]]; then
     -pix_fmt yuv420p -movflags +faststart \
     client-gui-city-full-crime-to-locked-jail.mp4 >client-gui-city-case-ffmpeg.log 2>&1 &
   CASE_VIDEO_PID=$!
+  # These two /say commands enter the SAME integrated-server log as the
+  # physical crime events. The verifier now rejects a jail arrival that
+  # happened after the MP4 stopped recording.
+  say_city '/say REME_NPC_CASE_VIDEO_START' 1
   # Preserve the ORIGINAL center feet Y before real surface blocks are
   # placed. Spawning the marker AFTER /npc city demo captures a player who
   # has been collision-pushed one block UP by the new road; /npc city grow
@@ -204,9 +208,37 @@ if [[ "${REME_CITY_VISUAL:-0}" == "1" ]]; then
   import -window root client-gui-city-full-case-t4.png
   sleep 15
   import -window root client-gui-city-full-case-t5.png
+  # The former harness stopped ffmpeg after ~100s even if the tracked thief
+  # had not yet reached the REAL cell. The same UUID's later server event
+  # then falsely validated an MP4 showing only the shop. Keep filming until
+  # this actual citizen reaches the cell, or fail with the diagnostic video.
+  case_target=$(python3 - <<'PY'
+from pathlib import Path
+import re
+text = Path('client-gui.log').read_text(encoding='utf-8', errors='replace')
+match = re.search(r'已连续跟踪真实NPC ([0-9a-f-]{36})：CHASE', text)
+print(match.group(1) if match else '')
+PY
+  )
+  case_reached=0
+  if [[ -n "$case_target" ]]; then
+    for _ in $(seq 1 90); do
+      if grep -F 'REME_NPC_STORY stage=jail_reached' client-gui.log \
+          | grep -Fq "prisoner=$case_target"; then
+        case_reached=1
+        break
+      fi
+      sleep 2
+    done
+  fi
+  say_city '/say REME_NPC_CASE_VIDEO_END' 1
   say_city '/npc camera stop' 1
   kill -INT "$CASE_VIDEO_PID" 2>/dev/null || true
   wait "$CASE_VIDEO_PID" || true
+  if (( case_reached == 0 )); then
+    echo "FAIL: filmed UUID $case_target never physically reached its cell while ffmpeg was recording"
+    exit 1
+  fi
   # Return to the physical city center (not an obsolete moving NPC spawn).
   # Native spectator travel moves only our observer, not any citizen.
   say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run tp @s ~ ~1 ~' 2
