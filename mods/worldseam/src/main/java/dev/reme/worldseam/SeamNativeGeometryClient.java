@@ -660,6 +660,20 @@ public final class SeamNativeGeometryClient {
 
     private static void renderForeignActors(RenderLevelStageEvent event) {
         if(queuedRemote==null || queuedLink==null)return;
+        // The experimental native FBO already contains the REAL remote
+        // opaque terrain and its depth. Submit actual foreign BEs/entities
+        // against that SAME depth before the late translucent pass. Draw
+        // them again to the existing visible preview until a genuine native
+        // two-world depth compositor replaces the preview entirely.
+        if(EXPERIMENTAL_NATIVE_OFFSCREEN &&
+           SeamForeignOffscreenPass.opaqueReady()) {
+            SeamForeignOffscreenPass.drawActors(Minecraft.getInstance(),
+                () -> drawForeignActorsNative(event));
+        }
+        drawForeignActorsNative(event);
+    }
+
+    private static void drawForeignActorsNative(RenderLevelStageEvent event) {
         // These are actual foreign ClientLevel objects, not decorative
         // overlays. Their depth ordering relative to WorldSeam terrain is
         // now correct; native LevelRenderer compositing, sky, translucent
