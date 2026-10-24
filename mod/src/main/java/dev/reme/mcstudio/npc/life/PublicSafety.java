@@ -237,6 +237,17 @@ public final class PublicSafety {
             guard.clearPrisonerEscort();
             return false;
         }
+        // A stale guard-side escort UUID must not acknowledge another
+        // officer's custody at the cell. Require the reciprocal identity
+        // before touching either the prisoner's link or the real gate.
+        // Legacy prisoners with no officer UUID retain their old route.
+        UUID assignedOfficer = prisoner.custodyOfficer();
+        if (assignedOfficer != null && !assignedOfficer.equals(guard.getUUID())) {
+            guard.getNavigation().stop();
+            guard.clearPrisonerEscort();
+            guard.setAction("escort cancelled: prisoner belongs to another officer");
+            return false;
+        }
         if (!level.hasChunkAt(prisoner.blockPosition())) {
             guard.getNavigation().stop();
             guard.setTarget(null);
