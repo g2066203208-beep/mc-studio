@@ -58,6 +58,8 @@ public final class SeamForeignDepthCompositor {
         uniform sampler2D foreignDepth;
         uniform sampler2D sourceDepth;
         uniform mat4 inverseProjectionView;
+        uniform mat4 inverseForeignProjectionView;
+        uniform mat4 originalProjectionView;
         uniform float seamCameraY;
         uniform int remoteBelow;
 
@@ -100,7 +102,9 @@ public final class SeamForeignDepthCompositor {
                 return;
             }
 
-            vec3 remotePoint = reconstruct(texCoord, remoteZ);
+            vec4 foreignH=inverseForeignProjectionView *
+                vec4(texCoord * 2.0 - 1.0,remoteZ * 2.0 - 1.0,1.0);
+            vec3 remotePoint=foreignH.xyz/foreignH.w;
             // A remote surface on the camera's side is never composited.
             if (length(remotePoint) <= seamDistance + 0.001) discard;
             if (remoteBelow != 0 && remotePoint.y >= seamCameraY) discard;
@@ -109,7 +113,9 @@ public final class SeamForeignDepthCompositor {
             fragColor = vec4(realForeign.rgb, 1.0);
             // Keep the final framebuffer's depth consistent with the real
             // foreign surface selected by the seam-plane ray test.
-            gl_FragDepth = remoteZ;
+            vec4 sourceClip=originalProjectionView * vec4(remotePoint,1.0);
+            if(sourceClip.w<=0.0) discard;
+            gl_FragDepth=clamp((sourceClip.z/sourceClip.w+1.0)*0.5,0.0,1.0);
         }
         """;
 
@@ -174,7 +180,8 @@ public final class SeamForeignDepthCompositor {
      */
     public static boolean composite(Minecraft mc, int foreignColorId,
                                     int foreignDepthId, Matrix4f modelView,
-                                    Matrix4f projection, float seamCameraY,
+                                    Matrix4f projection, Matrix4f foreignProjection,
+                                    float seamCameraY,
                                     boolean remoteBelow) {
         RenderSystem.assertOnRenderThread();
         RenderTarget source = mc.getMainRenderTarget();
@@ -247,11 +254,17 @@ public final class SeamForeignDepthCompositor {
                 GL11.glBindTexture(GL11.GL_TEXTURE_2D, textures[unit]);
                 GL20.glUniform1i(GL20.glGetUniformLocation(program, samplers[unit]), unit);
             }
-            Matrix4f inverse = new Matrix4f(projection).mul(modelView).invert();
+            Matrix4f originalPV=new Matrix4f(projection).mul(modelView);
+            Matrix4f inverse=new Matrix4f(originalPV).invert();
+            Matrix4f foreignInverse=new Matrix4f(foreignProjection).mul(modelView).invert();
             try (MemoryStack stack = MemoryStack.stackPush()) {
                 GL20.glUniformMatrix4fv(
                     GL20.glGetUniformLocation(program, "inverseProjectionView"),
                     false, inverse.get(stack.mallocFloat(16)));
+                GL20.glUniformMatrix4fv(GL20.glGetUniformLocation(program,"inverseForeignProjectionView"),
+                    false,foreignInverse.get(stack.mallocFloat(16)));
+                GL20.glUniformMatrix4fv(GL20.glGetUniformLocation(program,"originalProjectionView"),
+                    false,originalPV.get(stack.mallocFloat(16)));
             }
             GL20.glUniform1f(GL20.glGetUniformLocation(program, "seamCameraY"),
                 seamCameraY);

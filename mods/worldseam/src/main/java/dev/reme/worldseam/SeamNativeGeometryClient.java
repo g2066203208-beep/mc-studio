@@ -757,12 +757,16 @@ public final class SeamNativeGeometryClient {
                 .location().toString()) || queuedLink==null) return;
         if (EXPERIMENTAL_FULL_NATIVE_LEVEL) {
             if (!SeamForeignFullLevelPass.render(event, queuedRemote,
-                    sourceBoundary, targetBoundary)) return;
+                    sourceBoundary, targetBoundary,
+                    queuedLink.exit()==SeamGraph.EdgeSide.BOTTOM)) return;
         } else if (!SeamForeignOffscreenPass.frameComplete()) return;
         SeamForeignDepthCompositor.composite(Minecraft.getInstance(),
             SeamForeignOffscreenPass.colorTextureId(),
             SeamForeignOffscreenPass.depthTextureId(),
             event.getModelViewMatrix(), event.getProjectionMatrix(),
+            EXPERIMENTAL_FULL_NATIVE_LEVEL ?
+                SeamForeignFullLevelPass.projectionForComposite(event.getProjectionMatrix()) :
+                event.getProjectionMatrix(),
             (float)(sourceBoundary-event.getCamera().getPosition().y),
             queuedLink.exit()==SeamGraph.EdgeSide.BOTTOM);
     }

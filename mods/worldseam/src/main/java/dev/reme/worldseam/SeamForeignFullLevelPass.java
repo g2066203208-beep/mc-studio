@@ -13,6 +13,7 @@ import net.minecraft.client.renderer.DimensionSpecialEffects;
 import net.minecraft.client.renderer.FogRenderer;
 import net.minecraft.util.Mth;
 import net.minecraft.world.phys.Vec3;
+import org.joml.Matrix4f;
 import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
 import org.slf4j.Logger;
 
@@ -33,12 +34,18 @@ public final class SeamForeignFullLevelPass {
     private static boolean disabled;
     private static long completed;
     private static long failures;
+    private static long clippedFrames;
+    private static final boolean ENABLE_CLIP = Boolean.getBoolean("worldseam.experimentalNativeSeamClip");
+    private static Matrix4f lastProjection;
 
     private SeamForeignFullLevelPass() {}
 
     public static boolean active() { return active; }
     public static long completed() { return completed; }
     public static long failures() { return failures; }
+    public static Matrix4f projectionForComposite(Matrix4f fallback) {
+        return lastProjection == null ? fallback : new Matrix4f(lastProjection);
+    }
 
     private static final class MappedCamera extends Camera {
         void relocate(Camera source, int sourceBoundary, int targetBoundary) {
@@ -63,7 +70,8 @@ public final class SeamForeignFullLevelPass {
     }
 
     public static boolean render(RenderLevelStageEvent event, ClientLevel foreign,
-                                 int sourceBoundary, int targetBoundary) {
+                                 int sourceBoundary, int targetBoundary,
+                                 boolean remoteBelow) {
         Minecraft mc = Minecraft.getInstance();
         if (active || disabled || foreign == null || foreign == mc.level ||
             mc.level == null || event.getCamera() == null ||
@@ -72,6 +80,7 @@ public final class SeamForeignFullLevelPass {
         if (renderer == null || SeamClientWorldPool.renderBuffersFor(foreign) == null)
             return false;
 
+        lastProjection = null;
         Camera sourceCamera = event.getCamera();
         // The vanilla GameRenderer normally establishes the world's fog
         // color BEFORE LevelRenderer.renderLevel. A nested second-world
@@ -81,6 +90,10 @@ public final class SeamForeignFullLevelPass {
         MappedCamera mapped = new MappedCamera();
         mapped.setup(foreign, sourceCamera.getEntity(), false, false, partial);
         mapped.relocate(sourceCamera, sourceBoundary, targetBoundary);
+        float seamY=(float)(sourceBoundary-sourceCamera.getPosition().y);
+        Matrix4f clipped=ENABLE_CLIP ? SeamNativeClipProjection.beyondSeam(
+            event.getProjectionMatrix(),event.getModelViewMatrix(),seamY,remoteBelow) : null;
+        Matrix4f nativeProjection=clipped==null?event.getProjectionMatrix():clipped;
 
         SeamMinecraftAccess client = (SeamMinecraftAccess) mc;
         SeamGameRendererAccess game = (SeamGameRendererAccess) mc.gameRenderer;
@@ -103,6 +116,8 @@ public final class SeamForeignFullLevelPass {
             boolean drawn = SeamForeignOffscreenPass.drawFullLevel(mc, () -> {
                 RenderTarget sourceTarget = mc.getMainRenderTarget();
                 Camera originalGameCamera = mc.gameRenderer.getMainCamera();
+                Matrix4f originalProjection=new Matrix4f(RenderSystem.getProjectionMatrix());
+                var originalSorting=RenderSystem.getVertexSorting();
                 try (SeamRemoteLightmaps.Scope lightmap =
                          SeamRemoteLightmaps.bind(foreign);
                      SeamForeignActorWorldScope.Scope world =
@@ -113,6 +128,7 @@ public final class SeamForeignFullLevelPass {
                     client.worldseam$setMainRenderTarget(
                         SeamForeignOffscreenPass.currentTarget());
                     game.worldseam$setMainCamera(mapped);
+                    RenderSystem.setProjectionMatrix(nativeProjection,originalSorting);
                     try {
                         // Target fog is already initialized before the FBO
                         // clear, and remains active throughout native rendering.
@@ -123,17 +139,25 @@ public final class SeamForeignFullLevelPass {
                         // Without this, setupRender -> offsetFrustum receives
                         // a null matrix and the real GUI throws NPE.
                         renderer.prepareCullFrustum(mapped.getPosition(),
-                            event.getModelViewMatrix(), event.getProjectionMatrix());
+                            event.getModelViewMatrix(), nativeProjection);
                         renderer.renderLevel(event.getPartialTick(), false, mapped,
                             mc.gameRenderer, mc.gameRenderer.lightTexture(),
-                            event.getModelViewMatrix(), event.getProjectionMatrix());
+                            event.getModelViewMatrix(), nativeProjection);
                     } finally {
+                        RenderSystem.setProjectionMatrix(originalProjection,originalSorting);
                         game.worldseam$setMainCamera(originalGameCamera);
                         client.worldseam$setMainRenderTarget(sourceTarget);
                     }
                 }
             }, nativeNoSkyFog);
             if (drawn) {
+                lastProjection=new Matrix4f(nativeProjection);
+                if(clipped!=null) {
+                    clippedFrames++;
+                    if(clippedFrames==1||clippedFrames%120==0)
+                        LOG.info("WORLDSEAM_NATIVE_PREDEPTH_CLIP: frames={}, seamY={}, target={}, finalAcceptance=false",
+                            clippedFrames,seamY,foreign.dimension().location());
+                }
                 completed++;
                 if (completed == 1 || completed % 120 == 0)
                     LOG.info("WORLDSEAM_NATIVE_SECOND_LEVEL_RENDERED: passes={}, dimension={}, mappedCameraY={}, fullLevelRenderer=true, seamlessAcceptance=false",
