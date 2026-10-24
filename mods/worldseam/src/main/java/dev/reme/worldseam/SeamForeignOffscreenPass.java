@@ -193,6 +193,13 @@ public final class SeamForeignOffscreenPass {
         // that distinction and can corrupt the following source-world pass.
         int oldReadFramebuffer = GL11.glGetInteger(GL30.GL_READ_FRAMEBUFFER_BINDING);
         int oldDrawFramebuffer = GL11.glGetInteger(GL30.GL_DRAW_FRAMEBUFFER_BINDING);
+        // A nested vanilla renderer can inherit a scissor rectangle from the
+        // source dimension or a post-process pass. glClear obeys SCISSOR_TEST:
+        // leaving it enabled produces stale color/depth OUTSIDE that rectangle
+        // even when the target is a freshly allocated real ClientLevel FBO.
+        boolean oldScissorEnabled = GL11.glIsEnabled(GL11.GL_SCISSOR_TEST);
+        IntBuffer oldScissorBox = BufferUtils.createIntBuffer(4);
+        GL11.glGetIntegerv(GL11.GL_SCISSOR_BOX, oldScissorBox);
         // Minecraft's current render stage may disable depth or color writes.
         // glClear obeys these masks; a stale mask produces a foreign FBO with
         // uncleared depth/alpha and a visibly broken seam on later frames.
@@ -217,6 +224,10 @@ public final class SeamForeignOffscreenPass {
             }
             if (target.getColorTextureId() <= 0 || target.getDepthTextureId() <= 0)
                 throw new IllegalStateException("Secondary native color/depth attachments missing");
+            // The full target LevelRenderer owns its own viewport and geometry.
+            // Do not inherit a source-world scissor clip while clearing or
+            // rendering this independent native second-world target.
+            GL11.glDisable(GL11.GL_SCISSOR_TEST);
             if (clear) {
                 // Never carry a prior frame's native depth or alpha into a
                 // second ClientLevel, regardless of the source render stage.
@@ -244,6 +255,10 @@ public final class SeamForeignOffscreenPass {
                     oldColorMask.get(3) != 0);
                 GL11.glClearColor(oldClearColor.get(0), oldClearColor.get(1),
                     oldClearColor.get(2), oldClearColor.get(3));
+                GL11.glScissor(oldScissorBox.get(0), oldScissorBox.get(1),
+                    oldScissorBox.get(2), oldScissorBox.get(3));
+                if (oldScissorEnabled) GL11.glEnable(GL11.GL_SCISSOR_TEST);
+                else GL11.glDisable(GL11.GL_SCISSOR_TEST);
                 GlStateManager._glBindFramebuffer(GL30.GL_FRAMEBUFFER, oldFramebuffer);
                 if (oldReadFramebuffer != oldFramebuffer)
                     GL30.glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER, oldReadFramebuffer);
@@ -252,8 +267,9 @@ public final class SeamForeignOffscreenPass {
                 RenderSystem.viewport(x, y, width, height);
                 if (GlStateManager.getBoundFramebuffer() != oldFramebuffer ||
                     GL11.glGetInteger(GL30.GL_READ_FRAMEBUFFER_BINDING) != oldReadFramebuffer ||
-                    GL11.glGetInteger(GL30.GL_DRAW_FRAMEBUFFER_BINDING) != oldDrawFramebuffer)
-                    throw new IllegalStateException("Source READ/DRAW framebuffer not restored");
+                    GL11.glGetInteger(GL30.GL_DRAW_FRAMEBUFFER_BINDING) != oldDrawFramebuffer ||
+                    GL11.glIsEnabled(GL11.GL_SCISSOR_TEST) != oldScissorEnabled)
+                    throw new IllegalStateException("Source READ/DRAW framebuffer or scissor state not restored");
             } catch (RuntimeException | Error failure) {
                 restoreFailures++;
                 throw failure;
