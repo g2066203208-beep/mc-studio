@@ -8,6 +8,8 @@ import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.LevelRenderer;
+import net.minecraft.client.renderer.FogRenderer;
+import net.minecraft.util.Mth;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
 import org.slf4j.Logger;
@@ -44,6 +46,20 @@ public final class SeamForeignFullLevelPass {
         }
     }
 
+    private static void applyWorldFog(Minecraft mc, ClientLevel world,
+                                      Camera camera, float partial) {
+        FogRenderer.setupColor(camera, partial, world,
+            mc.options.getEffectiveRenderDistance(),
+            mc.gameRenderer.getDarkenWorldAmount(partial));
+        float distance = Math.max(mc.gameRenderer.getRenderDistance(), 32.0F);
+        boolean foggy = world.effects().isFoggyAt(
+            Mth.floor(camera.getPosition().x), Mth.floor(camera.getPosition().y))
+            || mc.gui.getBossOverlay().shouldCreateWorldFog();
+        FogRenderer.setupFog(camera, FogRenderer.FogMode.FOG_TERRAIN,
+            distance, foggy, partial);
+        FogRenderer.levelFogColor();
+    }
+
     public static boolean render(RenderLevelStageEvent event, ClientLevel foreign,
                                  int sourceBoundary, int targetBoundary) {
         Minecraft mc = Minecraft.getInstance();
@@ -55,6 +71,10 @@ public final class SeamForeignFullLevelPass {
             return false;
 
         Camera sourceCamera = event.getCamera();
+        // The vanilla GameRenderer normally establishes the world's fog
+        // color BEFORE LevelRenderer.renderLevel. A nested second-world
+        // LevelRenderer must do that itself and restore the source fog after.
+        ClientLevel sourceLevel = mc.level;
         float partial = event.getPartialTick().getGameTimeDeltaPartialTick(false);
         MappedCamera mapped = new MappedCamera();
         mapped.setup(foreign, sourceCamera.getEntity(), false, false, partial);
@@ -78,6 +98,10 @@ public final class SeamForeignFullLevelPass {
                         SeamForeignOffscreenPass.currentTarget());
                     game.worldseam$setMainCamera(mapped);
                     try {
+                        // Unlike LevelRenderer, GameRenderer sets the dimension's
+                        // biome/sky fog color. Without this, the genuine Nether
+                        // or End renderer inherits Overworld fog from the caller.
+                        applyWorldFog(mc, foreign, mapped, partial);
                         // GameRenderer normally initializes the culling frustum
                         // before entering LevelRenderer.renderLevel. We invoke
                         // LevelRenderer directly in a nested native pass, so
@@ -93,6 +117,11 @@ public final class SeamForeignFullLevelPass {
                         game.worldseam$setMainCamera(originalGameCamera);
                         client.worldseam$setMainRenderTarget(sourceTarget);
                     }
+                } finally {
+                    // The world/buffer/lightmap scopes have already restored
+                    // Minecraft.level. Rebuild the source fog for the next
+                    // vanilla frame stage, even when the foreign renderer fails.
+                    applyWorldFog(mc, sourceLevel, sourceCamera, partial);
                 }
             });
             if (drawn) {
