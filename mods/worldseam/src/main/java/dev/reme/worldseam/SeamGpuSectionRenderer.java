@@ -67,12 +67,15 @@ public final class SeamGpuSectionRenderer {
     private final Map<Key,Section> dirty=new LinkedHashMap<>();
     // Cached VBOs are not proof that a shader actually drew them this frame.
     private final Set<Key> fullyDrawnLastFrame=new HashSet<>();
+    private final Set<Key> opaqueReadyLastFrame=new HashSet<>();
+    private final Map<Key,Integer> completedLayerCounts=new HashMap<>();
     private long compilations,uploads,drawCalls,evictions;
     private long cachedVertexBytes;
     private int lastFrameCachedSections,lastFrameUncachedSections;
     private int lastFrameModelsVisible;
     private int lastFrameEndStoneModels;
     private int lastFrameFluidCells;
+    private int lastFrameTranslucentDrawCalls;
 
     public void changed(Section section) {
         dirty.put(section.key(),section);
@@ -260,28 +263,45 @@ public final class SeamGpuSectionRenderer {
         }
     }
 
-    /** Called inside RenderLevelStageEvent with the original source camera. */
+    /**
+     * Draw opaque/cutout native target geometry before source translucency,
+     * then the real target translucent VBOs AFTER source translucent blocks.
+     * This does not yet implement full per-pixel cross-chart depth sorting.
+     */
     public void draw(List<Section> visible,PoseStack pose,Vec3 camera) {
+        opaqueReadyLastFrame.clear();
+        completedLayerCounts.clear();
+        lastFrameTranslucentDrawCalls=0;
+        drawPass(visible,pose,camera,false);
+    }
+
+    public void drawTranslucent(List<Section> visible,PoseStack pose,Vec3 camera) {
+        drawPass(visible,pose,camera,true);
+    }
+
+    private void drawPass(List<Section> visible,PoseStack pose,Vec3 camera,
+                          boolean translucentPass) {
         lastFrameCachedSections=0;
         lastFrameUncachedSections=0;
         lastFrameModelsVisible=0;
         lastFrameEndStoneModels=0;
         lastFrameFluidCells=0;
+        if(translucentPass)fullyDrawnLastFrame.clear();
         var projection=RenderSystem.getProjectionMatrix();
 
         // Order by RENDER TYPE before submitting GPU draws. The first
         // prototype switched texture, shader and blend states hundreds of
         // times each frame (one switch per section x layer). Grouping cuts
         // these expensive switches to one per actual RenderType.
-        fullyDrawnLastFrame.clear();
-        var completedLayerCounts=new HashMap<Key,Integer>();
         var passes=new LinkedHashMap<RenderType,List<DrawTask>>();
         for(var section:visible) {
             var cached=loaded.get(section.key());
             if(cached==null || cached.layers().isEmpty()) continue;
-            for(var layer:cached.layers())
+            for(var layer:cached.layers()) {
+                if(layer.renderType().sortOnUpload()!=translucentPass)continue;
                 passes.computeIfAbsent(layer.renderType(),k->new ArrayList<>())
                     .add(new DrawTask(section,layer));
+            }
         }
         var types=new ArrayList<>(passes.keySet());
         types.sort(Comparator.comparing(type->type.sortOnUpload()));
@@ -307,6 +327,7 @@ public final class SeamGpuSectionRenderer {
                     task.layer().buffer().bind();
                     task.layer().buffer().drawWithShader(matrix,projection,shader);
                     drawCalls++;
+                    if(translucentPass)lastFrameTranslucentDrawCalls++;
                     completedLayerCounts.merge(section.key(),1,Integer::sum);
                 }
             } finally {
@@ -319,12 +340,19 @@ public final class SeamGpuSectionRenderer {
         // instead keeps the safe fallback active, not a false green light.
         for(var section:visible) {
             var cached=loaded.get(section.key());
-            if(cached==null || cached.layers().isEmpty() ||
-                completedLayerCounts.getOrDefault(section.key(),0)<cached.layers().size()) {
+            if(cached==null || cached.layers().isEmpty()) {
                 lastFrameUncachedSections++;
                 continue;
             }
-            fullyDrawnLastFrame.add(section.key());
+            long required=cached.layers().stream()
+                .filter(layer->translucentPass || !layer.renderType().sortOnUpload())
+                .count();
+            if(completedLayerCounts.getOrDefault(section.key(),0)<required) {
+                lastFrameUncachedSections++;
+                continue;
+            }
+            if(translucentPass)fullyDrawnLastFrame.add(section.key());
+            else opaqueReadyLastFrame.add(section.key());
             lastFrameCachedSections++;
             // When a section changes, its OLD mesh stays until re-uploaded:
             // report the submitted mesh instead of the new dirty cell list.
@@ -339,7 +367,9 @@ public final class SeamGpuSectionRenderer {
         }
     }
 
-    public boolean ready(Key key){return fullyDrawnLastFrame.contains(key);}
+    /** Opaque completion controls the immediate fallback; transparency follows later. */
+    public boolean ready(Key key){return opaqueReadyLastFrame.contains(key);}
+    public int lastFrameTranslucentDrawCalls(){return lastFrameTranslucentDrawCalls;}
     public int cachedCount(){return loaded.size();}
     public int pendingCount(){return dirty.size();}
     public int lastFrameCachedSections(){return lastFrameCachedSections;}
@@ -358,6 +388,9 @@ public final class SeamGpuSectionRenderer {
         loaded.clear();
         dirty.clear();
         fullyDrawnLastFrame.clear();
+        opaqueReadyLastFrame.clear();
+        completedLayerCounts.clear();
+        lastFrameTranslucentDrawCalls=0;
         cachedVertexBytes=0;
         lastFrameCachedSections=lastFrameUncachedSections=lastFrameModelsVisible=0;
         lastFrameEndStoneModels=0;
