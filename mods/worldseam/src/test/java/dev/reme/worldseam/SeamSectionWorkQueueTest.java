@@ -53,6 +53,27 @@ class SeamSectionWorkQueueTest {
         assertThrows(IllegalArgumentException.class,()->q.drain(33,0,0,2,0));
     }
 
+    @Test void liveRemoteEditsRebuildBothSidesOfNativeVerticalSectionEdges() {
+        var q=new SeamSectionWorkQueue();
+        // Edit at native Y=15: the fluid/occlusion neighbors at Y=16
+        // must be rebuilt, not just the containing Y=0..15 section.
+        q.invalidateWithNeighbors(-2,3,14,17);
+        assertEquals(10,q.size()); // 2 vertical sections x 5 columns
+        var changed=new HashSet<>(q.drain(32,-2,3,2,0));
+        assertTrue(changed.contains(new SeamSectionWorkQueue.Work(-2,3,0)));
+        assertTrue(changed.contains(new SeamSectionWorkQueue.Work(-2,3,1)));
+        assertTrue(changed.contains(new SeamSectionWorkQueue.Work(-3,3,1)));
+        assertTrue(changed.contains(new SeamSectionWorkQueue.Work(-2,4,0)));
+        assertEquals(10,changed.size());
+
+        // Negative Y is floor-divided, not truncated towards zero.
+        q.invalidateWithNeighbors(-2,3,-17,-14);
+        var negative=new HashSet<>(q.drain(32,-2,3,2,-1));
+        assertTrue(negative.contains(new SeamSectionWorkQueue.Work(-2,3,-2)));
+        assertTrue(negative.contains(new SeamSectionWorkQueue.Work(-2,3,-1)));
+        assertEquals(10,negative.size());
+    }
+
     @Test void clearReleasesPendingWorkAfterDimensionChange() {
         var q=new SeamSectionWorkQueue();
         q.invalidateWithNeighbors(0,0,0,160);
