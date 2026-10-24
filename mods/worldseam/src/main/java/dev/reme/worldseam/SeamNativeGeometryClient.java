@@ -129,7 +129,7 @@ public final class SeamNativeGeometryClient {
         // callback deliberately does not claim full independent fog setup;
         // fog and seam-depth compositing remain required.
         try (SeamForeignActorWorldScope.Scope ignored =
-                 SeamForeignActorWorldScope.bind(foreign, sourceCamera)) {
+                 SeamForeignActorWorldScope.bind(foreign, mapped, sourceCamera)) {
             renderer.renderSky(event.getModelViewMatrix(),
                 event.getProjectionMatrix(), partial, mapped, false, () -> {});
             nativeSkyMethodCalls++;
