@@ -69,6 +69,9 @@ public final class SeamNativeGeometryClient {
     // NeoForge 1.21.1 recommends AFTER_TRIPWIRE_BLOCKS rather than the
     // broken-in-Fabulous AFTER_TRANSLUCENT_BLOCKS for custom transparency.
     private static List<Section> pendingTranslucent=List.of();
+    // The experimental FBO must finish its translucent pass in the SAME
+    // vanilla frame as its opaque pass, preserving the target's real depth.
+    private static List<Section> pendingOffscreenTranslucent=List.of();
     private static ClientLevel queuedRemote;
     private static SeamGraph.Link queuedLink;
     private static final int[][] NEIGHBORS = {
@@ -433,6 +436,8 @@ public final class SeamNativeGeometryClient {
         if (event.getStage()!=RenderLevelStageEvent.Stage.AFTER_BLOCK_ENTITIES)
             return;
         pendingTranslucent=List.of();
+        pendingOffscreenTranslucent=List.of();
+        SeamForeignOffscreenPass.beginFrame();
         lastFrameDrawn=0;
         lastFrameEndStone=0;
         lastFrameGpuModels=0;
@@ -512,9 +517,12 @@ public final class SeamNativeGeometryClient {
                 // Sample one of every 30 frames to keep the temporary
                 // architecture check from doubling normal render cost.
                 if(EXPERIMENTAL_NATIVE_OFFSCREEN && GPU.cachedCount()>0 &&
-                   (++offscreenFrameCounter % 30)==1)
+                   (++offscreenFrameCounter % 30)==1) {
                     SeamForeignOffscreenPass.drawOpaque(mc,
                         () -> GPU.draw(sections,pose,camera));
+                    if(SeamForeignOffscreenPass.opaqueReady())
+                        pendingOffscreenTranslucent=List.copyOf(sections);
+                }
                 GPU.draw(sections,pose,camera);
                 lastFrameGpuModels=GPU.lastFrameModelsVisible();
                 lastFrameGpuSections=GPU.lastFrameCachedSections();
@@ -616,7 +624,9 @@ public final class SeamNativeGeometryClient {
      */
     private static void renderTranslucent(RenderLevelStageEvent event) {
         List<Section> sections=pendingTranslucent;
+        List<Section> offscreenSections=pendingOffscreenTranslucent;
         pendingTranslucent=List.of();
+        pendingOffscreenTranslucent=List.of();
         if(sections.isEmpty() || gpuDisabled || event.getPoseStack()==null ||
            queuedRemote==null || Minecraft.getInstance().level==null ||
            !source.equals(Minecraft.getInstance().level.dimension()
@@ -624,6 +634,15 @@ public final class SeamNativeGeometryClient {
         try(SeamRemoteLightmaps.Scope ignored=
                 SeamRemoteLightmaps.bind(queuedRemote)) {
             long started=System.nanoTime();
+            // Finish the experimental secondary color+depth target with
+            // ACTUAL target-world water/lava/glass VBOs. This pass retains
+            // opaque depth and is deliberately not composited into the
+            // source frame until geometric seam clipping is correct.
+            if(!offscreenSections.isEmpty())
+                SeamForeignOffscreenPass.drawTranslucent(
+                    Minecraft.getInstance(),
+                    () -> GPU.drawTranslucent(offscreenSections,
+                        event.getPoseStack(),event.getCamera().getPosition()));
             GPU.drawTranslucent(sections,event.getPoseStack(),
                 event.getCamera().getPosition());
             lastFrameGpuModels=GPU.lastFrameModelsVisible();
@@ -719,6 +738,7 @@ public final class SeamNativeGeometryClient {
     public static void reset() {
         columns.clear();
         pendingTranslucent=List.of();
+        pendingOffscreenTranslucent=List.of();
         blocksBuilt=0;
         logicalPlaneNeighborReads=0;
         lastFrameDrawn=0;
