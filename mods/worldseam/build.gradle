@@ -65,6 +65,7 @@ neoForge {
                 // Exercise actual target LevelRenderer.renderLevel in a disposable
                 // graphical client; a passing smoke test is NOT seamlessness.
                 systemProperty 'worldseam.experimentalFullNativeLevel', 'true'
+                systemProperty 'worldseam.foreignNativeViewRadius', '4'
             }
             if (project.hasProperty('worldseamStress')) {
                 systemProperty 'worldseam.e2e', 'true'
@@ -77,6 +78,9 @@ neoForge {
                 // Disposable native-only validation: map actual Nether physics
                 // voxels into ONE authoritative Overworld Sable Rapier scene.
                 systemProperty 'worldseam.experimentalRemoteRapier', 'true'
+                // Film and GUI must exercise the SAME genuine second renderer.
+                systemProperty 'worldseam.experimentalFullNativeLevel', 'true'
+                systemProperty 'worldseam.foreignNativeViewRadius', '4'
             }
             // Comma-separated list of namespaces to load gametests from. Empty = all namespaces.
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id

@@ -39,6 +39,29 @@ class SeamChunkPriorityTest {
             sent,Set.of(k(1,0)),250,1200,20);
         assertEquals(1,slot);
     }
+    @Test void nativeOuterRingsNeverPreemptCrossingCriticalFiveByFive() {
+        int[][] offsets=SeamChunkPriority.centerFirstOffsets(8);
+        assertEquals(289,offsets.length);
+        assertArrayEquals(new int[]{0,0},offsets[0]);
+        for(int i=0;i<offsets.length;i++) {
+            int ring=Math.max(Math.abs(offsets[i][0]),Math.abs(offsets[i][1]));
+            if(i<25)assertTrue(ring<=2);
+            if(i>=25)assertTrue(ring>=3);
+        }
+        var sent=new HashMap<Long,Long>();
+        for(int i=0;i<25;i++)
+            sent.put(k(offsets[i][0],offsets[i][1]),10L);
+        assertEquals(25,SeamChunkPriority.chooseSlot(
+            0,0,offsets,sent,Set.of(k(0,0)),200,1200,20));
+    }
+    @Test void nativeViewRadiusIsBoundedAndComplete() {
+        assertEquals(25,SeamChunkPriority.centerFirstOffsets(2).length);
+        assertEquals(1089,SeamChunkPriority.centerFirstOffsets(16).length);
+        assertThrows(IllegalArgumentException.class,
+            () -> SeamChunkPriority.centerFirstOffsets(1));
+        assertThrows(IllegalArgumentException.class,
+            () -> SeamChunkPriority.centerFirstOffsets(17));
+    }
     @Test void earliestRefreshOnlyAfterDeadline() {
         var sent=new HashMap<Long,Long>();
         for(var p:OFFSETS)sent.put(k(p[0],p[1]),100L);

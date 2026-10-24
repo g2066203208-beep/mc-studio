@@ -34,26 +34,21 @@ public final class SeamChunkSender {
     private static final int INTERVAL=10;
     private static final int REFRESH_TICKS=1200;
     private static final int DIRTY_COOLDOWN=20;
-    private static final int WINDOW_RADIUS=2;
-    private static final int TICKET_DISTANCE=3;
+    // Preserve the proven 5x5 default; expand only in explicitly opted-in
+    // disposable full-native GUI/film tests. Clamp server-owned tickets.
+    private static final int WINDOW_RADIUS=Math.max(2,Math.min(
+        SeamChunkPriority.MAX_RADIUS,
+        Integer.getInteger("worldseam.foreignNativeViewRadius",2)));
+    private static final int TICKET_DISTANCE=WINDOW_RADIUS+1;
     // Residency state uses independent enter/release radii. Never pin both
     // Nether connection planes simply because the player is near Y64.
     private static final TicketType<ChunkPos> VIEW_TICKET=TicketType.create(
         "worldseam_dual_view", Comparator.comparingLong(ChunkPos::toLong)
     );
-    private static final int[][] OFFSETS=offsets();
+    private static final int[][] OFFSETS=
+        SeamChunkPriority.centerFirstOffsets(WINDOW_RADIUS);
     private static MinecraftServer lastServer;
     private static final Map<UUID,Session> sessions=new HashMap<>();
-
-    private static int[][] offsets() {
-        var list=new java.util.ArrayList<int[]>();
-        for(int z=-WINDOW_RADIUS;z<=WINDOW_RADIUS;z++)
-            for(int x=-WINDOW_RADIUS;x<=WINDOW_RADIUS;x++)
-                list.add(new int[]{x,z});
-        list.sort(Comparator.comparingInt((int[] a) ->
-            Math.max(Math.abs(a[0]),Math.abs(a[1]))*100+a[0]*a[0]+a[1]*a[1]));
-        return list.toArray(new int[0][]);
-    }
 
     private static final class Session {
         String scope="";
@@ -165,8 +160,11 @@ public final class SeamChunkSender {
         // Warm the crossing-critical 3x3 rapidly, then the 5x5 visual
         // window. Once resident, send only bounded dirty-block updates or
         // infrequent 1200-tick refreshes. No permanent full-chunk stream.
+        // Keep legacy 3x3/5x5 priority; stream genuine outer chunks at
+        // one per tick without blocking on synchronous terrain generation.
         int cadence=session.lastSent.size()<9?2:
-            (session.lastSent.size()<OFFSETS.length?5:INTERVAL);
+            (session.lastSent.size()<25?5:
+             session.lastSent.size()<OFFSETS.length?1:INTERVAL);
         if(tick%cadence!=0)return;
 
         int slot=SeamChunkPriority.chooseSlot(centerX,centerZ,OFFSETS,
@@ -195,10 +193,11 @@ public final class SeamChunkSender {
         session.lastSent.put(key,tick);
         if(session.dirty.remove(key))session.changeResends++;
         session.packetsSent++;
-        if(slot==8 || slot==24)
-            LOG.info("WorldSeam dual-world target={} center={},{} cached-window={}/25 sent={} forcedFetches={} ticketMoves={}",
+        if(slot==8 || slot==24 || slot==OFFSETS.length-1)
+            LOG.info("WorldSeam dual-world target={} center={},{} cached-window={}/{} nativeRadius={} sent={} forcedFetches={} ticketMoves={}",
                 selected.target(),centerX,centerZ,session.lastSent.size(),
-                session.packetsSent,session.chunkFetches,session.ticketChanges);
+                OFFSETS.length,WINDOW_RADIUS,session.packetsSent,
+                session.chunkFetches,session.ticketChanges);
     }
 
     public record StreamStats(boolean ticketActive,int resident,int transmitted,
@@ -252,8 +251,9 @@ public final class SeamChunkSender {
         if(session==null||session.ticketLevel==null||session.ticketCenter==null)
             return 0;
         int count=0;
-        for(int z=-WINDOW_RADIUS;z<=WINDOW_RADIUS;z++)
-            for(int x=-WINDOW_RADIUS;x<=WINDOW_RADIUS;x++)
+        // This readiness metric intentionally remains crossing-critical 5x5.
+        for(int z=-2;z<=2;z++)
+            for(int x=-2;x<=2;x++)
                 if(session.ticketLevel.hasChunk(session.ticketCenter.x+x,
                     session.ticketCenter.z+z))count++;
         return count;
