@@ -11,6 +11,8 @@ import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL30;
 import org.slf4j.Logger;
 
+import java.nio.ByteBuffer;
+import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
 
 /**
@@ -145,6 +147,19 @@ public final class SeamForeignOffscreenPass {
         if (!clear && (target == null || target.width != source.width ||
                        target.height != source.height)) return false;
         int oldFramebuffer = GlStateManager.getBoundFramebuffer();
+        // A native post-process or shader mod may have distinct READ/DRAW
+        // framebuffer bindings. GL_FRAMEBUFFER restoration alone destroys
+        // that distinction and can corrupt the following source-world pass.
+        int oldReadFramebuffer = GL11.glGetInteger(GL30.GL_READ_FRAMEBUFFER_BINDING);
+        int oldDrawFramebuffer = GL11.glGetInteger(GL30.GL_DRAW_FRAMEBUFFER_BINDING);
+        // Minecraft's current render stage may disable depth or color writes.
+        // glClear obeys these masks; a stale mask produces a foreign FBO with
+        // uncleared depth/alpha and a visibly broken seam on later frames.
+        boolean oldDepthMask = GL11.glGetBoolean(GL11.GL_DEPTH_WRITEMASK);
+        ByteBuffer oldColorMask = BufferUtils.createByteBuffer(4);
+        GL11.glGetBooleanv(GL11.GL_COLOR_WRITEMASK, oldColorMask);
+        FloatBuffer oldClearColor = BufferUtils.createFloatBuffer(4);
+        GL11.glGetFloatv(GL11.GL_COLOR_CLEAR_VALUE, oldClearColor);
         IntBuffer viewport = BufferUtils.createIntBuffer(4);
         GL11.glGetIntegerv(GL11.GL_VIEWPORT, viewport);
         int x = viewport.get(0), y = viewport.get(1);
@@ -162,6 +177,10 @@ public final class SeamForeignOffscreenPass {
             if (target.getColorTextureId() <= 0 || target.getDepthTextureId() <= 0)
                 throw new IllegalStateException("Secondary native color/depth attachments missing");
             if (clear) {
+                // Never carry a prior frame's native depth or alpha into a
+                // second ClientLevel, regardless of the source render stage.
+                GL11.glDepthMask(true);
+                GL11.glColorMask(true, true, true, true);
                 target.setClearColor(0f, 0f, 0f, 0f);
                 target.clear(true);
             }
@@ -170,10 +189,22 @@ public final class SeamForeignOffscreenPass {
             return true;
         } finally {
             try {
+                GL11.glDepthMask(oldDepthMask);
+                GL11.glColorMask(oldColorMask.get(0) != 0,
+                    oldColorMask.get(1) != 0, oldColorMask.get(2) != 0,
+                    oldColorMask.get(3) != 0);
+                GL11.glClearColor(oldClearColor.get(0), oldClearColor.get(1),
+                    oldClearColor.get(2), oldClearColor.get(3));
                 GlStateManager._glBindFramebuffer(GL30.GL_FRAMEBUFFER, oldFramebuffer);
+                if (oldReadFramebuffer != oldFramebuffer)
+                    GL30.glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER, oldReadFramebuffer);
+                if (oldDrawFramebuffer != oldFramebuffer)
+                    GL30.glBindFramebuffer(GL30.GL_DRAW_FRAMEBUFFER, oldDrawFramebuffer);
                 RenderSystem.viewport(x, y, width, height);
-                if (GlStateManager.getBoundFramebuffer() != oldFramebuffer)
-                    throw new IllegalStateException("Source framebuffer not restored");
+                if (GlStateManager.getBoundFramebuffer() != oldFramebuffer ||
+                    GL11.glGetInteger(GL30.GL_READ_FRAMEBUFFER_BINDING) != oldReadFramebuffer ||
+                    GL11.glGetInteger(GL30.GL_DRAW_FRAMEBUFFER_BINDING) != oldDrawFramebuffer)
+                    throw new IllegalStateException("Source READ/DRAW framebuffer not restored");
             } catch (RuntimeException | Error failure) {
                 restoreFailures++;
                 throw failure;
