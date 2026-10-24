@@ -26,8 +26,9 @@ def episode(who: str, start: int, complete: bool = True) -> list[str]:
         f"REME_NPC_STORY stage=police_contact tick={start+50} guard={GUARD} suspect={who} blows=3 stunned=true",
         f"REME_NPC_STORY stage=post_stun_arrest tick={start+70} guard={GUARD} suspect={who} holding=-22, 65, 14",
     ] + ([
+        # Both events may happen in one server tick; log ORDER still matters.
+        f"REME_NPC_STORY stage=jail_reached tick={start+120} guard={GUARD} prisoner={who} cell=-22, 65, 14",
         f"REME_NPC_STORY stage=jail_gate_locked tick={start+120} location=-22, 65, 16",
-        f"REME_NPC_STORY stage=jail_reached tick={start+121} guard={GUARD} prisoner={who} cell=-22, 65, 14",
     ] if complete else [])
 
 
@@ -51,7 +52,7 @@ class GenuineGuiCaseRegression(unittest.TestCase):
 
     def test_wrong_cell_gate_is_not_real_custody(self):
         lines = episode(A, 100)
-        lines[-2] = lines[-2].replace("location=-22, 65, 16", "location=20, 65, 16")
+        lines[-1] = lines[-1].replace("location=-22, 65, 16", "location=20, 65, 16")
         with self.assertRaisesRegex(ValueError, "never locked"):
             case.verify(filmed(lines))
 
@@ -63,7 +64,7 @@ class GenuineGuiCaseRegression(unittest.TestCase):
 
     def test_arresting_guard_must_match_jail_officer(self):
         lines = episode(A, 100)
-        lines[-1] = lines[-1].replace("guard=" + GUARD, "guard=" + B)
+        lines[-2] = lines[-2].replace("guard=" + GUARD, "guard=" + B)
         with self.assertRaisesRegex(ValueError, "not the escorting"):
             case.verify(filmed(lines))
 
@@ -81,9 +82,30 @@ class GenuineGuiCaseRegression(unittest.TestCase):
 
     def test_jail_arrival_after_mp4_end_is_not_filmed(self):
         lines = episode(A, 100)
-        late_arrival = lines.pop()
+        late_arrival = lines.pop(-2)
         with self.assertRaisesRegex(ValueError, "missing jail_reached"):
             case.verify(filmed(lines) + late_arrival + "\n")
+
+    def test_lock_before_officer_handoff_is_rejected(self):
+        lines = episode(A, 100)
+        lines[-2], lines[-1] = lines[-1], lines[-2]
+        with self.assertRaisesRegex(ValueError, "before officer acknowledged"):
+            case.verify(filmed(lines))
+
+    def test_jail_arrival_without_gate_lock_is_not_complete(self):
+        lines = episode(A, 100)[:-1]
+        with self.assertRaisesRegex(ValueError, "never locked after officer handoff"):
+            case.verify(filmed(lines))
+
+    def test_gate_lock_after_video_end_is_not_filmed(self):
+        lines = episode(A, 100)
+        late_lock = lines.pop()
+        with self.assertRaisesRegex(ValueError, "never locked after officer handoff"):
+            case.verify(filmed(lines) + late_lock + "\\n")
+
+    def test_same_tick_handoff_then_lock_is_valid(self):
+        # Event order is authoritative when two events share a game tick.
+        self.assertIn("locked_iron_gate=true", case.verify(filmed(episode(A, 100))))
 
     def test_missing_video_end_marker_is_not_proof(self):
         with self.assertRaisesRegex(ValueError, "video start/end"):
