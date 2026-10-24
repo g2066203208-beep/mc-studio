@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Offline regression for genuine GUI case-correlation parser; not GameTests."""
+"""Offline regression for same-UUID real Minecraft GUI recording evidence."""
 import importlib.util
 import pathlib
 import unittest
@@ -31,52 +31,65 @@ def episode(who: str, start: int, complete: bool = True) -> list[str]:
     ] if complete else [])
 
 
+def filmed(lines: list[str]) -> str:
+    return "\n".join(["REME_NPC_CASE_VIDEO_START", *lines,
+                      "REME_NPC_CASE_VIDEO_END"]) + "\n"
+
+
 class GenuineGuiCaseRegression(unittest.TestCase):
     def test_one_real_complete_case_passes(self):
-        self.assertIn("same_guard=true", case.verify("\n".join(episode(A, 100))))
+        self.assertIn("same_guard=true", case.verify(filmed(episode(A, 100))))
 
     def test_other_prisoner_must_not_rescue_filmed_failed_case(self):
-        # Exactly the failure from real v085 client: first filmed thief A
-        # stuck at remote jail, second unfilmed thief B enters its own cell.
-        text = "\n".join(episode(A, 100, False) + episode(B, 500))
+        text = filmed(episode(A, 100, False) + episode(B, 500))
         with self.assertRaisesRegex(ValueError, "missing jail_reached"):
             case.verify(text)
 
     def test_other_incident_before_camera_does_not_poison_correct_case(self):
-        text = "\n".join(episode(B, 100) + episode(A, 500))
-        # The first camera is B, so B is the filmed case; A must not poison it.
+        text = filmed(episode(B, 100) + episode(A, 500))
         self.assertIn("thief=" + B, case.verify(text))
 
     def test_wrong_cell_gate_is_not_real_custody(self):
         lines = episode(A, 100)
         lines[-2] = lines[-2].replace("location=-22, 65, 16", "location=20, 65, 16")
         with self.assertRaisesRegex(ValueError, "never locked"):
-            case.verify("\n".join(lines))
+            case.verify(filmed(lines))
 
     def test_three_melee_hits_cannot_be_fake_counter(self):
         lines = episode(A, 100)
         lines[5] = lines[5].replace("blows=3 stunned=true", "blows=3 stunned=false")
         with self.assertRaisesRegex(ValueError, "three REAL"):
-            case.verify("\n".join(lines))
+            case.verify(filmed(lines))
 
     def test_arresting_guard_must_match_jail_officer(self):
         lines = episode(A, 100)
         lines[-1] = lines[-1].replace("guard=" + GUARD, "guard=" + B)
         with self.assertRaisesRegex(ValueError, "not the escorting"):
-            case.verify("\n".join(lines))
+            case.verify(filmed(lines))
 
     def test_no_camera_is_not_proof_of_filming(self):
         lines = [line for line in episode(A, 100) if "已连续跟踪" not in line]
         with self.assertRaisesRegex(ValueError, "No actual first CHASE"):
-            case.verify("\n".join(lines))
+            case.verify(filmed(lines))
 
     def test_camera_after_arrest_cannot_claim_pursuit(self):
         lines = episode(A, 100)
         camera = lines.pop(1)
         lines.insert(6, camera)
         with self.assertRaisesRegex(ValueError, "only AFTER"):
-            case.verify("\n".join(lines))
+            case.verify(filmed(lines))
+
+    def test_jail_arrival_after_mp4_end_is_not_filmed(self):
+        lines = episode(A, 100)
+        late_arrival = lines.pop()
+        with self.assertRaisesRegex(ValueError, "missing jail_reached"):
+            case.verify(filmed(lines) + late_arrival + "\n")
+
+    def test_missing_video_end_marker_is_not_proof(self):
+        with self.assertRaisesRegex(ValueError, "video start/end"):
+            case.verify(filmed(episode(A, 100)).replace(
+                "REME_NPC_CASE_VIDEO_END", ""))
 
 
 if __name__ == "__main__":
-    unittest.main()
+    unittest.main(verbosity=2)
