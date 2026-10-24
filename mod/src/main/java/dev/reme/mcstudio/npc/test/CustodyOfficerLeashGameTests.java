@@ -237,4 +237,38 @@ public final class CustodyOfficerLeashGameTests {
             throw new AssertionError("Handoff changed real prisoner position or detention");
         helper.succeed();
     }
+
+    /** Real registered NPCs: the legal four-block UUID leash is not enough
+     * to start another moving A* segment. Keep one block of walking slack
+     * so the native pathfinder can turn while the actual officer catches up.
+     */
+    @GameTest(template="empty",timeoutTicks=100)
+    public static void walking_slack_stops_at_three_and_half_and_resumes_at_two_and_half(
+        GameTestHelper helper) {
+        ServerLevel level=helper.getLevel();
+        BlockPos base=helper.absolutePos(new BlockPos(8,2,8));
+        PlayerNpcEntity prisoner=npc(level,base,PlayerNpcEntity.Profession.RESIDENT);
+        PlayerNpcEntity officer=npc(level,base.east(4),PlayerNpcEntity.Profession.GUARD);
+        long now=level.getGameTime();
+        prisoner.detainAt(base.south(4),now+400);
+        prisoner.assignCustodyOfficer(officer.getUUID());
+        officer.assignPrisonerEscort(prisoner.getUUID(),now+400);
+        if(!PublicSafety.escortedPrisonerMayAdvance(prisoner,level,now))
+            throw new AssertionError("Four-block custody authorization regressed");
+        if(PublicSafety.escortedPrisonerMayWalk(prisoner,level,now))
+            throw new AssertionError("Four-block separation began a new physical walking leg");
+        officer.moveTo(base.getX()+4.0,base.getY(),base.getZ()+0.5,0,0);
+        if(PublicSafety.escortedPrisonerMayWalk(prisoner,level,now))
+            throw new AssertionError("Three-and-half-block gap has no pathfinding slack");
+        officer.moveTo(base.getX()+3.0,base.getY(),base.getZ()+0.5,0,0);
+        if(!PublicSafety.escortedPrisonerMayWalk(prisoner,level,now))
+            throw new AssertionError("Real linked guard at two-and-half blocks cannot resume");
+        officer.clearPrisonerEscort();
+        if(PublicSafety.escortedPrisonerMayWalk(prisoner,level,now))
+            throw new AssertionError("Stale officer link bypassed walking slack");
+        prisoner.assignCustodyOfficer(null);
+        if(!PublicSafety.escortedPrisonerMayWalk(prisoner,level,now))
+            throw new AssertionError("Legacy saved prisoner without officer cannot walk");
+        helper.succeed();
+    }
 }
