@@ -317,6 +317,33 @@ public final class NpcCameraController {
         return true;
     }
 
+    /** Spectator eyes may be outside a citizen's head while the camera's
+     *  FEET or torso still intersect that citizen. Native spectator mode
+     *  ignores entity collisions, so validate the whole camera body against
+     *  actual loaded NPC bounding boxes. No entity is moved or chunk loaded.
+     */
+    public static boolean spectatorBodyClearOfNpcBodies(Vec3 lensEye,
+            double eyeHeight, double bodyWidth, double bodyHeight,
+            Iterable<PlayerNpcEntity> citizens, double clearance) {
+        if (lensEye == null || !Double.isFinite(lensEye.x)
+            || !Double.isFinite(lensEye.y) || !Double.isFinite(lensEye.z)
+            || !Double.isFinite(eyeHeight) || eyeHeight <= 0.0
+            || !Double.isFinite(bodyWidth) || bodyWidth <= 0.0
+            || !Double.isFinite(bodyHeight) || bodyHeight <= 0.0
+            || !Double.isFinite(clearance) || clearance < 0.0
+            || citizens == null) return false;
+        double half = bodyWidth * 0.5;
+        double feetY = lensEye.y - eyeHeight;
+        net.minecraft.world.phys.AABB spectator = new net.minecraft.world.phys.AABB(
+            lensEye.x - half, feetY, lensEye.z - half,
+            lensEye.x + half, feetY + bodyHeight, lensEye.z + half);
+        for (PlayerNpcEntity citizen : citizens)
+            if (citizen != null && citizen.isAlive()
+                && spectator.intersects(citizen.getBoundingBox().inflate(clearance)))
+                return false;
+        return true;
+    }
+
     /** Never teleport the NPC or force-load a chunk to make a pretty shot.
      * If no valid lens exists, use genuine entity POV until space reopens.
      */
@@ -343,7 +370,8 @@ public final class NpcCameraController {
         Predicate<Vec3> clearLens = lens -> spectatorBodyClearInWorld(
             level, lens, player.getEyeHeight(),
             player.getBbWidth(), player.getBbHeight())
-            && lensClearOfNpcBodies(lens, nearbyCitizens, 0.75);
+            && spectatorBodyClearOfNpcBodies(lens, player.getEyeHeight(),
+                player.getBbWidth(), player.getBbHeight(), nearbyCitizens, 0.75);
         Predicate<Vec3> targetVisible = lens -> level.clip(new ClipContext(
             eye, lens, ClipContext.Block.COLLIDER,
             ClipContext.Fluid.NONE, target)).getType() == HitResult.Type.MISS;
