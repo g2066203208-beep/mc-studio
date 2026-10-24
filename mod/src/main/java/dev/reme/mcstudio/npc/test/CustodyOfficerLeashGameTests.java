@@ -4,6 +4,7 @@ import dev.reme.mcstudio.StudioMod;
 import dev.reme.mcstudio.npc.NpcRegistry;
 import dev.reme.mcstudio.npc.PlayerNpcEntity;
 import dev.reme.mcstudio.npc.life.PublicSafety;
+import dev.reme.mcstudio.npc.life.CityJailGate;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -11,6 +12,8 @@ import net.minecraft.nbt.CompoundTag;
 import java.util.UUID;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.DoorBlock;
+import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
@@ -269,6 +272,54 @@ public final class CustodyOfficerLeashGameTests {
         prisoner.assignCustodyOfficer(null);
         if(!PublicSafety.escortedPrisonerMayWalk(prisoner,level,now))
             throw new AssertionError("Legacy saved prisoner without officer cannot walk");
+        helper.succeed();
+    }
+
+    /** The inmate arriving at a real iron cell before the escorting officer
+     * must not lock the gate and declare custody complete by themselves.
+     * The real officer must reach the cell before the door closes.
+     */
+    @GameTest(template="empty",timeoutTicks=100)
+    public static void real_cell_gate_waits_for_officer_handoff_before_locking(
+        GameTestHelper helper) {
+        ServerLevel level=helper.getLevel();
+        BlockPos jail=helper.absolutePos(new BlockPos(10,2,10));
+        for(int dx=-2;dx<=8;dx++)for(int dz=-2;dz<=4;dz++) {
+            BlockPos tile=jail.offset(dx,0,dz);
+            level.setBlock(tile.below(),Blocks.SMOOTH_STONE.defaultBlockState(),2);
+            for(int dy=0;dy<3;dy++)
+                level.setBlock(tile.above(dy),Blocks.AIR.defaultBlockState(),2);
+        }
+        level.setBlock(jail.north(),Blocks.IRON_BARS.defaultBlockState(),2);
+        BlockPos gate=CityJailGate.gateFor(jail);
+        level.setBlock(gate,Blocks.IRON_DOOR.defaultBlockState()
+            .setValue(DoorBlock.HALF,DoubleBlockHalf.LOWER)
+            .setValue(DoorBlock.OPEN,true),2);
+        level.setBlock(gate.above(),Blocks.IRON_DOOR.defaultBlockState()
+            .setValue(DoorBlock.HALF,DoubleBlockHalf.UPPER)
+            .setValue(DoorBlock.OPEN,true),2);
+        if(!PublicSafety.holdingSpot(level,jail)
+            || !CityJailGate.isOpen(level,jail))
+            throw new AssertionError("Real cell gate fixture not open and valid");
+        PlayerNpcEntity prisoner=npc(level,jail,PlayerNpcEntity.Profession.RESIDENT);
+        PlayerNpcEntity officer=npc(level,jail.east(6),PlayerNpcEntity.Profession.GUARD);
+        officer.setHomePos(jail);
+        long now=level.getGameTime();
+        prisoner.detainAt(jail,now+400);
+        prisoner.assignCustodyOfficer(officer.getUUID());
+        officer.assignPrisonerEscort(prisoner.getUUID(),now+400);
+        if(!PublicSafety.tickPrisoner(prisoner,level,now)
+            || !CityJailGate.isOpen(level,jail)
+            || !prisoner.getUUID().equals(officer.escortedPrisoner()))
+            throw new AssertionError("Prisoner locked real gate before officer arrived");
+        officer.moveTo(jail.getX()+3.0,jail.getY(),jail.getZ()+0.5,0,0);
+        if(!PublicSafety.tickGuard(officer,level,now)
+            || officer.escortedPrisoner()!=null)
+            throw new AssertionError("Nearby real officer could not finish handoff");
+        if(!PublicSafety.tickPrisoner(prisoner,level,now)
+            || CityJailGate.isOpen(level,jail)
+            || !prisoner.isDetained(now))
+            throw new AssertionError("Gate did not lock after genuine handoff");
         helper.succeed();
     }
 }
