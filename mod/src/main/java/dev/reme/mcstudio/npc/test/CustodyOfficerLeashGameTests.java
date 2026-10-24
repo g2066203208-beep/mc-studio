@@ -8,6 +8,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.nbt.CompoundTag;
+import java.util.UUID;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.block.Blocks;
 import net.neoforged.neoforge.gametest.GameTestHolder;
@@ -164,6 +165,37 @@ public final class CustodyOfficerLeashGameTests {
         prisoner.assignCustodyOfficer(null);
         if(!PublicSafety.escortedPrisonerMayAdvance(prisoner,level,now))
             throw new AssertionError("Legacy saved detainee without officer was frozen");
+        helper.succeed();
+    }
+
+    /** A temporarily absent entity is not proof of release or death.
+     * The loaded officer must retain the same persisted prisoner UUID until
+     * the existing escort deadline, without spawning or force-loading anyone.
+     */
+    @GameTest(template="empty",timeoutTicks=100)
+    public static void missing_prisoner_keeps_escort_link_until_deadline(
+        GameTestHelper helper) {
+        ServerLevel level=helper.getLevel();
+        BlockPos base=helper.absolutePos(new BlockPos(8,2,8));
+        PlayerNpcEntity officer=npc(level,base,PlayerNpcEntity.Profession.GUARD);
+        UUID absentPrisoner=UUID.randomUUID();
+        long now=level.getGameTime();
+        officer.assignPrisonerEscort(absentPrisoner,now+80);
+        if(level.getEntity(absentPrisoner)!=null)
+            throw new AssertionError("Missing-prisoner fixture unexpectedly loaded");
+        if(!PublicSafety.tickGuard(officer,level,now)
+            || !absentPrisoner.equals(officer.escortedPrisoner())
+            || officer.escortUntil()!=now+80)
+            throw new AssertionError("Unloaded prisoner silently lost reciprocal custody");
+        CompoundTag saved=new CompoundTag();
+        officer.saveWithoutId(saved);
+        if(!saved.hasUUID("NpcEscortedPrisoner")
+            || !absentPrisoner.equals(saved.getUUID("NpcEscortedPrisoner"))
+            || saved.getLong("NpcEscortUntil")!=now+80)
+            throw new AssertionError("Paused escort link was not save-compatible");
+        if(PublicSafety.tickGuard(officer,level,now+80)
+            || officer.escortedPrisoner()!=null)
+            throw new AssertionError("Absent-prisoner escort did not expire on time");
         helper.succeed();
     }
 }

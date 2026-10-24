@@ -32,6 +32,7 @@ on:
       - fix/npc-escort-pair-elevated-clear-lens-v102
       - fix/npc-iron-jail-door-half-integrity-v103
       - fix/npc-custody-close-escort-leash-v104
+      - fix/npc-unloaded-prisoner-escort-resume-v105
   pull_request:
     branches:
       - feat/npc-economy-market-fair-v069

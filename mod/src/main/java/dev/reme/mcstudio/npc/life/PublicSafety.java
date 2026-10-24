@@ -221,11 +221,27 @@ public final class PublicSafety {
             return false;
         }
         var found = level.getEntity(guard.escortedPrisoner());
+        if (found == null) {
+            // getEntity(UUID) sees only loaded entities. A temporarily
+            // unloaded prisoner is NOT an abandoned case: clearing this
+            // reciprocal link strands the prisoner on its next chunk load.
+            // Keep the existing bounded escort deadline; never force-load,
+            // fabricate an entity, or move the officer to unloaded terrain.
+            guard.getNavigation().stop();
+            guard.setTarget(null);
+            guard.setAction("escorting paused: prisoner entity not loaded");
+            return true;
+        }
         if (!(found instanceof PlayerNpcEntity prisoner) || !prisoner.isAlive()
-            || !prisoner.isDetained(tick)
-            || !level.hasChunkAt(prisoner.blockPosition())) {
+            || !prisoner.isDetained(tick)) {
             guard.clearPrisonerEscort();
             return false;
+        }
+        if (!level.hasChunkAt(prisoner.blockPosition())) {
+            guard.getNavigation().stop();
+            guard.setTarget(null);
+            guard.setAction("escorting paused: prisoner chunk unloaded");
+            return true;
         }
         BlockPos jail = prisoner.detentionJail();
         if (jail != null && !level.hasChunkAt(jail)) {
