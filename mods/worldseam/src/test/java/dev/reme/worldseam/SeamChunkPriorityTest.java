@@ -68,4 +68,40 @@ class SeamChunkPriorityTest {
         assertEquals(-1,choose(sent,Set.of(),1299));
         assertEquals(0,choose(sent,Set.of(),1300));
     }
+    @Test void pendingCenterNeverStarvesResidentNativeOuterSections() {
+        int[][] offsets=SeamChunkPriority.centerFirstOffsets(4);
+        var sent=new HashMap<Long,Long>();
+        var dirty=new HashSet<Long>();
+        assertEquals(0,SeamChunkPriority.chooseSlot(0,0,offsets,
+            sent,dirty,100,1200,20));
+        // Ticketed center is not yet loaded, but its neighbor and an outer
+        // section are already resident: send the nearest ready one.
+        int available=SeamChunkPriority.chooseSlot(0,0,offsets,
+            sent,dirty,100,1200,20,
+            i -> (offsets[i][0]==1 && offsets[i][1]==0) ||
+                 (offsets[i][0]==4 && offsets[i][1]==0));
+        assertTrue(available>0);
+        assertArrayEquals(new int[]{1,0},offsets[available]);
+        sent.put(k(1,0),100L);
+        int next=SeamChunkPriority.chooseSlot(0,0,offsets,
+            sent,dirty,101,1200,20,
+            i -> offsets[i][0]==4 && offsets[i][1]==0);
+        assertArrayEquals(new int[]{4,0},offsets[next]);
+        // All candidates still loading must NOT trigger a blocking fetch.
+        assertEquals(-1,SeamChunkPriority.chooseSlot(0,0,offsets,
+            sent,dirty,102,1200,20,i -> false));
+        // Once the center completes, it regains priority.
+        assertEquals(0,SeamChunkPriority.chooseSlot(0,0,offsets,
+            sent,dirty,103,1200,20,i -> i==0));
+    }
+
+    @Test void readyDirtyChunkMayProgressWhenNewChunksAreAllPending() {
+        int[][] offsets=SeamChunkPriority.centerFirstOffsets(2);
+        var sent=new HashMap<Long,Long>();
+        sent.put(k(0,0),0L);
+        var dirty=Set.of(k(0,0));
+        assertEquals(0,SeamChunkPriority.chooseSlot(0,0,offsets,
+            sent,dirty,100,1200,20,i -> i==0));
+    }
+
 }
