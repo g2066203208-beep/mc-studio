@@ -111,7 +111,8 @@ public final class NpcCameraController {
                                              Predicate<Vec3> clearLens,
                                              Predicate<Vec3> unobstructed) {
         return selectClearViewWithRadii(targetEye, targetYaw, clearLens,
-            unobstructed, new double[]{3.3, 2.6, 1.85});
+            unobstructed, new double[]{3.3, 2.6, 1.85},
+            new double[]{0.32, 0.05, -0.20});
     }
 
     /** Frame two ACTUAL mutually linked escort actors rather than filming
@@ -127,16 +128,21 @@ public final class NpcCameraController {
         Vec3 midpoint = firstEye.add(secondEye).scale(0.5);
         double distance = firstEye.distanceTo(secondEye);
         double far = Math.max(4.5, Math.min(9.0, 4.0 + distance * 0.8));
+        // Preserve the natural eye-level view first. Only when all such
+        // physically valid shots fail, try a higher spectator vantage above
+        // short market stalls/road furniture. Native body collision and BOTH
+        // actor sight lines remain mandatory; this never moves an NPC.
         return selectClearViewWithRadii(midpoint, targetYaw, clearLens,
-            seesBoth, new double[]{far, far * 0.82, far * 0.65});
+            seesBoth, new double[]{far, far * 0.82, far * 0.65},
+            new double[]{0.32, 0.05, -0.20, 1.10, 1.75});
     }
 
     @Nullable
     private static CameraPose selectClearViewWithRadii(
             Vec3 targetEye, float targetYaw, Predicate<Vec3> clearLens,
-            Predicate<Vec3> unobstructed, double[] radii) {
+            Predicate<Vec3> unobstructed, double[] radii,
+            double[] heightOffsets) {
         double[] yawOffsets = {0, 60, -60, 115, -115, 180};
-        double[] heightOffsets = {0.32, 0.05, -0.20};
         for (double radius : radii) {
             for (double offset : yawOffsets) {
                 double angle = Math.toRadians(targetYaw + offset);

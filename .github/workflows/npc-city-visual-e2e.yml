@@ -29,6 +29,7 @@ on:
       - fix/npc-camera-spectator-body-clearance-v099
       - fix/npc-gui-cold-apt-install-budget-v100
       - fix/npc-camera-partial-block-clearance-v101
+      - fix/npc-escort-pair-elevated-clear-lens-v102
   pull_request:
     branches:
       - feat/npc-economy-market-fair-v069
