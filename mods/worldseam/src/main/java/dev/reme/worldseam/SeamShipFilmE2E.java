@@ -100,6 +100,29 @@ public final class SeamShipFilmE2E {
                         ex.toString());
             }
         }
+        // The actual released Sable tracking packet allocates a client
+        // sublevel only after SubLevelTrackingSystem sends its full sync.
+        // Report both the container and UUID state, so an absent ship is
+        // never mistaken for a graphics-only or physics-only failure.
+        if(shipUuid!=null && (state==2 || state==3) &&
+           mc.player!=null && mc.player.tickCount%40==0 &&
+           clientSublevelSeenFrames==0) {
+            try {
+                Class<?> api=Class.forName(
+                    "dev.ryanhcode.sable.api.sublevel.SubLevelContainer");
+                Object holder=api.getMethod("getContainer",
+                    net.minecraft.client.multiplayer.ClientLevel.class)
+                    .invoke(null,mc.level);
+                int all=holder==null?-1:
+                    ((java.util.Collection<?>)api.getMethod("getAllSubLevels")
+                        .invoke(holder)).size();
+                LOG.warn("WORLDSEAM_FILM_CLIENT_TRACKING_ROOT: uuid={} activeDimension={} clientContainerPresent={} allSableSublevels={} matchingUuidSeen=false; no render/flight acceptance",
+                    shipUuid,mc.level==null?"null":mc.level.dimension().location(),
+                    holder!=null,all);
+            } catch(Exception | LinkageError ex) {
+                LOG.warn("WORLDSEAM_FILM_CLIENT_TRACKING_ROOT: cannot inspect released Sable client container",ex);
+            }
+        }
         MinecraftServer server=mc.getSingleplayerServer();
         if(state!=0||server==null||mc.player==null||mc.level==null ||
            mc.player.tickCount<80)return;
@@ -440,10 +463,32 @@ public final class SeamShipFilmE2E {
         if(state!=2&&state!=3)return;
         long sinceAssembly=server.getTickCount()-started;
         if(!startedRealFlight) {
-            if(sinceAssembly%20==0)
+            if(sinceAssembly%20==0) {
                 LOG.info("WORLDSEAM_FILM_CLIENT_TRACK_GATE: uuid={} elapsedServerTicks={} clientSeenFrames={} clientRenderableFrames={} renderReady={}",
                     shipUuid,sinceAssembly,clientSublevelSeenFrames,
                     clientSublevelRenderableFrames,shipClientRenderReady);
+                // Sable's released tracking system selects players in the
+                // owning ServerLevel by distance from the logical body pose.
+                // This distinguishes a server-side tracking failure from a
+                // lost client packet/container without forging tracking data.
+                try {
+                    var camera=viewerId==null?null:
+                        server.getPlayerList().getPlayer(viewerId);
+                    var tracked=(java.util.Collection<?>)ship.getClass()
+                        .getMethod("getTrackingPlayers").invoke(ship);
+                    var hull=currentHull();
+                    double distance=camera==null?Double.NaN:
+                        Math.sqrt(Math.pow(camera.getX()-hull.getCenter().x,2)+
+                            Math.pow(camera.getY()-hull.getCenter().y,2)+
+                            Math.pow(camera.getZ()-hull.getCenter().z,2));
+                    LOG.info("WORLDSEAM_FILM_SERVER_TRACKING_ROOT: uuid={} nativeBodyID={} cameraInOwnerLevel={} cameraDistanceToHull={} serverTrackingPlayers={} cameraIsTracked={} (diagnostic, not contact proof)",
+                        shipUuid,nativeBodyID,camera!=null&&
+                            camera.serverLevel()==stagingHome,distance,
+                        tracked.size(),viewerId!=null&&tracked.contains(viewerId));
+                } catch(Exception | LinkageError ex) {
+                    LOG.warn("WORLDSEAM_FILM_SERVER_TRACKING_ROOT: cannot inspect released Sable tracking state",ex);
+                }
+            }
             if(sinceAssembly>160) {
                 fail("Real Minecraft client never received and initialized visible Sable render data for identical ship UUID, cannot call this a flight video",null);
                 return;
