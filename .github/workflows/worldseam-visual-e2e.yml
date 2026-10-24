@@ -44,7 +44,7 @@ jobs:
           xvfb-run -a -s '-screen 0 1280x720x24' bash -c '
             set -euo pipefail
             export LIBGL_ALWAYS_SOFTWARE=1
-            bash ./gradlew runClient -PworldseamE2E --no-daemon --console=plain > visual-client.log 2>&1 &
+            bash ./gradlew runClient -PworldseamE2E -PworldseamFullNativeE2E --no-daemon --console=plain > visual-client.log 2>&1 &
             pid=$!
             trap "kill $pid 2>/dev/null || true" EXIT
             for step in $(seq 1 170); do
@@ -197,6 +197,11 @@ jobs:
 
             if grep -E "Mixin apply failed|InvalidMixinException|Exception during client tick|NoSuchMethodError" visual-client.log; then
               echo "WorldSeam failed in GUI client"
+              exit 1
+            fi
+            if ! grep -q 'WORLDSEAM_NATIVE_SECOND_LEVEL_RENDERED' visual-client.log; then
+              echo 'WORLDSEAM_NATIVE_SECOND_LEVEL_FAIL: real target LevelRenderer never completed'
+              tail -n 90 visual-client.log
               exit 1
             fi
             echo "WorldSeam GUI captured and integrated two-way dimension checks passed; visual frame-level seamless composition still requires separate validation"
