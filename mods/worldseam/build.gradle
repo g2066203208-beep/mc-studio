@@ -65,6 +65,8 @@ neoForge {
                 // Exercise actual target LevelRenderer.renderLevel in a disposable
                 // graphical client; a passing smoke test is NOT seamlessness.
                 systemProperty 'worldseam.experimentalFullNativeLevel', 'true'
+                // Native geometry clip BEFORE target depth; never use on ordinary clients until verified.
+                systemProperty 'worldseam.experimentalNativeSeamClip', 'true'
                 systemProperty 'worldseam.foreignNativeViewRadius', '4'
             }
             if (project.hasProperty('worldseamStress')) {
@@ -80,6 +82,8 @@ neoForge {
                 systemProperty 'worldseam.experimentalRemoteRapier', 'true'
                 // Film and GUI must exercise the SAME genuine second renderer.
                 systemProperty 'worldseam.experimentalFullNativeLevel', 'true'
+                // Native geometry clip BEFORE target depth; never use on ordinary clients until verified.
+                systemProperty 'worldseam.experimentalNativeSeamClip', 'true'
                 systemProperty 'worldseam.foreignNativeViewRadius', '4'
             }
             // Comma-separated list of namespaces to load gametests from. Empty = all namespaces.
