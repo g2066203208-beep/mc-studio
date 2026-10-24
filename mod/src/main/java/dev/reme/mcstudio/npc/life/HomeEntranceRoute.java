@@ -77,6 +77,24 @@ public final class HomeEntranceRoute {
     }
 
     /**
+     * Select a real foot waypoint without sending an already-indoor resident
+     * back outside. The old rule only checked distance to the exterior tile:
+     * a citizen deep inside the house would target the street again whenever
+     * bedside A* temporarily failed (for example during crowd congestion).
+     *
+     * Outside citizens still approach the outside tile first; only someone
+     * standing at the entrance or on its interior side targets the inside.
+     * This chooses a navigation target, never changes the entity position.
+     */
+    public static BlockPos nextDoorStage(Entrance entrance, BlockPos here) {
+        BlockPos outside = entrance.outside();
+        BlockPos inside = entrance.inside();
+        if (here.distSqr(outside) <= 2 || here.distSqr(inside) < here.distSqr(outside))
+            return inside;
+        return outside;
+    }
+
+    /**
      * Attempts a true reachable A* path first. A distant entrance is reached
      * through local real paving via RoadNavigator, now targeting the DOOR
      * instead of a bed hidden behind a solid building facade.
@@ -96,8 +114,7 @@ public final class HomeEntranceRoute {
         Entrance entrance = nearestOpenDoor(level, indoorGoal);
         if (entrance == null) return false;
         BlockPos here = npc.blockPosition();
-        BlockPos target = here.distSqr(entrance.outside()) <= 2
-            ? entrance.inside() : entrance.outside();
+        BlockPos target = nextDoorStage(entrance, here);
         if (here.equals(target)) return false;
         Path path = npc.getNavigation().createPath(target, 0);
         if (path != null && path.canReach()
