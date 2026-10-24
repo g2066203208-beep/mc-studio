@@ -289,7 +289,12 @@ public final class PublicSafety {
         // A cell arrival is not an escorted handoff while the officer is
         // still five or six blocks away. Use the same four-block reciprocal
         // leash enforced during the walk, including at the final cell.
-        if (prisonerAtCell && guard.distanceToSqr(prisoner) <= 16.0) {
+        // A nearby officer behind a solid station wall has not physically
+        // reached the prisoner. The real open intake must be visible before
+        // acknowledging custody; proximity through blocks is insufficient.
+        boolean officerCanSeePrisoner = guard.hasLineOfSight(prisoner);
+        if (prisonerAtCell && guard.distanceToSqr(prisoner) <= 16.0
+            && officerCanSeePrisoner) {
             guard.getNavigation().stop();
             guard.setAction("on-foot escort completed: prisoner reached REAL iron-bar cell");
             System.out.println("REME_NPC_STORY stage=jail_reached tick=" + tick
@@ -304,7 +309,20 @@ public final class PublicSafety {
             return true;
         }
         if (!MovementPolicy.due(tick, guard.getId(), 10)) return true;
-        if (guard.distanceToSqr(prisoner) > 5.0) {
+        if (prisonerAtCell && !officerCanSeePrisoner) {
+            // Do not stop behind a wall just because the Euclidean gap is
+            // under two blocks. Follow the same real street/door detour as
+            // the prisoner, then approach the open SOUTH intake on foot.
+            BlockPos waypoint = custodyCityDetourWaypoint(
+                level, jail, guard.blockPosition());
+            if (waypoint.equals(jail)) waypoint = jail.south(1);
+            if (level.hasChunkAt(waypoint)
+                && RoadNavigator.moveToward(guard, level, waypoint, 0.98)) {
+                guard.setAction("walking around real station wall toward visible cell intake");
+            } else {
+                guard.setAction("cell handoff blocked by wall; waiting for reachable intake");
+            }
+        } else if (guard.distanceToSqr(prisoner) > 5.0) {
             RoadNavigator.moveToward(guard, level, prisoner.blockPosition(), 0.98);
             guard.setAction("escorting handcuffed resident ON FOOT along loaded streets");
         } else {
