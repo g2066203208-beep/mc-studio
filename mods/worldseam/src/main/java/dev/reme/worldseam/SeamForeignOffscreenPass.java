@@ -34,6 +34,7 @@ public final class SeamForeignOffscreenPass {
     private static long actorPasses;
     private static boolean actorsSubmitted;
     private static boolean opaqueReady;
+    private static boolean frameComplete;
     private static long restoreFailures;
     private static boolean active;
 
@@ -44,11 +45,15 @@ public final class SeamForeignOffscreenPass {
     public static long translucentPasses() { return translucentPasses; }
     public static long actorPasses() { return actorPasses; }
     public static boolean opaqueReady() { return opaqueReady; }
+    public static boolean frameComplete() { return frameComplete; }
+    public static int colorTextureId() { return target == null ? -1 : target.getColorTextureId(); }
+    public static int depthTextureId() { return target == null ? -1 : target.getDepthTextureId(); }
 
     /** Each vanilla opaque stage starts a new frame. Never reuse a previous frame's depth. */
     public static void beginFrame() {
         RenderSystem.assertOnRenderThread();
         opaqueReady = false;
+        frameComplete = false;
         actorsSubmitted = false;
     }
     public static long restoreFailures() { return restoreFailures; }
@@ -116,6 +121,7 @@ public final class SeamForeignOffscreenPass {
         opaqueReady = false;
         if (target == null || !drawScoped(mc, foreignDraw, false)) return false;
         translucentPasses++;
+        frameComplete = true;
         if (translucentPasses == 1 || translucentPasses % 120 == 0)
             LOG.info("WORLDSEAM_NATIVE_OFFSCREEN_TRANSLUCENT: passes={}, opaquePasses={}, colorTexture={}, depthTexture={}, sameTarget=true, depthPreserved=true, compositeReady=false",
                 translucentPasses, opaquePasses, target.getColorTextureId(),
@@ -181,6 +187,7 @@ public final class SeamForeignOffscreenPass {
     public static void release() {
         RenderSystem.assertOnRenderThread();
         opaqueReady = false;
+        frameComplete = false;
         actorsSubmitted = false;
         if (active) throw new IllegalStateException("Release during WorldSeam offscreen draw");
         if (target != null) {
