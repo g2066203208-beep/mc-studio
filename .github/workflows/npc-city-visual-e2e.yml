@@ -39,6 +39,7 @@ on:
       - fix/npc-home-door-inside-stage-v109
       - fix/npc-cell-arrival-officer-four-block-v110
       - fix/npc-camera-low-vantage-first-v111
+      - fix/npc-camera-narrow-side-angles-v112
   pull_request:
     branches:
       - feat/npc-economy-market-fair-v069

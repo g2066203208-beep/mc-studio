@@ -142,7 +142,13 @@ public final class NpcCameraController {
             Vec3 targetEye, float targetYaw, Predicate<Vec3> clearLens,
             Predicate<Vec3> unobstructed, double[] radii,
             double[] heightOffsets) {
-        double[] yawOffsets = {0, 60, -60, 115, -115, 180};
+        // Sweep the full street-level orbit before resorting to the NPC's face.
+        // Narrow shop aisles and iron-bar corridors can have a clear 30° or
+        // 90° lens even when all six coarse angles are obstructed. Every
+        // candidate still must pass native spectator body collision and
+        // both-actor line-of-sight checks; never see through real walls.
+        double[] yawOffsets = {0, 30, -30, 60, -60, 90, -90,
+                               115, -115, 150, -150, 180};
         // Try every street-level angle before ANY elevated angle. The old
         // radius -> yaw -> height order selected an elevated rear shot as
         // soon as the first rear low lens was blocked, even when a clear
