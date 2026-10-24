@@ -183,6 +183,13 @@ public final class SeamForeignDepthCompositor {
             foreignColorId <= 0 || foreignDepthId <= 0) return false;
 
         int oldFbo = GlStateManager.getBoundFramebuffer();
+        // The compositor blits between separate READ and DRAW targets. They
+        // are not guaranteed to be identical when another render pass owns
+        // a distinct read framebuffer (e.g. a modded post-processing chain).
+        // Preserve both bindings; restoring only GL_FRAMEBUFFER would silently
+        // overwrite the caller's READ binding and corrupt later native passes.
+        int oldReadFbo = GL11.glGetInteger(GL30.GL_READ_FRAMEBUFFER_BINDING);
+        int oldDrawFbo = GL11.glGetInteger(GL30.GL_DRAW_FRAMEBUFFER_BINDING);
         IntBuffer oldViewport = BufferUtils.createIntBuffer(4);
         GL11.glGetIntegerv(GL11.GL_VIEWPORT, oldViewport);
         int oldProgram = GL11.glGetInteger(GL20.GL_CURRENT_PROGRAM);
@@ -269,6 +276,12 @@ public final class SeamForeignDepthCompositor {
             GL11.glDepthFunc(oldDepthFunc);
             GL11.glDepthMask(depthMask);
             GlStateManager._glBindFramebuffer(GL30.GL_FRAMEBUFFER, oldFbo);
+            // Restore the caller's independently bound READ/DRAW attachments
+            // after synchronizing Minecraft's framebuffer state cache.
+            if (oldReadFbo != oldFbo)
+                GL30.glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER, oldReadFbo);
+            if (oldDrawFbo != oldFbo)
+                GL30.glBindFramebuffer(GL30.GL_DRAW_FRAMEBUFFER, oldDrawFbo);
             RenderSystem.viewport(oldViewport.get(0), oldViewport.get(1),
                 oldViewport.get(2), oldViewport.get(3));
         }
