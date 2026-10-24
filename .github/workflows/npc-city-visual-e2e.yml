@@ -30,6 +30,7 @@ on:
       - fix/npc-gui-cold-apt-install-budget-v100
       - fix/npc-camera-partial-block-clearance-v101
       - fix/npc-escort-pair-elevated-clear-lens-v102
+      - fix/npc-iron-jail-door-half-integrity-v103
   pull_request:
     branches:
       - feat/npc-economy-market-fair-v069
