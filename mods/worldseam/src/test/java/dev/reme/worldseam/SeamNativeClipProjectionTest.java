@@ -43,6 +43,15 @@ class SeamNativeClipProjectionTest {
         assertEquals(original.y,recovered.y,.002);
         assertEquals(original.z,recovered.z,.002);
     }
+    @Test void subBlockSeamCameraBandCannotSafelyUseUnclippedProjection() {
+        // At the join itself the oblique near plane is ill-conditioned.
+        // Production must SKIP the foreign pass, not fall back to vanilla
+        // projection and let wrong-side blocks occlude real far-side ones.
+        Matrix4f downView=new Matrix4f().rotateX((float)Math.PI/2);
+        Matrix4f upView=new Matrix4f().rotateX(-(float)Math.PI/2);
+        assertNull(SeamNativeClipProjection.beyondSeam(projection(),downView,-.01f,true));
+        assertNull(SeamNativeClipProjection.beyondSeam(projection(),upView,.01f,false));
+    }
     @Test void nearSeamAndWrongSideAreRejected() {
         assertNull(SeamNativeClipProjection.beyondSeam(projection(),new Matrix4f(),0,true));
         assertNull(SeamNativeClipProjection.beyondSeam(projection(),new Matrix4f(),Float.NaN,false));
