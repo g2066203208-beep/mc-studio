@@ -87,6 +87,9 @@ public final class SeamForeignDepthCompositor {
             vec4 realForeign = texture(foreignColor, texCoord);
             if (realForeign.a <= 0.001) discard;
             fragColor = vec4(realForeign.rgb, 1.0);
+            // Keep the final framebuffer's depth consistent with the real
+            // foreign surface selected by the seam-plane ray test.
+            gl_FragDepth = remoteZ;
         }
         """;
 
@@ -170,6 +173,7 @@ public final class SeamForeignDepthCompositor {
         boolean blendEnabled = GL11.glIsEnabled(GL11.GL_BLEND);
         boolean cullEnabled = GL11.glIsEnabled(GL11.GL_CULL_FACE);
         boolean depthMask = GL11.glGetBoolean(GL11.GL_DEPTH_WRITEMASK);
+        int oldDepthFunc = GL11.glGetInteger(GL11.GL_DEPTH_FUNC);
         try {
             ensureProgram();
             ensureDepthCopy(source.width, source.height);
@@ -184,8 +188,13 @@ public final class SeamForeignDepthCompositor {
                 GL11.GL_DEPTH_BUFFER_BIT, GL11.GL_NEAREST);
 
             source.bindWrite(true);
-            GL11.glDisable(GL11.GL_DEPTH_TEST);
-            GL11.glDepthMask(false);
+            // The shader has already rejected source surfaces in front of
+            // the seam. ALWAYS permits replacing the source depth behind it
+            // with the matching foreign depth; downstream native draws then
+            // see the same surface that the player sees.
+            GL11.glEnable(GL11.GL_DEPTH_TEST);
+            GL11.glDepthFunc(GL11.GL_ALWAYS);
+            GL11.glDepthMask(true);
             GL11.glDisable(GL11.GL_BLEND);
             GL11.glDisable(GL11.GL_CULL_FACE);
             GL20.glUseProgram(program);
@@ -233,6 +242,7 @@ public final class SeamForeignDepthCompositor {
             else GL11.glDisable(GL11.GL_BLEND);
             if (cullEnabled) GL11.glEnable(GL11.GL_CULL_FACE);
             else GL11.glDisable(GL11.GL_CULL_FACE);
+            GL11.glDepthFunc(oldDepthFunc);
             GL11.glDepthMask(depthMask);
             GlStateManager._glBindFramebuffer(GL30.GL_FRAMEBUFFER, oldFbo);
             RenderSystem.viewport(oldViewport.get(0), oldViewport.get(1),
