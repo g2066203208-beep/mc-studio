@@ -32,6 +32,8 @@ public final class NpcCameraController {
     private NpcCameraController() {}
     public enum Mode { POV, CHASE }
     public record CameraPose(double x, double y, double z, float yaw, float pitch) {}
+    /** Whether a physically clear shot includes both linked custody actors. */
+    public record EscortView(CameraPose pose, boolean sharedLens) {}
     private record Follow(UUID target, Mode mode) {}
     private static final Map<UUID, Follow> ACTIVE = new HashMap<>();
     // A cramped corridor may offer no collision-free third-person lens.
@@ -135,6 +137,27 @@ public final class NpcCameraController {
         return selectClearViewWithRadii(midpoint, targetYaw, clearLens,
             seesBoth, new double[]{far, far * 0.82, far * 0.65},
             new double[]{0.32, 0.05, -0.20, 1.10, 1.75});
+    }
+
+    /**
+     * A narrow real street or jail corridor can hide the officer behind a
+     * wall even when the prisoner is clearly visible from a safe third-person
+     * position. Never claim a shared lens without both native raycasts, but
+     * prefer a genuine target-only exterior view over face-filling entity POV.
+     * This changes only the spectator camera, never either NPC's position.
+     */
+    @Nullable
+    public static EscortView selectEscortView(
+            Vec3 prisonerEye, Vec3 officerEye, float targetYaw,
+            Predicate<Vec3> clearLens, Predicate<Vec3> seesPrisoner,
+            Predicate<Vec3> seesOfficer) {
+        CameraPose paired = selectPairView(prisonerEye, officerEye,
+            targetYaw, clearLens,
+            lens -> seesPrisoner.test(lens) && seesOfficer.test(lens));
+        if (paired != null) return new EscortView(paired, true);
+        CameraPose solo = selectClearView(prisonerEye, targetYaw,
+            clearLens, seesPrisoner);
+        return solo == null ? null : new EscortView(solo, false);
     }
 
     @Nullable
@@ -259,13 +282,16 @@ public final class NpcCameraController {
             eye, lens, ClipContext.Block.COLLIDER,
             ClipContext.Fluid.NONE, target)).getType() == HitResult.Type.MISS;
         CameraPose chosen;
+        boolean sharedLens = false;
         if (partner != null) {
             Vec3 partnerEye = partner.getEyePosition();
-            chosen = selectPairView(eye, partnerEye, target.getYRot(),
-                clearLens, lens -> targetVisible.test(lens)
-                    && level.clip(new ClipContext(partnerEye, lens,
-                        ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE,
-                        partner)).getType() == HitResult.Type.MISS);
+            EscortView view = selectEscortView(eye, partnerEye, target.getYRot(),
+                clearLens, targetVisible,
+                lens -> level.clip(new ClipContext(partnerEye, lens,
+                    ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE,
+                    partner)).getType() == HitResult.Type.MISS);
+            chosen = view == null ? null : view.pose();
+            sharedLens = view != null && view.sharedLens();
         } else {
             chosen = selectClearView(eye, target.getYRot(),
                 clearLens, targetVisible);
@@ -273,9 +299,10 @@ public final class NpcCameraController {
         if (partner != null && player.tickCount % 40 == 0) {
             com.mojang.logging.LogUtils.getLogger().info(
                 "REME_NPC_CAMERA_PAIR_VIEW observer={} target={} partner={} "
-                    + "actorDistance={} sharedLens={} lensEye={}",
+                    + "actorDistance={} sharedLens={} soloLens={} lensEye={}",
                 player.getUUID(), target.getUUID(), partner.getUUID(),
-                target.distanceTo(partner), chosen != null,
+                target.distanceTo(partner), sharedLens,
+                chosen != null && !sharedLens,
                 chosen == null ? "none" : new Vec3(chosen.x(), chosen.y(), chosen.z()));
         }
         if (chosen == null) {
