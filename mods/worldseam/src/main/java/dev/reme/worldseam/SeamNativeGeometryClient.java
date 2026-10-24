@@ -47,6 +47,11 @@ public final class SeamNativeGeometryClient {
     // Development-only REAL GPU target pass; no fake color or unsafe full-screen blit.
     private static final boolean EXPERIMENTAL_NATIVE_OFFSCREEN =
         Boolean.getBoolean("worldseam.experimentalOffscreenTerrain");
+    // Opt-in REAL seam-plane depth composition. Never substitute a flat sky
+    // or ignore native source depth. Keep disabled for unverified modpacks.
+    private static final boolean EXPERIMENTAL_DEPTH_COMPOSITE =
+        EXPERIMENTAL_NATIVE_OFFSCREEN &&
+        Boolean.getBoolean("worldseam.experimentalDepthComposite");
     private static long offscreenFrameCounter;
     private static long nativeSkyMethodCalls;
     public static long nativeSkyMethodCalls() { return nativeSkyMethodCalls; }
@@ -474,6 +479,10 @@ public final class SeamNativeGeometryClient {
     }
 
     private static void render(RenderLevelStageEvent event) {
+        if(event.getStage()==RenderLevelStageEvent.Stage.AFTER_LEVEL) {
+            renderComposite(event);
+            return;
+        }
         if(event.getStage()==RenderLevelStageEvent.Stage.AFTER_TRIPWIRE_BLOCKS) {
             renderTranslucent(event);
             return;
@@ -562,18 +571,27 @@ public final class SeamNativeGeometryClient {
                 // Sample one of every 30 frames to keep the temporary
                 // architecture check from doubling normal render cost.
                 if(EXPERIMENTAL_NATIVE_OFFSCREEN && GPU.cachedCount()>0 &&
-                   (++offscreenFrameCounter % 30)==1) {
+                   (EXPERIMENTAL_DEPTH_COMPOSITE ||
+                    (++offscreenFrameCounter % 30)==1)) {
                     SeamForeignOffscreenPass.drawOpaque(mc,
                         () -> drawNativeForeignSky(event),
                         () -> GPU.draw(sections,pose,camera));
                     if(SeamForeignOffscreenPass.opaqueReady())
                         pendingOffscreenTranslucent=List.copyOf(sections);
                 }
-                GPU.draw(sections,pose,camera);
+                // The real depth compositor owns the foreign image. Do not
+                // contaminate the source depth buffer with preview geometry:
+                // that would make the source/foreign depth test self-occlude.
+                if (!EXPERIMENTAL_DEPTH_COMPOSITE)
+                    GPU.draw(sections,pose,camera);
                 lastFrameGpuModels=GPU.lastFrameModelsVisible();
                 lastFrameGpuSections=GPU.lastFrameCachedSections();
                 lastFrameEndStone=GPU.lastFrameEndStoneModels();
                 lastFrameGpuCpuNanos=Math.max(0,System.nanoTime()-gpuStart);
+                if (EXPERIMENTAL_DEPTH_COMPOSITE) {
+                    renderForeignActors(event);
+                    return;
+                }
                 // All cached sections stay visible with NO per-frame model
                 // selection cap. Only sections still uploading need the
                 // legacy fallback. This fixes the previous "floating sparse
@@ -689,8 +707,9 @@ public final class SeamNativeGeometryClient {
                     Minecraft.getInstance(),
                     () -> GPU.drawTranslucent(offscreenSections,
                         event.getPoseStack(),event.getCamera().getPosition()));
-            GPU.drawTranslucent(sections,event.getPoseStack(),
-                event.getCamera().getPosition());
+            if (!EXPERIMENTAL_DEPTH_COMPOSITE)
+                GPU.drawTranslucent(sections,event.getPoseStack(),
+                    event.getCamera().getPosition());
             lastFrameGpuModels=GPU.lastFrameModelsVisible();
             lastFrameGpuSections=GPU.lastFrameCachedSections();
             lastFrameGpuCpuNanos+=Math.max(0,System.nanoTime()-started);
@@ -716,7 +735,24 @@ public final class SeamNativeGeometryClient {
             SeamForeignOffscreenPass.drawActors(Minecraft.getInstance(),
                 () -> drawForeignActorsNative(event));
         }
-        drawForeignActorsNative(event);
+        if (!EXPERIMENTAL_DEPTH_COMPOSITE)
+            drawForeignActorsNative(event);
+    }
+
+    /** Real foreign FBO pixels are admitted only BEHIND the seam and in
+     *  front of actual source-world depth, never by a fullscreen fake blit. */
+    private static void renderComposite(RenderLevelStageEvent event) {
+        if (!EXPERIMENTAL_DEPTH_COMPOSITE || gpuDisabled ||
+            !SeamForeignOffscreenPass.frameComplete() ||
+            event.getCamera()==null || Minecraft.getInstance().level==null ||
+            !source.equals(Minecraft.getInstance().level.dimension()
+                .location().toString()) || queuedLink==null) return;
+        SeamForeignDepthCompositor.composite(Minecraft.getInstance(),
+            SeamForeignOffscreenPass.colorTextureId(),
+            SeamForeignOffscreenPass.depthTextureId(),
+            event.getModelViewMatrix(), event.getProjectionMatrix(),
+            (float)(sourceBoundary-event.getCamera().getPosition().y),
+            queuedLink.exit()==SeamGraph.EdgeSide.BOTTOM);
     }
 
     private static void drawForeignActorsNative(RenderLevelStageEvent event) {
@@ -812,6 +848,7 @@ public final class SeamNativeGeometryClient {
         BUILD_QUEUE.clear();
         GPU.release();
         SeamForeignOffscreenPass.release();
+        SeamForeignDepthCompositor.release();
         offscreenFrameCounter=0;
         gpuReloadPending=false;
         lastFrameGpuModels=0;
