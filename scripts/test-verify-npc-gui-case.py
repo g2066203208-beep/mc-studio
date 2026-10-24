@@ -146,6 +146,27 @@ class GenuineGuiCaseRegression(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "four-block"):
             case.verify(filmed(lines))
 
+    def test_forged_close_distance_cannot_hide_separated_entities(self):
+        lines = episode(A, 100)
+        lines = [line.replace("distanceSq=4.0", "distanceSq=0.0")
+                 if "tick=180" in line else line for line in lines]
+        with self.assertRaisesRegex(ValueError, "contradicts real"):
+            case.verify(filmed(lines))
+
+    def test_forged_far_distance_cannot_disagree_with_block_positions(self):
+        lines = episode(A, 100)
+        lines = [line.replace("distanceSq=4.0", "distanceSq=15.0")
+                 if "tick=180" in line else line for line in lines]
+        with self.assertRaisesRegex(ValueError, "contradicts real"):
+            case.verify(filmed(lines))
+
+    def test_escort_tick_outside_arrest_to_jail_cannot_count_as_walk(self):
+        lines = episode(A, 100)
+        lines = [line.replace("tick=180", "tick=221")
+                 if "REME_NPC_ESCORT_PAIR" in line else line for line in lines]
+        with self.assertRaisesRegex(ValueError, "outside arrest-to-jail"):
+            case.verify(filmed(lines))
+
     def test_physical_pair_evidence_is_reported(self):
         result = case.verify(filmed(episode(A, 100)))
         self.assertIn("physical_pair=true escort_samples=3", result)
