@@ -448,8 +448,13 @@ public final class SeamNativeGeometryClient {
                 long gpuStart=System.nanoTime();
                 var sections=new ArrayList<Section>(visible.size());
                 for(var slice:visible)sections.add(slice.gpuSection());
-                GPU.compileVisible(mc,queuedRemote,sections,camera,
-                    sourceBoundary,targetBoundary,queuedLink.entry());
+                // Native section baking/upload is deliberately restricted to
+                // ClientTickEvent.Post above. Recompiling here used to block
+                // the actual render stage on modded block-model tessellation
+                // and GPU uploads, creating frame-time spikes exactly when
+                // the camera looked through the seam. Render only already
+                // committed VBOs; still-pending slices are drawn by the
+                // bounded legacy fallback below until the next client tick.
                 GPU.draw(sections,pose,camera);
                 lastFrameGpuModels=GPU.lastFrameModelsVisible();
                 lastFrameGpuSections=GPU.lastFrameCachedSections();
