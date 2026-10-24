@@ -155,4 +155,95 @@ public final class HomeEntranceRouteGameTests {
             else helper.succeed();
         });
     }
+
+    /** A real wooden home door starts CLOSED. Only an NPC actually at its
+     * physical entrance may open it; iron gates are never silently unlocked.
+     * DoorBlock.setOpen must update both halves as vanilla would.
+     */
+    @GameTest(template="empty",timeoutTicks=120)
+    public static void resident_opens_real_closed_wooden_door_only_when_nearby(
+        GameTestHelper helper) {
+        ServerLevel level=helper.getLevel();
+        BlockPos center=house(helper,false);
+        BlockPos door=center.south(3);
+        PlayerNpcEntity npc=NpcRegistry.PLAYER_NPC.get().create(level);
+        if(npc==null)throw new AssertionError("NPC registration missing");
+        BlockPos far=center.south(8);
+        npc.moveTo(far.getX()+0.5,far.getY(),far.getZ()+0.5,0,0);
+        npc.setMode(PlayerNpcEntity.Mode.LIVE);
+        npc.setProfession(PlayerNpcEntity.Profession.RESIDENT);
+        npc.setHomePos(center.north());
+        if(!level.addFreshEntity(npc))throw new AssertionError("Cannot spawn real resident");
+        HomeEntranceRoute.moveTowardEntrance(npc,level,center.north(),1.0);
+        if(level.getBlockState(door).getValue(DoorBlock.OPEN))
+            throw new AssertionError("Distant NPC remotely opened a closed door");
+        BlockPos outside=center.south(4);
+        npc.moveTo(outside.getX()+0.5,outside.getY(),
+            outside.getZ()+0.5,0,0);
+        HomeEntranceRoute.moveTowardEntrance(npc,level,center.north(),1.0);
+        if(!level.getBlockState(door).getValue(DoorBlock.OPEN)
+            ||!level.getBlockState(door.above()).getValue(DoorBlock.OPEN))
+            throw new AssertionError("Nearby NPC failed to physically open both wooden door halves");
+        // A locked iron door is not an acceptable replacement home entrance.
+        level.setBlock(door,Blocks.IRON_DOOR.defaultBlockState()
+            .setValue(DoorBlock.FACING,Direction.SOUTH)
+            .setValue(DoorBlock.HALF,DoubleBlockHalf.LOWER)
+            .setValue(DoorBlock.OPEN,false),3);
+        level.setBlock(door.above(),Blocks.IRON_DOOR.defaultBlockState()
+            .setValue(DoorBlock.FACING,Direction.SOUTH)
+            .setValue(DoorBlock.HALF,DoubleBlockHalf.UPPER)
+            .setValue(DoorBlock.OPEN,false),3);
+        HomeEntranceRoute.moveTowardEntrance(npc,level,center.north(),1.0);
+        if(level.getBlockState(door).getValue(DoorBlock.OPEN))
+            throw new AssertionError("NPC illegally opened a real iron security door");
+        helper.succeed();
+    }
+
+    /** Full in-world regression: unlike an already-open showcase entrance,
+     * this door starts shut. A tired resident must open the VANILLA wooden
+     * block, physically cross its threshold and sleep in the actual bed.
+     */
+    @GameTest(template="empty",timeoutTicks=360)
+    public static void exhausted_resident_opens_closed_door_walks_and_sleeps(
+        GameTestHelper helper) {
+        ServerLevel level=helper.getLevel();
+        BlockPos center=house(helper,false);
+        BlockPos door=center.south(3);
+        BlockPos bed=center.north().west();
+        PlayerNpcEntity npc=NpcRegistry.PLAYER_NPC.get().create(level);
+        if(npc==null)throw new AssertionError("NPC registration missing");
+        BlockPos start=center.south(5);
+        npc.moveTo(start.getX()+0.5,start.getY(),start.getZ()+0.5,0,0);
+        npc.setMode(PlayerNpcEntity.Mode.LIVE);
+        npc.setProfession(PlayerNpcEntity.Profession.RESIDENT);
+        npc.setHomePos(center.north());
+        npc.setAssignedBedPos(bed);
+        npc.changeNeeds(0,-95,0);
+        npc.setDecision(new LivingPlanner.Decision(
+            LivingPlanner.Intent.SLEEP,1000,"physical night rest"));
+        if(!level.addFreshEntity(npc))throw new AssertionError("Cannot spawn real resident");
+        final boolean[] opened={false}, crossed={false}, moved={false};
+        final double[] last={npc.getZ()};
+        for(int t=5;t<=280;t+=5)helper.runAfterDelay(t,()->{
+            if(!npc.isAlive())helper.fail("Resident vanished on closed-door route",start);
+            if(level.getBlockState(door).getValue(DoorBlock.OPEN))opened[0]=true;
+            double z=npc.getZ();
+            if(Math.abs(z-last[0])>3.0)
+                helper.fail("Resident jumped rather than walking through the door",
+                    npc.blockPosition());
+            if(Math.abs(z-last[0])>.04)moved[0]=true;
+            if(z<center.south(3).getZ()+.1)crossed[0]=true;
+            last[0]=z;
+        });
+        helper.runAfterDelay(290,()->{
+            if(!opened[0]||!moved[0]||!crossed[0]||!npc.isSleeping()
+                ||!npc.getSleepingPos().orElse(BlockPos.ZERO).equals(bed))
+                helper.fail("Closed wooden door was not opened and crossed into real bed: "
+                    +"pos="+npc.blockPosition()+" opened="+opened[0]
+                    +" moved="+moved[0]+" crossed="+crossed[0]
+                    +" sleeping="+npc.isSleeping()+" action="+npc.lastAction(),
+                    npc.blockPosition());
+            else helper.succeed();
+        });
+    }
 }
