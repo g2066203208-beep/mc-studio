@@ -115,17 +115,21 @@ public final class SeamVisualE2E {
             // opaque depth attachment while submitting real translucent
             // foreign VBOs later in the SAME native GUI frame.
             if(Boolean.getBoolean("worldseam.experimentalOffscreenTerrain")) {
-                LOG.info("WORLDSEAM_E2E_OFFSCREEN_DEPTH_PAIR: opaquePasses={}, translucentPasses={}, restoreFailures={}, allocated={}",
+                LOG.info("WORLDSEAM_E2E_OFFSCREEN_DEPTH_PAIR: opaquePasses={}, actorPasses={}, translucentPasses={}, restoreFailures={}, allocated={}",
                     SeamForeignOffscreenPass.opaquePasses(),
+                    SeamForeignOffscreenPass.actorPasses(),
                     SeamForeignOffscreenPass.translucentPasses(),
                     SeamForeignOffscreenPass.restoreFailures(),
                     SeamForeignOffscreenPass.allocated());
                 if(SeamForeignOffscreenPass.opaquePasses()<1 ||
+                   SeamForeignOffscreenPass.actorPasses()<1 ||
+                   SeamForeignOffscreenPass.actorPasses()>
+                       SeamForeignOffscreenPass.opaquePasses() ||
                    SeamForeignOffscreenPass.translucentPasses()<1 ||
                    SeamForeignOffscreenPass.translucentPasses()>
                        SeamForeignOffscreenPass.opaquePasses() ||
                    SeamForeignOffscreenPass.restoreFailures()>0)
-                    LOG.error("WORLDSEAM_E2E_FAIL_OFFSCREEN_DEPTH_PAIR: secondary color/depth target did not receive both real native passes");
+                    LOG.error("WORLDSEAM_E2E_FAIL_OFFSCREEN_DEPTH_PAIR: secondary color/depth target did not receive real opaque/actor/translucent passes");
             }
             LOG.info("WORLDSEAM_E2E_REMOTE_LIGHTMAP: created={}, boundFrames={}, failures={}, released={}",
                 SeamRemoteLightmaps.creations(), SeamRemoteLightmaps.boundFrames(),
