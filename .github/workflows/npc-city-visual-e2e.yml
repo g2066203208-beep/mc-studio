@@ -38,6 +38,7 @@ on:
       - fix/npc-cross-dimension-trade-guard-v108
       - fix/npc-home-door-inside-stage-v109
       - fix/npc-cell-arrival-officer-four-block-v110
+      - fix/npc-camera-low-vantage-first-v111
   pull_request:
     branches:
       - feat/npc-economy-market-fair-v069
@@ -66,6 +67,8 @@ jobs:
           grep -Fxq 'mod_version=0.7.2-dev' mod/gradle.properties
       - name: Verify shared NPC and real-player keyframe assets
         run: python3 scripts/check-npc-animation-assets.py
+      - name: Verify recorded same-UUID crime-window regression tests
+        run: python3 scripts/test-verify-npc-gui-case.py
       - name: Install GUI dependencies without overlapping apt or dpkg processes
         shell: bash
         run: |

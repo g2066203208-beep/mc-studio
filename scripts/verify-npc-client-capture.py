@@ -16,7 +16,10 @@ import sys
 import unittest
 
 VIDEO_CONTRACT = {
-    "client-gui-city-full-crime-to-locked-jail.mp4": 90.0,
+    # Completion is now tied to same-UUID case events inside recording
+    # markers, not a padded 90s wall-clock minimum. The real crime-to-cell
+    # sequence can complete sooner; preserve enough continuous frames.
+    "client-gui-city-full-crime-to-locked-jail.mp4": 35.0,
     "client-gui-city-physical-npc-follow.mp4": 45.0,
 }
 SCREENSHOTS = (

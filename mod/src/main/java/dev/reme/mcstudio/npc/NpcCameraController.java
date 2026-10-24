@@ -143,10 +143,15 @@ public final class NpcCameraController {
             Predicate<Vec3> unobstructed, double[] radii,
             double[] heightOffsets) {
         double[] yawOffsets = {0, 60, -60, 115, -115, 180};
-        for (double radius : radii) {
-            for (double offset : yawOffsets) {
-                double angle = Math.toRadians(targetYaw + offset);
-                for (double height : heightOffsets) {
+        // Try every street-level angle before ANY elevated angle. The old
+        // radius -> yaw -> height order selected an elevated rear shot as
+        // soon as the first rear low lens was blocked, even when a clear
+        // eye-level SIDE view existed. This made indoor scenes unnecessarily
+        // top-down and hid the two walking actors behind furniture.
+        for (double height : heightOffsets) {
+            for (double radius : radii) {
+                for (double offset : yawOffsets) {
+                    double angle = Math.toRadians(targetYaw + offset);
                     Vec3 lens = targetEye.add(
                         Math.sin(angle) * radius, height,
                         -Math.cos(angle) * radius);

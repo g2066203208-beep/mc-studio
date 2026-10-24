@@ -70,6 +70,31 @@ public final class NpcEscortPairCameraGameTests {
         helper.succeed();
     }
 
+    /** An obstructed rear eye-level shot must NOT cause an elevated shot
+     * when a clear street-level side shot exists. The old radius/yaw/height
+     * loop incorrectly picked the elevated rear candidate first.
+     */
+    @GameTest(template="empty", timeoutTicks=100)
+    public static void pair_camera_prefers_clear_side_street_level_over_high_rear(
+            GameTestHelper helper) {
+        Vec3 detainee = new Vec3(4.5, 5.5, 4.5);
+        Vec3 officer = new Vec3(6.5, 5.5, 4.5);
+        Vec3 mid = detainee.add(officer).scale(0.5);
+        var lens = NpcCameraController.selectPairView(
+            detainee, officer, 0,
+            p -> (p.y > mid.y + 0.8
+                    && Math.abs(p.x - mid.x) < 0.1
+                    && p.z < mid.z - 4.0)
+                || (Math.abs(p.y - (mid.y + 0.32)) < 0.01
+                    && p.x > mid.x + 4.0),
+            p -> true);
+        if (lens == null || lens.y() - mid.y > 0.8
+            || lens.x() <= mid.x + 4.0)
+            throw new AssertionError(
+                "High rear lens displaced a clear street-level side view");
+        helper.succeed();
+    }
+
     @GameTest(template="empty", timeoutTicks=100)
     public static void spectator_eye_clear_but_body_in_stone_is_rejected(
             GameTestHelper helper) {
