@@ -42,11 +42,22 @@ public final class SeamForeignActorWorldScope {
     public static long failures(){return failures;}
 
     public static Scope bind(ClientLevel foreign, Camera sourceCamera) {
+        return bind(foreign, sourceCamera, sourceCamera);
+    }
+
+    /**
+     * A native target-world pass must prepare its render dispatchers with the
+     * target Camera, while vanilla must resume with the original source Camera.
+     * Keeping these separate prevents target-space camera state leaking back
+     * into the source LevelRenderer after a sky/actor render callback.
+     */
+    public static Scope bind(ClientLevel foreign, Camera foreignCamera,
+                             Camera restoreCamera) {
         Minecraft mc=Minecraft.getInstance();
         LevelRenderer foreignRenderer=SeamClientWorldPool.rendererFor(foreign);
         RenderBuffers foreignBuffers=SeamClientWorldPool.renderBuffersFor(foreign);
         if(foreign==null || foreignRenderer==null || foreignBuffers==null ||
-            mc.level==null || foreign==mc.level || sourceCamera==null)return NOOP;
+            mc.level==null || foreign==mc.level || foreignCamera==null || restoreCamera==null)return NOOP;
         if(inside)throw new IllegalStateException("Nested WorldSeam foreign render context");
         ClientLevel originalWorld=mc.level;
         LevelRenderer originalRenderer=mc.levelRenderer;
@@ -66,7 +77,7 @@ public final class SeamForeignActorWorldScope {
             // ParticleEngine.setLevel() clears particles; swap only its
             // dimension reference and restore it before vanilla resumes.
             particles.worldseam$setLevel(foreign);
-            mc.getEntityRenderDispatcher().prepare(foreign,sourceCamera,null);
+            mc.getEntityRenderDispatcher().prepare(foreign,foreignCamera,null);
             // Verify the real Minecraft and GameRenderer now use the
             // secondary LevelRenderer's dedicated native buffer owner.
             if(mc.renderBuffers()!=foreignBuffers ||
@@ -76,7 +87,7 @@ public final class SeamForeignActorWorldScope {
             failures++;
             restore(mc,originalWorld,originalRenderer,originalParticleWorld,
                 originalMinecraftBuffers,originalGameBuffers,
-                sourceCamera,particles,client,game);
+                restoreCamera,particles,client,game);
             throw failure;
         }
         entered++;
@@ -88,7 +99,7 @@ public final class SeamForeignActorWorldScope {
                 try {
                     restore(mc,originalWorld,originalRenderer,
                         originalParticleWorld,originalMinecraftBuffers,
-                        originalGameBuffers,sourceCamera,particles,client,game);
+                        originalGameBuffers,restoreCamera,particles,client,game);
                     if(mc.renderBuffers()!=originalMinecraftBuffers ||
                        game.worldseam$getRenderBuffers()!=originalGameBuffers)
                         throw new IllegalStateException("Foreign native render buffers leaked");
