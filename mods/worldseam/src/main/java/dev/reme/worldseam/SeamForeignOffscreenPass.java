@@ -30,6 +30,8 @@ public final class SeamForeignOffscreenPass {
     private static long resizes;
     private static long opaquePasses;
     private static long translucentPasses;
+    private static long actorPasses;
+    private static boolean actorsSubmitted;
     private static boolean opaqueReady;
     private static long restoreFailures;
     private static boolean active;
@@ -38,12 +40,14 @@ public final class SeamForeignOffscreenPass {
 
     public static long opaquePasses() { return opaquePasses; }
     public static long translucentPasses() { return translucentPasses; }
+    public static long actorPasses() { return actorPasses; }
     public static boolean opaqueReady() { return opaqueReady; }
 
     /** Each vanilla opaque stage starts a new frame. Never reuse a previous frame's depth. */
     public static void beginFrame() {
         RenderSystem.assertOnRenderThread();
         opaqueReady = false;
+        actorsSubmitted = false;
     }
     public static long restoreFailures() { return restoreFailures; }
     public static boolean allocated() { return target != null; }
@@ -62,6 +66,31 @@ public final class SeamForeignOffscreenPass {
             LOG.info("WORLDSEAM_NATIVE_OFFSCREEN_OPAQUE: passes={}, colorTexture={}, depthTexture={}, size={}x{}, allocations={}, resizes={}, compositeReady=false",
                 opaquePasses, target.getColorTextureId(), target.getDepthTextureId(),
                 target.width, target.height, allocations, resizes);
+    }
+
+    /**
+     * Render real target ClientLevel block entities and ordinary entities
+     * into the SAME native color/depth attachments after opaque terrain and
+     * before translucent terrain. The caller must scope the genuine foreign
+     * LevelRenderer/RenderBuffers and flush its native actor buffers before
+     * returning. No fake actor, copied level or full-screen blit is involved.
+     *
+     * This remains a bounded experimental pass, NOT a full secondary
+     * LevelRenderer, Sable sublevel renderer or seamless compositor.
+     */
+    public static boolean drawActors(Minecraft mc, Runnable foreignActors) {
+        RenderSystem.assertOnRenderThread();
+        if (!opaqueReady || actorsSubmitted || target == null) return false;
+        // Set before invoking third-party actor renderers so a reentrant
+        // callback cannot submit actors twice to the same depth target.
+        actorsSubmitted = true;
+        if (!drawScoped(mc, foreignActors, false)) return false;
+        actorPasses++;
+        if (actorPasses == 1 || actorPasses % 120 == 0)
+            LOG.info("WORLDSEAM_NATIVE_OFFSCREEN_ACTORS: passes={}, opaquePasses={}, colorTexture={}, depthTexture={}, sameTarget=true, compositeReady=false",
+                actorPasses, opaquePasses, target.getColorTextureId(),
+                target.getDepthTextureId());
+        return true;
     }
 
     /**
@@ -141,6 +170,7 @@ public final class SeamForeignOffscreenPass {
     public static void release() {
         RenderSystem.assertOnRenderThread();
         opaqueReady = false;
+        actorsSubmitted = false;
         if (active) throw new IllegalStateException("Release during WorldSeam offscreen draw");
         if (target != null) {
             target.destroyBuffers();
