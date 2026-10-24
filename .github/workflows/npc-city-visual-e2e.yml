@@ -35,6 +35,7 @@ on:
       - fix/npc-unloaded-prisoner-escort-resume-v105
       - test/npc-escort-entity-reappear-v106
       - test/npc-full-day-store-conservation-v107
+      - fix/npc-cross-dimension-trade-guard-v108
   pull_request:
     branches:
       - feat/npc-economy-market-fair-v069
