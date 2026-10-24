@@ -298,4 +298,66 @@ public final class NpcEscortPairCameraGameTests {
             throw new AssertionError("Camera claims both separated actors visible through stone");
         helper.succeed();
     }
+
+    /** Keep a safe moving lens through turns; reject stale/blocked positions. */
+    @GameTest(template="empty", timeoutTicks=100)
+    public static void safe_chase_lens_tracks_walking_actor_without_orbit_cut(
+            GameTestHelper helper) {
+        Vec3 oldEye = new Vec3(5.5, 5.5, 5.5);
+        Vec3 newEye = oldEye.add(0.45, 0, 0.65);
+        var previous = NpcCameraController.selectClearView(oldEye, 0,
+            p -> true, p -> true);
+        if (previous == null) throw new AssertionError("No initial camera");
+        var retained = NpcCameraController.retainSafeShot(previous,
+            oldEye, newEye, p -> true, p -> true);
+        if (retained == null) throw new AssertionError("Safe walking lens discarded");
+        Vec3 oldRelative = new Vec3(previous.x(), previous.y(), previous.z())
+            .subtract(oldEye);
+        Vec3 newRelative = new Vec3(retained.x(), retained.y(), retained.z())
+            .subtract(newEye);
+        if (oldRelative.distanceToSqr(newRelative) > 0.000001)
+            throw new AssertionError("Camera jumped to a new orbit on actor turn");
+        if (NpcCameraController.retainSafeShot(previous,
+                oldEye, newEye, p -> false, p -> true) != null
+            || NpcCameraController.retainSafeShot(previous,
+                oldEye, newEye, p -> true, p -> false) != null
+            || NpcCameraController.retainSafeShot(previous,
+                oldEye, oldEye.add(5, 0, 0), p -> true, p -> true) != null)
+            throw new AssertionError("Unsafe or stale camera was retained");
+        helper.succeed();
+    }
+
+    /** A real stone block must invalidate a previously safe moving camera. */
+    @GameTest(template="empty", timeoutTicks=100)
+    public static void stable_chase_lens_rechecks_real_stone_collision(
+            GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos base = helper.absolutePos(new BlockPos(8, 3, 8));
+        for (int dx = -6; dx <= 6; dx++)
+            for (int dz = -8; dz <= 6; dz++) {
+                BlockPos floor = base.offset(dx, -1, dz);
+                level.setBlock(floor, Blocks.SMOOTH_STONE.defaultBlockState(), 2);
+                for (int dy = 0; dy < 5; dy++)
+                    level.setBlock(floor.above(dy + 1), Blocks.AIR.defaultBlockState(), 2);
+            }
+        Vec3 eye = new Vec3(base.getX() + 0.5, base.getY() + 1.62,
+            base.getZ() + 0.5);
+        var previous = NpcCameraController.selectClearView(eye, 0,
+            p -> true, p -> true);
+        if (previous == null) throw new AssertionError("No initial street lens");
+        Vec3 next = eye.add(0.25, 0, 0.25);
+        java.util.function.Predicate<Vec3> realBody = p ->
+            NpcCameraController.spectatorBodyClearInWorld(
+                level, p, 1.62, 0.6, 1.8);
+        var safe = NpcCameraController.retainSafeShot(previous, eye, next,
+            realBody, p -> true);
+        if (safe == null) throw new AssertionError("Open street lens rejected");
+        BlockPos obstruction = BlockPos.containing(
+            new Vec3(safe.x(), safe.y() - 1.0, safe.z()));
+        level.setBlock(obstruction, Blocks.STONE.defaultBlockState(), 2);
+        if (NpcCameraController.retainSafeShot(previous, eye, next,
+                realBody, p -> true) != null)
+            throw new AssertionError("Old camera passed through a real stone block");
+        helper.succeed();
+    }
 }
