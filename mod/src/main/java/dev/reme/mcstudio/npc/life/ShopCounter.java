@@ -30,7 +30,15 @@ public final class ShopCounter {
 
     public static boolean purchase(PlayerNpcEntity clerk, Player buyer,
                                    ItemStack payment) {
+        // Human players use the SAME physical opening hours and counter
+        // location as autonomous residents. Never sell from a sleeping or
+        // off-duty NPC, or charge a detached ItemStack supplied by a caller.
         if (!samePhysicalWorld(clerk, buyer)
+            || !openForResidentSales(clerk)
+            || (payment != buyer.getMainHandItem()
+                && payment != buyer.getOffhandItem())
+            || !(clerk.level() instanceof ServerLevel serverLevel)
+            || !serverLevel.getServer().isSameThread()
             || clerk.profession() != PlayerNpcEntity.Profession.SHOPKEEPER
             || clerk.mode() != PlayerNpcEntity.Mode.LIVE
             || clerk.isDetained(clerk.level().getGameTime())
