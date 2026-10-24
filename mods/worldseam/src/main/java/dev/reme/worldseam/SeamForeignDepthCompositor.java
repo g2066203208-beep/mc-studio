@@ -42,7 +42,11 @@ public final class SeamForeignDepthCompositor {
         out vec2 texCoord;
         void main() {
             vec2 p = vec2((gl_VertexID << 1) & 2, gl_VertexID & 2);
-            texCoord = p * 0.5;
+            // The oversized triangle covers NDC [-1,1] using p in [0,2].
+            // Screen UV = (NDC + 1) / 2 = p, NOT p * 0.5.
+            // Halving p samples only the lower-left quarter of both depth
+            // textures, misaligning source/foreign depth with the camera ray.
+            texCoord = p;
             gl_Position = vec4(p * 2.0 - 1.0, 0.0, 1.0);
         }
         """;
