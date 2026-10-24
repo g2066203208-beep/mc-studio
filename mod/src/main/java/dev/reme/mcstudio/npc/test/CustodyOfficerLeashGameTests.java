@@ -374,4 +374,56 @@ public final class CustodyOfficerLeashGameTests {
             throw new AssertionError("Acknowledged handoff did not lock real cell");
         helper.succeed();
     }
+
+    /** A stale second guard may still have the prisoner's UUID after a
+     * save/reload or case reassignment. Only the officer named by the
+     * prisoner's reciprocal custody UUID may complete the real cell handoff.
+     */
+    @GameTest(template="empty",timeoutTicks=100)
+    public static void foreign_officer_cannot_complete_another_officers_cell_handoff(
+        GameTestHelper helper) {
+        ServerLevel level=helper.getLevel();
+        BlockPos jail=helper.absolutePos(new BlockPos(10,2,10));
+        for(int dx=-2;dx<=6;dx++)for(int dz=-2;dz<=4;dz++) {
+            BlockPos tile=jail.offset(dx,0,dz);
+            level.setBlock(tile.below(),Blocks.SMOOTH_STONE.defaultBlockState(),2);
+            for(int dy=0;dy<3;dy++)
+                level.setBlock(tile.above(dy),Blocks.AIR.defaultBlockState(),2);
+        }
+        level.setBlock(jail.north(),Blocks.IRON_BARS.defaultBlockState(),2);
+        BlockPos gate=CityJailGate.gateFor(jail);
+        level.setBlock(gate,Blocks.IRON_DOOR.defaultBlockState()
+            .setValue(DoorBlock.HALF,DoubleBlockHalf.LOWER)
+            .setValue(DoorBlock.OPEN,true),2);
+        level.setBlock(gate.above(),Blocks.IRON_DOOR.defaultBlockState()
+            .setValue(DoorBlock.HALF,DoubleBlockHalf.UPPER)
+            .setValue(DoorBlock.OPEN,true),2);
+        if(!PublicSafety.holdingSpot(level,jail) || !CityJailGate.isOpen(level,jail))
+            throw new AssertionError("Physical jail fixture invalid");
+        PlayerNpcEntity prisoner=npc(level,jail,PlayerNpcEntity.Profession.RESIDENT);
+        PlayerNpcEntity wrongOfficer=npc(level,jail.east(2),PlayerNpcEntity.Profession.GUARD);
+        PlayerNpcEntity realOfficer=npc(level,jail.east(3),PlayerNpcEntity.Profession.GUARD);
+        realOfficer.setHomePos(jail);
+        long now=level.getGameTime();
+        prisoner.detainAt(jail,now+400);
+        prisoner.assignCustodyOfficer(realOfficer.getUUID());
+        wrongOfficer.assignPrisonerEscort(prisoner.getUUID(),now+400);
+        realOfficer.assignPrisonerEscort(prisoner.getUUID(),now+400);
+        if(PublicSafety.tickGuard(wrongOfficer,level,now)
+            || wrongOfficer.escortedPrisoner()!=null
+            || !realOfficer.getUUID().equals(prisoner.custodyOfficer()))
+            throw new AssertionError("Wrong officer acknowledged or stole real custody");
+        if(!PublicSafety.tickPrisoner(prisoner,level,now)
+            || !CityJailGate.isOpen(level,jail))
+            throw new AssertionError("Prisoner locked gate after foreign guard tick");
+        if(!PublicSafety.tickGuard(realOfficer,level,now)
+            || realOfficer.escortedPrisoner()!=null
+            || prisoner.custodyOfficer()!=null)
+            throw new AssertionError("Assigned officer failed reciprocal handoff");
+        if(!PublicSafety.tickPrisoner(prisoner,level,now)
+            || CityJailGate.isOpen(level,jail)
+            || !prisoner.isDetained(now))
+            throw new AssertionError("Real gate did not lock after authorized handoff");
+        helper.succeed();
+    }
 }
