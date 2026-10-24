@@ -42,6 +42,10 @@ public final class SeamNativeGeometryClient {
     private record Slice(int sectionY,List<Cell> cells,AABB bounds,Section gpuSection) {}
     private static final Logger LOG=LogUtils.getLogger();
     private static final SeamGpuSectionRenderer GPU=new SeamGpuSectionRenderer();
+    // Development-only REAL GPU target pass; no fake color or unsafe full-screen blit.
+    private static final boolean EXPERIMENTAL_NATIVE_OFFSCREEN =
+        Boolean.getBoolean("worldseam.experimentalOffscreenTerrain");
+    private static long offscreenFrameCounter;
     private static boolean gpuDisabled=Boolean.getBoolean("worldseam.legacyBlockPreview");
     private static volatile boolean gpuReloadPending;
     private static int lastFrameGpuModels;
@@ -501,6 +505,16 @@ public final class SeamNativeGeometryClient {
                 // the camera looked through the seam. Render only already
                 // committed VBOs; still-pending slices are drawn by the
                 // bounded legacy fallback below until the next client tick.
+                // Build the independent COLOR+DEPTH target from real remote
+                // VBOs, preserving the currently bound vanilla/shader FBO.
+                // Until native sky/fog and geometric depth compositing exist,
+                // never blit this incomplete pass into the player's view.
+                // Sample one of every 30 frames to keep the temporary
+                // architecture check from doubling normal render cost.
+                if(EXPERIMENTAL_NATIVE_OFFSCREEN && GPU.cachedCount()>0 &&
+                   (++offscreenFrameCounter % 30)==1)
+                    SeamForeignOffscreenPass.drawOpaque(mc,
+                        () -> GPU.draw(sections,pose,camera));
                 GPU.draw(sections,pose,camera);
                 lastFrameGpuModels=GPU.lastFrameModelsVisible();
                 lastFrameGpuSections=GPU.lastFrameCachedSections();
@@ -717,6 +731,8 @@ public final class SeamNativeGeometryClient {
         queuedLink=null;
         BUILD_QUEUE.clear();
         GPU.release();
+        SeamForeignOffscreenPass.release();
+        offscreenFrameCounter=0;
         gpuReloadPending=false;
         lastFrameGpuModels=0;
         lastFrameGpuSections=0;
