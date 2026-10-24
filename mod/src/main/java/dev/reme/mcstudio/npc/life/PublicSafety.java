@@ -283,7 +283,7 @@ public final class PublicSafety {
 
     /** Real spatial escort leash, not a teleport or passenger mount.
      * A linked detainee pauses if the arresting officer is not alive, no
-     * longer owns the same case, or is more than ten blocks away. This is
+     * longer owns the same case, or is more than four blocks away. This is
      * checked only against the persisted UUID: no nearby guard may
      * impersonate the actual arresting officer. Legacy saved detainees
      * without a custody officer continue to use the old custody route.
@@ -299,7 +299,7 @@ public final class PublicSafety {
             && officer.profession() == PlayerNpcEntity.Profession.GUARD
             && prisoner.getUUID().equals(officer.escortedPrisoner())
             && tick < officer.escortUntil()
-            && officer.distanceToSqr(prisoner) <= 100.0;
+            && officer.distanceToSqr(prisoner) <= 16.0;
     }
 
     /** Real-world physical walk to a recognized holding spot (not a teleport).
