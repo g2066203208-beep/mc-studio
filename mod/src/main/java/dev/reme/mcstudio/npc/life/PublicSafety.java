@@ -307,10 +307,11 @@ public final class PublicSafety {
      * impersonate the actual arresting officer. Legacy saved detainees
      * without a custody officer continue to use the old custody route.
      */
-    public static boolean escortedPrisonerMayAdvance(PlayerNpcEntity prisoner,
-                                                      ServerLevel level, long tick) {
+    private static boolean linkedOfficerWithin(PlayerNpcEntity prisoner,
+                                                ServerLevel level, long tick,
+                                                double maxDistanceSq) {
         UUID officerId = prisoner.custodyOfficer();
-        if (officerId == null) return true;
+        if (officerId == null) return true; // Legacy saved detainee.
         var found = level.getEntity(officerId);
         return found instanceof PlayerNpcEntity officer
             && officer.isAlive()
@@ -318,7 +319,25 @@ public final class PublicSafety {
             && officer.profession() == PlayerNpcEntity.Profession.GUARD
             && prisoner.getUUID().equals(officer.escortedPrisoner())
             && tick < officer.escortUntil()
-            && officer.distanceToSqr(prisoner) <= 16.0;
+            && officer.distanceToSqr(prisoner) <= maxDistanceSq;
+    }
+
+    /** Four blocks is the absolute custody authorization boundary. */
+    public static boolean escortedPrisonerMayAdvance(PlayerNpcEntity prisoner,
+                                                      ServerLevel level, long tick) {
+        return linkedOfficerWithin(prisoner, level, tick, 16.0);
+    }
+
+    /** Start the next physical path segment only while the real arresting
+     * officer is within three blocks. The previous four-block start threshold
+     * had no safety margin for native pathfinding/turning between entity ticks:
+     * real GUI evidence recorded a 6.93-block separation despite the four-
+     * block pause. Do not teleport either actor or alter saved custody UUIDs.
+     * The existing four-block limit remains the final cell handoff boundary.
+     */
+    public static boolean escortedPrisonerMayWalk(PlayerNpcEntity prisoner,
+                                                   ServerLevel level, long tick) {
+        return linkedOfficerWithin(prisoner, level, tick, 9.0);
     }
 
     /** Real-world physical walk to a recognized holding spot (not a teleport).
@@ -360,7 +379,7 @@ public final class PublicSafety {
             suspect.setAction("held at designated iron-bar holding spot until release");
             return true;
         }
-        if (!escortedPrisonerMayAdvance(suspect, level, tick)) {
+        if (!escortedPrisonerMayWalk(suspect, level, tick)) {
             suspect.getNavigation().stop();
             suspect.setAction("waiting for arresting officer to resume real foot escort");
             if (MovementPolicy.due(tick, suspect.getId(), 80)) {
