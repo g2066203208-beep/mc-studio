@@ -29,6 +29,7 @@ public final class SeamForeignOffscreenPass {
     private static long allocations;
     private static long resizes;
     private static long opaquePasses;
+    private static long nativeSkyPasses;
     private static long translucentPasses;
     private static long actorPasses;
     private static boolean actorsSubmitted;
@@ -39,6 +40,7 @@ public final class SeamForeignOffscreenPass {
     private SeamForeignOffscreenPass() {}
 
     public static long opaquePasses() { return opaquePasses; }
+    public static long nativeSkyPasses() { return nativeSkyPasses; }
     public static long translucentPasses() { return translucentPasses; }
     public static long actorPasses() { return actorPasses; }
     public static boolean opaqueReady() { return opaqueReady; }
@@ -57,15 +59,24 @@ public final class SeamForeignOffscreenPass {
      * framebuffer, not just Minecraft's main target: Fabulous/shader passes
      * may be drawing to a different framebuffer at this stage.
      */
-    public static void drawOpaque(Minecraft mc, Runnable foreignDraw) {
+    public static void drawOpaque(Minecraft mc, Runnable nativeSkyDraw,
+                                  Runnable foreignTerrainDraw) {
         opaqueReady = false;
-        if (!drawScoped(mc, foreignDraw, true)) return;
+        // Draw the genuine target LevelRenderer sky FIRST, into the SAME
+        // independently depth-backed FBO, then real terrain over that sky.
+        // Never synthesize a background color or blit incomplete pixels.
+        if (!drawScoped(mc, () -> {
+            nativeSkyDraw.run();
+            foreignTerrainDraw.run();
+        }, true)) return;
+        nativeSkyPasses++;
         opaquePasses++;
         opaqueReady = true;
         if (opaquePasses == 1 || opaquePasses % 120 == 0)
-            LOG.info("WORLDSEAM_NATIVE_OFFSCREEN_OPAQUE: passes={}, colorTexture={}, depthTexture={}, size={}x{}, allocations={}, resizes={}, compositeReady=false",
-                opaquePasses, target.getColorTextureId(), target.getDepthTextureId(),
-                target.width, target.height, allocations, resizes);
+            LOG.info("WORLDSEAM_NATIVE_OFFSCREEN_OPAQUE: passes={}, nativeSkyInvocations={}, colorTexture={}, depthTexture={}, size={}x{}, allocations={}, resizes={}, compositeReady=false",
+                opaquePasses, nativeSkyPasses, target.getColorTextureId(),
+                target.getDepthTextureId(), target.width, target.height,
+                allocations, resizes);
     }
 
     /**
