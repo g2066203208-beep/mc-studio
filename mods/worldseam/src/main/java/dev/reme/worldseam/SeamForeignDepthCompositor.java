@@ -97,6 +97,10 @@ public final class SeamForeignDepthCompositor {
 
     public static long composites() { return composites; }
     public static long failures() { return failures; }
+    /** Live GL ownership, not cumulative invocation count; must clear on disable. */
+    public static boolean allocated() {
+        return sourceDepthCopy != null || program != 0 || vao != 0;
+    }
 
     private static int compileShader(int type, String source) {
         int shader = GL20.glCreateShader(type);
