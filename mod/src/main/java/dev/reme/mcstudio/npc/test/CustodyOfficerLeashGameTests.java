@@ -426,4 +426,62 @@ public final class CustodyOfficerLeashGameTests {
             throw new AssertionError("Real gate did not lock after authorized handoff");
         helper.succeed();
     }
+
+    /** Regression: an officer two blocks away on the other side of a SOLID
+     * station wall cannot complete custody or lock the real iron gate.
+     * Reaching the open south intake with clear sight permits the handoff.
+     * The direct moveTo below is ONLY test fixture setup, never production.
+     */
+    @GameTest(template="empty",timeoutTicks=100)
+    public static void officer_behind_solid_wall_cannot_handoff_through_cell_wall(
+        GameTestHelper helper) {
+        ServerLevel level=helper.getLevel();
+        BlockPos jail=helper.absolutePos(new BlockPos(10,2,10));
+        for(int dx=-2;dx<=5;dx++)for(int dz=-2;dz<=5;dz++) {
+            BlockPos tile=jail.offset(dx,0,dz);
+            level.setBlock(tile.below(),Blocks.SMOOTH_STONE.defaultBlockState(),2);
+            for(int dy=0;dy<3;dy++)
+                level.setBlock(tile.above(dy),Blocks.AIR.defaultBlockState(),2);
+        }
+        level.setBlock(jail.north(),Blocks.IRON_BARS.defaultBlockState(),2);
+        // Solid east wall separates the officer from the actual holding spot.
+        level.setBlock(jail.east(),Blocks.STONE_BRICKS.defaultBlockState(),2);
+        level.setBlock(jail.east().above(),Blocks.STONE_BRICKS.defaultBlockState(),2);
+        BlockPos gate=CityJailGate.gateFor(jail);
+        level.setBlock(gate,Blocks.IRON_DOOR.defaultBlockState()
+            .setValue(DoorBlock.HALF,DoubleBlockHalf.LOWER)
+            .setValue(DoorBlock.OPEN,true),2);
+        level.setBlock(gate.above(),Blocks.IRON_DOOR.defaultBlockState()
+            .setValue(DoorBlock.HALF,DoubleBlockHalf.UPPER)
+            .setValue(DoorBlock.OPEN,true),2);
+        if(!PublicSafety.holdingSpot(level,jail) || !CityJailGate.isOpen(level,jail))
+            throw new AssertionError("Real jail fixture invalid");
+        PlayerNpcEntity prisoner=npc(level,jail,PlayerNpcEntity.Profession.RESIDENT);
+        PlayerNpcEntity officer=npc(level,jail.east(2),PlayerNpcEntity.Profession.GUARD);
+        officer.setHomePos(jail);
+        long now=level.getGameTime();
+        prisoner.detainAt(jail,now+400);
+        prisoner.assignCustodyOfficer(officer.getUUID());
+        officer.assignPrisonerEscort(prisoner.getUUID(),now+400);
+        if(officer.hasLineOfSight(prisoner))
+            throw new AssertionError("Solid wall fixture did not block sight");
+        if(!PublicSafety.tickGuard(officer,level,now)
+            || officer.escortedPrisoner()==null
+            || prisoner.custodyOfficer()==null)
+            throw new AssertionError("Officer handed off prisoner THROUGH solid wall");
+        if(!PublicSafety.tickPrisoner(prisoner,level,now)
+            || !CityJailGate.isOpen(level,jail))
+            throw new AssertionError("Gate locked while officer remained behind wall");
+        // Simulate physical arrival at the unobstructed intake in this fixture.
+        officer.moveTo(jail.getX()+0.5,jail.getY(),jail.getZ()+1.5,0,0);
+        if(!officer.hasLineOfSight(prisoner))
+            throw new AssertionError("Open south intake did not restore line of sight");
+        if(!PublicSafety.tickGuard(officer,level,now)
+            || officer.escortedPrisoner()!=null || prisoner.custodyOfficer()!=null)
+            throw new AssertionError("Visible officer could not acknowledge handoff");
+        if(!PublicSafety.tickPrisoner(prisoner,level,now)
+            || CityJailGate.isOpen(level,jail))
+            throw new AssertionError("Real gate did not lock after visible handoff");
+        helper.succeed();
+    }
 }
