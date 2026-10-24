@@ -385,9 +385,14 @@ public final class PublicSafety {
             // until the reciprocal four-block handoff completes. Otherwise
             // the prisoner can lock the officer outside while the officer
             // is still navigating around the station.
-            if (suspect.custodyOfficer() != null
-                && !escortedPrisonerMayAdvance(suspect, level, tick)) {
-                suspect.setAction("inside real cell; waiting for arresting officer before gate lock");
+            // Proximity alone is not a handoff. The prisoner may tick before
+            // the officer on the same server tick, even when the officer is
+            // already within four blocks. Only tickEscortGuard may clear the
+            // persisted custody UUID after verifying the reciprocal link,
+            // live officer, real holding block and physical distance. Until
+            // that acknowledgement, do not lock the officer outside.
+            if (suspect.custodyOfficer() != null) {
+                suspect.setAction("inside real cell; waiting for officer handoff acknowledgement");
                 return true;
             }
             CityJailGate.setOpen(level, jail, false);
