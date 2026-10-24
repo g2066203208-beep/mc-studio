@@ -197,6 +197,12 @@ if [[ "${REME_CITY_VISUAL:-0}" == "1" ]]; then
   say_city '/npc emote greet' 3
   say_city '/gamemode spectator' 1
   say_city '/npc camera chase shoplifter' 2
+  # Film unobstructed Minecraft pixels. The vanilla movement tutorial and
+  # command HUD otherwise cover the upper portion of every escort frame.
+  # Restore F1 BEFORE the next chat command, so the verifier's start/end
+  # markers and the real physical crime sequence remain unchanged.
+  xdotool key --clearmodifiers F1
+  sleep 1
   import -window root client-gui-city-full-case-t0.png
   # Five spaced real screenshots document changing chase/escort phases.
   # Do not pad a completed arrest with 60+ seconds of static prison bars:
@@ -239,6 +245,8 @@ PY
     # filling the rest of the recording with a motionless detained actor.
     sleep 8
   fi
+  xdotool key --clearmodifiers F1
+  sleep 1
   say_city '/say REME_NPC_CASE_VIDEO_END' 1
   say_city '/npc camera stop' 1
   kill -INT "$CASE_VIDEO_PID" 2>/dev/null || true
