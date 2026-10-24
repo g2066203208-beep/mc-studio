@@ -41,6 +41,7 @@ on:
       - fix/npc-camera-low-vantage-first-v111
       - fix/npc-camera-narrow-side-angles-v112
       - fix/npc-camera-pair-to-safe-single-v113
+      - fix/npc-escort-walking-slack-v114
   pull_request:
     branches:
       - feat/npc-economy-market-fair-v069
