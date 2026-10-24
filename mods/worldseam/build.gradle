@@ -156,6 +156,9 @@ configurations {
 
 dependencies {
     testImplementation 'org.junit.jupiter:junit-jupiter:5.11.4'
+    // Standalone JUnit compilation does not inherit Minecraft's runtime JOML.
+    // Match the JOML version used by the NeoForge 1.21.1 runtime.
+    testImplementation 'org.joml:joml:1.10.5'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
     // Example optional mod dependency with JEI
     // The JEI API is declared for compile time use, while the full JEI artifact is used at runtime
