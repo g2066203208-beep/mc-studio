@@ -322,4 +322,56 @@ public final class CustodyOfficerLeashGameTests {
             throw new AssertionError("Gate did not lock after genuine handoff");
         helper.succeed();
     }
+
+    /** Regression for the actual server tick order: a prisoner may tick while
+     * the correct guard is already within four blocks but has NOT yet
+     * acknowledged the handoff. Distance is not a custody acknowledgement.
+     * The real iron gate must stay open until the guard clears both UUIDs.
+     */
+    @GameTest(template="empty",timeoutTicks=100)
+    public static void nearby_officer_must_acknowledge_before_prisoner_can_lock_gate(
+        GameTestHelper helper) {
+        ServerLevel level=helper.getLevel();
+        BlockPos jail=helper.absolutePos(new BlockPos(10,2,10));
+        for(int dx=-2;dx<=5;dx++)for(int dz=-2;dz<=4;dz++) {
+            BlockPos tile=jail.offset(dx,0,dz);
+            level.setBlock(tile.below(),Blocks.SMOOTH_STONE.defaultBlockState(),2);
+            for(int dy=0;dy<3;dy++)
+                level.setBlock(tile.above(dy),Blocks.AIR.defaultBlockState(),2);
+        }
+        level.setBlock(jail.north(),Blocks.IRON_BARS.defaultBlockState(),2);
+        BlockPos gate=CityJailGate.gateFor(jail);
+        level.setBlock(gate,Blocks.IRON_DOOR.defaultBlockState()
+            .setValue(DoorBlock.HALF,DoubleBlockHalf.LOWER)
+            .setValue(DoorBlock.OPEN,true),2);
+        level.setBlock(gate.above(),Blocks.IRON_DOOR.defaultBlockState()
+            .setValue(DoorBlock.HALF,DoubleBlockHalf.UPPER)
+            .setValue(DoorBlock.OPEN,true),2);
+        if(!PublicSafety.holdingSpot(level,jail) || !CityJailGate.isOpen(level,jail))
+            throw new AssertionError("Real iron cell fixture invalid");
+        PlayerNpcEntity prisoner=npc(level,jail,PlayerNpcEntity.Profession.RESIDENT);
+        PlayerNpcEntity officer=npc(level,jail.east(3),PlayerNpcEntity.Profession.GUARD);
+        officer.setHomePos(jail);
+        long now=level.getGameTime();
+        prisoner.detainAt(jail,now+400);
+        prisoner.assignCustodyOfficer(officer.getUUID());
+        officer.assignPrisonerEscort(prisoner.getUUID(),now+400);
+        if(!PublicSafety.escortedPrisonerMayAdvance(prisoner,level,now))
+            throw new AssertionError("Correct officer should be within four blocks");
+        // This order was missing in PR #153's test: prisoner first, officer later.
+        if(!PublicSafety.tickPrisoner(prisoner,level,now)
+            || !CityJailGate.isOpen(level,jail)
+            || !officer.getUUID().equals(prisoner.custodyOfficer())
+            || !prisoner.getUUID().equals(officer.escortedPrisoner()))
+            throw new AssertionError("Prisoner locked iron gate before officer acknowledgement");
+        if(!PublicSafety.tickGuard(officer,level,now)
+            || officer.escortedPrisoner()!=null
+            || prisoner.custodyOfficer()!=null)
+            throw new AssertionError("Real officer failed reciprocal custody handoff");
+        if(!PublicSafety.tickPrisoner(prisoner,level,now)
+            || CityJailGate.isOpen(level,jail)
+            || !prisoner.isDetained(now))
+            throw new AssertionError("Acknowledged handoff did not lock real cell");
+        helper.succeed();
+    }
 }
