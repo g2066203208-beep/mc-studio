@@ -42,6 +42,35 @@ public final class NpcEscortPairCameraGameTests {
     }
 
     @GameTest(template="empty", timeoutTicks=100)
+    public static void pair_camera_uses_high_vantage_only_when_normal_view_blocked(
+            GameTestHelper helper) {
+        Vec3 detainee = new Vec3(4.5, 5.5, 4.5);
+        Vec3 officer = new Vec3(6.5, 5.5, 4.5);
+        double midpointY = detainee.add(officer).scale(0.5).y;
+        // Ordinary shots remain first choice; elevated cinematic framing
+        // must not replace an already unobstructed street-level view.
+        var ordinary = NpcCameraController.selectPairView(
+            detainee, officer, 0, point -> true, point -> true);
+        if (ordinary == null || ordinary.y() - midpointY > 0.5)
+            throw new AssertionError("Valid normal escort framing was displaced");
+        // Simulate a low, obstructed camera band. The final decision is
+        // still gated by the real-world body and ray predicates at runtime.
+        var elevated = NpcCameraController.selectPairView(
+            detainee, officer, 0,
+            point -> point.y > midpointY + 0.8, point -> true);
+        if (elevated == null || elevated.y() - midpointY < 0.8)
+            throw new AssertionError("Escort camera failed to try higher clear lens");
+        // No candidate may bypass the collision or line-of-sight predicates:
+        // this must fall back to genuine entity POV instead of wallhacking.
+        if (NpcCameraController.selectPairView(detainee, officer, 0,
+                point -> false, point -> true) != null
+            || NpcCameraController.selectPairView(detainee, officer, 0,
+                point -> true, point -> false) != null)
+            throw new AssertionError("Camera ignored physical occlusion");
+        helper.succeed();
+    }
+
+    @GameTest(template="empty", timeoutTicks=100)
     public static void spectator_eye_clear_but_body_in_stone_is_rejected(
             GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
