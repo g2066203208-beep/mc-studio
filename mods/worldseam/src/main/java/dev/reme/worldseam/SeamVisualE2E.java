@@ -121,6 +121,13 @@ public final class SeamVisualE2E {
                     SeamForeignOffscreenPass.translucentPasses(),
                     SeamForeignOffscreenPass.restoreFailures(),
                     SeamForeignOffscreenPass.allocated());
+                LOG.info("WORLDSEAM_E2E_NATIVE_SECONDARY_SKY: realLevelRendererSkyCalls={}, opaqueFboPasses={}, depthCompositeReady=false",
+                    SeamNativeGeometryClient.nativeSkyMethodCalls(),
+                    SeamForeignOffscreenPass.opaquePasses());
+                if(SeamNativeGeometryClient.nativeSkyMethodCalls()<1 ||
+                   SeamNativeGeometryClient.nativeSkyMethodCalls()>
+                       SeamForeignOffscreenPass.opaquePasses())
+                    LOG.error("WORLDSEAM_E2E_FAIL_NATIVE_SECONDARY_SKY: no real target LevelRenderer sky invocation in the experimental FBO");
                 if(SeamForeignOffscreenPass.opaquePasses()<1 ||
                    SeamForeignOffscreenPass.actorPasses()<1 ||
                    SeamForeignOffscreenPass.actorPasses()>
