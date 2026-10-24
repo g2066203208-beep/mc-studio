@@ -4,6 +4,8 @@ import com.mojang.logging.LogUtils;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.TicketType;
+import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.LevelChunk;
@@ -16,6 +18,7 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.ArrayDeque;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.Map;
@@ -41,6 +44,18 @@ public final class SeamRapierRemoteTerrain {
     private static final int SECTIONS_BELOW_EDGE = 4;
     private static final int WINDOW_RADIUS = 2;
     private static final int MAX_NATIVE_UPLOADS_PER_TICK = 2;
+    // Unlike the visual prefetch, this ticket follows the AUTHORITATIVE
+    // Sable hull even when no player is nearby. Without it, getChunkNow()
+    // never becomes resident and the foreign Rapier scene has no terrain
+    // contacts below the seam. Ordinary region tickets are asynchronous:
+    // this path never calls getChunk() or forces synchronous generation.
+    private static final int PHYSICS_TICKET_DISTANCE = WINDOW_RADIUS + 1;
+    private static final TicketType<ChunkPos> PHYSICS_TICKET = TicketType.create(
+        "worldseam_rapier_foreign_chart", Comparator.comparingLong(ChunkPos::toLong)
+    );
+    private static ServerLevel ticketLevel;
+    private static ChunkPos ticketCenter;
+    private static long ticketMoves;
     private static final int MAX_PENDING = (2*WINDOW_RADIUS+1)*(2*WINDOW_RADIUS+1)*SECTIONS_BELOW_EDGE;
     private record NativeSection(int cx,int cy,int cz) {}
     // A tested bounded FIFO retains both unloaded-chunk retries and edits
@@ -73,6 +88,29 @@ public final class SeamRapierRemoteTerrain {
     private static Object witnessCallback; // strong reference while JNI callback is registered
 
     private SeamRapierRemoteTerrain() {}
+
+    /** Maintain exactly one bounded foreign-world ticket for the real hull. */
+    private static void updateForeignTicket(ServerLevel destination, int cx, int cz) {
+        ChunkPos next = new ChunkPos(cx, cz);
+        if (ticketLevel == destination && next.equals(ticketCenter)) return;
+        releaseForeignTicket();
+        destination.getChunkSource().addRegionTicket(
+            PHYSICS_TICKET, next, PHYSICS_TICKET_DISTANCE, next);
+        ticketLevel = destination;
+        ticketCenter = next;
+        ticketMoves++;
+        if (ticketMoves <= 4 || ticketMoves % 40 == 0)
+            LOG.info("WORLDSEAM_RAPIER_FOREIGN_TICKET: dimension={} center={},{} radius={} moves={} asyncOnly=true",
+                destination.dimension().location(), cx, cz, WINDOW_RADIUS, ticketMoves);
+    }
+
+    private static void releaseForeignTicket() {
+        if (ticketLevel != null && ticketCenter != null)
+            ticketLevel.getChunkSource().removeRegionTicket(
+                PHYSICS_TICKET, ticketCenter, PHYSICS_TICKET_DISTANCE, ticketCenter);
+        ticketLevel = null;
+        ticketCenter = null;
+    }
 
     /** CI-only real Nether block; the world must have actually placed it. */
     public static void registerNativeWitness(ServerLevel level,BlockPos pos) {
@@ -146,16 +184,19 @@ public final class SeamRapierRemoteTerrain {
         if(faulted) {
             // Experimental JNI mismatch may have left chart proxies.
             // A failed native mutation is NOT a safe physics mode.
-            if(active)close();
+            if(active || ticketLevel!=null)close();
             return;
         }
         if(!SeamSettings.get(server).enabled()) {
-            if(active)close();
+            if(active || ticketLevel!=null)close();
             return;
         }
         ServerLevel upper=server.getLevel(Level.OVERWORLD);
         ServerLevel lower=server.getLevel(Level.NETHER);
-        if(upper==null || lower==null)return;
+        if(upper==null || lower==null) {
+            if(active || ticketLevel!=null)close();
+            return;
+        }
         // Only the non-overlapping, translation-only OW-bottom/NETHER-top
         // chart has been wired for this experiment. Reject all others.
         int highEdge=SeamStackRuntime.bottom(upper);
@@ -179,7 +220,7 @@ public final class SeamRapierRemoteTerrain {
             .filter(p->p.serverLevel()==upper && Math.abs(p.getY()-highEdge)<48)
             .findFirst().orElse(null);
         if(shipAnchor==null && viewer==null) {
-            if(active)close();
+            if(active || ticketLevel!=null)close();
             return;
         }
         int cx=shipAnchor!=null?shipAnchor.chunkX():
@@ -187,12 +228,26 @@ public final class SeamRapierRemoteTerrain {
         int cz=shipAnchor!=null?shipAnchor.chunkZ():
             Math.floorDiv(viewer.blockPosition().getZ(),16);
         if(active && (source!=upper||target!=lower||offsetY!=shift))close();
+        // Pin the real destination terrain independently of the player.
+        // A moving ship must not lose its native collision terrain merely
+        // because its pilot/spectator has moved to another dimension.
+        // Acquire after any old-scene cleanup, so a stale ticket is never
+        // retained across dimension/scene changes.
+        try {
+            updateForeignTicket(lower,cx,cz);
+        } catch(RuntimeException problem) {
+            faulted=true;
+            LOG.error("WORLDSEAM_RAPIER_EXPERIMENT_TICKET_FAIL",problem);
+            close();
+            return;
+        }
         if(!active) {
             try {
                 initialize(upper,lower,shift,cx,cz);
             } catch(ReflectiveOperationException | LinkageError problem) {
                 faulted=true;
                 LOG.error("WORLDSEAM_RAPIER_EXPERIMENT_FAIL_NATIVE_INIT: cannot attach released Sable native scene",problem);
+                close();
                 return;
             }
         }
@@ -498,6 +553,9 @@ public final class SeamRapierRemoteTerrain {
 
     private static void resetOnlyJavaState() {
         UPLOAD_QUEUE.clear();uploaded.clear();COLLIDER_CACHE.clear();
+        // On server replacement the old server has already disposed its
+        // ticket manager; discard Java references WITHOUT touching it.
+        ticketLevel=null;ticketCenter=null;
         source=null;target=null;destinationBakery=null;
         windowBottomSection=windowTopSection=0;
         active=false;
@@ -513,11 +571,17 @@ public final class SeamRapierRemoteTerrain {
     }
 
     public static void close() {
-        if(active && nativeRemove!=null) {
-            for(var s:uploaded)try {remove(s);}
-                catch(Exception ex){LOG.error("WORLDSEAM_RAPIER_EXPERIMENT_CLEANUP_FAIL",ex);}
+        try {
+            if(active && nativeRemove!=null) {
+                for(var s:uploaded)try {remove(s);}
+                    catch(Exception ex){LOG.error("WORLDSEAM_RAPIER_EXPERIMENT_CLEANUP_FAIL",ex);}
+            }
+        } finally {
+            // No leaked tickets after disabling WorldSeam, losing the hull,
+            // failing native initialization or replacing the active chart.
+            try { releaseForeignTicket(); }
+            finally { resetOnlyJavaState(); }
         }
-        resetOnlyJavaState();
     }
     /** Actual JNI Rapier velocity for the same authoritative body ID.
      * No "contact" flag is inferred from this raw native measurement. */
@@ -539,6 +603,8 @@ public final class SeamRapierRemoteTerrain {
     }
 
     public static boolean active(){return active;}
+    public static boolean foreignTicketActive(){return ticketLevel!=null;}
+    public static long foreignTicketMoves(){return ticketMoves;}
     public static long uploadedSections(){return totalNativeUploads;}
     public static long remoteColliderCells(){return totalRemoteSolidCells;}
 }
