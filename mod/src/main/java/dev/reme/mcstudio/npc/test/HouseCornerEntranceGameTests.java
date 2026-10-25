@@ -86,7 +86,7 @@ public final class HouseCornerEntranceGameTests {
                 previous[0] = npc.position();
                 if (level.getBlockState(door).getValue(DoorBlock.OPEN))
                     opened[0] = true;
-                if (npc.blockPosition().distSqr(inside) <= 1)
+                if (npc.blockPosition().equals(inside))
                     entered[0] = true;
                 if (!entered[0] && atTick % 10 == 2)
                     HomeEntranceRoute.moveTowardEntrance(npc, level,
