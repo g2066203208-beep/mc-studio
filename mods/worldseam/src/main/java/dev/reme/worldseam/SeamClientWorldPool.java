@@ -66,6 +66,8 @@ public final class SeamClientWorldPool {
     private static boolean failed;
     private static int constructedCount;
     private static long lastReadySent = Long.MIN_VALUE / 2;
+    private static int lastReadyChunkX = Integer.MIN_VALUE;
+    private static int lastReadyChunkZ = Integer.MIN_VALUE;
     private static int receivedChunkCount;
     private static int remoteViewDistance;
     private static int lastActiveViewDistance;
@@ -287,11 +289,17 @@ public final class SeamClientWorldPool {
         if (!SeamChunkPriority.criticalWindowReady(cx, cz,
             (x,z) -> remote.getChunkSource().hasChunk(x,z))) return;
         long tick = mc.level.getGameTime();
-        if (tick - lastReadySent < 40) return;
+        // A completed window is valid only for its actual center. When the
+        // player enters another chunk, send a fresh ACK immediately rather
+        // than waiting 40 ticks with a stale center-bound server grant.
+        if (cx == lastReadyChunkX && cz == lastReadyChunkZ &&
+            tick - lastReadySent < 40) return;
         PacketDistributor.sendToServer(new SeamReadyPayload(
             source, target, remote.getChunkSource().getLoadedChunksCount()
         ));
         lastReadySent = tick;
+        lastReadyChunkX = cx;
+        lastReadyChunkZ = cz;
     }
 
     /**
