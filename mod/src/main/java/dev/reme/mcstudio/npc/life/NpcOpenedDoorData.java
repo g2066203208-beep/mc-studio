@@ -67,7 +67,12 @@ public final class NpcOpenedDoorData extends SavedData {
             Map.Entry<Long, Long> pending = iterator.next();
             long age = now - pending.getValue();
             if (age < 0) {
-                iterator.remove();
+                // A restored world may have an earlier game clock than this
+                // SavedData (for example after recovering a level.dat backup).
+                // Dropping the watch here strands an NPC-opened door forever.
+                // Restart the grace period instead; the normal occupancy,
+                // door-integrity and loaded-chunk checks still apply.
+                pending.setValue(now);
                 changed = true;
                 continue;
             }
