@@ -157,9 +157,9 @@ public final class SeamNativeGeometryClient {
 
     public static void onSourceBoundaryBlockChanged(ClientLevel changedLevel,
                                                      BlockPos changed) {
-        // The full native LevelRenderer consumes real ClientLevel block updates;
-        // its chunk dispatcher, not the old preview VBO, owns these meshes.
-        if (EXPERIMENTAL_FULL_NATIVE_LEVEL) return;
+        // A source-side edit at the seam can change which faces of the
+        // adjacent foreign section need rebuilding. The full-native path
+        // must invalidate its REAL LevelRenderer, not the retired proxy VBO.
         Minecraft mc=Minecraft.getInstance();
         if(mc.level!=changedLevel || queuedLink==null || queuedRemote==null ||
            source.isEmpty() || !source.equals(
@@ -174,8 +174,14 @@ public final class SeamNativeGeometryClient {
         if(Math.abs((long)cx-pcx)>2 || Math.abs((long)cz-pcz)>2)return;
         int nativeSectionY=Math.floorDiv(targetBoundary-
             (queuedLink.entry()==SeamGraph.EdgeSide.TOP?1:0),16);
-        BUILD_QUEUE.invalidateWithNeighbors(cx,cz,
-            nativeSectionY*16,nativeSectionY*16+16);
+        if (EXPERIMENTAL_FULL_NATIVE_LEVEL) {
+            LevelRenderer renderer=SeamClientWorldPool.rendererFor(queuedRemote);
+            if(renderer==null)return;
+            renderer.setSectionDirtyWithNeighbors(cx,nativeSectionY,cz);
+        } else {
+            BUILD_QUEUE.invalidateWithNeighbors(cx,cz,
+                nativeSectionY*16,nativeSectionY*16+16);
+        }
         sourceBorderInvalidations++;
     }
 
@@ -193,7 +199,6 @@ public final class SeamNativeGeometryClient {
 
     public static void onRemoteBlockChanged(ClientLevel changedLevel,
                                             BlockPos changed) {
-        if (EXPERIMENTAL_FULL_NATIVE_LEVEL) return;
         Minecraft mc=Minecraft.getInstance();
         if(changedLevel!=queuedRemote || queuedLink==null ||
            source.isEmpty() || mc.level==null || mc.player==null ||
@@ -209,9 +214,19 @@ public final class SeamNativeGeometryClient {
         int playerCz=Math.floorDiv(mc.player.blockPosition().getZ(),16);
         if(Math.abs((long)cx-playerCx)>2 ||
            Math.abs((long)cz-playerCz)>2)return;
-        BUILD_QUEUE.invalidateWithNeighbors(cx,cz,
-            (int)Math.max(bandLow,y-1L),
-            (int)Math.min(bandHigh,y+2L));
+        if (EXPERIMENTAL_FULL_NATIVE_LEVEL) {
+            // ClientLevel.sendBlockUpdated is not guaranteed to notify the
+            // non-active LevelRenderer via Minecraft's active-world hooks.
+            // Dirty the actual foreign renderer's section and neighboring
+            // sections, including fluid/transparent boundary faces.
+            LevelRenderer renderer=SeamClientWorldPool.rendererFor(changedLevel);
+            if(renderer==null)return;
+            renderer.setSectionDirtyWithNeighbors(cx,Math.floorDiv(changed.getY(),16),cz);
+        } else {
+            BUILD_QUEUE.invalidateWithNeighbors(cx,cz,
+                (int)Math.max(bandLow,y-1L),
+                (int)Math.min(bandHigh,y+2L));
+        }
         remoteBlockInvalidations++;
     }
 
