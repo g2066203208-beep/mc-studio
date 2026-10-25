@@ -157,6 +157,31 @@ public final class SeamClientWorldPool {
     }
 
     /**
+     * Apply the REAL destination ServerLevel's clock/weather to its own
+     * secondary ClientLevel. Vanilla only sends time/weather to the active
+     * dimension; rendering the other dimension with the source sky would
+     * show the wrong sun, moon, rain and lightning. Do not change mc.level,
+     * its LevelData, or any source-world rendering state.
+     */
+    public static void acceptWorldState(SeamWorldStatePayload packet) {
+        if (!SeamStackClient.enabled()) return;
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.level == null || mc.getConnection() == null ||
+            !mc.level.dimension().location().toString().equals(packet.source()))
+            return;
+        hint(packet.source(), packet.target());
+        if (remote == null || !SeamWorldStateGuard.accepts(
+                source, target, packet.source(), packet.target(),
+                packet.rainLevel(), packet.thunderLevel()) ||
+            !remote.dimension().location().toString().equals(packet.target()))
+            return;
+        remote.setGameTime(packet.gameTime());
+        remote.setDayTime(packet.dayTime());
+        remote.setRainLevel(packet.rainLevel());
+        remote.setThunderLevel(packet.thunderLevel());
+    }
+
+    /**
      * Feed canonical vanilla-format chunk packet content into the *remote*
      * ClientChunkCache, never into the active player's chunk cache.
      * This is real target dimension biome and block data, not placeholder art.
