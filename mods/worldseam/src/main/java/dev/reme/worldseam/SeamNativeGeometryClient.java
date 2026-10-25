@@ -55,6 +55,16 @@ public final class SeamNativeGeometryClient {
     private static final boolean EXPERIMENTAL_FULL_NATIVE_LEVEL =
         EXPERIMENTAL_DEPTH_COMPOSITE &&
         Boolean.getBoolean("worldseam.experimentalFullNativeLevel");
+    // Deliberate native render-order experiment: compose the actual second
+    // LevelRenderer BEFORE vanilla draws source-world translucent blocks.
+    // Otherwise source glass/water has already blended against the wrong
+    // background and the foreign pass overwrites it at AFTER_LEVEL. This
+    // changes real GPU ordering, not a screenshot threshold or test oracle.
+    // Keep it opt-in: intersecting translucent layers still require an
+    // order-independent two-world solution and genuine GUI verification.
+    private static final boolean EXPERIMENTAL_EARLY_NATIVE_COMPOSITE =
+        EXPERIMENTAL_FULL_NATIVE_LEVEL &&
+        Boolean.getBoolean("worldseam.experimentalEarlyNativeComposite");
     /** Native dual-world rendering requires the secondary ClientLevel to advance its own client ticks. */
     public static boolean fullNativeEnabled() { return EXPERIMENTAL_FULL_NATIVE_LEVEL; }
     private static long offscreenFrameCounter;
@@ -516,7 +526,11 @@ public final class SeamNativeGeometryClient {
         // Do not recursively draw the source proxy or start a second FBO.
         if (SeamForeignFullLevelPass.active()) return;
         if(event.getStage()==RenderLevelStageEvent.Stage.AFTER_LEVEL) {
-            renderComposite(event);
+            // The early path already committed the foreign depth/color
+            // before vanilla source translucency. Re-compositing here would
+            // paint over the source glass/water again.
+            if (!EXPERIMENTAL_EARLY_NATIVE_COMPOSITE)
+                renderComposite(event);
             return;
         }
         if(event.getStage()==RenderLevelStageEvent.Stage.AFTER_TRIPWIRE_BLOCKS) {
@@ -528,9 +542,18 @@ public final class SeamNativeGeometryClient {
         pendingTranslucent=List.of();
         pendingOffscreenTranslucent=List.of();
         SeamForeignOffscreenPass.beginFrame();
-        // Full native target rendering occurs after the source AFTER_LEVEL
-        // stage, not inside its unfinished block-entity/transparent stages.
-        if (EXPERIMENTAL_FULL_NATIVE_LEVEL) return;
+        // With early composition enabled, both opaque worlds and their
+        // real actors have written depth, but source translucent blocks
+        // have NOT blended yet. Commit foreign color/depth now, so source
+        // glass/water can blend over the physically visible foreign scene.
+        // Nested target render buffers are independent and restored by
+        // SeamForeignActorWorldScope. This remains experimental because
+        // interleaved transparent surfaces need a deeper multi-world sorter.
+        if (EXPERIMENTAL_FULL_NATIVE_LEVEL) {
+            if (EXPERIMENTAL_EARLY_NATIVE_COMPOSITE)
+                renderComposite(event);
+            return;
+        }
         lastFrameDrawn=0;
         lastFrameEndStone=0;
         lastFrameGpuModels=0;
