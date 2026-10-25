@@ -62,6 +62,7 @@ public final class SeamForeignDepthCompositor {
         uniform mat4 originalProjectionView;
         uniform float seamCameraY;
         uniform int remoteBelow;
+        uniform int nativeBackgroundValid;
 
         vec3 reconstruct(vec2 xy, float depth) {
             vec4 point = inverseProjectionView *
@@ -94,7 +95,10 @@ public final class SeamForeignDepthCompositor {
             // Only a depth=1 sky/background sample needs alpha to distinguish
             // native sky color from an untouched transparent FBO.
             if (remoteZ >= 0.999999) {
-                if (realForeign.a <= 0.001) discard;
+                // Native sky passes can write RGB without changing the
+                // destination alpha. Trust that RGB ONLY if the actual
+                // foreign LevelRenderer sky/fog background ran this frame.
+                if (realForeign.a <= 0.001 && nativeBackgroundValid == 0) discard;
                 // Native target LevelRenderer sky writes COLOR but normally
                 // not DEPTH. Previously every such pixel was discarded,
                 // making the genuine secondary sky permanently invisible.
@@ -185,7 +189,8 @@ public final class SeamForeignDepthCompositor {
                                     int foreignDepthId, Matrix4f modelView,
                                     Matrix4f projection, Matrix4f foreignProjection,
                                     float seamCameraY,
-                                    boolean remoteBelow) {
+                                    boolean remoteBelow,
+                                    boolean nativeBackgroundValid) {
         RenderSystem.assertOnRenderThread();
         RenderTarget source = mc.getMainRenderTarget();
         if (source == null || source.width <= 0 || source.height <= 0 ||
@@ -280,6 +285,8 @@ public final class SeamForeignDepthCompositor {
                 seamCameraY);
             GL20.glUniform1i(GL20.glGetUniformLocation(program, "remoteBelow"),
                 remoteBelow ? 1 : 0);
+            GL20.glUniform1i(GL20.glGetUniformLocation(program, "nativeBackgroundValid"),
+                nativeBackgroundValid ? 1 : 0);
             GL30.glBindVertexArray(vao);
             GL11.glDrawArrays(GL11.GL_TRIANGLES, 0, 3);
             composites++;
