@@ -317,4 +317,37 @@ public final class HomeEntranceRouteGameTests {
             else helper.succeed();
         });
     }
+
+    /** Door maintenance must not depend on a living NPC ticking. A resident
+     * can open its home door, then die/despawn or leave the dimension before
+     * the 50-tick grace period ends. The server-level tick must still close
+     * the actual wooden door when its threshold is empty.
+     */
+    @GameTest(template="empty",timeoutTicks=150)
+    public static void npc_opened_door_closes_even_after_last_resident_disappears(
+        GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos center = house(helper,false);
+        BlockPos door = center.south(3);
+        BlockPos outside = center.south(4);
+        PlayerNpcEntity resident = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (resident == null) throw new AssertionError("NPC registration missing");
+        resident.moveTo(outside.getX()+.5,outside.getY(),outside.getZ()+.5,0,0);
+        resident.setMode(PlayerNpcEntity.Mode.STAY);
+        resident.setHomePos(center.north());
+        if (!level.addFreshEntity(resident))
+            throw new AssertionError("Cannot spawn actual resident");
+        HomeEntranceRoute.moveTowardEntrance(resident,level,center.north(),1.0);
+        resident.getNavigation().stop();
+        if (!level.getBlockState(door).getValue(DoorBlock.OPEN))
+            throw new AssertionError("Resident did not physically open the door");
+        // Test-only entity removal, not production NPC navigation.
+        resident.discard();
+        helper.runAfterDelay(90,()->{
+            if (resident.isAlive() || level.getBlockState(door).getValue(DoorBlock.OPEN)
+                || level.getBlockState(door.above()).getValue(DoorBlock.OPEN))
+                helper.fail("NPC-opened home door stayed open after its last resident vanished",door);
+            else helper.succeed();
+        });
+    }
 }

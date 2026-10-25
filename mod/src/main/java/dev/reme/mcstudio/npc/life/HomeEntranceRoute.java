@@ -16,6 +16,7 @@ import net.minecraft.world.level.block.DoorBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
 import net.minecraft.world.level.pathfinder.Path;
+import net.neoforged.neoforge.event.tick.LevelTickEvent;
 
 /**
  * Real, bounded open-door route for residents returning to a bed INSIDE a
@@ -139,7 +140,16 @@ public final class HomeEntranceRoute {
     }
 
     /**
-     * Called from each real NPC server tick, but processed at most ONCE per
+     * NeoForge's per-level post tick continues to service NPC-opened doors
+     * even after the last resident dies, despawns or leaves this dimension.
+     * It never loads chunks and only touches the bounded pending-door set.
+     */
+    public static void onLevelTick(LevelTickEvent.Post event) {
+        if (event.getLevel() instanceof ServerLevel level) tickOpenedDoors(level);
+    }
+
+    /**
+     * Called from the real server-level post tick, at most ONCE per
      * dimension/game tick. A wooden door closes only after the opening grace
      * period and only when its physical threshold is clear of ALL living
      * entities (including players and other NPCs). An occupied entrance stays
