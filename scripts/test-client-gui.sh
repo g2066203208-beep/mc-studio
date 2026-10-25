@@ -190,6 +190,7 @@ if [[ "${REME_CITY_VISUAL:-0}" == "1" ]]; then
     -pix_fmt yuv420p -movflags +faststart \
     client-gui-city-full-crime-to-locked-jail.mp4 >client-gui-city-case-ffmpeg.log 2>&1 &
   CASE_VIDEO_PID=$!
+  CASE_VIDEO_START_SECONDS=$SECONDS
   # These two /say commands enter the SAME integrated-server log as the
   # physical crime events. The verifier now rejects a jail arrival that
   # happened after the MP4 stopped recording.
@@ -212,6 +213,10 @@ if [[ "${REME_CITY_VISUAL:-0}" == "1" ]]; then
   # markers and the real physical crime sequence remain unchanged.
   xdotool key --clearmodifiers F1
   sleep 1
+  # Mark the first actual HUD-free chase frame. Preserve the original
+  # uncut evidence recording; a second file will trim ONLY the setup
+  # portion of those same genuine captured frames for visual review.
+  CASE_VIDEO_CLEAN_OFFSET=$((SECONDS - CASE_VIDEO_START_SECONDS))
   import -window root client-gui-city-full-case-t0.png
   # Five spaced real screenshots document changing chase/escort phases.
   # Do not pad a completed arrest with 60+ seconds of static prison bars:
@@ -260,6 +265,15 @@ PY
   say_city '/npc camera stop' 1
   kill -INT "$CASE_VIDEO_PID" 2>/dev/null || true
   wait "$CASE_VIDEO_PID" || true
+  # The original MP4 includes the genuine command/setup evidence and stays
+  # untouched. This optional viewer-friendly cut contains only consecutive
+  # real client frames, beginning after F1 hides the command HUD. No fake
+  # NPC frames, still-image interpolation, or reordered case events.
+  ffmpeg -loglevel error -nostdin -y -ss "$CASE_VIDEO_CLEAN_OFFSET" \
+    -i client-gui-city-full-crime-to-locked-jail.mp4 \
+    -c:v libx264 -preset ultrafast -crf 27 -pix_fmt yuv420p \
+    -movflags +faststart -an client-gui-city-clean-chase-to-cell.mp4 \
+    || { echo 'FAIL: cannot trim genuine HUD-free client frames'; exit 1; }
   if (( case_reached == 0 )); then
     echo "FAIL: filmed UUID $case_target never physically reached its cell while ffmpeg was recording"
     exit 1
