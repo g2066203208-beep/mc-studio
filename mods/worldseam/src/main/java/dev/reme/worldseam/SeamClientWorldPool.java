@@ -297,6 +297,12 @@ public final class SeamClientWorldPool {
             BORROWED_RENDERERS.putIfAbsent(oldRenderer,oldBuffers);
         LocalPlayer player = mc.player;
 
+        // Snapshot mirrors belong only to the SECOND ClientLevel. Before
+        // promotion, retire them by their tracked ID+UUID so vanilla entity
+        // tracking can register the real ServerLevel entities without
+        // duplicate-UUID conflicts. Never touch a Sable native body.
+        SeamRemoteEntityClient.retireBeforePromotion(newWorld);
+
         // A promoted secondary world must not retain a second lightmap
         // once the active GameRenderer takes over its normal lightmap.
         SeamRemoteLightmaps.release();
