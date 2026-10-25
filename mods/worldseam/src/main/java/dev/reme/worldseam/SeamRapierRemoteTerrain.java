@@ -636,6 +636,14 @@ public final class SeamRapierRemoteTerrain {
     public static Motion motion(int nativeBodyID) throws ReflectiveOperationException {
         if(!active || nativeLinearVelocity==null || nativeAngularVelocity==null)
             throw new IllegalStateException("Native projected scene not active");
+        // The native motion reader must obey the SAME scene lease as
+        // addChunk/removeChunk. A Sable level reload can dispose this pointer
+        // between the server tick and a telemetry/flight observer callback.
+        // Calling getLinearVelocity on a freed scene is a JVM-level UAF, not
+        // a recoverable Java exception. A pointer-generation API is still
+        // required upstream to rule out address reuse.
+        if(!nativeSceneStillLive())
+            throw new IllegalStateException("Native Rapier scene was disposed or replaced");
         double[] linear=new double[3],angular=new double[3];
         nativeLinearVelocity.invoke(null,sourceNativeScene,nativeBodyID,linear);
         nativeAngularVelocity.invoke(null,sourceNativeScene,nativeBodyID,angular);
