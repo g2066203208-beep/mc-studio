@@ -1,10 +1,16 @@
 package dev.reme.mcstudio.npc.life;
 
 import dev.reme.mcstudio.npc.PlayerNpcEntity;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.WeakHashMap;
 import javax.annotation.Nullable;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.DoorBlock;
 import net.minecraft.world.level.block.state.BlockState;
@@ -22,6 +28,20 @@ import net.minecraft.world.level.pathfinder.Path;
 public final class HomeEntranceRoute {
     private HomeEntranceRoute() {}
     private static final int DOOR_SCAN_RADIUS = 16;
+    private static final int AUTO_CLOSE_DELAY_TICKS = 50;
+    private static final int MAX_TRACKED_DOORS_PER_LEVEL = 256;
+    private static final int MAX_TRACKED_AGE_TICKS = 2400;
+
+    // Transient, server-thread-only state. No new world NBT, chunk tickets,
+    // or changes to player-opened doors. Weak keys avoid retaining a world
+    // after unloading; values contain no references to the ServerLevel key.
+    private static final Map<ServerLevel, DoorWatch> NPC_OPENED_DOORS =
+        new WeakHashMap<>();
+
+    private static final class DoorWatch {
+        final Map<BlockPos, Long> openedAt = new HashMap<>();
+        long lastProcessedTick = Long.MIN_VALUE;
+    }
 
     public record Entrance(BlockPos outside, BlockPos inside) {}
 
@@ -106,6 +126,76 @@ public final class HomeEntranceRoute {
     }
 
     /**
+     * Track ONLY doors actually opened by an NPC. Vanilla player-opened doors
+     * are not ours to close. Memory is capped per loaded dimension and never
+     * written to the existing world save format.
+     */
+    private static void rememberNpcOpenedDoor(ServerLevel level, BlockPos door) {
+        DoorWatch watch = NPC_OPENED_DOORS.computeIfAbsent(level, ignored -> new DoorWatch());
+        if (watch.openedAt.size() < MAX_TRACKED_DOORS_PER_LEVEL
+            || watch.openedAt.containsKey(door)) {
+            watch.openedAt.put(door.immutable(), level.getGameTime());
+        }
+    }
+
+    /**
+     * Called from each real NPC server tick, but processed at most ONCE per
+     * dimension/game tick. A wooden door closes only after the opening grace
+     * period and only when its physical threshold is clear of ALL living
+     * entities (including players and other NPCs). An occupied entrance stays
+     * open, never closes into a person. Powered, replaced, broken, mismatched
+     * or unloaded doors are left alone. Expired watches are forgotten rather
+     * than interfering with an entrance controlled by somebody else.
+     */
+    public static void tickOpenedDoors(ServerLevel level) {
+        if (!level.getServer().isSameThread()) return;
+        DoorWatch watch = NPC_OPENED_DOORS.get(level);
+        if (watch == null) return;
+        long now = level.getGameTime();
+        if (watch.lastProcessedTick == now) return;
+        watch.lastProcessedTick = now;
+        Iterator<Map.Entry<BlockPos, Long>> iterator = watch.openedAt.entrySet().iterator();
+        while (iterator.hasNext()) {
+            Map.Entry<BlockPos, Long> pending = iterator.next();
+            long age = now - pending.getValue();
+            if (age < 0 || age > MAX_TRACKED_AGE_TICKS) {
+                iterator.remove();
+                continue;
+            }
+            if (age < AUTO_CLOSE_DELAY_TICKS) continue;
+            BlockPos door = pending.getKey();
+            if (!level.hasChunkAt(door) || !level.hasChunkAt(door.above())) {
+                iterator.remove();
+                continue;
+            }
+            BlockState lower = level.getBlockState(door);
+            BlockState upper = level.getBlockState(door.above());
+            if (!(lower.getBlock() instanceof DoorBlock)
+                || !DoorBlock.isWoodenDoor(lower)
+                || upper.getBlock() != lower.getBlock()
+                || lower.getValue(DoorBlock.HALF) != DoubleBlockHalf.LOWER
+                || upper.getValue(DoorBlock.HALF) != DoubleBlockHalf.UPPER
+                || lower.getValue(DoorBlock.FACING) != upper.getValue(DoorBlock.FACING)
+                || lower.getValue(DoorBlock.HINGE) != upper.getValue(DoorBlock.HINGE)
+                || lower.getValue(DoorBlock.OPEN) != upper.getValue(DoorBlock.OPEN)
+                || lower.getValue(DoorBlock.POWERED) != upper.getValue(DoorBlock.POWERED)
+                || !lower.getValue(DoorBlock.OPEN)
+                || lower.getValue(DoorBlock.POWERED)) {
+                iterator.remove();
+                continue;
+            }
+            // Inflated vanilla doorway AABB covers both standing sides and
+            // the two-block height. Never close on a passerby or a player.
+            if (!level.getEntitiesOfClass(LivingEntity.class,
+                    new AABB(door).inflate(1.0D, 1.0D, 1.0D),
+                    LivingEntity::isAlive).isEmpty()) continue;
+            ((DoorBlock) lower.getBlock()).setOpen(null, level, lower, door, false);
+            iterator.remove();
+        }
+        if (watch.openedAt.isEmpty()) NPC_OPENED_DOORS.remove(level);
+    }
+
+    /**
      * Attempts a true reachable A* path first. A distant entrance is reached
      * through local real paving via RoadNavigator, now targeting the DOOR
      * instead of a bed hidden behind a solid building facade.
@@ -140,7 +230,10 @@ public final class HomeEntranceRoute {
                 && state.getValue(DoorBlock.HALF) == DoubleBlockHalf.LOWER
                 && !state.getValue(DoorBlock.OPEN)) {
                 block.setOpen(npc, level, state, door, true);
-                npc.setAction("physically opened the wooden home/work door");
+                if (level.getBlockState(door).getValue(DoorBlock.OPEN)) {
+                    rememberNpcOpenedDoor(level, door);
+                    npc.setAction("physically opened the wooden home/work door");
+                }
             }
         }
         BlockPos target = nextDoorStage(entrance, here);

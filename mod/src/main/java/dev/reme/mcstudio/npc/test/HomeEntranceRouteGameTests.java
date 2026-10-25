@@ -203,7 +203,7 @@ public final class HomeEntranceRouteGameTests {
      * this door starts shut. A tired resident must open the VANILLA wooden
      * block, physically cross its threshold and sleep in the actual bed.
      */
-    @GameTest(template="empty",timeoutTicks=360)
+    @GameTest(template="empty",timeoutTicks=400)
     public static void exhausted_resident_opens_closed_door_walks_and_sleeps(
         GameTestHelper helper) {
         ServerLevel level=helper.getLevel();
@@ -243,6 +243,77 @@ public final class HomeEntranceRouteGameTests {
                     +" moved="+moved[0]+" crossed="+crossed[0]
                     +" sleeping="+npc.isSleeping()+" action="+npc.lastAction(),
                     npc.blockPosition());
+        });
+        helper.runAfterDelay(340,()->{
+            if(level.getBlockState(door).getValue(DoorBlock.OPEN))
+                helper.fail("Resident reached real bed but left its own wooden home door open",
+                    door);
+            else helper.succeed();
+        });
+    }
+
+    /** A second citizen physically occupying the entrance prevents closure.
+     * Once both have cleared it, the NPC-opened vanilla door closes again.
+     * Entity relocation below is TEST SETUP only, never production travel.
+     */
+    @GameTest(template="empty",timeoutTicks=190)
+    public static void npc_door_waits_for_bystander_then_closes(GameTestHelper helper) {
+        ServerLevel level=helper.getLevel();
+        BlockPos center=house(helper,false);
+        BlockPos door=center.south(3);
+        BlockPos outside=center.south(4);
+        BlockPos inside=center.south(2);
+        PlayerNpcEntity opener=NpcRegistry.PLAYER_NPC.get().create(level);
+        PlayerNpcEntity bystander=NpcRegistry.PLAYER_NPC.get().create(level);
+        if(opener==null||bystander==null)
+            throw new AssertionError("NPC registration missing");
+        opener.moveTo(outside.getX()+.5,outside.getY(),outside.getZ()+.5,0,0);
+        bystander.moveTo(inside.getX()+.5,inside.getY(),inside.getZ()+.5,0,0);
+        opener.setMode(PlayerNpcEntity.Mode.STAY);
+        bystander.setMode(PlayerNpcEntity.Mode.STAY);
+        opener.setHomePos(center.north());
+        bystander.setHomePos(center.north());
+        if(!level.addFreshEntity(opener)||!level.addFreshEntity(bystander))
+            throw new AssertionError("Could not spawn both real doorway users");
+        HomeEntranceRoute.moveTowardEntrance(opener,level,center.north(),1.0);
+        opener.getNavigation().stop();
+        if(!level.getBlockState(door).getValue(DoorBlock.OPEN))
+            throw new AssertionError("Resident never opened its wooden door");
+        helper.runAfterDelay(80,()->{
+            if(!level.getBlockState(door).getValue(DoorBlock.OPEN))
+                helper.fail("Door shut on the real second resident standing in threshold",door);
+            opener.getNavigation().stop();
+            bystander.getNavigation().stop();
+            BlockPos farOutside=center.south(6);
+            BlockPos farInside=center.north();
+            opener.moveTo(farOutside.getX()+.5,farOutside.getY(),
+                farOutside.getZ()+.5,0,0);
+            bystander.moveTo(farInside.getX()+.5,farInside.getY(),
+                farInside.getZ()+.5,0,0);
+        });
+        helper.runAfterDelay(145,()->{
+            if(level.getBlockState(door).getValue(DoorBlock.OPEN)
+                ||level.getBlockState(door.above()).getValue(DoorBlock.OPEN))
+                helper.fail("NPC-opened door did not close after both residents left",door);
+            else helper.succeed();
+        });
+    }
+
+    /** Do not claim ownership of an already open player-controlled door. */
+    @GameTest(template="empty",timeoutTicks=130)
+    public static void already_open_wooden_door_is_not_auto_closed(GameTestHelper helper) {
+        ServerLevel level=helper.getLevel();
+        BlockPos center=house(helper,true);
+        BlockPos door=center.south(3);
+        PlayerNpcEntity npc=NpcRegistry.PLAYER_NPC.get().create(level);
+        if(npc==null)throw new AssertionError("NPC registration missing");
+        BlockPos far=center.south(6);
+        npc.moveTo(far.getX()+.5,far.getY(),far.getZ()+.5,0,0);
+        npc.setMode(PlayerNpcEntity.Mode.STAY);
+        if(!level.addFreshEntity(npc))throw new AssertionError("Cannot spawn resident");
+        helper.runAfterDelay(90,()->{
+            if(!level.getBlockState(door).getValue(DoorBlock.OPEN))
+                helper.fail("Untracked, already-open wooden door was modified",door);
             else helper.succeed();
         });
     }
