@@ -10,7 +10,7 @@ mkdir -p run
 if [[ -f run/options.txt ]]; then
   sed -i '/^tutorialStep:/d' run/options.txt
 fi
-printf 'tutorialStep:none\\n' >> run/options.txt
+echo 'tutorialStep:none' >> run/options.txt
 openbox >/tmp/reme-openbox.log 2>&1 &
 ./gradlew runClient --no-daemon > client-gui.log 2>&1 &
 CLIENT=$!
