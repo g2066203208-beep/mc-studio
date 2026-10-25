@@ -10,37 +10,37 @@ public final class SeamNetwork {
     private SeamNetwork() {}
 
     public static void register(RegisterPayloadHandlersEvent event) {
-        event.registrar("5").playToClient(
+        event.registrar("6").playToClient(
             SeamPreviewPayload.TYPE,
             SeamPreviewPayload.CODEC,
             (message, context) ->
                 context.enqueueWork(() -> SeamPreviewClient.accept(message))
         );
-        event.registrar("5").playToClient(
+        event.registrar("6").playToClient(
             SeamSectionPayload.TYPE,
             SeamSectionPayload.CODEC,
             (message, context) ->
                 context.enqueueWork(() -> SeamSectionClient.accept(message))
         );
-        event.registrar("5").playToClient(
+        event.registrar("6").playToClient(
             SeamChunkPayload.TYPE,
             SeamChunkPayload.CODEC,
             (message, context) ->
                 context.enqueueWork(() -> SeamClientWorldPool.acceptChunk(message))
         );
-        event.registrar("5").playToClient(
+        event.registrar("6").playToClient(
             SeamWorldStatePayload.TYPE,
             SeamWorldStatePayload.CODEC,
             (message, context) ->
                 context.enqueueWork(() -> SeamClientWorldPool.acceptWorldState(message))
         );
-        event.registrar("5").playToClient(
+        event.registrar("6").playToClient(
             SeamRemoteEntityPayload.TYPE,
             SeamRemoteEntityPayload.CODEC,
             (message, context) ->
                 context.enqueueWork(() -> SeamRemoteEntityClient.accept(message))
         );
-        event.registrar("5").playToServer(
+        event.registrar("6").playToServer(
             SeamReadyPayload.TYPE,
             SeamReadyPayload.CODEC,
             (message, context) -> context.enqueueWork(() -> {
@@ -48,13 +48,13 @@ public final class SeamNetwork {
                     SeamReadiness.acceptNetwork(p, message);
             })
         );
-        event.registrar("5").playToClient(
+        event.registrar("6").playToClient(
             SeamHandoffPayload.TYPE,
             SeamHandoffPayload.CODEC,
             (message, context) ->
                 context.enqueueWork(() -> SeamClientWorldPool.handoff(message))
         );
-        event.registrar("5").playToClient(
+        event.registrar("6").playToClient(
             SeamStackSyncPayload.TYPE,
             SeamStackSyncPayload.CODEC,
             (message, context) ->
