@@ -402,7 +402,26 @@ public final class PublicSafety {
      */
     public static boolean escortedPrisonerMayWalk(PlayerNpcEntity prisoner,
                                                    ServerLevel level, long tick) {
-        return linkedOfficerWithin(prisoner, level, tick, 9.0);
+        if (linkedOfficerWithin(prisoner, level, tick, 9.0)) return true;
+        // Real GUI + native GameTest: the officer correctly waits on the
+        // PUBLIC sidewalk at cell+4, while the detainee reaches the inner
+        // aisle at cell+1. Their physical separation can be slightly above
+        // three blocks, leaving the last step permanently frozen. Permit
+        // ONLY this final one-block step under the existing four-block
+        // custody authorization, through a visibly OPEN real iron gate.
+        // This does not weaken the three-block leash on streets, permit a
+        // different officer, or move an entity without native pathfinding.
+        BlockPos jail = prisoner.detentionJail();
+        UUID officerId = prisoner.custodyOfficer();
+        if (jail == null || officerId == null
+            || !prisoner.blockPosition().equals(jail.south(1))
+            || !CityJailGate.isOpen(level, jail)
+            || !linkedOfficerWithin(prisoner, level, tick, 16.0))
+            return false;
+        var found = level.getEntity(officerId);
+        return found instanceof PlayerNpcEntity officer
+            && officer.blockPosition().equals(jail.south(4))
+            && officer.hasLineOfSight(prisoner);
     }
 
     /** Real-world physical walk to a recognized holding spot (not a teleport).
