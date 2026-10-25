@@ -299,6 +299,53 @@ public final class HomeEntranceRouteGameTests {
         });
     }
 
+    /** Regression for a real long-lived doorway obstruction. Previously the
+     * pending auto-close entry expired at 2,400 ticks while an NPC still
+     * occupied the threshold. When the NPC finally left, the wooden door
+     * remained open forever. The watch must survive until it can close safely.
+     */
+    @GameTest(template="empty",timeoutTicks=2700)
+    public static void occupied_wooden_door_still_closes_after_2400_ticks(
+        GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos center = house(helper,false);
+        BlockPos door = center.south(3);
+        BlockPos outside = center.south(4);
+        BlockPos inside = center.south(2);
+        PlayerNpcEntity opener = NpcRegistry.PLAYER_NPC.get().create(level);
+        PlayerNpcEntity bystander = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (opener == null || bystander == null)
+            throw new AssertionError("NPC registration missing");
+        opener.moveTo(outside.getX()+.5,outside.getY(),outside.getZ()+.5,0,0);
+        bystander.moveTo(inside.getX()+.5,inside.getY(),inside.getZ()+.5,0,0);
+        opener.setMode(PlayerNpcEntity.Mode.STAY);
+        bystander.setMode(PlayerNpcEntity.Mode.STAY);
+        opener.setHomePos(center.north());
+        bystander.setHomePos(center.north());
+        if (!level.addFreshEntity(opener) || !level.addFreshEntity(bystander))
+            throw new AssertionError("Cannot spawn real doorway occupants");
+        HomeEntranceRoute.moveTowardEntrance(opener,level,center.north(),1.0);
+        opener.getNavigation().stop();
+        bystander.getNavigation().stop();
+        if (!level.getBlockState(door).getValue(DoorBlock.OPEN))
+            throw new AssertionError("NPC did not open actual wooden door");
+        helper.runAfterDelay(2450,()->{
+            if (!level.getBlockState(door).getValue(DoorBlock.OPEN))
+                helper.fail("Door closed on living doorway occupants",door);
+        });
+        // TEST teardown only: production code never teleports occupants.
+        helper.runAfterDelay(2460,()->{
+            opener.discard();
+            bystander.discard();
+        });
+        helper.runAfterDelay(2550,()->{
+            if (level.getBlockState(door).getValue(DoorBlock.OPEN)
+                || level.getBlockState(door.above()).getValue(DoorBlock.OPEN))
+                helper.fail("Door watch expired while occupied; abandoned door stayed open",door);
+            else helper.succeed();
+        });
+    }
+
     /** Do not claim ownership of an already open player-controlled door. */
     @GameTest(template="empty",timeoutTicks=130)
     public static void already_open_wooden_door_is_not_auto_closed(GameTestHelper helper) {
