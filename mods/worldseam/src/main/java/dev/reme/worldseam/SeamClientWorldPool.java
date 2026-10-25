@@ -295,7 +295,8 @@ public final class SeamClientWorldPool {
         if (cx == lastReadyChunkX && cz == lastReadyChunkZ &&
             tick - lastReadySent < 40) return;
         PacketDistributor.sendToServer(new SeamReadyPayload(
-            source, target, remote.getChunkSource().getLoadedChunksCount()
+            source, target, remote.getChunkSource().getLoadedChunksCount(),
+            cx, cz
         ));
         lastReadySent = tick;
         lastReadyChunkX = cx;
