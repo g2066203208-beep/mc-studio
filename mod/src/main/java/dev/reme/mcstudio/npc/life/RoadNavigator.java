@@ -5,10 +5,59 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.Vec3;
+import java.util.Map;
+import java.util.WeakHashMap;
 
 /** Local, bounded road preference over vanilla pathfinding (not a global road network). */
 public final class RoadNavigator {
     private RoadNavigator() {}
+
+    // Transient per-entity watchdog: no world save schema changes, and weak
+    // keys cannot retain unloaded NPCs. Access only from the server tick.
+    private static final Map<PlayerNpcEntity, TravelProgress> TRAVEL = new WeakHashMap<>();
+    private static final int STALLED_PATH_TICKS = 80;
+    private static final double MIN_MOVEMENT_SQR = 0.0625;
+
+    private static final class TravelProgress {
+        BlockPos destination;
+        Vec3 lastPosition;
+        long lastMovedTick;
+
+        TravelProgress(BlockPos destination, Vec3 position, long tick) {
+            this.destination = destination.immutable();
+            this.lastPosition = position;
+            this.lastMovedTick = tick;
+        }
+    }
+
+    /**
+     * Vanilla navigation may still report an active partial path when the
+     * entity has remained physically stationary at a facade for many ticks.
+     * Never treat that state as proof of successful walking. Stop the stale
+     * path so the next normal planner invocation can try another route.
+     */
+    private static boolean stopStalledPath(PlayerNpcEntity npc, BlockPos destination, long tick) {
+        TravelProgress progress = TRAVEL.get(npc);
+        if (progress == null || !progress.destination.equals(destination)
+                || tick < progress.lastMovedTick) {
+            TRAVEL.put(npc, new TravelProgress(destination, npc.position(), tick));
+            return false;
+        }
+        if (npc.position().distanceToSqr(progress.lastPosition) >= MIN_MOVEMENT_SQR) {
+            progress.lastPosition = npc.position();
+            progress.lastMovedTick = tick;
+            return false;
+        }
+        if (!npc.getNavigation().isDone()
+                && tick - progress.lastMovedTick >= STALLED_PATH_TICKS) {
+            npc.getNavigation().stop();
+            npc.setAction("stalled native path stopped; physical route needs replanning");
+            progress.lastMovedTick = tick;
+            return true;
+        }
+        return false;
+    }
 
     public static boolean moveToward(PlayerNpcEntity npc, ServerLevel level,
                                      BlockPos destination, double speed) {
@@ -47,6 +96,7 @@ public final class RoadNavigator {
             return false;
         }
         long tick = level.getGameTime();
+        if (stopStalledPath(npc, destination, tick)) return false;
         // Failed paths must be retried: never report movement solely because
         // a cooldown is active. Delay replanning only while a path actually runs.
         if (!npc.getNavigation().isDone() && !npc.canRepath(destination, tick)) return true;
