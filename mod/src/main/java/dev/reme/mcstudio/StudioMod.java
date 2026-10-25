@@ -27,6 +27,7 @@ public final class StudioMod {
         NeoForge.EVENT_BUS.addListener(NpcCommands::register);
         NeoForge.EVENT_BUS.addListener(NpcCameraController::onTick);
         NeoForge.EVENT_BUS.addListener(HomeEntranceRoute::onLevelTick);
+        NeoForge.EVENT_BUS.addListener(HomeEntranceRoute::onPlayerUseDoor);
         NeoForge.EVENT_BUS.addListener(NpcCameraController::onLogout);
         NeoForge.EVENT_BUS.addListener(StudioMod::onPlayerLogin);
         LogUtils.getLogger().info("REME NPC {} CONSTRUCTED on NeoForge 21.1.262 baseline (Minecraft 1.21.1); commands register when the SERVER dispatcher is created, not at mod construction", VERSION);
