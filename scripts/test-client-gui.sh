@@ -2,6 +2,15 @@
 # Startup smoke + image evidence. Never claim in-world validation without logs/images.
 set -euo pipefail
 cd mod
+# This is a disposable CI client profile, never a user's Minecraft options.
+# Real MP4 review exposed a persistent vanilla WASD tutorial toast even with
+# F1 HUD hidden. Minecraft 1.21.1 reads tutorialStep:none from options.txt.
+# Preseed it BEFORE launching the actual client; do not post-process pixels.
+mkdir -p run
+if [[ -f run/options.txt ]]; then
+  sed -i '/^tutorialStep:/d' run/options.txt
+fi
+printf 'tutorialStep:none\\n' >> run/options.txt
 openbox >/tmp/reme-openbox.log 2>&1 &
 ./gradlew runClient --no-daemon > client-gui.log 2>&1 &
 CLIENT=$!
