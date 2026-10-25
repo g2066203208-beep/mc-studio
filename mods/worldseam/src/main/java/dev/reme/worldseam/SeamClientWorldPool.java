@@ -74,6 +74,7 @@ public final class SeamClientWorldPool {
     // entities and native client actors. Vanilla only ticks Minecraft.level.
     // The full-native experiment fails closed if this independent tick fails.
     private static long nativeForeignTicks;
+    private static long nativeWorldStatePackets;
     private static boolean nativeForeignTickFailed;
     public static boolean nativeForeignTickHealthy() { return !nativeForeignTickFailed; }
     public static long nativeForeignTicks() { return nativeForeignTicks; }
@@ -179,6 +180,12 @@ public final class SeamClientWorldPool {
         remote.setDayTime(packet.dayTime());
         remote.setRainLevel(packet.rainLevel());
         remote.setThunderLevel(packet.thunderLevel());
+        nativeWorldStatePackets++;
+        if (nativeWorldStatePackets == 1 || nativeWorldStatePackets % 120 == 0)
+            LOG.info("WORLDSEAM_NATIVE_REMOTE_ATMOSPHERE: updates={}, source={}, target={}, targetDayTime={}, targetGameTime={}, targetRain={}, targetThunder={}, realSecondaryClientLevel=true, finalAcceptance=false",
+                nativeWorldStatePackets, packet.source(), packet.target(),
+                packet.dayTime(), packet.gameTime(),
+                packet.rainLevel(), packet.thunderLevel());
     }
 
     /**
@@ -569,6 +576,7 @@ public final class SeamClientWorldPool {
     public static void clear() {
         nativeForeignTickFailed = false;
         nativeForeignTicks = 0;
+        nativeWorldStatePackets = 0;
         SeamRemoteLightmaps.release();
         SeamRemoteEntityClient.reset();
         if (remoteRenderer != null) {
