@@ -51,6 +51,87 @@ public final class MarketEconomyGameTests {
         npc.setDecision(new LivingPlanner.Decision(LivingPlanner.Intent.WORK, 100, "day shift"));
     }
 
+    /** A two-block solid facade must prevent selling to a customer outside.
+     * Once removed, the SAME real stock and emerald must exchange normally.
+     * No simulated inventory or event-only transaction is accepted.
+     */
+    @GameTest(template = "empty", timeoutTicks = 120)
+    public static void solid_store_wall_blocks_resident_purchase_until_opened(
+        GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos counter = helper.absolutePos(new BlockPos(5, 9, 5));
+        BlockPos wall = counter.east();
+        for (int dx = 0; dx <= 2; dx++)
+            level.setBlock(counter.east(dx).below(), Blocks.STONE.defaultBlockState(), 3);
+        level.setBlock(wall, Blocks.STONE.defaultBlockState(), 3);
+        level.setBlock(wall.above(), Blocks.STONE.defaultBlockState(), 3);
+        PlayerNpcEntity shop = spawn(level, counter, PlayerNpcEntity.Profession.SHOPKEEPER);
+        PlayerNpcEntity customer = spawn(level, counter.east(2),
+            PlayerNpcEntity.Profession.RESIDENT);
+        work(shop);
+        shop.backpack().addItem(new ItemStack(Items.BREAD, 1));
+        customer.backpack().addItem(new ItemStack(Items.EMERALD, 1));
+        long tick = level.getGameTime();
+        if (shop.hasLineOfSight(customer))
+            throw new AssertionError("Test wall did not block actual vanilla sight ray");
+        if (ShopCounter.purchaseByResident(shop, customer, tick)
+            || shop.backpack().countItem(Items.BREAD) != 1
+            || shop.backpack().countItem(Items.EMERALD) != 0
+            || customer.backpack().countItem(Items.BREAD) != 0
+            || customer.backpack().countItem(Items.EMERALD) != 1)
+            throw new AssertionError("Shop sold items through a solid exterior wall");
+        level.setBlock(wall, Blocks.AIR.defaultBlockState(), 3);
+        level.setBlock(wall.above(), Blocks.AIR.defaultBlockState(), 3);
+        if (!shop.hasLineOfSight(customer)
+            || !ShopCounter.purchaseByResident(shop, customer, tick)
+            || shop.backpack().countItem(Items.BREAD) != 0
+            || shop.backpack().countItem(Items.EMERALD) != 1
+            || customer.backpack().countItem(Items.BREAD) != 1
+            || customer.backpack().countItem(Items.EMERALD) != 0)
+            throw new AssertionError("Open counter failed exact one-item paid exchange");
+        helper.succeed();
+    }
+
+    /** Wholesale carrot pickup must also require physical access; a farmer
+     * cannot transfer harvest through a closed building wall.
+     */
+    @GameTest(template = "empty", timeoutTicks = 120)
+    public static void solid_warehouse_wall_blocks_farmer_delivery_until_opened(
+        GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos counter = helper.absolutePos(new BlockPos(5, 9, 5));
+        BlockPos wall = counter.north();
+        for (int dz = 0; dz <= 2; dz++)
+            level.setBlock(counter.north(dz).below(), Blocks.STONE.defaultBlockState(), 3);
+        level.setBlock(wall, Blocks.STONE.defaultBlockState(), 3);
+        level.setBlock(wall.above(), Blocks.STONE.defaultBlockState(), 3);
+        PlayerNpcEntity shop = spawn(level, counter, PlayerNpcEntity.Profession.SHOPKEEPER);
+        PlayerNpcEntity farmer = spawn(level, counter.north(2),
+            PlayerNpcEntity.Profession.FARMER);
+        work(shop);
+        shop.backpack().addItem(new ItemStack(Items.EMERALD, 1));
+        farmer.backpack().addItem(new ItemStack(Items.CARROT, 3));
+        long tick = level.getGameTime();
+        if (shop.hasLineOfSight(farmer))
+            throw new AssertionError("Test warehouse wall did not obstruct line of sight");
+        if (ShopCounter.buyHarvestFromFarmer(shop, farmer, tick)
+            || shop.backpack().countItem(Items.EMERALD) != 1
+            || shop.backpack().countItem(Items.CARROT) != 0
+            || farmer.backpack().countItem(Items.EMERALD) != 0
+            || farmer.backpack().countItem(Items.CARROT) != 3)
+            throw new AssertionError("Farmer delivered physical goods through solid wall");
+        level.setBlock(wall, Blocks.AIR.defaultBlockState(), 3);
+        level.setBlock(wall.above(), Blocks.AIR.defaultBlockState(), 3);
+        if (!shop.hasLineOfSight(farmer)
+            || !ShopCounter.buyHarvestFromFarmer(shop, farmer, tick)
+            || shop.backpack().countItem(Items.EMERALD) != 0
+            || shop.backpack().countItem(Items.CARROT) != 3
+            || farmer.backpack().countItem(Items.EMERALD) != 1
+            || farmer.backpack().countItem(Items.CARROT) != 0)
+            throw new AssertionError("Open warehouse exchange broke real goods conservation");
+        helper.succeed();
+    }
+
     @GameTest(template = "empty", timeoutTicks = 120)
     public static void three_real_citizens_trade_food_and_emeralda_without_minting(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
