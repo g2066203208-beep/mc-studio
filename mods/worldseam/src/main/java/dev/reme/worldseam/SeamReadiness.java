@@ -12,7 +12,7 @@ import java.util.UUID;
  * actual player dimension, configured link, world border and arrival collision.
  */
 public final class SeamReadiness {
-    public static final int REQUIRED_CHUNKS = 9;
+    public static final int REQUIRED_CHUNKS = 25;
     public static final int EXPIRY_TICKS = 100;
     private record State(String source, String target, long tick) {}
     private static final Map<UUID, State> sessions = new HashMap<>();
@@ -46,11 +46,11 @@ public final class SeamReadiness {
             return;
         var targetLevel = player.server.getLevel(SeamServer.dimensionKey(message.target()));
         if (targetLevel == null) return;
-        // CRITICAL: Do NOT require all nine target SERVER chunks to remain
+        // CRITICAL: Do NOT require all 25 target SERVER chunks to remain
         // loaded. They have already been transmitted and decoded into the
         // CLIENT's independent chunk cache. A destination with no players
         // naturally unloads its server chunks between the one-per-second
-        // packets, so the old 3x3 hasChunk gate prevented EVERY crossing.
+        // packets, so the old server-side hasChunk gate prevented EVERY crossing.
         // The single arrival chunk is loaded authoritatively during actual
         // SeamServer crossing, and arrival collision/border checks still run.
         if (message.loadedChunks() < REQUIRED_CHUNKS) return;
