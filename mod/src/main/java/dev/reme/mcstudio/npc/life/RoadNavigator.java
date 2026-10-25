@@ -49,8 +49,12 @@ public final class RoadNavigator {
             progress.lastMovedTick = tick;
             return false;
         }
-        if (!npc.getNavigation().isDone()
-                && tick - progress.lastMovedTick >= STALLED_PATH_TICKS) {
+        if (npc.getNavigation().isDone()) {
+            // A new journey must not inherit idle time from an old path.
+            progress.lastMovedTick = tick;
+            return false;
+        }
+        if (tick - progress.lastMovedTick >= STALLED_PATH_TICKS) {
             npc.getNavigation().stop();
             npc.setAction("stalled native path stopped; physical route needs replanning");
             progress.lastMovedTick = tick;
