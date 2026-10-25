@@ -68,7 +68,7 @@ public final class SeamRapierRemoteTerrain {
     private static ServerLevel source,target;
     private static int offsetY,edgeSection,windowBottomSection,windowTopSection,centerX,centerZ;
     private static long sourceNativeScene;
-    private static Method nativeAdd,nativeRemove,bake,colliderHandle;
+    private static Method nativeSceneLookup,nativeAdd,nativeRemove,bake,colliderHandle;
     private static Method nativeLinearVelocity,nativeAngularVelocity;
     private static Object destinationBakery;
     private static byte exposedVoxelState;
@@ -110,6 +110,30 @@ public final class SeamRapierRemoteTerrain {
                 PHYSICS_TICKET, ticketCenter, PHYSICS_TICKET_DISTANCE, ticketCenter);
         ticketLevel = null;
         ticketCenter = null;
+    }
+
+    /**
+     * Native scene pointers are leases, not permanent identities. Sable may
+     * destroy/recreate a Rapier scene while this MinecraftServer is alive.
+     * Never dereference an old scene handle through addChunk/removeChunk:
+     * a dangling JNI pointer can crash the JVM rather than throw Java.
+     *
+     * This check is necessary, not sufficient, for a fused Atlas solver:
+     * Sable's published API does not expose a monotonically increasing
+     * scene generation, so an allocator reusing the same pointer cannot
+     * be detected here. Keep this prototype opt-in.
+     */
+    private static boolean nativeSceneStillLive() {
+        if (!active || source == null || sourceNativeScene == 0 ||
+            nativeSceneLookup == null) return false;
+        try {
+            Object value = nativeSceneLookup.invoke(null, source);
+            return value instanceof Number &&
+                ((Number) value).longValue() == sourceNativeScene;
+        } catch (ReflectiveOperationException | RuntimeException | LinkageError ex) {
+            LOG.warn("WORLDSEAM_RAPIER_SCENE_LOOKUP_FAILED: skipping unsafe native access", ex);
+            return false;
+        }
     }
 
     /** CI-only real Nether block; the world must have actually placed it. */
@@ -184,6 +208,17 @@ public final class SeamRapierRemoteTerrain {
             faulted=false;
         }
         owner=server;
+        // Detect Sable's in-server native scene replacement BEFORE any
+        // stale removeChunk/addChunk operation or section-window cleanup.
+        // The dead native scene owns its old terrain; only Java references
+        // and our asynchronous region ticket may be released safely.
+        if(active && !nativeSceneStillLive()) {
+            LOG.error("WORLDSEAM_RAPIER_SCENE_REPLACED: oldScene={} nativeAccessSkipped=true; experiment will reinitialize only on a live scene",
+                sourceNativeScene);
+            releaseForeignTicket();
+            resetOnlyJavaState();
+            return;
+        }
         if(faulted) {
             // Experimental JNI mismatch may have left chart proxies.
             // A failed native mutation is NOT a safe physics mode.
@@ -330,7 +365,11 @@ public final class SeamRapierRemoteTerrain {
         throws ReflectiveOperationException {
         Class<?> nativeBridge=Class.forName("dev.ryanhcode.sable.physics.impl.rapier.Rapier3D");
         Method scene=nativeBridge.getMethod("getSceneHandle",ServerLevel.class);
-        sourceNativeScene=((Number)scene.invoke(null,upper)).longValue();
+        long sceneHandle=((Number)scene.invoke(null,upper)).longValue();
+        if(sceneHandle==0)
+            throw new ReflectiveOperationException("Released Sable has no live Overworld Rapier scene");
+        nativeSceneLookup=scene;
+        sourceNativeScene=sceneHandle;
         nativeAdd=nativeBridge.getDeclaredMethod("addChunk",long.class,
             int.class,int.class,int.class,int[].class,boolean.class,int.class);
         nativeRemove=nativeBridge.getDeclaredMethod("removeChunk",long.class,
@@ -577,7 +616,7 @@ public final class SeamRapierRemoteTerrain {
 
     public static void close() {
         try {
-            if(active && nativeRemove!=null) {
+            if(active && nativeRemove!=null && nativeSceneStillLive()) {
                 for(var s:uploaded)try {remove(s);}
                     catch(Exception ex){LOG.error("WORLDSEAM_RAPIER_EXPERIMENT_CLEANUP_FAIL",ex);}
             }
