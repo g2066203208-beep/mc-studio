@@ -62,6 +62,7 @@ public final class SeamChunkSender {
         final Map<Long,Long> lastSent=new HashMap<>();
         final Set<Long> dirty=new HashSet<>();
         long changeResends;
+        long lastWorldStateTick = Long.MIN_VALUE;
 
         void release() {
             if(ticketLevel!=null && ticketCenter!=null)
@@ -93,6 +94,7 @@ public final class SeamChunkSender {
             release();
             scope="";
             selectedLink=null;
+            lastWorldStateTick = Long.MIN_VALUE;
             lastSent.clear();
             dirty.clear();
         }
@@ -151,6 +153,20 @@ public final class SeamChunkSender {
         int centerX=Math.floorDiv(player.blockPosition().getX(),16);
         int centerZ=Math.floorDiv(player.blockPosition().getZ(),16);
         session.updateTicket(target,new ChunkPos(centerX,centerZ));
+        // Native chunk/light snapshots do NOT contain the destination
+        // dimension's day/night cycle or weather. The real secondary
+        // ClientLevel needs authoritative target ServerLevel state even when
+        // all chunks are clean and no chunk packets are being sent.
+        // Send immediately on a new chart and then at 1 Hz (20 server ticks).
+        if (session.lastWorldStateTick == Long.MIN_VALUE ||
+            tick < session.lastWorldStateTick ||
+            tick - session.lastWorldStateTick >= 20) {
+            PacketDistributor.sendToPlayer(player, new SeamWorldStatePayload(
+                sourceId, selected.target(), target.getGameTime(),
+                target.getDayTime(), target.getRainLevel(1.0F),
+                target.getThunderLevel(1.0F)));
+            session.lastWorldStateTick = tick;
+        }
         // A second native ClientLevel does not receive vanilla entity
         // tracking packets from the other ServerLevel automatically.
         // Stream bounded real server entity snapshots independently of
