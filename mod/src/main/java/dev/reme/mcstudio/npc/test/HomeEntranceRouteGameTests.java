@@ -553,4 +553,48 @@ public final class HomeEntranceRouteGameTests {
             else helper.succeed();
         });
     }
+
+    /**
+     * A restored level.dat can have a lower game clock than separately
+     * persisted door SavedData. A future-dated pending watch must NOT be
+     * discarded: preserve the real NPC-opened wooden door, restart its
+     * 50-tick grace period, and close it after the entrance is clear.
+     * This exercises the real server-level tick and vanilla door blocks.
+     */
+    @GameTest(template="empty",timeoutTicks=150)
+    public static void restored_world_clock_does_not_abandon_npc_opened_door(
+        GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos center = house(helper, false);
+        BlockPos door = center.south(3);
+        BlockPos outside = center.south(4);
+        PlayerNpcEntity resident = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (resident == null) throw new AssertionError("NPC registration missing");
+        resident.moveTo(outside.getX() + .5, outside.getY(),
+            outside.getZ() + .5, 0, 0);
+        resident.setMode(PlayerNpcEntity.Mode.STAY);
+        resident.setHomePos(center.north());
+        if (!level.addFreshEntity(resident))
+            throw new AssertionError("Cannot spawn real NPC door opener");
+        HomeEntranceRoute.moveTowardEntrance(resident, level, center.north(), 1.0);
+        NpcOpenedDoorData data = NpcOpenedDoorData.get(level);
+        if (!level.getBlockState(door).getValue(DoorBlock.OPEN) || !data.has(door))
+            throw new AssertionError("NPC did not open and track actual wooden door");
+        // Simulate a persisted clock from a newer save than level.dat.
+        // This changes ONLY the watch timestamp, not Minecraft world time.
+        if (!data.remember(door, level.getGameTime() + 500))
+            throw new AssertionError("Cannot prepare restored-clock watch");
+        resident.discard();
+        helper.runAfterDelay(5, () -> {
+            if (!data.has(door) || !level.getBlockState(door).getValue(DoorBlock.OPEN))
+                helper.fail("Clock rollback discarded the real door cleanup watch", door);
+        });
+        helper.runAfterDelay(95, () -> {
+            if (data.has(door)
+                || level.getBlockState(door).getValue(DoorBlock.OPEN)
+                || level.getBlockState(door.above()).getValue(DoorBlock.OPEN))
+                helper.fail("Restored-clock NPC door never closed after grace period", door);
+            else helper.succeed();
+        });
+    }
 }
