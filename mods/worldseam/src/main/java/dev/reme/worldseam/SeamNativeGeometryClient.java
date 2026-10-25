@@ -55,6 +55,8 @@ public final class SeamNativeGeometryClient {
     private static final boolean EXPERIMENTAL_FULL_NATIVE_LEVEL =
         EXPERIMENTAL_DEPTH_COMPOSITE &&
         Boolean.getBoolean("worldseam.experimentalFullNativeLevel");
+    /** Native dual-world rendering requires the secondary ClientLevel to advance its own client ticks. */
+    public static boolean fullNativeEnabled() { return EXPERIMENTAL_FULL_NATIVE_LEVEL; }
     private static long offscreenFrameCounter;
     private static long nativeSkyMethodCalls;
     public static long nativeSkyMethodCalls() { return nativeSkyMethodCalls; }
