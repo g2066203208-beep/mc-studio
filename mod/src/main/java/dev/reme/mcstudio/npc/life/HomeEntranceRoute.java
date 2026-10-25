@@ -16,6 +16,7 @@ import net.minecraft.world.level.block.DoorBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
 import net.minecraft.world.level.pathfinder.Path;
+import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 import net.neoforged.neoforge.event.tick.LevelTickEvent;
 
 /**
@@ -153,6 +154,40 @@ public final class HomeEntranceRoute {
     private static void rememberNpcOpenedDoor(ServerLevel level, BlockPos door) {
         DoorWatch watch = NPC_OPENED_DOORS.computeIfAbsent(level, ignored -> new DoorWatch());
         watch.openedAt.put(door.immutable(), level.getGameTime());
+    }
+
+    /**
+     * A human player's real right-click takes ownership of a wooden door.
+     * Otherwise an NPC's pending auto-close watch could shut a door the
+     * player deliberately closed and re-opened before the 50-tick timeout.
+     * This listener never cancels vanilla interaction or modifies the door.
+     * Both halves map to the same lower-block watch key.
+     */
+    public static void onPlayerUseDoor(PlayerInteractEvent.RightClickBlock event) {
+        if (!(event.getLevel() instanceof ServerLevel level)
+            || !level.getServer().isSameThread()) return;
+        BlockPos clicked = event.getPos();
+        if (!level.hasChunkAt(clicked)) return;
+        BlockState state = level.getBlockState(clicked);
+        if (!(state.getBlock() instanceof DoorBlock)) return;
+        relinquishNpcDoorForPlayer(level, clicked);
+    }
+
+    /**
+     * Remove only the matching NPC auto-close watch when a player operates
+     * either half of the door. Kept separate from the event for native
+     * regression testing; this never opens, closes or teleports anything.
+     */
+    public static void relinquishNpcDoorForPlayer(ServerLevel level, BlockPos clicked) {
+        if (!level.getServer().isSameThread() || !level.hasChunkAt(clicked)) return;
+        BlockState state = level.getBlockState(clicked);
+        if (!(state.getBlock() instanceof DoorBlock)) return;
+        BlockPos lower = state.getValue(DoorBlock.HALF) == DoubleBlockHalf.UPPER
+            ? clicked.below() : clicked;
+        DoorWatch watch = NPC_OPENED_DOORS.get(level);
+        if (watch == null) return;
+        watch.openedAt.remove(lower);
+        if (watch.openedAt.isEmpty()) NPC_OPENED_DOORS.remove(level);
     }
 
     /**
