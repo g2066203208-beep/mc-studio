@@ -78,6 +78,17 @@ public final class NpcOpenedDoorData extends SavedData {
             }
             if (age < CLOSE_DELAY_TICKS) continue;
             BlockPos door = BlockPos.of(pending.getKey());
+            // A corrupt/foreign SavedData entry can encode a position outside
+            // this dimension's build height. Such a door can NEVER load, so
+            // retaining its watch permanently consumes one of 256 slots and
+            // eventually prevents real residents from opening their doors.
+            // Only discard impossible coordinates; an ordinary unloaded chunk
+            // must retain its watch until the player returns.
+            if (!level.isInWorldBounds(door) || !level.isInWorldBounds(door.above())) {
+                iterator.remove();
+                changed = true;
+                continue;
+            }
             if (!level.hasChunkAt(door) || !level.hasChunkAt(door.above()))
                 continue;
             BlockState lower = level.getBlockState(door);
