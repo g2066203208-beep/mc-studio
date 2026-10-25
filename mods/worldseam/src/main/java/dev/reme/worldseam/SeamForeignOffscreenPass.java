@@ -8,6 +8,8 @@ import com.mojang.logging.LogUtils;
 import net.minecraft.client.Minecraft;
 import org.lwjgl.BufferUtils;
 import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.GL14;
+import org.lwjgl.opengl.GL20;
 import org.lwjgl.opengl.GL30;
 import org.slf4j.Logger;
 
@@ -212,6 +214,17 @@ public final class SeamForeignOffscreenPass {
         boolean oldDepthTest = GL11.glIsEnabled(GL11.GL_DEPTH_TEST);
         int oldDepthFunc = GL11.glGetInteger(GL11.GL_DEPTH_FUNC);
         boolean oldBlend = GL11.glIsEnabled(GL11.GL_BLEND);
+        // A nested LevelRenderer (or a modded translucent/BE stage) may
+        // change the blend factors/equations even when it leaves BLEND
+        // disabled. Restoring only glEnable(GL_BLEND) is insufficient:
+        // the source world's later translucent stages can inherit foreign
+        // blend math and produce visibly missing/incorrect pixels.
+        int oldBlendSrcRgb = GL11.glGetInteger(GL14.GL_BLEND_SRC_RGB);
+        int oldBlendDstRgb = GL11.glGetInteger(GL14.GL_BLEND_DST_RGB);
+        int oldBlendSrcAlpha = GL11.glGetInteger(GL14.GL_BLEND_SRC_ALPHA);
+        int oldBlendDstAlpha = GL11.glGetInteger(GL14.GL_BLEND_DST_ALPHA);
+        int oldBlendEquationRgb = GL11.glGetInteger(GL20.GL_BLEND_EQUATION_RGB);
+        int oldBlendEquationAlpha = GL11.glGetInteger(GL20.GL_BLEND_EQUATION_ALPHA);
         boolean oldCull = GL11.glIsEnabled(GL11.GL_CULL_FACE);
         ByteBuffer oldColorMask = BufferUtils.createByteBuffer(4);
         GL11.glGetBooleanv(GL11.GL_COLOR_WRITEMASK, oldColorMask);
@@ -265,6 +278,12 @@ public final class SeamForeignOffscreenPass {
                 if (oldDepthTest) GL11.glEnable(GL11.GL_DEPTH_TEST);
                 else GL11.glDisable(GL11.GL_DEPTH_TEST);
                 GL11.glDepthFunc(oldDepthFunc);
+                // Restore the actual source blend function/equation, not
+                // merely the enabled bit. This applies to all full-native
+                // sky, BE, entity, terrain and translucent callbacks.
+                GL14.glBlendFuncSeparate(oldBlendSrcRgb, oldBlendDstRgb,
+                    oldBlendSrcAlpha, oldBlendDstAlpha);
+                GL20.glBlendEquationSeparate(oldBlendEquationRgb, oldBlendEquationAlpha);
                 if (oldBlend) GL11.glEnable(GL11.GL_BLEND);
                 else GL11.glDisable(GL11.GL_BLEND);
                 if (oldCull) GL11.glEnable(GL11.GL_CULL_FACE);
