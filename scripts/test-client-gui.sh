@@ -410,8 +410,19 @@ PY
   # actual center. CityDistrictDemo.survey correctly rejected that unsafe
   # site. Prepare only this disposable scratch fixture at the SAME level as
   # the first city; never weaken the city's real preflight safety checks.
+  # The GUI world may spawn against a high hillside. Clearing only the
+  # bottom 11 layers leaves unsupported sand/gravel and flowing fluids above
+  # the proposed parcel; these can refill it before the strict city preflight.
+  # Prepare the FULL vertical scratch fixture top-down, in two <=32768-block
+  # vanilla /fill batches (41*41*19=31939). Production city code still NEVER
+  # clears or overwrites existing terrain.
+  say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run fill ~22 ~30 ~-20 ~62 ~48 ~20 minecraft:air' 6
+  say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run fill ~22 ~11 ~-20 ~62 ~29 ~20 minecraft:air' 6
   say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run fill ~22 ~-1 ~-20 ~62 ~-1 ~20 minecraft:stone' 6
   say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run fill ~22 ~ ~-20 ~62 ~10 ~20 minecraft:air' 6
+  # Grow is player-position based; restore the exact original intersection
+  # center and feet height rather than relying on a prior camera teleport.
+  say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run tp @s ~ ~1 ~' 2
   # Five physically supported one-block seam tiles must also be present
   # before /npc city grow can connect the two actual road surfaces.
   say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run fill ~21 ~-1 ~-2 ~21 ~-1 ~2 minecraft:stone' 3
