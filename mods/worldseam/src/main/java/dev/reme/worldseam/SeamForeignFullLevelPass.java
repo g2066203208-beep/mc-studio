@@ -149,8 +149,22 @@ public final class SeamForeignFullLevelPass {
                         // prepare the TARGET renderer's own frustum explicitly.
                         // Without this, setupRender -> offsetFrustum receives
                         // a null matrix and the real GUI throws NPE.
+                        // IMPORTANT: The oblique seam plane is a RASTER
+                        // clip, not a safe camera-culling frustum. Vanilla
+                        // LevelRenderer.offsetFrustum() repeatedly backs the
+                        // frustum away until the camera cube is included.
+                        // An oblique near plane can exclude that cube for
+                        // EVERY offset, hanging the real render thread inside
+                        // Frustum.offsetToFullyIncludeCameraCube() indefinitely.
+                        // This was captured in the genuine Sable GUI thread
+                        // stack on 2026-10-25. Use the vanilla perspective
+                        // for finite section discovery, but keep the clipped
+                        // projection for the actual GPU draw/depth composite.
+                        // This may over-include sections; it cannot remove
+                        // correct visible sections, and the raster seam plane
+                        // still clips wrong-side fragments before depth writes.
                         renderer.prepareCullFrustum(mapped.getPosition(),
-                            event.getModelViewMatrix(), nativeProjection);
+                            event.getModelViewMatrix(), event.getProjectionMatrix());
                         renderer.renderLevel(event.getPartialTick(), false, mapped,
                             mc.gameRenderer, mc.gameRenderer.lightTexture(),
                             event.getModelViewMatrix(), nativeProjection);
