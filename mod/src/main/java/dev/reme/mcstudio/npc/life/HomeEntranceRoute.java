@@ -144,12 +144,15 @@ public final class HomeEntranceRoute {
      * are not ours to close. Memory is capped per loaded dimension and never
      * written to the existing world save format.
      */
+    private static boolean canTrackNpcOpenedDoor(ServerLevel level, BlockPos door) {
+        DoorWatch watch = NPC_OPENED_DOORS.get(level);
+        return watch == null || watch.openedAt.containsKey(door)
+            || watch.openedAt.size() < MAX_TRACKED_DOORS_PER_LEVEL;
+    }
+
     private static void rememberNpcOpenedDoor(ServerLevel level, BlockPos door) {
         DoorWatch watch = NPC_OPENED_DOORS.computeIfAbsent(level, ignored -> new DoorWatch());
-        if (watch.openedAt.size() < MAX_TRACKED_DOORS_PER_LEVEL
-            || watch.openedAt.containsKey(door)) {
-            watch.openedAt.put(door.immutable(), level.getGameTime());
-        }
+        watch.openedAt.put(door.immutable(), level.getGameTime());
     }
 
     /**
@@ -258,6 +261,12 @@ public final class HomeEntranceRoute {
                 && state.getValue(DoorBlock.HALF) == DoubleBlockHalf.LOWER
                 && !state.getValue(DoorBlock.POWERED)
                 && !state.getValue(DoorBlock.OPEN)) {
+                // Never open an untracked 257th door: without a watch it
+                // could remain open indefinitely after the NPC walks away.
+                if (!canTrackNpcOpenedDoor(level, door)) {
+                    npc.setAction("waiting for safe wooden-door tracking capacity");
+                    return false;
+                }
                 block.setOpen(npc, level, state, door, true);
                 if (level.getBlockState(door).getValue(DoorBlock.OPEN)) {
                     rememberNpcOpenedDoor(level, door);
