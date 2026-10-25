@@ -163,6 +163,23 @@ class GenuineGuiCaseRegression(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "contradicts real"):
             case.verify(filmed(lines))
 
+    def test_final_escort_sample_same_tick_as_jail_handoff_is_valid(self):
+        # Real integrated-server logging can sample both actors and book the
+        # prisoner later in the SAME tick. Textual order, not strict tick
+        # inequality, proves the sample preceded the actual handoff.
+        lines = [line.replace("tick=215", "tick=220")
+                 if "REME_NPC_ESCORT_PAIR" in line else line
+                 for line in episode(A, 100)]
+        self.assertIn("physical_pair=true escort_samples=3",
+                      case.verify(filmed(lines)))
+
+    def test_same_tick_trace_after_handoff_does_not_count(self):
+        lines = episode(A, 100)
+        last_trace = lines.pop(9)
+        lines.insert(10, last_trace.replace("tick=215", "tick=220"))
+        with self.assertRaisesRegex(ValueError, "three same-UUID"):
+            case.verify(filmed(lines))
+
     def test_escort_tick_outside_arrest_to_jail_cannot_count_as_walk(self):
         lines = episode(A, 100)
         lines = [line.replace("tick=180", "tick=221")
