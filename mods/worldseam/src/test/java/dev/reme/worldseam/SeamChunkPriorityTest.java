@@ -51,9 +51,36 @@ class SeamChunkPriorityTest {
         var sent=new HashMap<Long,Long>();
         for(int i=0;i<25;i++)
             sent.put(k(offsets[i][0],offsets[i][1]),10L);
-        assertEquals(25,SeamChunkPriority.chooseSlot(
+        // A live edit in the already-loaded crossing 5x5 is more urgent
+        // than an optional first-time outer-ring packet.
+        assertEquals(0,SeamChunkPriority.chooseSlot(
             0,0,offsets,sent,Set.of(k(0,0)),200,1200,20));
     }
+    @Test void missingCriticalChunkStillPreemptsDirtyCriticalEdit() {
+        int[][] offsets=SeamChunkPriority.centerFirstOffsets(4);
+        var sent=new HashMap<Long,Long>();
+        // 24 of the 25 critical chunks arrived. A dirty center must not
+        // hide the last missing critical native section.
+        for(int i=0;i<24;i++)
+            sent.put(k(offsets[i][0],offsets[i][1]),10L);
+        assertEquals(24,SeamChunkPriority.chooseSlot(0,0,offsets,
+            sent,Set.of(k(0,0)),100,1200,20));
+    }
+
+    @Test void liveCriticalEditDoesNotWaitForSixteenChunkRadiusOuterRing() {
+        int[][] offsets=SeamChunkPriority.centerFirstOffsets(16);
+        var sent=new HashMap<Long,Long>();
+        for(int i=0;i<25;i++)
+            sent.put(k(offsets[i][0],offsets[i][1]),10L);
+        int chosen=SeamChunkPriority.chooseSlot(0,0,offsets,
+            sent,Set.of(k(0,0)),100,1200,20,
+            slot -> slot==0 || slot>=25);
+        assertEquals(0,chosen);
+        // A non-resident dirty center must not stall resident outer work.
+        assertEquals(25,SeamChunkPriority.chooseSlot(0,0,offsets,
+            sent,Set.of(k(0,0)),100,1200,20,slot -> slot>=25));
+    }
+
     @Test void nativeViewRadiusIsBoundedAndComplete() {
         assertEquals(25,SeamChunkPriority.centerFirstOffsets(2).length);
         assertEquals(1089,SeamChunkPriority.centerFirstOffsets(16).length);
