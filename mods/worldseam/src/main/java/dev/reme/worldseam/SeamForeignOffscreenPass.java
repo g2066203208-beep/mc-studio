@@ -8,6 +8,7 @@ import com.mojang.logging.LogUtils;
 import net.minecraft.client.Minecraft;
 import org.lwjgl.BufferUtils;
 import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.GL13;
 import org.lwjgl.opengl.GL14;
 import org.lwjgl.opengl.GL20;
 import org.lwjgl.opengl.GL30;
@@ -195,6 +196,13 @@ public final class SeamForeignOffscreenPass {
         // that distinction and can corrupt the following source-world pass.
         int oldReadFramebuffer = GL11.glGetInteger(GL30.GL_READ_FRAMEBUFFER_BINDING);
         int oldDrawFramebuffer = GL11.glGetInteger(GL30.GL_DRAW_FRAMEBUFFER_BINDING);
+        // A nested full LevelRenderer also changes the active GL shader,
+        // VAO and texture unit. Returning with its program/VAO still bound
+        // corrupts the suspended source-world render pass even if its FBO,
+        // depth and blend state were restored correctly.
+        int oldProgram = GL11.glGetInteger(GL20.GL_CURRENT_PROGRAM);
+        int oldVao = GL11.glGetInteger(GL30.GL_VERTEX_ARRAY_BINDING);
+        int oldActiveTexture = GL11.glGetInteger(GL13.GL_ACTIVE_TEXTURE);
         // A nested vanilla renderer can inherit a scissor rectangle from the
         // source dimension or a post-process pass. glClear obeys SCISSOR_TEST:
         // leaving it enabled produces stale color/depth OUTSIDE that rectangle
@@ -298,6 +306,12 @@ public final class SeamForeignOffscreenPass {
                     oldScissorBox.get(2), oldScissorBox.get(3));
                 if (oldScissorEnabled) GL11.glEnable(GL11.GL_SCISSOR_TEST);
                 else GL11.glDisable(GL11.GL_SCISSOR_TEST);
+                // Restore source-world shader and vertex input ownership
+                // before the source renderer resumes. The compositor has a
+                // separate scope; this protects the nested native pass itself.
+                GL30.glBindVertexArray(oldVao);
+                GL20.glUseProgram(oldProgram);
+                GL13.glActiveTexture(oldActiveTexture);
                 GlStateManager._glBindFramebuffer(GL30.GL_FRAMEBUFFER, oldFramebuffer);
                 if (oldReadFramebuffer != oldFramebuffer)
                     GL30.glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER, oldReadFramebuffer);
@@ -311,7 +325,10 @@ public final class SeamForeignOffscreenPass {
                     GL11.glIsEnabled(GL11.GL_DEPTH_TEST) != oldDepthTest ||
                     GL11.glGetInteger(GL11.GL_DEPTH_FUNC) != oldDepthFunc ||
                     GL11.glIsEnabled(GL11.GL_BLEND) != oldBlend ||
-                    GL11.glIsEnabled(GL11.GL_CULL_FACE) != oldCull)
+                    GL11.glIsEnabled(GL11.GL_CULL_FACE) != oldCull ||
+                    GL11.glGetInteger(GL20.GL_CURRENT_PROGRAM) != oldProgram ||
+                    GL11.glGetInteger(GL30.GL_VERTEX_ARRAY_BINDING) != oldVao ||
+                    GL11.glGetInteger(GL13.GL_ACTIVE_TEXTURE) != oldActiveTexture)
                     throw new IllegalStateException("Source READ/DRAW framebuffer or scissor state not restored");
             } catch (RuntimeException | Error failure) {
                 restoreFailures++;
