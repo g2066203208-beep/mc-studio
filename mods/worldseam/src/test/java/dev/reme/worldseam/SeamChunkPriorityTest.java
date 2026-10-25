@@ -13,6 +13,24 @@ class SeamChunkPriorityTest {
     private static int choose(Map<Long,Long> sent,Set<Long> dirty,long tick) {
         return SeamChunkPriority.chooseSlot(0,0,OFFSETS,sent,dirty,tick,1200,20);
     }
+    @Test void nativeReadinessRequiresEveryCoordinateOfTheActualArrivalFiveByFive() {
+        Set<Long> resident = new HashSet<>();
+        for (int dz=-2; dz<=2; dz++)
+            for (int dx=-2; dx<=2; dx++)
+                resident.add(k(-7+dx, 11+dz));
+        assertTrue(SeamChunkPriority.criticalWindowReady(-7, 11,
+            (x,z) -> resident.contains(k(x,z))));
+        resident.remove(k(-9,9));
+        // A total of 25 chunks is NOT enough if one belongs to an
+        // old center outside the actual destination 5x5.
+        resident.add(k(100,100));
+        assertEquals(25, resident.size());
+        assertFalse(SeamChunkPriority.criticalWindowReady(-7, 11,
+            (x,z) -> resident.contains(k(x,z))));
+        assertThrows(IllegalArgumentException.class,
+            () -> SeamChunkPriority.criticalWindowReady(0,0,null));
+    }
+
     @Test void realNativeWindowStreamsAtMostOneResidentChunkPerTickUntilComplete() {
         assertEquals(1, SeamChunkPriority.sendCadence(0,25,10));
         assertEquals(1, SeamChunkPriority.sendCadence(8,25,10));
