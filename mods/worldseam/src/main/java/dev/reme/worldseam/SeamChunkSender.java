@@ -173,14 +173,16 @@ public final class SeamChunkSender {
         // chunk refresh; no server-side clone or extra physics authority.
         SeamRemoteEntitySender.tick(player,sourceId,selected,target,tick);
 
-        // Warm the crossing-critical 3x3 rapidly, then the 5x5 visual
-        // window. Once resident, send only bounded dirty-block updates or
-        // infrequent 1200-tick refreshes. No permanent full-chunk stream.
-        // Keep legacy 3x3/5x5 priority; stream genuine outer chunks at
-        // one per tick without blocking on synchronous terrain generation.
-        int cadence=session.lastSent.size()<9?2:
-            (session.lastSent.size()<25?5:
-             session.lastSent.size()<OFFSETS.length?1:INTERVAL);
+        // Native second-LevelRenderer pixels are genuinely absent until
+        // their real target chunks arrive. The former 3x3/5x5 2/5-tick
+        // throttle took ~5 seconds to send 25 ready chunks, exposing large
+        // empty regions while the player approached the seam. Stream at
+        // most ONE actual resident chunk per server tick until the window
+        // is complete; keep the old 10-tick cadence for dirty/refresh work.
+        // This never fabricates a chunk, blocks on generation or bypasses
+        // the ticket/center-first/dirty ordering below.
+        int cadence=SeamChunkPriority.sendCadence(
+            session.lastSent.size(),OFFSETS.length,INTERVAL);
         if(tick%cadence!=0)return;
 
         int slot=SeamChunkPriority.chooseSlot(centerX,centerZ,OFFSETS,
