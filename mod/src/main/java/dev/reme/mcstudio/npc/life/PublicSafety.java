@@ -322,6 +322,26 @@ public final class PublicSafety {
             } else {
                 guard.setAction("cell handoff blocked by wall; waiting for reachable intake");
             }
+        } else if (!prisonerAtCell && CityJailGate.isGate(level, jail)
+            && prisoner.blockPosition().distSqr(jail) <= 16
+            && guard.distanceToSqr(prisoner) > 5.0) {
+            // The filmed officer remained diagonally outside the SOUTH intake
+            // while the prisoner occupied the open iron-gate tile. Routing
+            // toward the OCCUPIED gate tile repeatedly left the officer
+            // outside the three-block walking leash, so neither actor moved.
+            // Approach the actual outside oak-door tile instead. It is a
+            // distinct, physically reachable standing place behind the
+            // prisoner; do not enter the narrow cell or teleport either NPC.
+            BlockPos intake = jail.south(3);
+            if (guard.blockPosition().distSqr(intake) > 1) {
+                if (RoadNavigator.moveToward(guard, level, intake, 0.98))
+                    guard.setAction("approaching open rear intake beside escorted prisoner");
+                else
+                    guard.setAction("rear intake approach blocked; waiting for physical path");
+            } else {
+                guard.getNavigation().stop();
+                guard.setAction("holding outside open iron gate while prisoner enters");
+            }
         } else if (guard.distanceToSqr(prisoner) > 5.0) {
             RoadNavigator.moveToward(guard, level, prisoner.blockPosition(), 0.98);
             guard.setAction("escorting handcuffed resident ON FOOT along loaded streets");
