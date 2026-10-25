@@ -4,11 +4,13 @@ import dev.reme.mcstudio.StudioMod;
 import dev.reme.mcstudio.npc.NpcRegistry;
 import dev.reme.mcstudio.npc.PlayerNpcEntity;
 import dev.reme.mcstudio.npc.life.HomeEntranceRoute;
+import dev.reme.mcstudio.npc.life.NpcOpenedDoorData;
 import dev.reme.mcstudio.npc.life.LivingPlanner;
 import dev.reme.mcstudio.npc.life.RestPolicy;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.gametest.framework.GameTest;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.block.BedBlock;
@@ -511,5 +513,44 @@ public final class HomeEntranceRouteGameTests {
             || level.getBlockState(door).getValue(DoorBlock.OPEN))
             throw new AssertionError("Resident forced a powered closed wooden door open");
         helper.succeed();
+    }
+
+    /** Native SavedData roundtrip + REAL door close. Test-only removal of the
+     * original watch simulates a restarted server without moving any NPC in
+     * production. A separate full process restart is still required for E2E.
+     */
+    @GameTest(template="empty",timeoutTicks=160)
+    public static void saved_npc_door_watch_restores_and_closes_real_door(
+        GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos center = house(helper,false);
+        BlockPos door = center.south(3);
+        BlockPos outside = center.south(4);
+        PlayerNpcEntity resident = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (resident == null) throw new AssertionError("NPC registration missing");
+        resident.moveTo(outside.getX()+.5,outside.getY(),outside.getZ()+.5,0,0);
+        resident.setMode(PlayerNpcEntity.Mode.STAY);
+        resident.setHomePos(center.north());
+        if (!level.addFreshEntity(resident))
+            throw new AssertionError("Could not spawn real door opener");
+        HomeEntranceRoute.moveTowardEntrance(resident,level,center.north(),1.0);
+        if (!level.getBlockState(door).getValue(DoorBlock.OPEN))
+            throw new AssertionError("NPC did not open real wooden door");
+        NpcOpenedDoorData live = NpcOpenedDoorData.get(level);
+        if (!live.has(door)) throw new AssertionError("Opened door was not recorded");
+        CompoundTag saved = live.save(new CompoundTag(),level.registryAccess());
+        NpcOpenedDoorData restored = NpcOpenedDoorData.load(saved,level.registryAccess());
+        if (!restored.has(door) || restored.pendingCount() != live.pendingCount())
+            throw new AssertionError("SavedData roundtrip lost door ownership");
+        live.relinquish(door);
+        resident.discard();
+        helper.runAfterDelay(90,()->{
+            restored.tickOpenedDoors(level);
+            if (level.getBlockState(door).getValue(DoorBlock.OPEN)
+                || level.getBlockState(door.above()).getValue(DoorBlock.OPEN)
+                || restored.has(door))
+                helper.fail("Restored NPC door watch did not close actual wooden door",door);
+            else helper.succeed();
+        });
     }
 }

@@ -1,16 +1,10 @@
 package dev.reme.mcstudio.npc.life;
 
 import dev.reme.mcstudio.npc.PlayerNpcEntity;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Map;
-import java.util.WeakHashMap;
 import javax.annotation.Nullable;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.phys.AABB;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.DoorBlock;
 import net.minecraft.world.level.block.state.BlockState;
@@ -25,25 +19,11 @@ import net.neoforged.neoforge.event.tick.LevelTickEvent;
  * wall; "always move closer to home" road heuristics cannot first move AWAY
  * from the bed to reach the actual door. This stages an exterior door tile,
  * then an interior door tile. Both are physical, collision-checked feet
- * positions. No teleport, terrain editing, tickets or new persisted NBT.
+ * positions. No teleport, terrain editing or chunk tickets. Pending door\n * ownership uses separate SavedData; existing NPC NBT remains unchanged.
  */
 public final class HomeEntranceRoute {
     private HomeEntranceRoute() {}
     private static final int DOOR_SCAN_RADIUS = 16;
-    private static final int AUTO_CLOSE_DELAY_TICKS = 50;
-    private static final int MAX_TRACKED_DOORS_PER_LEVEL = 256;
-
-    // Transient, server-thread-only state. No new world NBT, chunk tickets,
-    // or changes to player-opened doors. Weak keys avoid retaining a world
-    // after unloading; values contain no references to the ServerLevel key.
-    private static final Map<ServerLevel, DoorWatch> NPC_OPENED_DOORS =
-        new WeakHashMap<>();
-
-    private static final class DoorWatch {
-        final Map<BlockPos, Long> openedAt = new HashMap<>();
-        long lastProcessedTick = Long.MIN_VALUE;
-    }
-
     public record Entrance(BlockPos outside, BlockPos inside) {}
 
     private static boolean standable(ServerLevel level, BlockPos at) {
@@ -143,17 +123,15 @@ public final class HomeEntranceRoute {
     /**
      * Track ONLY doors actually opened by an NPC. Vanilla player-opened doors
      * are not ours to close. Memory is capped per loaded dimension and never
-     * written to the existing world save format.
+     * written to existing NPC entity NBT; ownership uses new SavedData.
      */
+    // SavedData is independent of legacy resident NBT and survives world saves.
     private static boolean canTrackNpcOpenedDoor(ServerLevel level, BlockPos door) {
-        DoorWatch watch = NPC_OPENED_DOORS.get(level);
-        return watch == null || watch.openedAt.containsKey(door)
-            || watch.openedAt.size() < MAX_TRACKED_DOORS_PER_LEVEL;
+        return NpcOpenedDoorData.get(level).canTrack(door);
     }
 
     private static void rememberNpcOpenedDoor(ServerLevel level, BlockPos door) {
-        DoorWatch watch = NPC_OPENED_DOORS.computeIfAbsent(level, ignored -> new DoorWatch());
-        watch.openedAt.put(door.immutable(), level.getGameTime());
+        NpcOpenedDoorData.get(level).remember(door, level.getGameTime());
     }
 
     /**
@@ -184,10 +162,7 @@ public final class HomeEntranceRoute {
         if (!(state.getBlock() instanceof DoorBlock)) return;
         BlockPos lower = state.getValue(DoorBlock.HALF) == DoubleBlockHalf.UPPER
             ? clicked.below() : clicked;
-        DoorWatch watch = NPC_OPENED_DOORS.get(level);
-        if (watch == null) return;
-        watch.openedAt.remove(lower);
-        if (watch.openedAt.isEmpty()) NPC_OPENED_DOORS.remove(level);
+        NpcOpenedDoorData.get(level).relinquish(lower);
     }
 
     /**
@@ -211,54 +186,7 @@ public final class HomeEntranceRoute {
      */
     public static void tickOpenedDoors(ServerLevel level) {
         if (!level.getServer().isSameThread()) return;
-        DoorWatch watch = NPC_OPENED_DOORS.get(level);
-        if (watch == null) return;
-        long now = level.getGameTime();
-        if (watch.lastProcessedTick == now) return;
-        watch.lastProcessedTick = now;
-        Iterator<Map.Entry<BlockPos, Long>> iterator = watch.openedAt.entrySet().iterator();
-        while (iterator.hasNext()) {
-            Map.Entry<BlockPos, Long> pending = iterator.next();
-            long age = now - pending.getValue();
-            if (age < 0) {
-                iterator.remove();
-                continue;
-            }
-            if (age < AUTO_CLOSE_DELAY_TICKS) continue;
-            BlockPos door = pending.getKey();
-            // A resident/player may occupy this threshold for longer than
-            // 2,400 ticks, or the chunk may unload before it is safe to close.
-            // Expiring the watch by age or unload permanently orphaned an
-            // NPC-opened door. Retain the bounded watch until the loaded door
-            // can actually be inspected and safely closed. No chunk tickets.
-            if (!level.hasChunkAt(door) || !level.hasChunkAt(door.above())) {
-                continue;
-            }
-            BlockState lower = level.getBlockState(door);
-            BlockState upper = level.getBlockState(door.above());
-            if (!(lower.getBlock() instanceof DoorBlock)
-                || !DoorBlock.isWoodenDoor(lower)
-                || upper.getBlock() != lower.getBlock()
-                || lower.getValue(DoorBlock.HALF) != DoubleBlockHalf.LOWER
-                || upper.getValue(DoorBlock.HALF) != DoubleBlockHalf.UPPER
-                || lower.getValue(DoorBlock.FACING) != upper.getValue(DoorBlock.FACING)
-                || lower.getValue(DoorBlock.HINGE) != upper.getValue(DoorBlock.HINGE)
-                || lower.getValue(DoorBlock.OPEN) != upper.getValue(DoorBlock.OPEN)
-                || lower.getValue(DoorBlock.POWERED) != upper.getValue(DoorBlock.POWERED)
-                || !lower.getValue(DoorBlock.OPEN)
-                || lower.getValue(DoorBlock.POWERED)) {
-                iterator.remove();
-                continue;
-            }
-            // Inflated vanilla doorway AABB covers both standing sides and
-            // the two-block height. Never close on a passerby or a player.
-            if (!level.getEntitiesOfClass(LivingEntity.class,
-                    new AABB(door).inflate(1.0D, 1.0D, 1.0D),
-                    LivingEntity::isAlive).isEmpty()) continue;
-            ((DoorBlock) lower.getBlock()).setOpen(null, level, lower, door, false);
-            iterator.remove();
-        }
-        if (watch.openedAt.isEmpty()) NPC_OPENED_DOORS.remove(level);
+        NpcOpenedDoorData.get(level).tickOpenedDoors(level);
     }
 
     /**
