@@ -31,7 +31,6 @@ public final class HomeEntranceRoute {
     private static final int DOOR_SCAN_RADIUS = 16;
     private static final int AUTO_CLOSE_DELAY_TICKS = 50;
     private static final int MAX_TRACKED_DOORS_PER_LEVEL = 256;
-    private static final int MAX_TRACKED_AGE_TICKS = 2400;
 
     // Transient, server-thread-only state. No new world NBT, chunk tickets,
     // or changes to player-opened doors. Weak keys avoid retaining a world
@@ -168,8 +167,9 @@ public final class HomeEntranceRoute {
      * period and only when its physical threshold is clear of ALL living
      * entities (including players and other NPCs). An occupied entrance stays
      * open, never closes into a person. Powered, replaced, broken, mismatched
-     * or unloaded doors are left alone. Expired watches are forgotten rather
-     * than interfering with an entrance controlled by somebody else.
+     * or unloaded doors are left alone. Pending watches remain bounded (256
+     * per dimension) even during long occupancy or temporary chunk unload;
+     * an age-based expiry would strand a real wooden door open forever.
      */
     public static void tickOpenedDoors(ServerLevel level) {
         if (!level.getServer().isSameThread()) return;
@@ -182,14 +182,18 @@ public final class HomeEntranceRoute {
         while (iterator.hasNext()) {
             Map.Entry<BlockPos, Long> pending = iterator.next();
             long age = now - pending.getValue();
-            if (age < 0 || age > MAX_TRACKED_AGE_TICKS) {
+            if (age < 0) {
                 iterator.remove();
                 continue;
             }
             if (age < AUTO_CLOSE_DELAY_TICKS) continue;
             BlockPos door = pending.getKey();
+            // A resident/player may occupy this threshold for longer than
+            // 2,400 ticks, or the chunk may unload before it is safe to close.
+            // Expiring the watch by age or unload permanently orphaned an
+            // NPC-opened door. Retain the bounded watch until the loaded door
+            // can actually be inspected and safely closed. No chunk tickets.
             if (!level.hasChunkAt(door) || !level.hasChunkAt(door.above())) {
-                iterator.remove();
                 continue;
             }
             BlockState lower = level.getBlockState(door);
