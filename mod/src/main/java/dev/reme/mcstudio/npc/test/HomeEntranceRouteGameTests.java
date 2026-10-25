@@ -4,6 +4,7 @@ import dev.reme.mcstudio.StudioMod;
 import dev.reme.mcstudio.npc.NpcRegistry;
 import dev.reme.mcstudio.npc.PlayerNpcEntity;
 import dev.reme.mcstudio.npc.life.HomeEntranceRoute;
+import dev.reme.mcstudio.npc.life.UrbanServiceJobs;
 import dev.reme.mcstudio.npc.life.NpcOpenedDoorData;
 import dev.reme.mcstudio.npc.life.LivingPlanner;
 import dev.reme.mcstudio.npc.life.RestPolicy;
@@ -643,4 +644,61 @@ public final class HomeEntranceRouteGameTests {
         });
     }
 
+
+    /**
+     * Real registered teacher, real closed oak workplace door and real
+     * native foot navigation. A direct road goal to an indoor lectern can
+     * stop at the outside wall; the commute must first open the door and
+     * cross its threshold. No test-only moveTo after entity spawn.
+     */
+    @GameTest(template="empty",timeoutTicks=420)
+    public static void teacher_physically_opens_closed_school_door_and_commutes_inside(
+        GameTestHelper helper) {
+        ServerLevel level=helper.getLevel();
+        BlockPos center=house(helper,false);
+        BlockPos door=center.south(3);
+        BlockPos job=center.north();
+        BlockPos start=center.south(5);
+        PlayerNpcEntity teacher=NpcRegistry.PLAYER_NPC.get().create(level);
+        if(teacher==null)throw new AssertionError("Registered teacher NPC unavailable");
+        teacher.moveTo(start.getX()+.5,start.getY(),start.getZ()+.5,0,0);
+        teacher.setMode(PlayerNpcEntity.Mode.LIVE);
+        teacher.setProfession(PlayerNpcEntity.Profession.TEACHER);
+        teacher.setHomePos(job);
+        teacher.setWorkPos(job);
+        teacher.setRoamingRadius(64);
+        teacher.setDecision(new LivingPlanner.Decision(
+            LivingPlanner.Intent.WORK,1000,"real classroom commute"));
+        if(!level.addFreshEntity(teacher))
+            throw new AssertionError("Could not spawn physical school employee");
+        final boolean[] opened={false}, crossed={false}, moved={false};
+        final double[] previousZ={teacher.getZ()};
+        for(int t=5;t<=290;t+=5)helper.runAfterDelay(t,()->{
+            if(!teacher.isAlive()){
+                helper.fail("Real teacher disappeared on school commute",start);
+                return;
+            }
+            if(level.getBlockState(door).getValue(DoorBlock.OPEN))opened[0]=true;
+            double z=teacher.getZ();
+            if(Math.abs(z-previousZ[0])>3.0)
+                helper.fail("Teacher jumped instead of walking to school",
+                    teacher.blockPosition());
+            if(Math.abs(z-previousZ[0])>.04)moved[0]=true;
+            if(z<center.south(3).getZ()+.1)crossed[0]=true;
+            previousZ[0]=z;
+        });
+        for(int t=1;t<=280;t+=20)helper.runAfterDelay(t,()->{
+            if(teacher.isAlive() && teacher.blockPosition().distSqr(job)>9)
+                UrbanServiceJobs.commuteToWork(teacher,level);
+        });
+        helper.runAfterDelay(310,()->{
+            if(!opened[0]||!crossed[0]||!moved[0]
+                ||teacher.blockPosition().distSqr(job)>9)
+                helper.fail("School shift never physically entered closed workplace door: "
+                    +"teacher="+teacher.blockPosition()+" doorOpened="+opened[0]
+                    +" crossed="+crossed[0]+" moved="+moved[0]
+                    +" action="+teacher.lastAction(),teacher.blockPosition());
+            else helper.succeed();
+        });
+    }
 }
