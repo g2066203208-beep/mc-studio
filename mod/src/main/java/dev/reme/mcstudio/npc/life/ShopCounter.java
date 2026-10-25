@@ -88,6 +88,29 @@ public final class ShopCounter {
      * 36-slot NBT backpack. Both bags are checked and committed together.
      * Nothing goes via FakePlayer inventory, and no item or currency is minted.
      */
+    /**
+     * A shop counter is often behind a real closed wooden entrance. Walking
+     * straight toward its coordinates may stop against the exterior wall;
+     * approach and hand-open a genuine intact wooden door first. Reuse the
+     * same bounded, loaded-only entrance path as school/hospital employees.
+     * Stores with no matching entrance retain the old road fallback.
+     */
+    public static boolean commuteToCounter(PlayerNpcEntity clerk, ServerLevel level) {
+        if (!level.getServer().isSameThread() || !clerk.isAlive()
+            || !level.hasChunkAt(clerk.workPos())
+            || !DailyRoaming.inRange(clerk, clerk.workPos())) return false;
+        if (HomeEntranceRoute.moveTowardEntrance(
+                clerk, level, clerk.workPos(), 0.83)) {
+            clerk.setAction("walking through real wooden shop entrance to counter");
+            return true;
+        }
+        if (RoadNavigator.moveToward(clerk, level, clerk.workPos(), 0.83)) {
+            clerk.setAction("walking on real streets to shop counter");
+            return true;
+        }
+        return false;
+    }
+
     public static boolean scheduledAt(long dayTime, int shift) {
         long clock = Math.floorMod(dayTime + shift, 24000L);
         return clock < 11000L;
@@ -314,7 +337,9 @@ public final class ShopCounter {
                 && MovementPolicy.due(tick, clerk.getId(), 40)
                 && level.hasChunkAt(clerk.homePos())
                 && DailyRoaming.inRange(clerk, clerk.homePos())
-                && RoadNavigator.moveToward(clerk, level, clerk.homePos(), 0.88)) {
+                && (HomeEntranceRoute.moveTowardEntrance(
+                        clerk, level, clerk.homePos(), 0.88)
+                    || RoadNavigator.moveToward(clerk, level, clerk.homePos(), 0.88))) {
                 clerk.setAction("finished convenience-store shift; commuting home by road");
                 return true;
             }
@@ -344,8 +369,7 @@ public final class ShopCounter {
         }
         if (NeighborhoodMarket.tickSupplier(clerk, level, tick)) return true;
         if (clerk.blockPosition().distSqr(clerk.workPos()) > 6) {
-            RoadNavigator.moveToward(clerk, level, clerk.workPos(), 0.83);
-            clerk.setAction("walking to shop counter for real daytime shift");
+            commuteToCounter(clerk, level);
         } else {
             clerk.getNavigation().stop();
             clerk.setAction(firstStock(clerk.backpack()) == null
