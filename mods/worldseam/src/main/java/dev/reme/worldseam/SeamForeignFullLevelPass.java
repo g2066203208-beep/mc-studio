@@ -143,6 +143,25 @@ public final class SeamForeignFullLevelPass {
                     game.worldseam$setMainCamera(mapped);
                     RenderSystem.setProjectionMatrix(nativeProjection,originalSorting);
                     try {
+                        // Sky is at effectively infinite depth, not a terrain
+                        // fragment. Applying an oblique near-plane to vanilla's
+                        // sky dome can cut out wedges even though the foreign
+                        // ClientLevel has a valid native sky. Draw its ACTUAL
+                        // LevelRenderer sky into this same foreign color/depth
+                        // target with vanilla perspective BEFORE raster-clipped
+                        // terrain. No screenshots, synthetic colors or geometry.
+                        // The full LevelRenderer still owns all later stages.
+                        if (clipped != null &&
+                            foreign.effects().skyType() != DimensionSpecialEffects.SkyType.NONE) {
+                            RenderSystem.setProjectionMatrix(event.getProjectionMatrix(), originalSorting);
+                            try {
+                                renderer.renderSky(event.getModelViewMatrix(),
+                                    event.getProjectionMatrix(), partial, mapped,
+                                    false, () -> {});
+                            } finally {
+                                RenderSystem.setProjectionMatrix(nativeProjection, originalSorting);
+                            }
+                        }
                         // Target fog is already initialized before the FBO
                         // clear, and remains active throughout native rendering.
                         // GameRenderer normally initializes the culling frustum
