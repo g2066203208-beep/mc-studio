@@ -104,15 +104,25 @@ public final class RoadNavigator {
             // Actual vanilla A* must accept a reachable route. The first
             // candidate can be behind real blocks despite sharing a sidewalk
             // height. Never declare a ghost route just for its lower distance.
-            if (npc.getNavigation().moveTo(waypoint.getX()+0.5,
-                    waypoint.getY(),waypoint.getZ()+0.5,speed)) {
-                npc.setAction("following accessible real paved street waypoint");
+            // PathNavigation.moveTo(double,...) can accept a PARTIAL path
+            // ending at a wall. Such a path looked active (isDone=false)
+            // even though the resident stood on the same tile all night.
+            // A street waypoint must be reachable by native A* before
+            // claiming that this leg of the journey is underway.
+            var path = npc.getNavigation().createPath(waypoint, 0);
+            if (path != null && path.canReach()
+                && npc.getNavigation().moveTo(path, speed)) {
+                npc.setAction("following reachable real paved street waypoint");
                 return true;
             }
         }
-        boolean direct = npc.getNavigation().moveTo(destination.getX()+0.5,
-            destination.getY(),destination.getZ()+0.5,speed);
-        if(direct)npc.setAction("navigating direct loaded-world vanilla route");
+        // Do not leave a resident repeatedly walking a partial path into
+        // a solid facade. The caller may try a real door or another route;
+        // an unreachable destination is NOT a successful commute.
+        var directPath = npc.getNavigation().createPath(destination, 0);
+        if (directPath == null || !directPath.canReach()) return false;
+        boolean direct = npc.getNavigation().moveTo(directPath, speed);
+        if (direct) npc.setAction("navigating fully reachable vanilla route");
         return direct;
     }
 }
