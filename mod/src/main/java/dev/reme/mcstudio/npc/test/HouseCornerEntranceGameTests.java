@@ -74,7 +74,8 @@ public final class HouseCornerEntranceGameTests {
         boolean[] entered = {false};
         boolean[] walked = {false};
         Vec3[] previous = {npc.position()};
-        for (int age = 2; age <= 270; age += 5)
+        for (int age = 2; age <= 270; age += 5) {
+            final int atTick = age;
             helper.runAfterDelay(age, () -> {
                 if (!npc.isAlive())
                     helper.fail("Resident vanished on corner route", start);
@@ -87,10 +88,11 @@ public final class HouseCornerEntranceGameTests {
                     opened[0] = true;
                 if (npc.blockPosition().distSqr(inside) <= 1)
                     entered[0] = true;
-                if (!entered[0] && age % 10 == 2)
+                if (!entered[0] && atTick % 10 == 2)
                     HomeEntranceRoute.moveTowardEntrance(npc, level,
                         center.north(), 1.0);
             });
+        }
         helper.runAfterDelay(290, () -> {
             if (!walked[0] || !opened[0] || !entered[0])
                 helper.fail("Side-wall route failed to physically enter wooden door: "
