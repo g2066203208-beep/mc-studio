@@ -84,6 +84,20 @@ public final class HomeEntranceRoute {
                         || (!state.getValue(DoorBlock.OPEN)
                             && (!includeClosedWood
                                 || !DoorBlock.isWoodenDoor(state)))) continue;
+                    // A doorway must have both matching vanilla halves. A
+                    // damaged/replaced upper half is not a traversable door,
+                    // even if the lower block still advertises OPEN=true.
+                    // Never route through a closed redstone-powered door.
+                    if (!level.hasChunkAt(door.above())) continue;
+                    BlockState upper = level.getBlockState(door.above());
+                    if (upper.getBlock() != state.getBlock()
+                        || upper.getValue(DoorBlock.HALF) != DoubleBlockHalf.UPPER
+                        || upper.getValue(DoorBlock.FACING) != state.getValue(DoorBlock.FACING)
+                        || upper.getValue(DoorBlock.HINGE) != state.getValue(DoorBlock.HINGE)
+                        || upper.getValue(DoorBlock.OPEN) != state.getValue(DoorBlock.OPEN)
+                        || upper.getValue(DoorBlock.POWERED) != state.getValue(DoorBlock.POWERED)
+                        || (!state.getValue(DoorBlock.OPEN)
+                            && state.getValue(DoorBlock.POWERED))) continue;
                     Direction normal = state.getValue(DoorBlock.FACING);
                     BlockPos a = door.relative(normal);
                     BlockPos b = door.relative(normal.getOpposite());
@@ -238,6 +252,7 @@ public final class HomeEntranceRoute {
             if (state.getBlock() instanceof DoorBlock block
                 && DoorBlock.isWoodenDoor(state)
                 && state.getValue(DoorBlock.HALF) == DoubleBlockHalf.LOWER
+                && !state.getValue(DoorBlock.POWERED)
                 && !state.getValue(DoorBlock.OPEN)) {
                 block.setOpen(npc, level, state, door, true);
                 if (level.getBlockState(door).getValue(DoorBlock.OPEN)) {
