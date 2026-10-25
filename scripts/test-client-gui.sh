@@ -173,6 +173,13 @@ if [[ "${REME_CITY_VISUAL:-0}" == "1" ]]; then
     sleep 2
     xdotool key --clearmodifiers F1
   }
+  # The disposable GUI world can spawn in a jungle. The 41x41 preflight
+  # passed on run 40173894332, but 12 seconds later the actual city build
+  # refused a NEW obstacle at (-1,80,-12), before any citizen spawned.
+  # Freeze random block ticks ONLY in this throwaway visual fixture so
+  # vines/vegetation cannot regrow into the cleared air between survey/build.
+  # Never weaken CityDistrictDemo's real occupied-terrain safety checks.
+  say_city '/gamerule randomTickSpeed 0' 2
   # The initial /npc spawn is part of command-smoke coverage. Remove only
   # that one test entity from this disposable scratch-world before founding
   # the district; otherwise the subsequent 12-citizen census shows 13.
@@ -201,7 +208,16 @@ if [[ "${REME_CITY_VISUAL:-0}" == "1" ]]; then
   # then checks the wrong air block as the original center and fails.
   # The marker is a disposable camera/fixture locator, never an NPC.
   say_city '/summon minecraft:marker ~ ~ ~ {Tags:["reme_city_origin"]}' 2
-  say_city '/npc city demo' 1
+  say_city '/npc city demo' 2
+  # Fail at the true cause, rather than waiting for a nonexistent shoplifter
+  # and reporting an empty UUID as a custody/animation failure.
+  if ! grep -Fq '已在真实 Minecraft 世界建成' client-gui.log; then
+    echo 'FAIL: actual Minecraft city construction was rejected; not a chase failure'
+    grep -E '场地通过|城市演示拒绝施工|不能生成城市|已在真实 Minecraft 世界建成' client-gui.log | tail -n 15 || true
+    kill -INT "$CASE_VIDEO_PID" 2>/dev/null || true
+    wait "$CASE_VIDEO_PID" || true
+    exit 1
+  fi
   # Server-authoritative client-visible human PLAYER emote uses the same
   # 30 authored animation resources as real NPCs, while X11 MP4 captures.
   say_city '/npc emote greet' 3
