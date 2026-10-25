@@ -282,9 +282,10 @@ public final class SeamClientWorldPool {
             < SeamReadiness.REQUIRED_CHUNKS) return;
         int cx = Math.floorDiv(mc.player.blockPosition().getX(), 16);
         int cz = Math.floorDiv(mc.player.blockPosition().getZ(), 16);
-        for (int dx = -1; dx <= 1; dx++)
-            for (int dz = -1; dz <= 1; dz++)
-                if (!remote.getChunkSource().hasChunk(cx+dx,cz+dz)) return;
+        // Count alone is insufficient: stale chunks from a previous camera
+        // center can make a partially empty arrival window look ready.
+        if (!SeamChunkPriority.criticalWindowReady(cx, cz,
+            (x,z) -> remote.getChunkSource().hasChunk(x,z))) return;
         long tick = mc.level.getGameTime();
         if (tick - lastReadySent < 40) return;
         PacketDistributor.sendToServer(new SeamReadyPayload(
@@ -308,6 +309,17 @@ public final class SeamClientWorldPool {
                 < SeamReadiness.REQUIRED_CHUNKS) {
             LOG.error("WorldSeam cannot hand off to {}: destination native chunks not ready",
                 instruction.to());
+            return false;
+        }
+        // Revalidate the exact destination 5x5 at handoff, not merely the
+        // aggregate loaded count reported earlier. A moving player may
+        // cross a chunk boundary after the readiness ACK was sent.
+        int arrivalChunkX = Math.floorDiv((int)Math.floor(instruction.x()), 16);
+        int arrivalChunkZ = Math.floorDiv((int)Math.floor(instruction.z()), 16);
+        if (!SeamChunkPriority.criticalWindowReady(arrivalChunkX, arrivalChunkZ,
+            (x,z) -> remote.getChunkSource().hasChunk(x,z))) {
+            LOG.error("WorldSeam refused handoff: incomplete real destination 5x5 around {},{}",
+                arrivalChunkX, arrivalChunkZ);
             return false;
         }
         // Promote the prewarmed ClientLevel into a FULL native Minecraft
