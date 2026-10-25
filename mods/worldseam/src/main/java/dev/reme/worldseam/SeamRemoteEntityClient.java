@@ -67,7 +67,8 @@ final class SeamRemoteEntityClient {
                 if(e!=null && SeamRemoteEntityOwnership.owns(ownedInstances,s.id(),e) &&
                    e.getUUID().equals(existing)) {
                     remote.removeEntity(s.id(),Entity.RemovalReason.DISCARDED);
-                    residentUuids.remove(existing);
+                    // Keep the UUID reserved for this packet: another
+                    // vanilla-owned instance might still use the same UUID.
                 }
                 tracked.remove(s.id());
                 ownedInstances.remove(s.id());
