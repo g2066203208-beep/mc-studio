@@ -5,6 +5,7 @@ import dev.reme.mcstudio.npc.NpcRegistry;
 import dev.reme.mcstudio.npc.PlayerNpcEntity;
 import dev.reme.mcstudio.npc.life.HomeEntranceRoute;
 import dev.reme.mcstudio.npc.life.UrbanServiceJobs;
+import dev.reme.mcstudio.npc.life.ShopCounter;
 import dev.reme.mcstudio.npc.life.NpcOpenedDoorData;
 import dev.reme.mcstudio.npc.life.LivingPlanner;
 import dev.reme.mcstudio.npc.life.RestPolicy;
@@ -698,6 +699,62 @@ public final class HomeEntranceRouteGameTests {
                     +"teacher="+teacher.blockPosition()+" doorOpened="+opened[0]
                     +" crossed="+crossed[0]+" moved="+moved[0]
                     +" action="+teacher.lastAction(),teacher.blockPosition());
+            else helper.succeed();
+        });
+    }
+
+    /**
+     * Store staff cannot sell through a solid exterior facade. Exercise the
+     * production commuteToCounter method on a real closed vanilla oak door
+     * with a real registered shopkeeper and physical vanilla path movement.
+     */
+    @GameTest(template="empty",timeoutTicks=420)
+    public static void shopkeeper_opens_real_closed_store_door_before_shift(
+        GameTestHelper helper) {
+        ServerLevel level=helper.getLevel();
+        BlockPos center=house(helper,false);
+        BlockPos door=center.south(3);
+        BlockPos counter=center.north();
+        BlockPos start=center.south(5);
+        PlayerNpcEntity clerk=NpcRegistry.PLAYER_NPC.get().create(level);
+        if(clerk==null)throw new AssertionError("Registered store clerk missing");
+        clerk.moveTo(start.getX()+.5,start.getY(),start.getZ()+.5,0,0);
+        clerk.setMode(PlayerNpcEntity.Mode.LIVE);
+        clerk.setProfession(PlayerNpcEntity.Profession.SHOPKEEPER);
+        clerk.setHomePos(counter);
+        clerk.setWorkPos(counter);
+        clerk.setRoamingRadius(64);
+        clerk.setDecision(new LivingPlanner.Decision(
+            LivingPlanner.Intent.WORK,1000,"physical shop shift"));
+        if(!level.addFreshEntity(clerk))
+            throw new AssertionError("Could not spawn actual shop employee");
+        final boolean[] opened={false}, crossed={false}, moved={false};
+        final double[] previousZ={clerk.getZ()};
+        for(int t=5;t<=290;t+=5)helper.runAfterDelay(t,()->{
+            if(!clerk.isAlive()){
+                helper.fail("Store employee disappeared before opening",start);
+                return;
+            }
+            if(level.getBlockState(door).getValue(DoorBlock.OPEN))opened[0]=true;
+            double z=clerk.getZ();
+            if(Math.abs(z-previousZ[0])>3.0)
+                helper.fail("Store employee jumped rather than walked",
+                    clerk.blockPosition());
+            if(Math.abs(z-previousZ[0])>.04)moved[0]=true;
+            if(z<center.south(3).getZ()+.1)crossed[0]=true;
+            previousZ[0]=z;
+        });
+        for(int t=1;t<=280;t+=20)helper.runAfterDelay(t,()->{
+            if(clerk.isAlive() && clerk.blockPosition().distSqr(counter)>9)
+                ShopCounter.commuteToCounter(clerk,level);
+        });
+        helper.runAfterDelay(310,()->{
+            if(!opened[0]||!crossed[0]||!moved[0]
+                ||clerk.blockPosition().distSqr(counter)>9)
+                helper.fail("Store employee did not open and enter actual workplace: "
+                    +"clerk="+clerk.blockPosition()+" doorOpened="+opened[0]
+                    +" crossed="+crossed[0]+" moved="+moved[0]
+                    +" action="+clerk.lastAction(),clerk.blockPosition());
             else helper.succeed();
         });
     }
