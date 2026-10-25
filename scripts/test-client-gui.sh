@@ -259,6 +259,9 @@ PY
     # filling the rest of the recording with a motionless detained actor.
     sleep 8
   fi
+  # Stop the clean viewer cut BEFORE the F1/chat end marker. The original
+  # full recording retains that marker for server/client chronology audit.
+  CASE_VIDEO_CLEAN_DURATION=$((SECONDS - CASE_VIDEO_START_SECONDS - CASE_VIDEO_CLEAN_OFFSET))
   xdotool key --clearmodifiers F1
   sleep 1
   say_city '/say REME_NPC_CASE_VIDEO_END' 1
@@ -271,6 +274,7 @@ PY
   # NPC frames, still-image interpolation, or reordered case events.
   ffmpeg -loglevel error -nostdin -y -ss "$CASE_VIDEO_CLEAN_OFFSET" \
     -i client-gui-city-full-crime-to-locked-jail.mp4 \
+    -t "$CASE_VIDEO_CLEAN_DURATION" \
     -c:v libx264 -preset ultrafast -crf 27 -pix_fmt yuv420p \
     -movflags +faststart -an client-gui-city-clean-chase-to-cell.mp4 \
     || { echo 'FAIL: cannot trim genuine HUD-free client frames'; exit 1; }
