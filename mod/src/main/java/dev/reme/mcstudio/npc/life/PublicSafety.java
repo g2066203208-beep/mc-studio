@@ -329,18 +329,21 @@ public final class PublicSafety {
             // while the prisoner occupied the open iron-gate tile. Routing
             // toward the OCCUPIED gate tile repeatedly left the officer
             // outside the three-block walking leash, so neither actor moved.
-            // Approach the actual outside oak-door tile instead. It is a
-            // distinct, physically reachable standing place behind the
-            // prisoner; do not enter the narrow cell or teleport either NPC.
-            BlockPos intake = jail.south(3);
+            // Approach the PUBLIC SIDEWALK one block south of the oak door,
+            // not the door's own collision-sensitive block. Native A* in the
+            // real GUI and the enclosed-door GameTest rejected the door tile
+            // itself as a destination, despite the gate being open. The
+            // sidewalk is a separate physical standing tile, within the
+            // four-block handoff leash when the prisoner reaches the cell.
+            BlockPos intake = jail.south(4);
             if (guard.blockPosition().distSqr(intake) > 1) {
                 if (RoadNavigator.moveToward(guard, level, intake, 0.98))
-                    guard.setAction("approaching open rear intake beside escorted prisoner");
+                    guard.setAction("approaching real sidewalk outside rear custody intake");
                 else
-                    guard.setAction("rear intake approach blocked; waiting for physical path");
+                    guard.setAction("rear sidewalk approach blocked; waiting for physical path");
             } else {
                 guard.getNavigation().stop();
-                guard.setAction("holding outside open iron gate while prisoner enters");
+                guard.setAction("holding on rear sidewalk while prisoner enters iron gate");
             }
         } else if (guard.distanceToSqr(prisoner) > 5.0) {
             RoadNavigator.moveToward(guard, level, prisoner.blockPosition(), 0.98);
