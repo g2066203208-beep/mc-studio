@@ -322,7 +322,7 @@ public final class PublicSafety {
             } else {
                 guard.setAction("cell handoff blocked by wall; waiting for reachable intake");
             }
-        } else if (!prisonerAtCell && CityJailGate.isGate(level, jail)
+        } else if (CityJailGate.isGate(level, jail)
             && prisoner.blockPosition().distSqr(jail) <= 16
             && guard.distanceToSqr(prisoner) > 5.0) {
             // The filmed officer remained diagonally outside the SOUTH intake
@@ -336,9 +336,17 @@ public final class PublicSafety {
             // sidewalk is a separate physical standing tile, within the
             // four-block handoff leash when the prisoner reaches the cell.
             BlockPos intake = jail.south(4);
-            if (guard.blockPosition().distSqr(intake) > 1) {
-                if (RoadNavigator.moveToward(guard, level, intake, 0.98))
-                    guard.setAction("approaching real sidewalk outside rear custody intake");
+            if (!guard.blockPosition().equals(intake)) {
+                // RoadNavigator deliberately ignores destinations within
+                // sqrt(5) blocks. That is correct for city commutes, but
+                // insufficient for a four-block custody HANDOFF: stopping
+                // one tile diagonally from the sidewalk leaves the officer
+                // sqrt(17) blocks from a prisoner inside the cell. Use
+                // validated native A* for this final short approach.
+                var approach = guard.getNavigation().createPath(intake, 0);
+                if (approach != null && approach.canReach()
+                    && guard.getNavigation().moveTo(approach, 0.98))
+                    guard.setAction("walking last real sidewalk steps for custody handoff");
                 else
                     guard.setAction("rear sidewalk approach blocked; waiting for physical path");
             } else {
