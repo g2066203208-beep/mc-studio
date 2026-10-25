@@ -30,6 +30,22 @@ public final class SeamChunkPriority {
         return transmitted < windowSize ? 1 : steadyTicks;
     }
 
+    /**
+     * A total native-chunk count is NOT a valid crossing readiness signal:
+     * 25 cached chunks can all lie outside the arrival 5x5. Check every
+     * actual destination coordinate, including negative world coordinates.
+     * This is a data-availability gate, not a claim of visual acceptance.
+     */
+    public static boolean criticalWindowReady(int centerX, int centerZ,
+            java.util.function.BiPredicate<Integer,Integer> hasChunk) {
+        if (hasChunk == null) throw new IllegalArgumentException("Missing native chunk predicate");
+        for (int dz = -2; dz <= 2; dz++)
+            for (int dx = -2; dx <= 2; dx++)
+                if (!hasChunk.test(centerX + dx, centerZ + dz))
+                    return false;
+        return true;
+    }
+
     /** Real chunk rings, center first; never put far chunks before near ones. */
     public static int[][] centerFirstOffsets(int radius) {
         if (radius < 2 || radius > MAX_RADIUS)
