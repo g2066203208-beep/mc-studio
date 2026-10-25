@@ -129,7 +129,8 @@ public final class SeamRapierRemoteTerrain {
         try {
             Object value = nativeSceneLookup.invoke(null, source);
             return value instanceof Number &&
-                ((Number) value).longValue() == sourceNativeScene;
+                SeamRapierSceneLease.isSameLiveScene(sourceNativeScene,
+                    ((Number) value).longValue());
         } catch (ReflectiveOperationException | RuntimeException | LinkageError ex) {
             LOG.warn("WORLDSEAM_RAPIER_SCENE_LOOKUP_FAILED: skipping unsafe native access", ex);
             return false;
