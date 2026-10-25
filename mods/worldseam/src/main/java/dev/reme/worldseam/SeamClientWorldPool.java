@@ -70,6 +70,13 @@ public final class SeamClientWorldPool {
     private static int remoteViewDistance;
     private static int lastActiveViewDistance;
     private static int nativeHandoffCount;
+    // A real secondary ClientLevel must advance its own weather/time, block
+    // entities and native client actors. Vanilla only ticks Minecraft.level.
+    // The full-native experiment fails closed if this independent tick fails.
+    private static long nativeForeignTicks;
+    private static boolean nativeForeignTickFailed;
+    public static boolean nativeForeignTickHealthy() { return !nativeForeignTickFailed; }
+    public static long nativeForeignTicks() { return nativeForeignTicks; }
 
     private SeamClientWorldPool() {}
 
@@ -137,6 +144,8 @@ public final class SeamClientWorldPool {
             remoteViewDistance=SeamNativeViewDistance.normalize(
                 mc.options.renderDistance().get());
             failed = false;
+            nativeForeignTickFailed = false;
+            nativeForeignTicks = 0;
             lastReadySent = Long.MIN_VALUE / 2;
             constructedCount++;
             LOG.info("WorldSeam prewarmed real secondary ClientLevel {} from {} with native client viewDistance={} (seam prefetch remains 5x5)",to,from,remoteViewDistance);
@@ -332,6 +341,8 @@ public final class SeamClientWorldPool {
         // Retain the source world as the secondary world for reverse crossings.
         remote = oldWorld;
         remoteRenderer = oldRenderer;
+        nativeForeignTickFailed = false;
+        nativeForeignTicks = 0;
         // Keep the old world cache intact for reverse handoff, but do not
         // redirect vanilla active-world packets into a 5x5-only storage map.
         remoteViewDistance=nativeDistance;
@@ -454,8 +465,50 @@ public final class SeamClientWorldPool {
                 remoteViewDistance=desired;
             }
             maybeReportReady(mc);
-            if (remoteRenderer != null && remoteRenderer != mc.levelRenderer)
+            if (remoteRenderer != null && remoteRenderer != mc.levelRenderer) {
+                if (SeamNativeGeometryClient.fullNativeEnabled() &&
+                    remote != null && remote != mc.level && !nativeForeignTickFailed)
+                    tickNativeForeignWorld(mc);
                 remoteRenderer.tick();
+            }
+        }
+    }
+
+    /**
+     * Vanilla advances ONLY its active ClientLevel. Without this opt-in
+     * second tick, the real foreign sky/weather, block-entity tickers and
+     * entity interpolation freeze despite LevelRenderer drawing frames.
+     * Scope the actual foreign world/renderer/particle/BE identities and
+     * packet-listener level together; never tick the active world twice.
+     * A failed foreign tick is a native-render acceptance failure, not a
+     * reason to silently render stale secondary-world state.
+     */
+    private static void tickNativeForeignWorld(Minecraft mc) {
+        ClientLevel packetWorld = mc.getConnection() == null ? null :
+            mc.getConnection().getLevel();
+        if (packetWorld == null) return;
+        SeamPacketListenerAccess packets =
+            (SeamPacketListenerAccess) mc.getConnection();
+        try (SeamForeignActorWorldScope.Scope ignored =
+                 SeamForeignActorWorldScope.bind(remote,
+                     mc.gameRenderer.getMainCamera())) {
+            if (!SeamForeignActorWorldScope.active())
+                throw new IllegalStateException("Foreign native tick context unavailable");
+            try {
+                packets.worldseam$setLevel(remote);
+                remote.tick(() -> true);
+                remote.tickEntities();
+                nativeForeignTicks++;
+                if (nativeForeignTicks == 1 || nativeForeignTicks % 120 == 0)
+                    LOG.info("WORLDSEAM_NATIVE_FOREIGN_LEVEL_TICK: ticks={}, dimension={}, clientEntities={}, activeWorldUntouched=true, finalAcceptance=false",
+                        nativeForeignTicks, remote.dimension().location(),
+                        remote.getEntityCount());
+            } finally {
+                packets.worldseam$setLevel(packetWorld);
+            }
+        } catch (RuntimeException | Error failure) {
+            nativeForeignTickFailed = true;
+            LOG.error("WORLDSEAM_NATIVE_FOREIGN_LEVEL_TICK_FAILED: disabling experimental full secondary render rather than showing stale entities/BE/sky", failure);
         }
     }
 
@@ -489,6 +542,8 @@ public final class SeamClientWorldPool {
     }
 
     public static void clear() {
+        nativeForeignTickFailed = false;
+        nativeForeignTicks = 0;
         SeamRemoteLightmaps.release();
         SeamRemoteEntityClient.reset();
         if (remoteRenderer != null) {
