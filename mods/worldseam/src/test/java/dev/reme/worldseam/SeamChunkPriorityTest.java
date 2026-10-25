@@ -13,6 +13,22 @@ class SeamChunkPriorityTest {
     private static int choose(Map<Long,Long> sent,Set<Long> dirty,long tick) {
         return SeamChunkPriority.chooseSlot(0,0,OFFSETS,sent,dirty,tick,1200,20);
     }
+    @Test void realNativeWindowStreamsAtMostOneResidentChunkPerTickUntilComplete() {
+        assertEquals(1, SeamChunkPriority.sendCadence(0,25,10));
+        assertEquals(1, SeamChunkPriority.sendCadence(8,25,10));
+        assertEquals(1, SeamChunkPriority.sendCadence(9,25,10));
+        assertEquals(1, SeamChunkPriority.sendCadence(24,25,10));
+        assertEquals(10, SeamChunkPriority.sendCadence(25,25,10));
+        assertEquals(1, SeamChunkPriority.sendCadence(25,81,10));
+        assertEquals(10, SeamChunkPriority.sendCadence(81,81,10));
+        assertThrows(IllegalArgumentException.class,
+            () -> SeamChunkPriority.sendCadence(-1,25,10));
+        assertThrows(IllegalArgumentException.class,
+            () -> SeamChunkPriority.sendCadence(26,25,10));
+        assertThrows(IllegalArgumentException.class,
+            () -> SeamChunkPriority.sendCadence(0,0,10));
+    }
+
     @Test void unseenOuterChunkAlwaysWinsOverDirtyCenter() {
         var sent=new HashMap<Long,Long>();
         for(int i=0;i<OFFSETS.length-1;i++)
