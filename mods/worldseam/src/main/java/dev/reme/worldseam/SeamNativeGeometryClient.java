@@ -157,6 +157,9 @@ public final class SeamNativeGeometryClient {
 
     public static void onSourceBoundaryBlockChanged(ClientLevel changedLevel,
                                                      BlockPos changed) {
+        // The full native LevelRenderer consumes real ClientLevel block updates;
+        // its chunk dispatcher, not the old preview VBO, owns these meshes.
+        if (EXPERIMENTAL_FULL_NATIVE_LEVEL) return;
         Minecraft mc=Minecraft.getInstance();
         if(mc.level!=changedLevel || queuedLink==null || queuedRemote==null ||
            source.isEmpty() || !source.equals(
@@ -190,6 +193,7 @@ public final class SeamNativeGeometryClient {
 
     public static void onRemoteBlockChanged(ClientLevel changedLevel,
                                             BlockPos changed) {
+        if (EXPERIMENTAL_FULL_NATIVE_LEVEL) return;
         Minecraft mc=Minecraft.getInstance();
         if(changedLevel!=queuedRemote || queuedLink==null ||
            source.isEmpty() || mc.level==null || mc.player==null ||
@@ -248,6 +252,10 @@ public final class SeamNativeGeometryClient {
         // edge faces, but no full-column scans happen on packet arrival.
         queuedRemote=remote;
         queuedLink=link;
+        // In the full-native path the target LevelRenderer already receives
+        // this same real ClientLevel chunk and builds its own sections. Do not
+        // schedule a second independent legacy section mesh for every packet.
+        if (EXPERIMENTAL_FULL_NATIVE_LEVEL) return;
         int low=link.entry()==SeamGraph.EdgeSide.TOP
             ? targetBoundary-VERTICAL_SECTIONS*16 : targetBoundary;
         int high=low+VERTICAL_SECTIONS*16;
@@ -413,6 +421,11 @@ public final class SeamNativeGeometryClient {
             reset();
             return;
         }
+        // A second real LevelRenderer is not a preview VBO. Avoid duplicate
+        // CPU tessellation and GPU uploads on each ClientTick while its own
+        // native chunk renderer is active. The actual target ClientLevel and
+        // packet stream remain live, independently of the legacy GPU backend.
+        if (EXPERIMENTAL_FULL_NATIVE_LEVEL) return;
         int cx=Math.floorDiv(mc.player.blockPosition().getX(),16);
         int cz=Math.floorDiv(mc.player.blockPosition().getZ(),16);
         boolean changed=columns.entrySet().removeIf(e -> {
@@ -751,7 +764,11 @@ public final class SeamNativeGeometryClient {
     /** Real foreign FBO pixels are admitted only BEHIND the seam and in
      *  front of actual source-world depth, never by a fullscreen fake blit. */
     private static void renderComposite(RenderLevelStageEvent event) {
-        if (!EXPERIMENTAL_DEPTH_COMPOSITE || gpuDisabled ||
+        // The native second LevelRenderer has its OWN section renderer.
+        // A failed/disabled legacy proxy VBO must never suppress its genuine
+        // second-world render and leave an avoidable seam hole.
+        if (!EXPERIMENTAL_DEPTH_COMPOSITE ||
+            (!EXPERIMENTAL_FULL_NATIVE_LEVEL && gpuDisabled) ||
             event.getCamera()==null || Minecraft.getInstance().level==null ||
             !source.equals(Minecraft.getInstance().level.dimension()
                 .location().toString()) || queuedLink==null) return;
