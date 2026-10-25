@@ -37,10 +37,18 @@ public final class SeamForeignFullLevelPass {
     private static long clippedFrames;
     private static final boolean ENABLE_CLIP = Boolean.getBoolean("worldseam.experimentalNativeSeamClip");
     private static Matrix4f lastProjection;
+    // The genuine foreign sky is rendered once with vanilla perspective.
+    // Its second invocation inside the clipped LevelRenderer must not paint
+    // over that sky with an oblique near-plane (which cuts infinite sky domes).
+    private static LevelRenderer nativeSkyPrepassOwner;
 
     private SeamForeignFullLevelPass() {}
 
     public static boolean active() { return active; }
+    /** Used only by the LevelRenderer sky hook while a real foreign frame is nested. */
+    public static boolean suppressClippedDuplicateSky(LevelRenderer renderer) {
+        return active && renderer != null && renderer == nativeSkyPrepassOwner;
+    }
     public static long completed() { return completed; }
     public static long failures() { return failures; }
     public static Matrix4f projectionForComposite(Matrix4f fallback) {
@@ -83,6 +91,7 @@ public final class SeamForeignFullLevelPass {
             return false;
 
         lastProjection = null;
+        nativeSkyPrepassOwner = null;
         Camera sourceCamera = event.getCamera();
         // The vanilla GameRenderer normally establishes the world's fog
         // color BEFORE LevelRenderer.renderLevel. A nested second-world
@@ -155,9 +164,18 @@ public final class SeamForeignFullLevelPass {
                             foreign.effects().skyType() != DimensionSpecialEffects.SkyType.NONE) {
                             RenderSystem.setProjectionMatrix(event.getProjectionMatrix(), originalSorting);
                             try {
+                                boolean skyFoggy = foreign.effects().isFoggyAt(
+                                    Mth.floor(mapped.getPosition().x),
+                                    Mth.floor(mapped.getPosition().y)) ||
+                                    mc.gui.getBossOverlay().shouldCreateWorldFog();
                                 renderer.renderSky(event.getModelViewMatrix(),
                                     event.getProjectionMatrix(), partial, mapped,
-                                    false, () -> {});
+                                    skyFoggy, () -> applyWorldFog(mc, foreign, mapped, partial));
+                                // Only arm the guard after the real sky draw
+                                // returns. The nested full LevelRenderer then
+                                // keeps its opaque/BE/entity/translucent stages
+                                // but does not redraw a clipped infinite sky.
+                                nativeSkyPrepassOwner = renderer;
                             } finally {
                                 RenderSystem.setProjectionMatrix(nativeProjection, originalSorting);
                             }
@@ -222,6 +240,7 @@ public final class SeamForeignFullLevelPass {
             try {
                 applyWorldFog(mc, sourceLevel, sourceCamera, partial);
             } finally {
+                nativeSkyPrepassOwner = null;
                 active = false;
             }
         }
