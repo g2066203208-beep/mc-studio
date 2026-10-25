@@ -96,6 +96,36 @@ final class SeamRemoteEntityClient {
             LOG.info("WORLDSEAM_NATIVE_REMOTE_ENTITY_CLIENT: realSecondClientLevel={}, tracked={}, created={}, updated={}, rejected={}",
                 packet.target(),tracked.size(),created,updated,rejected);
     }
+    /**
+     * Retire ONLY our client-side snapshot mirrors before a foreign
+     * ClientLevel becomes the active vanilla world. The server will then
+     * supply its authoritative normal entity spawn/tracking packets.
+     * Leaving these mirrors in the promoted world makes vanilla's real
+     * spawn of the SAME UUID conflict with a stale snapshot entity ID;
+     * 240-handoff logs demonstrated repeated Duplicate entity UUID warnings.
+     *
+     * This never removes an entity unless both our tracked ID and UUID
+     * still match. It never changes a ServerLevel, Sable rigid body, or
+     * another mod's client entity.
+     */
+    static void retireBeforePromotion(ClientLevel promoted) {
+        if(owner!=promoted)return;
+        int retired=0;
+        for(var item:tracked.entrySet()){
+            Entity e=promoted.getEntity(item.getKey());
+            if(e!=null && e.getUUID().equals(item.getValue())){
+                promoted.removeEntity(item.getKey(),Entity.RemovalReason.DISCARDED);
+                retired++;
+            }
+        }
+        tracked.clear();
+        owner=null;
+        scope="";
+        if(retired>0)
+            LOG.info("WORLDSEAM_REMOTE_ENTITY_PROMOTION: retiredMirrors={}, nativeVanillaTrackingPending=true, clonedServerEntities=0",
+                retired);
+    }
+
     static void reset(){
         // A previously remote world can become the active world at native
         // handoff. Do not destroy its entities after promotion.
