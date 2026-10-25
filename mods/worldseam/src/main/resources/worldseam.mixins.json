@@ -16,7 +16,8 @@
     "SeamClientPlayerAccess",
     "SeamClientBlockUpdateMixin",
     "SeamBufferSourceAccess",
-    "SeamCreateWorldMixin"
+    "SeamCreateWorldMixin",
+    "SeamLevelRendererSkyMixin"
   ],
   "injectors": {
     "defaultRequire": 1
