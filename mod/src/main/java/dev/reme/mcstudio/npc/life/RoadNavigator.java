@@ -116,13 +116,26 @@ public final class RoadNavigator {
                 return true;
             }
         }
-        // Do not leave a resident repeatedly walking a partial path into
-        // a solid facade. The caller may try a real door or another route;
-        // an unreachable destination is NOT a successful commute.
+        // Distant jobs can legitimately require several short native A*
+        // legs. Keep a PARTIAL route only when its real final path node is
+        // substantially closer (>=5 blocks squared-distance margin AND
+        // >=3 blocks of actual travel). Reject the zero-progress partial
+        // paths that previously held a guard at a facade all night.
         var directPath = npc.getNavigation().createPath(destination, 0);
-        if (directPath == null || !directPath.canReach()) return false;
+        if (directPath == null) return false;
+        boolean complete = directPath.canReach();
+        boolean advancing = false;
+        if (!complete && directPath.getNodeCount() > 1) {
+            BlockPos end = directPath.getNode(directPath.getNodeCount()-1).asBlockPos();
+            advancing = npc.blockPosition().distSqr(destination)
+                    - end.distSqr(destination) >= 25
+                && npc.blockPosition().distSqr(end) >= 9;
+        }
+        if (!complete && !advancing) return false;
         boolean direct = npc.getNavigation().moveTo(directPath, speed);
-        if (direct) npc.setAction("navigating fully reachable vanilla route");
+        if (direct) npc.setAction(complete
+            ? "navigating fully reachable vanilla route"
+            : "walking a measurable native A-star leg toward distant destination");
         return direct;
     }
 }
