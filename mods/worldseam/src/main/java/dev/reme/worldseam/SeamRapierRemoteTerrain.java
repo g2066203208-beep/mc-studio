@@ -284,7 +284,8 @@ public final class SeamRapierRemoteTerrain {
         }
         if(!active) {
             try {
-                initialize(upper,lower,shift,cx,cz);
+                initialize(upper,lower,shift,cx,cz,
+                    shipHull==null?Double.NaN:shipHull.minY);
             } catch(ReflectiveOperationException | LinkageError problem) {
                 faulted=true;
                 LOG.error("WORLDSEAM_RAPIER_EXPERIMENT_FAIL_NATIVE_INIT: cannot attach released Sable native scene",problem);
@@ -319,7 +320,7 @@ public final class SeamRapierRemoteTerrain {
                     i.remove();
                 }
             }
-            enqueueWindow();
+            enqueueWindow(shipHull==null?Double.NaN:shipHull.minY);
         }
         // The dimension's normal asynchronous tickets must already have
         // loaded these real chunks; NEVER call getChunk for missing data.
@@ -362,7 +363,7 @@ public final class SeamRapierRemoteTerrain {
     }
 
     private static void initialize(ServerLevel upper,ServerLevel lower,int shift,
-                                   int cx,int cz)
+                                   int cx,int cz,double hullMinY)
         throws ReflectiveOperationException {
         Class<?> nativeBridge=Class.forName("dev.ryanhcode.sable.physics.impl.rapier.Rapier3D");
         Method scene=nativeBridge.getMethod("getSceneHandle",ServerLevel.class);
@@ -414,17 +415,25 @@ public final class SeamRapierRemoteTerrain {
         windowTopSection=initial.top();
         centerX=cx;centerZ=cz;
         active=true;
-        enqueueWindow();
+        enqueueWindow(hullMinY);
         LOG.warn("WORLDSEAM_RAPIER_EXPERIMENT_ACTIVE: sceneHandle={} source={} target={} nativeShiftY={} firstRemoteSection={} oneBody=true, contact/torque NOT YET VERIFIED",
             sourceNativeScene,upper.dimension().location(),
             lower.dimension().location(),shift,edgeSection);
     }
 
-    private static void enqueueWindow() {
-        for(int cy=windowTopSection;cy>=windowBottomSection;cy--)
-            for(int dz=-WINDOW_RADIUS;dz<=WINDOW_RADIUS;dz++)
-                for(int dx=-WINDOW_RADIUS;dx<=WINDOW_RADIUS;dx++)
-                    enqueue(new NativeSection(centerX+dx,cy,centerZ+dz));
+    private static void enqueueWindow(double hullMinY) {
+        // Priority is based on the actual authoritative hull, not a viewer.
+        // With two native uploads per tick, the old corner-first order
+        // delayed the central collision column by dozens of ticks. Schedule
+        // the center and the hull's vertical section before distant terrain.
+        // The real target chunk must STILL be resident before JNI upload.
+        var ordered = SeamRapierChartWindow.prioritize(centerX,centerZ,
+            windowBottomSection,windowTopSection,hullMinY,offsetY);
+        for(var s:ordered)
+            enqueue(new NativeSection(s.cx(),s.cy(),s.cz()));
+        if(!ordered.isEmpty())
+            LOG.info("WORLDSEAM_RAPIER_UPLOAD_PRIORITY: hullMinY={} firstRealTargetSection={} queued={} authoritativeScene={} fusedAtlas=false",
+                hullMinY,ordered.get(0),ordered.size(),sourceNativeScene);
     }
 
     private static void upload(LevelChunk chunk,NativeSection s)
