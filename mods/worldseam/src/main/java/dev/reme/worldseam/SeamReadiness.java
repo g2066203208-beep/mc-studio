@@ -26,10 +26,21 @@ public final class SeamReadiness {
         sessions.put(playerId, new State(source,target,tick,0,0));
     }
 
-    private static void acceptAuthorized(UUID playerId, String source, String target,
-                              int reportedChunks, long tick, int chunkX, int chunkZ) {
-        if(reportedChunks >= REQUIRED_CHUNKS)
-            sessions.put(playerId,new State(source,target,tick,chunkX,chunkZ));
+    /**
+     * An ACK is evidence for the client-observed center, not whichever center
+     * the server player happens to occupy when the packet arrives. Reject a
+     * delayed ACK after a chunk-boundary move instead of silently rebinding it.
+     */
+    static boolean acceptAuthorized(UUID playerId, String source, String target,
+                              int reportedChunks, long tick, int reportedX, int reportedZ,
+                              int serverX, int serverZ) {
+        if (reportedChunks < REQUIRED_CHUNKS ||
+            reportedX != serverX || reportedZ != serverZ) {
+            sessions.remove(playerId);
+            return false;
+        }
+        sessions.put(playerId,new State(source,target,tick,reportedX,reportedZ));
+        return true;
     }
 
     public static boolean isReady(UUID id, String source, String target, long tick) {
@@ -77,10 +88,11 @@ public final class SeamReadiness {
             message.source(),message.target(),tick,
             Math.floorDiv(player.blockPosition().getX(),16),
             Math.floorDiv(player.blockPosition().getZ(),16));
-        acceptAuthorized(player.getUUID(),message.source(),message.target(),
+        if (!acceptAuthorized(player.getUUID(),message.source(),message.target(),
             message.loadedChunks(),tick,
+            message.centerChunkX(),message.centerChunkZ(),
             Math.floorDiv(player.blockPosition().getX(),16),
-            Math.floorDiv(player.blockPosition().getZ(),16));
+            Math.floorDiv(player.blockPosition().getZ(),16))) return;
         if (newAcknowledgement)
             com.mojang.logging.LogUtils.getLogger().info(
                 "WorldSeam READY ACK accepted {} -> {} (client {} native chunks)",
