@@ -825,7 +825,9 @@ public final class SeamNativeGeometryClient {
                 SeamForeignFullLevelPass.projectionForComposite(event.getProjectionMatrix()) :
                 event.getProjectionMatrix(),
             (float)(sourceBoundary-event.getCamera().getPosition().y),
-            queuedLink.exit()==SeamGraph.EdgeSide.BOTTOM);
+            queuedLink.exit()==SeamGraph.EdgeSide.BOTTOM,
+            EXPERIMENTAL_FULL_NATIVE_LEVEL &&
+                SeamForeignFullLevelPass.nativeBackgroundValid());
     }
 
     private static void drawForeignActorsNative(RenderLevelStageEvent event) {
