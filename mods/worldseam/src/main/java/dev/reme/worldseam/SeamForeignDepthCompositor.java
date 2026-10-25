@@ -231,6 +231,13 @@ public final class SeamForeignDepthCompositor {
             int depthCopyFbo = GlStateManager.getBoundFramebuffer();
             GL30.glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER, sourceFbo);
             GL30.glBindFramebuffer(GL30.GL_DRAW_FRAMEBUFFER, depthCopyFbo);
+            // glBlitFramebuffer is SCISSOR-TESTED. The source renderer or
+            // a mod can leave a small scissor rectangle active; copying only
+            // that rectangle leaves stale/undefined source depth elsewhere
+            // and makes the seam compositor select the wrong world.
+            // Disable it for the *entire* depth blit, not only the fullscreen
+            // triangle below. The caller's enable bit is restored in finally.
+            GL11.glDisable(GL11.GL_SCISSOR_TEST);
             GL30.glBlitFramebuffer(0, 0, source.width, source.height,
                 0, 0, source.width, source.height,
                 GL11.GL_DEPTH_BUFFER_BIT, GL11.GL_NEAREST);
