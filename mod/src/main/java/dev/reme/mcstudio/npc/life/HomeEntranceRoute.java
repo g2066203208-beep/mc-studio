@@ -74,18 +74,26 @@ public final class HomeEntranceRoute {
         DoorPassage passage = passages.get(key);
         if (passage != null) {
             PlayerNpcEntity owner = passage.owner.get();
-            BlockPos feet = owner.blockPosition();
-            // Being in the door block is NOT yet successful passage. Only
-            // the genuine indoor side releases the next waiting resident.
-            boolean crossed = feet.distSqr(entrance.inside())
-                    < feet.distSqr(entrance.outside())
-                && !feet.equals(door)
-                && feet.distSqr(entrance.inside()) <= 4;
-            if (crossed) {
+            if (owner == null) {
                 passages.remove(key);
                 passage = null;
-            } else if (owner != npc) {
-                return false;
+            } else {
+                BlockPos feet = owner.blockPosition();
+                // A resident at the door BLOCK has not yet crossed. A
+                // resident physically on the interior side, within four
+                // blocks of the inner aisle, has cleared the threshold.
+                // Allow a few ticks of walking after crossing before the
+                // next waiting resident's 10/40-tick planner call.
+                boolean crossed = feet.distSqr(entrance.inside())
+                        < feet.distSqr(entrance.outside())
+                    && !feet.equals(door)
+                    && feet.distSqr(entrance.inside()) <= 16;
+                if (crossed) {
+                    passages.remove(key);
+                    passage = null;
+                } else if (owner != npc) {
+                    return false;
+                }
             }
         }
         if (passage == null && passages.size() >= MAX_PASSAGES) return false;
