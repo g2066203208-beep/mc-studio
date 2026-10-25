@@ -3,6 +3,8 @@ package dev.reme.mcstudio.npc.life;
 import dev.reme.mcstudio.npc.PlayerNpcEntity;
 import dev.reme.mcstudio.npc.life.LivingPlanner;
 import javax.annotation.Nullable;
+import java.util.Map;
+import java.util.WeakHashMap;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
@@ -25,6 +27,13 @@ public final class ResidentBedLife {
     private static final int SEARCH_RADIUS = 8;
     private static final int SEARCH_VERTICAL = 3;
     private static final int RESCAN_INTERVAL = 200;
+
+    // A watch officer who has STARTED a real journey to bed must not abandon
+    // that route just because passive rest or another needs update crosses
+    // the 35/55-energy watch threshold before reaching the bedroom. This is
+    // transient server-tick state (weak keys); no world/NBT schema changes.
+    private static final Map<PlayerNpcEntity, Boolean> GUARD_BEDTIME_JOURNEYS =
+        new WeakHashMap<>();
 
     private static boolean valid(ServerLevel level, BlockPos head) {
         if (head == null || !level.hasChunkAt(head)) return false;
@@ -104,12 +113,20 @@ public final class ResidentBedLife {
     /** Only call from the actual server entity tick. */
     public static boolean tick(PlayerNpcEntity npc, ServerLevel level, long tick) {
         boolean guard = npc.profession() == PlayerNpcEntity.Profession.GUARD;
-        boolean wantsSleep = npc.mode() == PlayerNpcEntity.Mode.LIVE
+        boolean eligible = npc.mode() == PlayerNpcEntity.Mode.LIVE
             && npc.intent() == LivingPlanner.Intent.SLEEP
-            && (RestPolicy.shouldRest(npc.intent(), guard, npc.energy())
-                || RestPolicy.lateWatchRecovery(guard,
-                    level.getDayTime() + npc.dailyShiftTicks(), npc.energy()))
             && !npc.isAfraid(tick) && !npc.isDetained(tick);
+        boolean policyRequests = RestPolicy.shouldRest(npc.intent(), guard, npc.energy())
+            || RestPolicy.lateWatchRecovery(guard,
+                level.getDayTime() + npc.dailyShiftTicks(), npc.energy());
+        boolean committed = guard && GUARD_BEDTIME_JOURNEYS.containsKey(npc);
+        // Only the physical vanilla-bed arrival (or an interruption of the
+        // sleep intent) ends a guard's ongoing commute. A new daytime patrol
+        // cannot inherit a stale commitment from yesterday.
+        if (!eligible || npc.isSleeping()) GUARD_BEDTIME_JOURNEYS.remove(npc);
+        else if (guard && policyRequests)
+            GUARD_BEDTIME_JOURNEYS.put(npc, Boolean.TRUE);
+        boolean wantsSleep = eligible && (policyRequests || committed);
         if (npc.isSleeping()) {
             BlockPos sleeping = npc.getSleepingPos().orElse(null);
             boolean destroyed = !valid(level, sleeping);
