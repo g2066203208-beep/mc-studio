@@ -74,4 +74,51 @@ public final class RoadNavigatorGameTests {
             else helper.succeed();
         });
     }
+
+    /**
+     * A native A* path can be accepted but never advance the actor (for
+     * example when another entity or an entrance blocks its first step).
+     * This deterministic zero-speed fixture verifies that an ACTIVE path
+     * alone cannot masquerade as progress indefinitely. No teleport is used.
+     */
+    @GameTest(template="empty",timeoutTicks=150)
+    public static void physically_stalled_active_path_is_cancelled_not_reported_as_walking(
+            GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos center = helper.absolutePos(new BlockPos(15, 4, 15));
+        for (int x=-8; x<=8; x++)
+            for (int z=-8; z<=8; z++) {
+                level.setBlock(center.offset(x,-1,z), Blocks.STONE.defaultBlockState(), 3);
+                for (int y=0; y<=2; y++)
+                    level.setBlock(center.offset(x,y,z), Blocks.AIR.defaultBlockState(), 3);
+            }
+        BlockPos start = center.west(6);
+        BlockPos goal = center.east(6);
+        PlayerNpcEntity npc = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (npc == null) throw new AssertionError("NPC entity not registered");
+        npc.setMode(PlayerNpcEntity.Mode.STAY);
+        npc.setHomePos(start);
+        npc.moveTo(start.getX()+0.5, start.getY(), start.getZ()+0.5, 0, 0);
+        if (!level.addFreshEntity(npc))
+            throw new AssertionError("Cannot spawn physical NPC");
+        boolean[] detected = {false};
+        helper.runAfterDelay(2, () -> {
+            if (!RoadNavigator.moveToward(npc, level, goal, 0.0)
+                    || npc.getNavigation().isDone())
+                helper.fail("Fixture requires a real active A-star path", start);
+        });
+        for (int age=7; age<=107; age+=5)
+            helper.runAfterDelay(age, () -> {
+                boolean accepted = RoadNavigator.moveToward(npc, level, goal, 0.0);
+                if (!accepted && npc.lastAction().contains("stalled native path stopped"))
+                    detected[0] = true;
+            });
+        helper.runAfterDelay(115, () -> {
+            if (!detected[0])
+                helper.fail("Stationary active navigation was never rejected", npc.blockPosition());
+            else if (npc.blockPosition().distSqr(start) > 1)
+                helper.fail("Zero-speed fixture unexpectedly moved the NPC", npc.blockPosition());
+            else helper.succeed();
+        });
+    }
 }
