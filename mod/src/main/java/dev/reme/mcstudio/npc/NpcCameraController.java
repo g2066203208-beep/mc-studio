@@ -240,6 +240,20 @@ public final class NpcCameraController {
         return new CameraPose(lens.x, lens.y, lens.z, yaw, pitch);
     }
 
+    /** A safe moving lens can exist between the finite orbit samples.
+     * If every freshly sampled position is obstructed, revalidate the last
+     * real-world shot before forcing the spectator into face-filling POV.
+     * The previous shot is never trusted without CURRENT body and sight checks.
+     */
+    @Nullable
+    public static CameraPose preferSafeRetained(@Nullable CameraPose fresh,
+            @Nullable CameraPose previous, Vec3 oldAnchor, Vec3 currentAnchor,
+            Predicate<Vec3> clearLens, Predicate<Vec3> visible) {
+        CameraPose retained = retainSafeShot(previous, oldAnchor, currentAnchor,
+            clearLens, visible);
+        return retained != null ? retained : fresh;
+    }
+
     /** Vanilla server teleport positions the FEET, not the eye camera.
      * Never silently substitute eye coordinates for player feet.
      */
@@ -397,20 +411,30 @@ public final class NpcCameraController {
         Vec3 anchor = sharedLens
             ? eye.add(partner.getEyePosition()).scale(0.5) : eye;
         StableShot previous = STABLE_SHOTS.get(player.getUUID());
-        if (chosen != null && previous != null
+        if (previous != null
             && java.util.Objects.equals(previous.partnerId(), partnerIdForShot)
-            && previous.sharedLens() == sharedLens) {
+            && (chosen == null || previous.sharedLens() == sharedLens)) {
+            // Even if the discrete orbit has NO candidate, a previously
+            // filmed lens may remain physically safe between sample angles.
+            // Recheck BOTH actors when retaining a shared custody view.
+            boolean retainingShared = previous.sharedLens();
+            Vec3 retainingAnchor = retainingShared
+                ? eye.add(partner.getEyePosition()).scale(0.5) : eye;
             Predicate<Vec3> currentSight = targetVisible;
-            if (sharedLens) {
+            if (retainingShared) {
                 Vec3 officerEye = partner.getEyePosition();
                 currentSight = lens -> targetVisible.test(lens)
                     && level.clip(new ClipContext(officerEye, lens,
                         ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE,
                         partner)).getType() == HitResult.Type.MISS;
             }
-            CameraPose retained = retainSafeShot(previous.pose(),
-                previous.anchor(), anchor, clearLens, currentSight);
-            if (retained != null) chosen = retained;
+            CameraPose retained = preferSafeRetained(null, previous.pose(),
+                previous.anchor(), retainingAnchor, clearLens, currentSight);
+            if (retained != null) {
+                chosen = retained;
+                sharedLens = retainingShared;
+                anchor = retainingAnchor;
+            }
         }
         if (chosen == null) STABLE_SHOTS.remove(player.getUUID());
         else STABLE_SHOTS.put(player.getUUID(),
