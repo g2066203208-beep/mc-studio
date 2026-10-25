@@ -67,6 +67,10 @@ neoForge {
                 systemProperty 'worldseam.experimentalFullNativeLevel', 'true'
                 // Native geometry clip BEFORE target depth; never use on ordinary clients until verified.
                 systemProperty 'worldseam.experimentalNativeSeamClip', 'true'
+                // Real GUI regression experiment: composite foreign native
+                // color/depth before the source's transparent stage. Never
+                // enable this unverified ordering on normal clients.
+                systemProperty 'worldseam.experimentalEarlyNativeComposite', 'true'
                 systemProperty 'worldseam.foreignNativeViewRadius', '4'
             }
             if (project.hasProperty('worldseamStress')) {
