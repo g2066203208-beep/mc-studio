@@ -60,7 +60,9 @@ public final class SeamServer {
                 && active.near(player.getY(),
                     SeamStackRuntime.bottom(player.serverLevel()),
                     SeamStackRuntime.top(player.serverLevel()),48)
-                && SeamReadiness.isReady(player.getUUID(),dim,active.target(),tick);
+                && SeamReadiness.isReadyAt(player.getUUID(),dim,active.target(),tick,
+                    Math.floorDiv(player.blockPosition().getX(),16),
+                    Math.floorDiv(player.blockPosition().getZ(),16));
             // Avoid duplicate legacy previews once native chunks are ready.
             SeamPreviewSender.tick(server, player, tick, enabled && !ready);
             SeamSectionSender.tick(server, player, tick, enabled && !ready);
@@ -107,8 +109,10 @@ public final class SeamServer {
                     "WORLDSEAM_STRESS_SERVER_TRACE: dim={}, to={}, y={}, yo={}, vy={}, min={}, max={}, targetEdge={}, targetBoundary={}, cachedReady={}, cooldownLeft={}",
                     dim,link.target(),player.getY(),player.yo,
                     player.getDeltaMovement().y(),min,max,link.entry(),
-                    targetBoundaryY,SeamReadiness.isReady(player.getUUID(),
-                        dim,link.target(),tick),
+                    targetBoundaryY,SeamReadiness.isReadyAt(player.getUUID(),
+                        dim,link.target(),tick,
+                        Math.floorDiv(player.blockPosition().getX(),16),
+                        Math.floorDiv(player.blockPosition().getZ(),16)),
                     Math.max(0,COOLDOWN_TICKS-(tick-lastCross.getOrDefault(
                         player.getUUID(),Long.MIN_VALUE/2))));
                 // A freshly arrived player must enter the new world before
@@ -159,8 +163,10 @@ public final class SeamServer {
                     break;
                 }
                 boolean useExperimental = SeamSettings.get(server).experimentalNoRespawn();
-                boolean ready = SeamReadiness.isReady(player.getUUID(),
-                    dim, link.target(), tick);
+                boolean ready = SeamReadiness.isReadyAt(player.getUUID(),
+                    dim, link.target(), tick,
+                    Math.floorDiv(player.blockPosition().getX(),16),
+                    Math.floorDiv(player.blockPosition().getZ(),16));
                 // Do not synchronously load the destination on EACH tick
                 // before the client has even acknowledged its dual cache.
                 // This was a second repeated-loading hotspot.
