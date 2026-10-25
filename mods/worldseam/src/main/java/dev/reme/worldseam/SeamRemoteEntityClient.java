@@ -64,7 +64,7 @@ final class SeamRemoteEntityClient {
             UUID existing=tracked.get(s.id());
             if(existing!=null&&!existing.equals(s.uuid())){
                 // Never remove an entity we did not create for this scope.
-                if(e!=null && e==ownedInstances.get(s.id()) &&
+                if(e!=null && SeamRemoteEntityOwnership.owns(ownedInstances,s.id(),e) &&
                    e.getUUID().equals(existing)) {
                     remote.removeEntity(s.id(),Entity.RemovalReason.DISCARDED);
                     residentUuids.remove(existing);
@@ -79,7 +79,7 @@ final class SeamRemoteEntityClient {
             if(e==null){
                 // Never inject a second native Entity for a UUID already
                 // present under another ID (including vanilla-owned actors).
-                if(residentUuids.contains(s.uuid())) {rejected++;continue;}
+                if(!SeamRemoteEntityOwnership.mayCreate(residentUuids,s.uuid())) {rejected++;continue;}
                 var type=BuiltInRegistries.ENTITY_TYPE.getOptional(s.type())
                     .orElse(null);
                 if(type==null){rejected++;continue;}
@@ -95,7 +95,7 @@ final class SeamRemoteEntityClient {
                 residentUuids.add(s.uuid());
                 created++;
             } else if(!s.uuid().equals(tracked.get(s.id())) ||
-                      e!=ownedInstances.get(s.id())){
+                      !SeamRemoteEntityOwnership.owns(ownedInstances,s.id(),e)){
                 // Existing native client entity was not ours to mutate.
                 rejected++;continue;
             } else {
@@ -111,7 +111,7 @@ final class SeamRemoteEntityClient {
             var item=it.next();
             if(seen.contains(item.getKey()))continue;
             Entity e=remote.getEntity(item.getKey());
-            if(e!=null && e==ownedInstances.get(item.getKey()) &&
+            if(e!=null && SeamRemoteEntityOwnership.owns(ownedInstances,item.getKey(),e) &&
                e.getUUID().equals(item.getValue()))
                 remote.removeEntity(item.getKey(),Entity.RemovalReason.DISCARDED);
             ownedInstances.remove(item.getKey());
@@ -138,7 +138,7 @@ final class SeamRemoteEntityClient {
         int retired=0;
         for(var item:tracked.entrySet()){
             Entity e=promoted.getEntity(item.getKey());
-            if(e!=null && e==ownedInstances.get(item.getKey()) &&
+            if(e!=null && SeamRemoteEntityOwnership.owns(ownedInstances,item.getKey(),e) &&
                e.getUUID().equals(item.getValue())){
                 promoted.removeEntity(item.getKey(),Entity.RemovalReason.DISCARDED);
                 retired++;
@@ -159,7 +159,7 @@ final class SeamRemoteEntityClient {
         if(owner!=null&&owner!=Minecraft.getInstance().level){
             for(var item:tracked.entrySet()){
                 Entity e=owner.getEntity(item.getKey());
-                if(e!=null && e==ownedInstances.get(item.getKey()) &&
+                if(e!=null && SeamRemoteEntityOwnership.owns(ownedInstances,item.getKey(),e) &&
                    e.getUUID().equals(item.getValue()))
                     owner.removeEntity(item.getKey(),Entity.RemovalReason.DISCARDED);
             }
