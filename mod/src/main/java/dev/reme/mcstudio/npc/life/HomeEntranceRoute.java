@@ -2,6 +2,10 @@ package dev.reme.mcstudio.npc.life;
 
 import dev.reme.mcstudio.npc.PlayerNpcEntity;
 import javax.annotation.Nullable;
+import java.lang.ref.WeakReference;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.WeakHashMap;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
@@ -25,6 +29,69 @@ public final class HomeEntranceRoute {
     private HomeEntranceRoute() {}
     private static final int DOOR_SCAN_RADIUS = 16;
     public record Entrance(BlockPos outside, BlockPos inside) {}
+
+    // A one-block wooden doorway cannot be approached by an entire crowd at
+    // once: two active vanilla A* paths can push both walkers onto the same
+    // outside tile and neither crosses. Serialize the FINAL door approach,
+    // never the town's whole pavement. Transient weak owners avoid old-NBT
+    // changes and do not retain despawned NPCs or unloaded worlds.
+    private static final Map<ServerLevel, Map<Long, DoorPassage>> PASSAGES =
+        new WeakHashMap<>();
+    private static final int MAX_PASSAGES = 256;
+    private static final int PASSAGE_STALE_TICKS = 160;
+
+    private static final class DoorPassage {
+        final WeakReference<PlayerNpcEntity> owner;
+        long lastSeenTick;
+        DoorPassage(PlayerNpcEntity npc, long tick) {
+            owner = new WeakReference<>(npc);
+            lastSeenTick = tick;
+        }
+    }
+
+    /**
+     * A resident may walk toward the physical threshold only when it owns
+     * this door's short-lived passage. The next resident gets its turn as
+     * soon as the first has ACTUALLY crossed to the indoor side, died, left
+     * this dimension or stopped refreshing its journey. This is a navigation
+     * courtesy queue, not a lock on the vanilla block or a teleport.
+     */
+    private static boolean mayApproachDoor(PlayerNpcEntity npc,
+            ServerLevel level, BlockPos door, Entrance entrance) {
+        long now = level.getGameTime();
+        Map<Long, DoorPassage> passages =
+            PASSAGES.computeIfAbsent(level, unused -> new HashMap<>());
+        // Bounded cleanup also prevents a disappeared resident from holding
+        // its door forever. The weak owner does not pin the entity in memory.
+        passages.entrySet().removeIf(entry -> {
+            DoorPassage passage = entry.getValue();
+            PlayerNpcEntity owner = passage.owner.get();
+            return owner == null || !owner.isAlive() || owner.level() != level
+                || now < passage.lastSeenTick
+                || now - passage.lastSeenTick > PASSAGE_STALE_TICKS;
+        });
+        long key = door.asLong();
+        DoorPassage passage = passages.get(key);
+        if (passage != null) {
+            PlayerNpcEntity owner = passage.owner.get();
+            BlockPos feet = owner.blockPosition();
+            // Being in the door block is NOT yet successful passage. Only
+            // the genuine indoor side releases the next waiting resident.
+            boolean crossed = feet.distSqr(entrance.inside())
+                    < feet.distSqr(entrance.outside())
+                && !feet.equals(door)
+                && feet.distSqr(entrance.inside()) <= 4;
+            if (crossed) {
+                passages.remove(key);
+                passage = null;
+            } else if (owner != npc) {
+                return false;
+            }
+        }
+        if (passage == null && passages.size() >= MAX_PASSAGES) return false;
+        passages.put(key, new DoorPassage(npc, now));
+        return true;
+    }
 
     private static boolean standable(ServerLevel level, BlockPos at) {
         return level.hasChunkAt(at) && level.hasChunkAt(at.above())
@@ -217,6 +284,15 @@ public final class HomeEntranceRoute {
         BlockPos outside = entrance.outside(), inside = entrance.inside();
         BlockPos door = new BlockPos((outside.getX() + inside.getX()) / 2,
             outside.getY(), (outside.getZ() + inside.getZ()) / 2);
+        // Residents already on the actual indoor threshold do not need to
+        // reserve an exterior approach. Other residents must take turns;
+        // waiting does not bypass walls, move an entity or modify a door.
+        boolean alreadyInside = here.equals(inside);
+        if (!alreadyInside && !mayApproachDoor(npc, level, door, entrance)) {
+            npc.getNavigation().stop();
+            npc.setAction("waiting for another resident to clear real wooden doorway");
+            return true;
+        }
         if (here.distSqr(outside) <= 2 || here.distSqr(inside) <= 2) {
             BlockState state = level.getBlockState(door);
             if (state.getBlock() instanceof DoorBlock block
