@@ -22,6 +22,9 @@ public final class SeamRemoteLightmaps {
     private static LightTexture foreign;
     private static long creations,binds,failures,releases;
     private static boolean warned;
+    // Vanilla advances lightmap flicker at 20 TPS, not every render frame.
+    // The secondary ClientLevel can render many times between its real ticks.
+    private static final SeamLightmapTickCadence TICK_CADENCE = new SeamLightmapTickCadence();
 
     private SeamRemoteLightmaps() {}
 
@@ -53,7 +56,11 @@ public final class SeamRemoteLightmaps {
         ClientLevel source=mc.level;
         try {
             mc.level=remote;
-            foreign.tick();
+            // Preserve vanilla 20 TPS lightmap flicker cadence even when
+            // the target LevelRenderer draws at a different FPS. Still let
+            // updateLightTexture process any pending brightness changes.
+            if (TICK_CADENCE.shouldTick(remote, remote.getGameTime()))
+                foreign.tick();
             foreign.updateLightTexture(0.0F);
         } catch(RuntimeException error) {
             report(error);
@@ -101,6 +108,7 @@ public final class SeamRemoteLightmaps {
         }
         foreign=null;
         owner=null;
+        TICK_CADENCE.reset();
     }
 
     public static long creations(){return creations;}
