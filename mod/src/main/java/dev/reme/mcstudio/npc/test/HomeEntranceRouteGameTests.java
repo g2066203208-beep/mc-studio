@@ -11,6 +11,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.block.BedBlock;
@@ -597,4 +598,49 @@ public final class HomeEntranceRouteGameTests {
             else helper.succeed();
         });
     }
+    /**
+     * A corrupted or imported SavedData file may contain 256 impossible door
+     * positions (e.g. Y=2047). Those chunks cannot ever load. The server
+     * must reclaim the bounded watches rather than permanently refusing to
+     * track a legitimate home door. A merely unloaded, in-bounds chunk is
+     * intentionally NOT deleted by the production cleanup.
+     */
+    @GameTest(template="empty",timeoutTicks=130)
+    public static void invalid_saved_door_heights_do_not_block_real_home_doors(
+        GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        CompoundTag saved = new CompoundTag();
+        ListTag entries = new ListTag();
+        for (int i = 0; i < NpcOpenedDoorData.MAX_TRACKED; i++) {
+            BlockPos impossible = new BlockPos(i, 2047, 0);
+            if (level.isInWorldBounds(impossible))
+                throw new AssertionError("Malformed fixture unexpectedly in build bounds");
+            CompoundTag entry = new CompoundTag();
+            entry.putLong("Pos", impossible.asLong());
+            entry.putLong("OpenedAt", 0L);
+            entries.add(entry);
+        }
+        saved.put("Doors", entries);
+        NpcOpenedDoorData restored =
+            NpcOpenedDoorData.load(saved, level.registryAccess());
+        if (restored.pendingCount() != NpcOpenedDoorData.MAX_TRACKED)
+            throw new AssertionError("Malformed persisted fixture was not loaded");
+        restored.tickOpenedDoors(level);
+        if (restored.pendingCount() != 0)
+            throw new AssertionError("Impossible saved positions exhausted NPC door capacity");
+
+        BlockPos center = house(helper, true);
+        BlockPos door = center.south(3);
+        if (!restored.remember(door, level.getGameTime()))
+            throw new AssertionError("Valid real door could not reclaim watch capacity");
+        helper.runAfterDelay(75, () -> {
+            restored.tickOpenedDoors(level);
+            if (restored.has(door)
+                || level.getBlockState(door).getValue(DoorBlock.OPEN)
+                || level.getBlockState(door.above()).getValue(DoorBlock.OPEN))
+                helper.fail("Reclaimed watch did not safely close real wooden door", door);
+            else helper.succeed();
+        });
+    }
+
 }
