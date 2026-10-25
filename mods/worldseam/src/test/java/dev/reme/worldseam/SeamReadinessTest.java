@@ -8,7 +8,7 @@ class SeamReadinessTest {
     @Test void readySignalIsScopedAndExpires() {
         var u=UUID.randomUUID();
         SeamReadiness.clear();
-        SeamReadiness.accept(u,"minecraft:overworld","minecraft:the_nether",9,100);
+        SeamReadiness.accept(u,"minecraft:overworld","minecraft:the_nether",25,100);
         assertTrue(SeamReadiness.isReady(u,"minecraft:overworld","minecraft:the_nether",200));
         assertFalse(SeamReadiness.isReady(u,"minecraft:overworld","minecraft:the_nether",201));
         assertFalse(SeamReadiness.isReady(u,"minecraft:the_nether","minecraft:overworld",100));
@@ -18,13 +18,13 @@ class SeamReadinessTest {
     @Test void insufficientOrUnknownDestinationRejected() {
         var u=UUID.randomUUID();
         SeamReadiness.clear();
-        SeamReadiness.accept(u,"minecraft:overworld","minecraft:the_end",8,42);
+        SeamReadiness.accept(u,"minecraft:overworld","minecraft:the_end",24,42);
         assertFalse(SeamReadiness.isReady(u,"minecraft:overworld","minecraft:the_end",42));
         SeamReadiness.accept(u,"minecraft:overworld","minecraft:random",99,42);
         assertFalse(SeamReadiness.isReady(u,"minecraft:overworld","minecraft:random",42));
-        SeamReadiness.accept(u,"minecraft:the_end","minecraft:overworld",9,42);
+        SeamReadiness.accept(u,"minecraft:the_end","minecraft:overworld",25,42);
         assertFalse(SeamReadiness.isReady(u,"minecraft:the_end","minecraft:overworld",43));
-        SeamReadiness.accept(u,"minecraft:the_end","minecraft:the_nether",9,42);
+        SeamReadiness.accept(u,"minecraft:the_end","minecraft:the_nether",25,42);
         assertTrue(SeamReadiness.isReady(u,"minecraft:the_end","minecraft:the_nether",43));
         SeamReadiness.clear();
     }
