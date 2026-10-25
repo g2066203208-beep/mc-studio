@@ -398,6 +398,67 @@ public final class HomeEntranceRouteGameTests {
         });
     }
 
+    /**
+     * When a human uses either half of a door, it is no longer NPC-owned:
+     * the 50-tick auto-closer must not undo the player's choice. This
+     * exercises the same handoff method used by the real NeoForge
+     * RightClickBlock listener, on an actual two-block vanilla door.
+     */
+    @GameTest(template="empty",timeoutTicks=150)
+    public static void player_takes_ownership_of_npc_opened_door_by_upper_half(
+        GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos center = house(helper,false);
+        BlockPos door = center.south(3);
+        BlockPos outside = center.south(4);
+        PlayerNpcEntity opener = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (opener == null) throw new AssertionError("NPC registration missing");
+        opener.moveTo(outside.getX()+.5,outside.getY(),outside.getZ()+.5,0,0);
+        opener.setMode(PlayerNpcEntity.Mode.STAY);
+        opener.setHomePos(center.north());
+        if (!level.addFreshEntity(opener))
+            throw new AssertionError("Cannot spawn real NPC opener");
+        HomeEntranceRoute.moveTowardEntrance(opener,level,center.north(),1.0);
+        if (!level.getBlockState(door).getValue(DoorBlock.OPEN))
+            throw new AssertionError("NPC did not open real wooden door");
+        HomeEntranceRoute.relinquishNpcDoorForPlayer(level,door.above());
+        opener.discard();
+        helper.runAfterDelay(95,()->{
+            if (!level.getBlockState(door).getValue(DoorBlock.OPEN)
+                || !level.getBlockState(door.above()).getValue(DoorBlock.OPEN))
+                helper.fail("NPC auto-closer overrode a player's door ownership",door);
+            else helper.succeed();
+        });
+    }
+
+    /** An unrelated block click cannot cancel the NPC's real door cleanup. */
+    @GameTest(template="empty",timeoutTicks=150)
+    public static void unrelated_player_click_does_not_abandon_npc_door(
+        GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos center = house(helper,false);
+        BlockPos door = center.south(3);
+        BlockPos outside = center.south(4);
+        PlayerNpcEntity opener = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (opener == null) throw new AssertionError("NPC registration missing");
+        opener.moveTo(outside.getX()+.5,outside.getY(),outside.getZ()+.5,0,0);
+        opener.setMode(PlayerNpcEntity.Mode.STAY);
+        opener.setHomePos(center.north());
+        if (!level.addFreshEntity(opener))
+            throw new AssertionError("Cannot spawn real NPC opener");
+        HomeEntranceRoute.moveTowardEntrance(opener,level,center.north(),1.0);
+        if (!level.getBlockState(door).getValue(DoorBlock.OPEN))
+            throw new AssertionError("NPC did not open real wooden door");
+        HomeEntranceRoute.relinquishNpcDoorForPlayer(level,center.north(3));
+        opener.discard();
+        helper.runAfterDelay(95,()->{
+            if (level.getBlockState(door).getValue(DoorBlock.OPEN)
+                || level.getBlockState(door.above()).getValue(DoorBlock.OPEN))
+                helper.fail("Unrelated block click canceled NPC's own auto-close",door);
+            else helper.succeed();
+        });
+    }
+
     /** Vanilla normalizes a door's facing when one half changes. Replacing
      * the upper half with a real solid block instead models a genuinely
      * damaged entrance; the route must not target the missing doorway.
