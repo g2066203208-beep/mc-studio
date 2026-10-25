@@ -54,6 +54,13 @@ public final class SeamShipFilmE2E {
     private static volatile boolean shipClientRenderReady;
     private static volatile int clientSublevelSeenFrames;
     private static volatile int clientSublevelRenderableFrames;
+    // The integrated server can continue ticking while the real render thread
+    // is blocked in a nested modded LevelRenderer. A missing Sable sublevel
+    // alone cannot distinguish network loss from an unresponsive client.
+    private static volatile long lastClientTickNanos;
+    private static volatile long clientTickCallbacks;
+    private static volatile int lastClientPlayerAge;
+    private static volatile boolean capturedClientStall;
     private static long realFlightStartTick=-1;
     private static boolean startedRealFlight;
     private static boolean departurePadRemoved;
@@ -70,6 +77,9 @@ public final class SeamShipFilmE2E {
 
     private static void clientTick(ClientTickEvent.Post event) {
         Minecraft mc=Minecraft.getInstance();
+        lastClientTickNanos=System.nanoTime();
+        clientTickCallbacks++;
+        lastClientPlayerAge=mc.player==null?-1:mc.player.tickCount;
         // A SERVER-side AABB crossing is not a visible Minecraft video.
         // Verify the SAME physical Sable UUID exists in the actual ClientLevel
         // and has a live Sable render-data object before any impulses begin.
@@ -105,7 +115,7 @@ public final class SeamShipFilmE2E {
         // Report both the container and UUID state, so an absent ship is
         // never mistaken for a graphics-only or physics-only failure.
         if(shipUuid!=null && (state==2 || state==3) &&
-           mc.player!=null && mc.player.tickCount%40==0 &&
+           mc.player!=null && clientTickCallbacks%40==0 &&
            clientSublevelSeenFrames==0) {
             try {
                 Class<?> api=Class.forName(
@@ -350,6 +360,7 @@ public final class SeamShipFilmE2E {
             shipClientRenderReady=false;
             clientSublevelSeenFrames=0;
             clientSublevelRenderableFrames=0;
+            capturedClientStall=false;
             realFlightStartTick=-1;
             startedRealFlight=false;
             lastPulse=0;
@@ -487,6 +498,31 @@ public final class SeamShipFilmE2E {
                         tracked.size(),viewerId!=null&&tracked.contains(viewerId));
                 } catch(Exception | LinkageError ex) {
                     LOG.warn("WORLDSEAM_FILM_SERVER_TRACKING_ROOT: cannot inspect released Sable tracking state",ex);
+                }
+            }
+            // Observe actual client-thread progress, not the server clock or
+            // a client player's tickCount (which can freeze while a GUI is
+            // paused). This is diagnostic only: it never satisfies flight.
+            if(sinceAssembly%40==0) {
+                long observed=lastClientTickNanos;
+                long staleMs=observed==0 ? -1L :
+                    java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(
+                        Math.max(0L,System.nanoTime()-observed));
+                LOG.warn("WORLDSEAM_FILM_CLIENT_THREAD_PROGRESS: uuid={} clientTickCallbacks={} lastClientPlayerAge={} clientTickStaleMs={} clientSeenFrames={} (not physics acceptance)",
+                    shipUuid,clientTickCallbacks,lastClientPlayerAge,staleMs,
+                    clientSublevelSeenFrames);
+                if(!capturedClientStall && (staleMs>3000 ||
+                    (observed==0 && sinceAssembly>80))) {
+                    capturedClientStall=true;
+                    for(var entry:Thread.getAllStackTraces().entrySet()) {
+                        if(!entry.getKey().getName().equals("Render thread"))continue;
+                        StackTraceElement[] frames=entry.getValue();
+                        StringBuilder trace=new StringBuilder();
+                        for(int i=0;i<Math.min(24,frames.length);i++)
+                            trace.append("\\n  at ").append(frames[i]);
+                        LOG.error("WORLDSEAM_FILM_REAL_RENDER_THREAD_STALL: uuid={} threadState={} staleMs={} stack={} (diagnostic only)",
+                            shipUuid,entry.getKey().getState(),staleMs,trace);
+                    }
                 }
             }
             if(sinceAssembly>160) {
