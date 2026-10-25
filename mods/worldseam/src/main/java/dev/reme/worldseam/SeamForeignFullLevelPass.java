@@ -37,6 +37,11 @@ public final class SeamForeignFullLevelPass {
     private static long clippedFrames;
     private static final boolean ENABLE_CLIP = Boolean.getBoolean("worldseam.experimentalNativeSeamClip");
     private static Matrix4f lastProjection;
+    // Native sky shaders may write RGB while preserving alpha=0. This is
+    // evidence that a real background pass ran, not synthetic sky coverage.
+    // Never reuse the flag after a failed or skipped foreign frame.
+    private static boolean lastNativeBackgroundValid;
+    public static boolean nativeBackgroundValid() { return lastNativeBackgroundValid; }
     // The genuine foreign sky is rendered once with vanilla perspective.
     // Its second invocation inside the clipped LevelRenderer must not paint
     // over that sky with an oblique near-plane (which cuts infinite sky domes).
@@ -91,6 +96,7 @@ public final class SeamForeignFullLevelPass {
             return false;
 
         lastProjection = null;
+        lastNativeBackgroundValid = false;
         nativeSkyPrepassOwner = null;
         Camera sourceCamera = event.getCamera();
         // The vanilla GameRenderer normally establishes the world's fog
@@ -215,6 +221,12 @@ public final class SeamForeignFullLevelPass {
                 }
             }, nativeNoSkyFog);
             if (drawn) {
+                // The actual native sky prepass (or real target biome fog
+                // for a no-sky dimension) established the FBO background.
+                // An alpha-zero sky pixel can still have valid native RGB.
+                // Do not claim this when neither background path executed.
+                lastNativeBackgroundValid = nativeNoSkyFog != null ||
+                    nativeSkyPrepassOwner == renderer;
                 lastProjection=new Matrix4f(nativeProjection);
                 if(clipped!=null) {
                     clippedFrames++;
