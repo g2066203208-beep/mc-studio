@@ -41,4 +41,31 @@ class SeamReadinessTest {
         assertTrue(SeamReadiness.isReady(u,"minecraft:the_end","minecraft:the_nether",43));
         SeamReadiness.clear();
     }
+    @Test void delayedAckCannotBeReboundToDifferentServerChunk() {
+        var u=UUID.randomUUID();
+        SeamReadiness.clear();
+        assertTrue(SeamReadiness.acceptAuthorized(u,"minecraft:overworld",
+            "minecraft:the_nether",25,100,-2,3,-2,3));
+        assertTrue(SeamReadiness.isReadyAt(u,"minecraft:overworld",
+            "minecraft:the_nether",100,-2,3));
+        // Packet was assembled at (-2,3), but the server player has moved.
+        assertFalse(SeamReadiness.acceptAuthorized(u,"minecraft:overworld",
+            "minecraft:the_nether",25,101,-2,3,-1,3));
+        assertFalse(SeamReadiness.isReadyAt(u,"minecraft:overworld",
+            "minecraft:the_nether",101,-1,3));
+        assertFalse(SeamReadiness.isReadyAt(u,"minecraft:overworld",
+            "minecraft:the_nether",101,-2,3));
+        // A fresh, matching client ACK can grant the new window.
+        assertTrue(SeamReadiness.acceptAuthorized(u,"minecraft:overworld",
+            "minecraft:the_nether",25,102,-1,3,-1,3));
+        assertTrue(SeamReadiness.isReadyAt(u,"minecraft:overworld",
+            "minecraft:the_nether",102,-1,3));
+        // Insufficient chunk count must fail closed even with matching center.
+        assertFalse(SeamReadiness.acceptAuthorized(u,"minecraft:overworld",
+            "minecraft:the_nether",24,103,-1,3,-1,3));
+        assertFalse(SeamReadiness.isReadyAt(u,"minecraft:overworld",
+            "minecraft:the_nether",103,-1,3));
+        SeamReadiness.clear();
+    }
+
 }
