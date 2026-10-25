@@ -44,8 +44,7 @@ public final class UrbanServiceJobs {
             return false;
         if(employee.blockPosition().distSqr(place)>9){
             if(MovementPolicy.due(tick,employee.getId(),40))
-                if(RoadNavigator.moveToward(employee,level,place,0.89))
-                    employee.setAction("commuting on REAL street to civic job");
+                commuteToWork(employee,level);
             return true;
         }
         if(!MovementPolicy.due(tick,employee.getId(),ACTION_INTERVAL))
@@ -66,6 +65,31 @@ public final class UrbanServiceJobs {
                 default -> "city service on duty";
             });
         return true;
+    }
+
+    /**
+     * Route scheduled staff through an actual hand-operable wooden entrance
+     * before trying the generic road goal. A straight A* to an indoor lectern
+     * may end at the exterior wall and falsely count as a commute. The door
+     * helper opens only a loaded, intact, unpowered vanilla wooden door when
+     * the employee physically reaches its threshold; no teleport or block
+     * replacement is permitted. Workplaces without a qualifying door retain
+     * the original road navigation fallback.
+     */
+    public static boolean commuteToWork(PlayerNpcEntity employee, ServerLevel level) {
+        if (!level.getServer().isSameThread() || !employee.isAlive()
+            || !level.hasChunkAt(employee.workPos())
+            || !DailyRoaming.inRange(employee,employee.workPos())) return false;
+        if (HomeEntranceRoute.moveTowardEntrance(
+                employee,level,employee.workPos(),0.89)) {
+            employee.setAction("commuting through a real wooden workplace entrance");
+            return true;
+        }
+        if (RoadNavigator.moveToward(employee,level,employee.workPos(),0.89)) {
+            employee.setAction("commuting on real street toward assigned civic workplace");
+            return true;
+        }
+        return false;
     }
 
     private static boolean hasNearby(ServerLevel level,BlockPos origin,
