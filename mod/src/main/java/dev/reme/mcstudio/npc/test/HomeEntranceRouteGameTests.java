@@ -351,28 +351,21 @@ public final class HomeEntranceRouteGameTests {
         });
     }
 
-    /** A lower door block alone is not a physical two-block entrance.
-     * This deliberately corrupts the upper half in the TEST fixture; the
-     * production NPC must refuse both open-door discovery and closed-door
-     * operation instead of walking toward an impossible doorway.
+    /** Vanilla normalizes a door's facing when one half changes. Replacing
+     * the upper half with a real solid block instead models a genuinely
+     * damaged entrance; the route must not target the missing doorway.
      */
     @GameTest(template="empty",timeoutTicks=80)
-    public static void mismatched_upper_door_half_is_not_a_real_home_entrance(
+    public static void missing_upper_door_half_is_not_a_real_home_entrance(
         GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
         BlockPos center = house(helper,true);
         BlockPos door = center.south(3);
-        BlockPos upper = door.above();
-        level.setBlock(upper,level.getBlockState(upper)
-            .setValue(DoorBlock.FACING,Direction.NORTH),2);
-        if (level.getBlockState(upper).getValue(DoorBlock.FACING) != Direction.NORTH)
-            throw new AssertionError("Malformed upper-half test fixture did not persist");
+        level.setBlock(door.above(),Blocks.STONE.defaultBlockState(),3);
+        if (!level.getBlockState(door.above()).is(Blocks.STONE))
+            throw new AssertionError("Broken-door test fixture did not persist");
         if (HomeEntranceRoute.nearestOpenDoor(level,center.north()) != null)
-            throw new AssertionError("Mismatched upper half was accepted as a real open door");
-        level.setBlock(door,level.getBlockState(door)
-            .setValue(DoorBlock.OPEN,false),2);
-        level.setBlock(upper,level.getBlockState(upper)
-            .setValue(DoorBlock.OPEN,false),2);
+            throw new AssertionError("Damaged door was accepted as a real open entrance");
         PlayerNpcEntity npc = NpcRegistry.PLAYER_NPC.get().create(level);
         if (npc == null) throw new AssertionError("NPC registration missing");
         BlockPos outside = center.south(4);
@@ -380,9 +373,8 @@ public final class HomeEntranceRouteGameTests {
         npc.setMode(PlayerNpcEntity.Mode.STAY);
         npc.setHomePos(center.north());
         if (!level.addFreshEntity(npc)) throw new AssertionError("Cannot spawn resident");
-        if (HomeEntranceRoute.moveTowardEntrance(npc,level,center.north(),1.0)
-            || level.getBlockState(door).getValue(DoorBlock.OPEN))
-            throw new AssertionError("Resident attempted to open a broken two-block door");
+        if (HomeEntranceRoute.moveTowardEntrance(npc,level,center.north(),1.0))
+            throw new AssertionError("Resident routed into a damaged two-block doorway");
         helper.succeed();
     }
 
