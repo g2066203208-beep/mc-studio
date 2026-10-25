@@ -87,11 +87,14 @@ public final class SeamForeignDepthCompositor {
 
             float remoteZ = texture(foreignDepth, texCoord).r;
             vec4 realForeign = texture(foreignColor, texCoord);
-            // An untouched FBO has alpha zero. In particular, vanilla
-            // Nether has no sky: do NOT invent a colored background there.
-            if (realForeign.a <= 0.001) discard;
-
+            // Depth-written native geometry is real coverage even when a
+            // vanilla/modded shader leaves the COLOR attachment alpha at 0.
+            // Rejecting every zero-alpha pixel here punched black holes in
+            // genuine foreign opaque surfaces despite valid foreign depth.
+            // Only a depth=1 sky/background sample needs alpha to distinguish
+            // native sky color from an untouched transparent FBO.
             if (remoteZ >= 0.999999) {
+                if (realForeign.a <= 0.001) discard;
                 // Native target LevelRenderer sky writes COLOR but normally
                 // not DEPTH. Previously every such pixel was discarded,
                 // making the genuine secondary sky permanently invisible.
