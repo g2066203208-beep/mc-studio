@@ -203,6 +203,26 @@ public final class SeamForeignOffscreenPass {
         int oldProgram = GL11.glGetInteger(GL20.GL_CURRENT_PROGRAM);
         int oldVao = GL11.glGetInteger(GL30.GL_VERTEX_ARRAY_BINDING);
         int oldActiveTexture = GL11.glGetInteger(GL13.GL_ACTIVE_TEXTURE);
+        // LevelRenderer's terrain, lightmap, particles, sky and third-party
+        // renderers can all rebind sampler textures while the source world's
+        // render pass is suspended. Restoring only GL_ACTIVE_TEXTURE leaves
+        // those source sampler units pointing at foreign-world textures.
+        // Preserve the first 16 native 2D sampler bindings (including the
+        // vanilla lightmap slots), not merely the currently selected unit.
+        // This is GL driver state; it does not claim that modded shader state
+        // or Sable sublevel render ownership has been solved.
+        int trackedTextureUnits = Math.min(16,
+            GL11.glGetInteger(GL20.GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS));
+        int[] old2DTextureBindings = new int[trackedTextureUnits];
+        try {
+            for (int unit = 0; unit < trackedTextureUnits; unit++) {
+                GL13.glActiveTexture(GL13.GL_TEXTURE0 + unit);
+                old2DTextureBindings[unit] =
+                    GL11.glGetInteger(GL11.GL_TEXTURE_BINDING_2D);
+            }
+        } finally {
+            GL13.glActiveTexture(oldActiveTexture);
+        }
         // A nested vanilla renderer can inherit a scissor rectangle from the
         // source dimension or a post-process pass. glClear obeys SCISSOR_TEST:
         // leaving it enabled produces stale color/depth OUTSIDE that rectangle
@@ -311,6 +331,15 @@ public final class SeamForeignOffscreenPass {
                 // separate scope; this protects the nested native pass itself.
                 GL30.glBindVertexArray(oldVao);
                 GL20.glUseProgram(oldProgram);
+                // The second LevelRenderer may change several sampler
+                // bindings, even if it restores the active texture selector.
+                // Restore every captured source binding before resuming its
+                // BE, translucent and modded draw stages.
+                for (int unit = 0; unit < trackedTextureUnits; unit++) {
+                    GL13.glActiveTexture(GL13.GL_TEXTURE0 + unit);
+                    GL11.glBindTexture(GL11.GL_TEXTURE_2D,
+                        old2DTextureBindings[unit]);
+                }
                 GL13.glActiveTexture(oldActiveTexture);
                 GlStateManager._glBindFramebuffer(GL30.GL_FRAMEBUFFER, oldFramebuffer);
                 if (oldReadFramebuffer != oldFramebuffer)
