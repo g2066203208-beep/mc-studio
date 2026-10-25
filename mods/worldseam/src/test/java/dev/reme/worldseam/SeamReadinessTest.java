@@ -15,6 +15,19 @@ class SeamReadinessTest {
         SeamReadiness.invalidate(u);
         assertFalse(SeamReadiness.isReady(u,"minecraft:overworld","minecraft:the_nether",100));
     }
+    @Test void acknowledgementIsInvalidAfterMovingToAnotherChunk() {
+        var u=UUID.randomUUID();
+        SeamReadiness.clear();
+        SeamReadiness.accept(u,"minecraft:overworld","minecraft:the_nether",25,10);
+        assertTrue(SeamReadiness.isReadyAt(u,"minecraft:overworld",
+            "minecraft:the_nether",10,0,0));
+        assertFalse(SeamReadiness.isReadyAt(u,"minecraft:overworld",
+            "minecraft:the_nether",10,1,0));
+        assertFalse(SeamReadiness.isReadyAt(u,"minecraft:overworld",
+            "minecraft:the_nether",10,0,-1));
+        SeamReadiness.clear();
+    }
+
     @Test void insufficientOrUnknownDestinationRejected() {
         var u=UUID.randomUUID();
         SeamReadiness.clear();
