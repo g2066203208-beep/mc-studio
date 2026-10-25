@@ -350,4 +350,66 @@ public final class HomeEntranceRouteGameTests {
             else helper.succeed();
         });
     }
+
+    /** A lower door block alone is not a physical two-block entrance.
+     * This deliberately corrupts the upper half in the TEST fixture; the
+     * production NPC must refuse both open-door discovery and closed-door
+     * operation instead of walking toward an impossible doorway.
+     */
+    @GameTest(template="empty",timeoutTicks=80)
+    public static void mismatched_upper_door_half_is_not_a_real_home_entrance(
+        GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos center = house(helper,true);
+        BlockPos door = center.south(3);
+        BlockPos upper = door.above();
+        level.setBlock(upper,level.getBlockState(upper)
+            .setValue(DoorBlock.FACING,Direction.NORTH),2);
+        if (level.getBlockState(upper).getValue(DoorBlock.FACING) != Direction.NORTH)
+            throw new AssertionError("Malformed upper-half test fixture did not persist");
+        if (HomeEntranceRoute.nearestOpenDoor(level,center.north()) != null)
+            throw new AssertionError("Mismatched upper half was accepted as a real open door");
+        level.setBlock(door,level.getBlockState(door)
+            .setValue(DoorBlock.OPEN,false),2);
+        level.setBlock(upper,level.getBlockState(upper)
+            .setValue(DoorBlock.OPEN,false),2);
+        PlayerNpcEntity npc = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (npc == null) throw new AssertionError("NPC registration missing");
+        BlockPos outside = center.south(4);
+        npc.moveTo(outside.getX()+.5,outside.getY(),outside.getZ()+.5,0,0);
+        npc.setMode(PlayerNpcEntity.Mode.STAY);
+        npc.setHomePos(center.north());
+        if (!level.addFreshEntity(npc)) throw new AssertionError("Cannot spawn resident");
+        if (HomeEntranceRoute.moveTowardEntrance(npc,level,center.north(),1.0)
+            || level.getBlockState(door).getValue(DoorBlock.OPEN))
+            throw new AssertionError("Resident attempted to open a broken two-block door");
+        helper.succeed();
+    }
+
+    /** A powered, still-closed wooden door is not NPC-owned or safe to
+     * operate. The fixture simulates a transient inconsistent redstone state
+     * without spawning a synthetic door or bypassing the normal route code.
+     */
+    @GameTest(template="empty",timeoutTicks=80)
+    public static void powered_closed_wooden_door_is_not_forced_open_by_npc(
+        GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos center = house(helper,false);
+        BlockPos door = center.south(3);
+        level.setBlock(door,level.getBlockState(door)
+            .setValue(DoorBlock.POWERED,true),2);
+        level.setBlock(door.above(),level.getBlockState(door.above())
+            .setValue(DoorBlock.POWERED,true),2);
+        PlayerNpcEntity npc = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (npc == null) throw new AssertionError("NPC registration missing");
+        BlockPos outside = center.south(4);
+        npc.moveTo(outside.getX()+.5,outside.getY(),outside.getZ()+.5,0,0);
+        npc.setMode(PlayerNpcEntity.Mode.STAY);
+        npc.setHomePos(center.north());
+        if (!level.addFreshEntity(npc)) throw new AssertionError("Cannot spawn resident");
+        if (HomeEntranceRoute.moveTowardEntrance(npc,level,center.north(),1.0)
+            || level.getBlockState(door).getValue(DoorBlock.OPEN))
+            throw new AssertionError("Resident forced a powered closed wooden door open");
+        helper.succeed();
+    }
 }
