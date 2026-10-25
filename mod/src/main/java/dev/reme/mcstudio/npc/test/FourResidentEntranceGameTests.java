@@ -59,10 +59,10 @@ public final class FourResidentEntranceGameTests {
         PlayerNpcEntity[] residents = new PlayerNpcEntity[4];
         BlockPos[] starts = {center.east(7).south(2), center.west(7).south(2), center.south(8), center.south(8).east(3)};
         BlockPos[] destinations = {center.north().east(2), center.north().west(2), center.north(2), center.north(3).east(2)};
-        Vec3[] previous = new Vec3[3];
-        boolean[] walked = new boolean[3];
-        boolean[] entered = new boolean[3];
-        boolean[] reachedRoom = new boolean[3];
+        Vec3[] previous = new Vec3[4];
+        boolean[] walked = new boolean[4];
+        boolean[] entered = new boolean[4];
+        boolean[] reachedRoom = new boolean[4];
         boolean[] doorOpened = {false};
         for (int i = 0; i < residents.length; i++) {
             PlayerNpcEntity npc = NpcRegistry.PLAYER_NPC.get().create(level);
