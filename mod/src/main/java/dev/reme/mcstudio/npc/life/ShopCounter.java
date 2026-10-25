@@ -45,6 +45,7 @@ public final class ShopCounter {
             || !clerk.isAlive() || !buyer.isAlive()
             || !payment.is(Items.EMERALD) || payment.isEmpty()
             || buyer.distanceToSqr(clerk) > 16.0
+            || !clerk.hasLineOfSight(buyer)
             || clerk.memory().trust(buyer.getUUID()) <= -25
             || clerk.civic().standing(buyer.getUUID(), clerk.character().justice())
                 == CivicMind.Standing.WANTED
@@ -82,6 +83,12 @@ public final class ShopCounter {
         clerk.journey().succeeded(LifeJourney.Achievement.BARTER);
         return true;
     }
+
+    /**
+     * Sales and wholesale exchanges also require an unobstructed vanilla
+     * line of sight: a customer across a solid shop wall cannot exchange
+     * real items just because the two entities are within three blocks.
+     */
 
     /**
      * A genuine autonomous NPC customer pays a genuine emerald from their own
@@ -149,6 +156,7 @@ public final class ShopCounter {
             || shop.hostileTo(customer) || customer.hostileTo(shop)
             || shop.memory().trust(customer.getUUID()) <= -25
             || customer.distanceToSqr(shop) > 9.0
+            || !shop.hasLineOfSight(customer)
             || !shop.level().getServer().isSameThread()
             || !shop.level().hasChunkAt(shop.blockPosition())
             || !shop.level().hasChunkAt(customer.blockPosition())) return false;
@@ -197,6 +205,7 @@ public final class ShopCounter {
             || shop.hostileTo(farmer) || farmer.hostileTo(shop)
             || shop.memory().trust(farmer.getUUID()) <= -25
             || shop.distanceToSqr(farmer) > 9.0
+            || !shop.hasLineOfSight(farmer)
             || !shop.level().getServer().isSameThread()
             || !shop.level().hasChunkAt(shop.blockPosition())
             || !shop.level().hasChunkAt(farmer.blockPosition())
