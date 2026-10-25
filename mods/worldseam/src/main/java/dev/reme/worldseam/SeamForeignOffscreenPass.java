@@ -204,6 +204,15 @@ public final class SeamForeignOffscreenPass {
         // glClear obeys these masks; a stale mask produces a foreign FBO with
         // uncleared depth/alpha and a visibly broken seam on later frames.
         boolean oldDepthMask = GL11.glGetBoolean(GL11.GL_DEPTH_WRITEMASK);
+        // The nested vanilla LevelRenderer is a full independent scene, not
+        // just an FBO draw. It can change depth/blend/cull state while the
+        // source AFTER_LEVEL callback is still on the stack. Without restoring
+        // these actual GL states, subsequent source-world and mod render
+        // stages inherit foreign-world depth/transparent ordering.
+        boolean oldDepthTest = GL11.glIsEnabled(GL11.GL_DEPTH_TEST);
+        int oldDepthFunc = GL11.glGetInteger(GL11.GL_DEPTH_FUNC);
+        boolean oldBlend = GL11.glIsEnabled(GL11.GL_BLEND);
+        boolean oldCull = GL11.glIsEnabled(GL11.GL_CULL_FACE);
         ByteBuffer oldColorMask = BufferUtils.createByteBuffer(4);
         GL11.glGetBooleanv(GL11.GL_COLOR_WRITEMASK, oldColorMask);
         FloatBuffer oldClearColor = BufferUtils.createFloatBuffer(4);
@@ -249,6 +258,17 @@ public final class SeamForeignOffscreenPass {
             return true;
         } finally {
             try {
+                // Restore real driver state rather than assuming that the
+                // foreign LevelRenderer returned with the source's settings.
+                // In particular, a disabled depth test after the second
+                // world's sky/translucency must not leak into the next frame.
+                if (oldDepthTest) GL11.glEnable(GL11.GL_DEPTH_TEST);
+                else GL11.glDisable(GL11.GL_DEPTH_TEST);
+                GL11.glDepthFunc(oldDepthFunc);
+                if (oldBlend) GL11.glEnable(GL11.GL_BLEND);
+                else GL11.glDisable(GL11.GL_BLEND);
+                if (oldCull) GL11.glEnable(GL11.GL_CULL_FACE);
+                else GL11.glDisable(GL11.GL_CULL_FACE);
                 GL11.glDepthMask(oldDepthMask);
                 GL11.glColorMask(oldColorMask.get(0) != 0,
                     oldColorMask.get(1) != 0, oldColorMask.get(2) != 0,
@@ -268,7 +288,11 @@ public final class SeamForeignOffscreenPass {
                 if (GlStateManager.getBoundFramebuffer() != oldFramebuffer ||
                     GL11.glGetInteger(GL30.GL_READ_FRAMEBUFFER_BINDING) != oldReadFramebuffer ||
                     GL11.glGetInteger(GL30.GL_DRAW_FRAMEBUFFER_BINDING) != oldDrawFramebuffer ||
-                    GL11.glIsEnabled(GL11.GL_SCISSOR_TEST) != oldScissorEnabled)
+                    GL11.glIsEnabled(GL11.GL_SCISSOR_TEST) != oldScissorEnabled ||
+                    GL11.glIsEnabled(GL11.GL_DEPTH_TEST) != oldDepthTest ||
+                    GL11.glGetInteger(GL11.GL_DEPTH_FUNC) != oldDepthFunc ||
+                    GL11.glIsEnabled(GL11.GL_BLEND) != oldBlend ||
+                    GL11.glIsEnabled(GL11.GL_CULL_FACE) != oldCull)
                     throw new IllegalStateException("Source READ/DRAW framebuffer or scissor state not restored");
             } catch (RuntimeException | Error failure) {
                 restoreFailures++;
