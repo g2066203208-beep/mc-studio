@@ -440,4 +440,42 @@ public final class NpcEscortPairCameraGameTests {
             throw new AssertionError("Invalid spectator geometry was accepted");
         helper.succeed();
     }
+    /** Real GUI failure mode: no NEW discrete orbit sample fits a narrow
+     * corridor, but the last collision-checked moving lens remains clear.
+     * Preserve third-person tracking rather than needlessly snapping to POV.
+     * Both geometry and line-of-sight must be revalidated each tick.
+     */
+    @GameTest(template="empty", timeoutTicks=100)
+    public static void revalidated_stable_lens_prevents_unnecessary_pov_fallback(
+            GameTestHelper helper) {
+        Vec3 oldEye = new Vec3(8.5, 5.62, 8.5);
+        Vec3 nextEye = oldEye.add(0.2, 0, 0.15);
+        // This safe prior orbit is BETWEEN the fixed sampled azimuths.
+        var previous = new NpcCameraController.CameraPose(
+            oldEye.x + 1.9, oldEye.y + 0.32, oldEye.z - 1.7, 0, 0);
+        Vec3 expected = new Vec3(
+            previous.x() + 0.2, previous.y(), previous.z() + 0.15);
+        java.util.function.Predicate<Vec3> corridor =
+            p -> p.distanceToSqr(expected) < 0.0025;
+        var freshlySampled = NpcCameraController.selectClearView(
+            nextEye, 0, corridor, p -> true);
+        if (freshlySampled != null)
+            throw new AssertionError("Test fixture accidentally matched an orbit sample");
+        var recovered = NpcCameraController.preferSafeRetained(
+            freshlySampled, previous, oldEye, nextEye, corridor, p -> true);
+        if (recovered == null || new Vec3(
+                recovered.x(), recovered.y(), recovered.z())
+                .distanceToSqr(expected) > 0.000001)
+            throw new AssertionError("Safe previous lens was lost to needless POV");
+        if (NpcCameraController.preferSafeRetained(
+                null, previous, oldEye, nextEye, p -> false, p -> true) != null
+            || NpcCameraController.preferSafeRetained(
+                null, previous, oldEye, nextEye, p -> true, p -> false) != null
+            || NpcCameraController.preferSafeRetained(
+                null, previous, oldEye, oldEye.add(5, 0, 0),
+                p -> true, p -> true) != null)
+            throw new AssertionError("Unsafe, occluded or stale lens was retained");
+        helper.succeed();
+    }
+
 }
