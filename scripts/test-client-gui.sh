@@ -446,15 +446,26 @@ PY
   import -window root client-gui-city-aerial-northwest.png
   say_city '/tp @s ~48 ~ ~ facing ~-20 ~-14 ~20' 12
   import -window root client-gui-city-aerial-northeast.png
-  # HARD visual acceptance: camera is teleported next to the ACTUAL loaded
-  # tracked resident, faces the entity's eyes and records a close-up.
-  # 'at' changes the source coordinates, not its identity (@s = our player).
-  say_city '/execute at @e[type=reme_studio:player_npc,tag=reme_city_park,limit=1] run tp @s ~ ~2 ~5 facing entity @e[type=reme_studio:player_npc,tag=reme_city_park,limit=1] eyes' 6
+  # These closeups used to teleport the observer to a fixed +Z offset
+  # from each NPC. Real GUI footage showed the guard shot INSIDE a wall:
+  # a fixed offset is not a physically clear Minecraft camera.
+  # First move ONLY the spectator high above the actual tagged actor so the
+  # 64-block UUID lookup is loaded, then let the mod's native chase camera
+  # select a collision-checked lens with an unobstructed target ray.
+  # If no third-person shot exists, native entity POV is the honest fallback.
+  # Never move, freeze or teleport the filmed NPC.
+  say_city '/execute at @e[type=reme_studio:player_npc,tag=reme_city_park,limit=1] run tp @s ~ ~8 ~8' 2
+  say_city '/npc camera chase park' 5
   import -window root client-gui-city-npc-park-closeup.png
-  say_city '/execute at @e[type=reme_studio:player_npc,tag=reme_city_guard,limit=1] run tp @s ~ ~2 ~4 facing entity @e[type=reme_studio:player_npc,tag=reme_city_guard,limit=1] eyes' 6
+  say_city '/npc camera stop' 2
+  say_city '/execute at @e[type=reme_studio:player_npc,tag=reme_city_guard,limit=1] run tp @s ~ ~8 ~8' 2
+  say_city '/npc camera chase guard' 5
   import -window root client-gui-city-npc-guard-closeup.png
-  say_city '/execute at @e[type=reme_studio:player_npc,tag=reme_city_clerk,limit=1] run tp @s ~ ~2 ~4 facing entity @e[type=reme_studio:player_npc,tag=reme_city_clerk,limit=1] eyes' 6
+  say_city '/npc camera stop' 2
+  say_city '/execute at @e[type=reme_studio:player_npc,tag=reme_city_clerk,limit=1] run tp @s ~ ~8 ~8' 2
+  say_city '/npc camera chase clerk' 5
   import -window root client-gui-city-npc-shopkeeper-closeup.png
+  say_city '/npc camera stop' 2
   # Start unmodified REAL X11 screen capture. This is actual GUI video,
   # not assembled still screenshots nor a staged engine animation.
   ffmpeg -loglevel error -nostdin -y -f x11grab -video_size 1280x720 \
