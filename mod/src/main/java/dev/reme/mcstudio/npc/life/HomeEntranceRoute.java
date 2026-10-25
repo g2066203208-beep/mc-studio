@@ -240,6 +240,20 @@ public final class HomeEntranceRoute {
         BlockPos target = nextDoorStage(entrance, here);
         if (here.equals(target)) return false;
         Path path = npc.getNavigation().createPath(target, 0);
+        // A resident rounding the SIDE of a house can be geometrically
+        // closer to the inside tile even though a solid facade separates
+        // them. If native A* cannot reach that tile, approach the real
+        // outside threshold instead of repeatedly navigating into the wall.
+        // Never switch a resident already standing on the indoor threshold
+        // back outside; the next bed/work planner tick owns that case.
+        if (target.equals(inside) && !here.equals(inside)
+            && (path == null || !path.canReach())) {
+            Path outsidePath = npc.getNavigation().createPath(outside, 0);
+            if (outsidePath != null && outsidePath.canReach()) {
+                target = outside;
+                path = outsidePath;
+            }
+        }
         if (path != null && path.canReach()
             && npc.getNavigation().moveTo(path, speed)) {
             npc.setAction("walking through a real home/work doorway");
