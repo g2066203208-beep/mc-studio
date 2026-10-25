@@ -77,7 +77,9 @@ public final class SeamForeignFullLevelPass {
             mc.level == null || event.getCamera() == null ||
             event.getCamera().getEntity() == null) return false;
         LevelRenderer renderer = SeamClientWorldPool.rendererFor(foreign);
-        if (renderer == null || SeamClientWorldPool.renderBuffersFor(foreign) == null)
+        if (renderer == null || SeamClientWorldPool.renderBuffersFor(foreign) == null ||
+            !SeamClientWorldPool.nativeForeignTickHealthy() ||
+            SeamClientWorldPool.nativeForeignTicks() == 0)
             return false;
 
         lastProjection = null;
