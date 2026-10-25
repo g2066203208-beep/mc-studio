@@ -27,7 +27,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(java -version 2>&1 | head -1 | grep -c '21\\.')" -gt 0
+          java -version 2>&1 | grep -Eq 'version "21[.]'
           grep -Fxq 'minecraft_version=1.21.1' mod/gradle.properties
           grep -Fxq 'neo_version=21.1.262' mod/gradle.properties
           python3 scripts/check-npc-animation-assets.py
@@ -60,10 +60,10 @@ jobs:
 
           log = pathlib.Path(os.environ["NPC_RUN_LOG"]).read_text(errors="replace")
           diagnostics = re.findall(
-              r"REME_NPC_CITY_DAY_24K_DIAGNOSTIC residents=(\\d+) "
-              r"nativeSleepers=(\\d+) workers=(\\d+) nightRoaming=(\\d+)", log
+              r"REME_NPC_CITY_DAY_24K_DIAGNOSTIC residents=(\d+) "
+              r"nativeSleepers=(\d+) workers=(\d+) nightRoaming=(\d+)", log
           )
-          all_pass = re.search(r"All (\\d+) required tests passed", log)
+          all_pass = re.search(r"All (\d+) required tests passed", log)
           ok = (
               len(diagnostics) == 1
               and diagnostics[0][0] == "15"
