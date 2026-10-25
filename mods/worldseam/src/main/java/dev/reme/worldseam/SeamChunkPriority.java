@@ -14,6 +14,22 @@ public final class SeamChunkPriority {
     private SeamChunkPriority() {}
     public static final int MAX_RADIUS = 16;
 
+    /**
+     * Missing native chunks are visible holes in the actual second world,
+     * not optional preview pixels. One packet per server tick is a hard
+     * upper bound while initial/moved-window data is missing. Once fully
+     * streamed, retain the normal low-traffic edit/refresh interval.
+     * This only chooses WHEN to send; chooseSlot and server residency still
+     * decide WHETHER a real loaded chunk is eligible.
+     */
+    public static int sendCadence(int transmitted, int windowSize,
+                                  int steadyTicks) {
+        if (windowSize < 1 || transmitted < 0 || transmitted > windowSize ||
+            steadyTicks < 1)
+            throw new IllegalArgumentException("Invalid native chunk cadence");
+        return transmitted < windowSize ? 1 : steadyTicks;
+    }
+
     /** Real chunk rings, center first; never put far chunks before near ones. */
     public static int[][] centerFirstOffsets(int radius) {
         if (radius < 2 || radius > MAX_RADIUS)
