@@ -14,7 +14,7 @@ import java.util.UUID;
 public final class SeamReadiness {
     public static final int REQUIRED_CHUNKS = 25;
     public static final int EXPIRY_TICKS = 100;
-    private record State(String source, String target, long tick) {}
+    private record State(String source, String target, long tick, int chunkX, int chunkZ) {}
     private static final Map<UUID, State> sessions = new HashMap<>();
 
     private SeamReadiness() {}
@@ -23,19 +23,32 @@ public final class SeamReadiness {
                               int reportedChunks, long tick) {
         if (reportedChunks < REQUIRED_CHUNKS || !SeamGraph.from(source).stream()
             .anyMatch(link -> link.target().equals(target))) return;
-        sessions.put(playerId, new State(source,target,tick));
+        sessions.put(playerId, new State(source,target,tick,0,0));
     }
 
     private static void acceptAuthorized(UUID playerId, String source, String target,
-                              int reportedChunks, long tick) {
+                              int reportedChunks, long tick, int chunkX, int chunkZ) {
         if(reportedChunks >= REQUIRED_CHUNKS)
-            sessions.put(playerId,new State(source,target,tick));
+            sessions.put(playerId,new State(source,target,tick,chunkX,chunkZ));
     }
 
     public static boolean isReady(UUID id, String source, String target, long tick) {
         State s=sessions.get(id);
         return s!=null && s.source().equals(source) && s.target().equals(target)
             && tick>=s.tick() && tick-s.tick()<=EXPIRY_TICKS;
+    }
+
+    /**
+     * A previously complete 5x5 becomes incomplete if the player moves to
+     * another chunk after ACK. The server must reject the stale ACK BEFORE
+     * moving the authoritative player, otherwise the client can refuse the
+     * handoff after the server has already switched dimensions.
+     */
+    public static boolean isReadyAt(UUID id, String source, String target,
+                                    long tick, int chunkX, int chunkZ) {
+        State state = sessions.get(id);
+        return isReady(id,source,target,tick) && state.chunkX()==chunkX
+            && state.chunkZ()==chunkZ;
     }
 
     public static void invalidate(UUID id) { sessions.remove(id); }
@@ -60,10 +73,14 @@ public final class SeamReadiness {
                     SeamStackRuntime.top(player.serverLevel()),64));
         if (!nearLinkedBorder) return;
         long tick=player.server.overworld().getGameTime();
-        boolean newAcknowledgement=!isReady(player.getUUID(),
-            message.source(),message.target(),tick);
+        boolean newAcknowledgement=!isReadyAt(player.getUUID(),
+            message.source(),message.target(),tick,
+            Math.floorDiv(player.blockPosition().getX(),16),
+            Math.floorDiv(player.blockPosition().getZ(),16));
         acceptAuthorized(player.getUUID(),message.source(),message.target(),
-            message.loadedChunks(),tick);
+            message.loadedChunks(),tick,
+            Math.floorDiv(player.blockPosition().getX(),16),
+            Math.floorDiv(player.blockPosition().getZ(),16));
         if (newAcknowledgement)
             com.mojang.logging.LogUtils.getLogger().info(
                 "WorldSeam READY ACK accepted {} -> {} (client {} native chunks)",
