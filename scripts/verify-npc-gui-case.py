@@ -133,8 +133,12 @@ def verify(text: str) -> str:
         jail_tick = int(key(jail.group(), "tick"))
     except (TypeError, ValueError):
         fail("Arrest or jail event lacks a valid game tick")
+    # The last 40-tick trace may be emitted earlier in the SAME server tick
+    # as jail_reached. Log ordering above already requires each trace line
+    # to precede jail_reached; rejecting an equal tick incorrectly fails a
+    # genuine, physically filmed handoff. A later tick is still invalid.
     if jail_tick <= arrest_tick or any(
-        not arrest_tick < sample[0] < jail_tick for sample in escort_samples
+        not arrest_tick < sample[0] <= jail_tick for sample in escort_samples
     ):
         fail("Physical escort trace game ticks outside arrest-to-jail window")
     if not any(sample[4] == "true" for sample in escort_samples):
