@@ -2,6 +2,15 @@
 # Startup smoke + image evidence. Never claim in-world validation without logs/images.
 set -euo pipefail
 cd mod
+# This is a disposable CI client profile, never a user's Minecraft options.
+# Real MP4 review exposed a persistent vanilla WASD tutorial toast even with
+# F1 HUD hidden. Minecraft 1.21.1 reads tutorialStep:none from options.txt.
+# Preseed it BEFORE launching the actual client; do not post-process pixels.
+mkdir -p run
+if [[ -f run/options.txt ]]; then
+  sed -i '/^tutorialStep:/d' run/options.txt
+fi
+echo 'tutorialStep:none' >> run/options.txt
 openbox >/tmp/reme-openbox.log 2>&1 &
 ./gradlew runClient --no-daemon > client-gui.log 2>&1 &
 CLIENT=$!
@@ -164,6 +173,13 @@ if [[ "${REME_CITY_VISUAL:-0}" == "1" ]]; then
     sleep 2
     xdotool key --clearmodifiers F1
   }
+  # The disposable GUI world can spawn in a jungle. The 41x41 preflight
+  # passed on run 40173894332, but 12 seconds later the actual city build
+  # refused a NEW obstacle at (-1,80,-12), before any citizen spawned.
+  # Freeze random block ticks ONLY in this throwaway visual fixture so
+  # vines/vegetation cannot regrow into the cleared air between survey/build.
+  # Never weaken CityDistrictDemo's real occupied-terrain safety checks.
+  say_city '/gamerule randomTickSpeed 0' 2
   # The initial /npc spawn is part of command-smoke coverage. Remove only
   # that one test entity from this disposable scratch-world before founding
   # the district; otherwise the subsequent 12-citizen census shows 13.
@@ -181,6 +197,7 @@ if [[ "${REME_CITY_VISUAL:-0}" == "1" ]]; then
     -pix_fmt yuv420p -movflags +faststart \
     client-gui-city-full-crime-to-locked-jail.mp4 >client-gui-city-case-ffmpeg.log 2>&1 &
   CASE_VIDEO_PID=$!
+  CASE_VIDEO_START_SECONDS=$SECONDS
   # These two /say commands enter the SAME integrated-server log as the
   # physical crime events. The verifier now rejects a jail arrival that
   # happened after the MP4 stopped recording.
@@ -191,12 +208,31 @@ if [[ "${REME_CITY_VISUAL:-0}" == "1" ]]; then
   # then checks the wrong air block as the original center and fails.
   # The marker is a disposable camera/fixture locator, never an NPC.
   say_city '/summon minecraft:marker ~ ~ ~ {Tags:["reme_city_origin"]}' 2
-  say_city '/npc city demo' 1
+  say_city '/npc city demo' 2
+  # Fail at the true cause, rather than waiting for a nonexistent shoplifter
+  # and reporting an empty UUID as a custody/animation failure.
+  if ! grep -Fq '已在真实 Minecraft 世界建成' client-gui.log; then
+    echo 'FAIL: actual Minecraft city construction was rejected; not a chase failure'
+    grep -E '场地通过|城市演示拒绝施工|不能生成城市|已在真实 Minecraft 世界建成' client-gui.log | tail -n 15 || true
+    kill -INT "$CASE_VIDEO_PID" 2>/dev/null || true
+    wait "$CASE_VIDEO_PID" || true
+    exit 1
+  fi
   # Server-authoritative client-visible human PLAYER emote uses the same
   # 30 authored animation resources as real NPCs, while X11 MP4 captures.
   say_city '/npc emote greet' 3
   say_city '/gamemode spectator' 1
   say_city '/npc camera chase shoplifter' 2
+  # Film unobstructed Minecraft pixels. The vanilla movement tutorial and
+  # command HUD otherwise cover the upper portion of every escort frame.
+  # Restore F1 BEFORE the next chat command, so the verifier's start/end
+  # markers and the real physical crime sequence remain unchanged.
+  xdotool key --clearmodifiers F1
+  sleep 1
+  # Mark the first actual HUD-free chase frame. Preserve the original
+  # uncut evidence recording; a second file will trim ONLY the setup
+  # portion of those same genuine captured frames for visual review.
+  CASE_VIDEO_CLEAN_OFFSET=$((SECONDS - CASE_VIDEO_START_SECONDS))
   import -window root client-gui-city-full-case-t0.png
   # Five spaced real screenshots document changing chase/escort phases.
   # Do not pad a completed arrest with 60+ seconds of static prison bars:
@@ -239,10 +275,25 @@ PY
     # filling the rest of the recording with a motionless detained actor.
     sleep 8
   fi
+  # Stop the clean viewer cut BEFORE the F1/chat end marker. The original
+  # full recording retains that marker for server/client chronology audit.
+  CASE_VIDEO_CLEAN_DURATION=$((SECONDS - CASE_VIDEO_START_SECONDS - CASE_VIDEO_CLEAN_OFFSET))
+  xdotool key --clearmodifiers F1
+  sleep 1
   say_city '/say REME_NPC_CASE_VIDEO_END' 1
   say_city '/npc camera stop' 1
   kill -INT "$CASE_VIDEO_PID" 2>/dev/null || true
   wait "$CASE_VIDEO_PID" || true
+  # The original MP4 includes the genuine command/setup evidence and stays
+  # untouched. This optional viewer-friendly cut contains only consecutive
+  # real client frames, beginning after F1 hides the command HUD. No fake
+  # NPC frames, still-image interpolation, or reordered case events.
+  ffmpeg -loglevel error -nostdin -y -ss "$CASE_VIDEO_CLEAN_OFFSET" \
+    -i client-gui-city-full-crime-to-locked-jail.mp4 \
+    -t "$CASE_VIDEO_CLEAN_DURATION" \
+    -c:v libx264 -preset ultrafast -crf 27 -pix_fmt yuv420p \
+    -movflags +faststart -an client-gui-city-clean-chase-to-cell.mp4 \
+    || { echo 'FAIL: cannot trim genuine HUD-free client frames'; exit 1; }
   if (( case_reached == 0 )); then
     echo "FAIL: filmed UUID $case_target never physically reached its cell while ffmpeg was recording"
     exit 1
@@ -359,8 +410,19 @@ PY
   # actual center. CityDistrictDemo.survey correctly rejected that unsafe
   # site. Prepare only this disposable scratch fixture at the SAME level as
   # the first city; never weaken the city's real preflight safety checks.
+  # The GUI world may spawn against a high hillside. Clearing only the
+  # bottom 11 layers leaves unsupported sand/gravel and flowing fluids above
+  # the proposed parcel; these can refill it before the strict city preflight.
+  # Prepare the FULL vertical scratch fixture top-down, in two <=32768-block
+  # vanilla /fill batches (41*41*19=31939). Production city code still NEVER
+  # clears or overwrites existing terrain.
+  say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run fill ~22 ~30 ~-20 ~62 ~48 ~20 minecraft:air' 6
+  say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run fill ~22 ~11 ~-20 ~62 ~29 ~20 minecraft:air' 6
   say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run fill ~22 ~-1 ~-20 ~62 ~-1 ~20 minecraft:stone' 6
   say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run fill ~22 ~ ~-20 ~62 ~10 ~20 minecraft:air' 6
+  # Grow is player-position based; restore the exact original intersection
+  # center and feet height rather than relying on a prior camera teleport.
+  say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run tp @s ~ ~1 ~' 2
   # Five physically supported one-block seam tiles must also be present
   # before /npc city grow can connect the two actual road surfaces.
   say_city '/execute at @e[type=minecraft:marker,tag=reme_city_origin,limit=1] run fill ~21 ~-1 ~-2 ~21 ~-1 ~2 minecraft:stone' 3
@@ -384,15 +446,26 @@ PY
   import -window root client-gui-city-aerial-northwest.png
   say_city '/tp @s ~48 ~ ~ facing ~-20 ~-14 ~20' 12
   import -window root client-gui-city-aerial-northeast.png
-  # HARD visual acceptance: camera is teleported next to the ACTUAL loaded
-  # tracked resident, faces the entity's eyes and records a close-up.
-  # 'at' changes the source coordinates, not its identity (@s = our player).
-  say_city '/execute at @e[type=reme_studio:player_npc,tag=reme_city_park,limit=1] run tp @s ~ ~2 ~5 facing entity @e[type=reme_studio:player_npc,tag=reme_city_park,limit=1] eyes' 6
+  # These closeups used to teleport the observer to a fixed +Z offset
+  # from each NPC. Real GUI footage showed the guard shot INSIDE a wall:
+  # a fixed offset is not a physically clear Minecraft camera.
+  # First move ONLY the spectator high above the actual tagged actor so the
+  # 64-block UUID lookup is loaded, then let the mod's native chase camera
+  # select a collision-checked lens with an unobstructed target ray.
+  # If no third-person shot exists, native entity POV is the honest fallback.
+  # Never move, freeze or teleport the filmed NPC.
+  say_city '/execute at @e[type=reme_studio:player_npc,tag=reme_city_park,limit=1] run tp @s ~ ~8 ~8' 2
+  say_city '/npc camera chase park' 5
   import -window root client-gui-city-npc-park-closeup.png
-  say_city '/execute at @e[type=reme_studio:player_npc,tag=reme_city_guard,limit=1] run tp @s ~ ~2 ~4 facing entity @e[type=reme_studio:player_npc,tag=reme_city_guard,limit=1] eyes' 6
+  say_city '/npc camera stop' 2
+  say_city '/execute at @e[type=reme_studio:player_npc,tag=reme_city_guard,limit=1] run tp @s ~ ~8 ~8' 2
+  say_city '/npc camera chase guard' 5
   import -window root client-gui-city-npc-guard-closeup.png
-  say_city '/execute at @e[type=reme_studio:player_npc,tag=reme_city_clerk,limit=1] run tp @s ~ ~2 ~4 facing entity @e[type=reme_studio:player_npc,tag=reme_city_clerk,limit=1] eyes' 6
+  say_city '/npc camera stop' 2
+  say_city '/execute at @e[type=reme_studio:player_npc,tag=reme_city_clerk,limit=1] run tp @s ~ ~8 ~8' 2
+  say_city '/npc camera chase clerk' 5
   import -window root client-gui-city-npc-shopkeeper-closeup.png
+  say_city '/npc camera stop' 2
   # Start unmodified REAL X11 screen capture. This is actual GUI video,
   # not assembled still screenshots nor a staged engine animation.
   ffmpeg -loglevel error -nostdin -y -f x11grab -video_size 1280x720 \

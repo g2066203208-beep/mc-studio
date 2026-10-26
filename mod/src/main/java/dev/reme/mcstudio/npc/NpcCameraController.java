@@ -35,6 +35,13 @@ public final class NpcCameraController {
     /** Whether a physically clear shot includes both linked custody actors. */
     public record EscortView(CameraPose pose, boolean sharedLens) {}
     private record Follow(UUID target, Mode mode) {}
+    /** Last collision-checked spectator lens, anchored to the filmed actor(s).
+     *  Retaining a safe relative lens avoids 180-degree camera cuts whenever
+     *  an NPC turns while walking. No NPC position is ever changed.
+     */
+    private record StableShot(Vec3 anchor, CameraPose pose,
+                              @Nullable UUID partnerId, boolean sharedLens) {}
+    private static final Map<UUID, StableShot> STABLE_SHOTS = new HashMap<>();
     private static final Map<UUID, Follow> ACTIVE = new HashMap<>();
     // A cramped corridor may offer no collision-free third-person lens.
     // Native spectator POV is the honest fallback, never a wall-clipping shot.
@@ -78,6 +85,7 @@ public final class NpcCameraController {
 
     public static void stop(ServerPlayer player) {
         ACTIVE.remove(player.getUUID());
+        STABLE_SHOTS.remove(player.getUUID());
         POV_FALLBACK.remove(player.getUUID());
         if (player.getCamera() != player) player.setCamera(player);
     }
@@ -114,6 +122,21 @@ public final class NpcCameraController {
                                              Predicate<Vec3> unobstructed) {
         return selectClearViewWithRadii(targetEye, targetYaw, clearLens,
             unobstructed, new double[]{3.3, 2.6, 1.85},
+            new double[]{0.32, 0.05, -0.20});
+    }
+
+    /**
+     * A narrow, real stone room can have no safe 1.85-block camera orbit:
+     * even a diagonal 1.85-block shot clips a three-block-wide room's walls.
+     * Only try this shorter, body-checked orbit after the ordinary shot and
+     * any still-valid retained lens fail. This is a CAMERA position only;
+     * it never moves or force-loads the filmed citizen.
+     */
+    @Nullable
+    public static CameraPose selectCompactView(Vec3 targetEye, float targetYaw,
+            Predicate<Vec3> clearLens, Predicate<Vec3> unobstructed) {
+        return selectClearViewWithRadii(targetEye, targetYaw, clearLens,
+            unobstructed, new double[]{1.55, 1.35},
             new double[]{0.32, 0.05, -0.20});
     }
 
@@ -199,6 +222,53 @@ public final class NpcCameraController {
         return null;
     }
 
+    /** Translate an existing camera lens with its real actor(s), rather than
+     *  instantly orbiting to the opposite side when a walking NPC turns.
+     *  Revalidate the entire spectator body and all required actor raycasts
+     *  against the CURRENT world. Unsafe, stale or distant shots are rejected.
+     *  This is only a camera calculation; no entity is moved or force-loaded.
+     */
+    @Nullable
+    public static CameraPose retainSafeShot(CameraPose previous, Vec3 oldAnchor,
+            Vec3 currentAnchor, Predicate<Vec3> clearLens,
+            Predicate<Vec3> visible) {
+        if (previous == null || oldAnchor == null || currentAnchor == null
+            || !Double.isFinite(previous.x()) || !Double.isFinite(previous.y())
+            || !Double.isFinite(previous.z())
+            || !Double.isFinite(oldAnchor.x) || !Double.isFinite(oldAnchor.y)
+            || !Double.isFinite(oldAnchor.z)
+            || !Double.isFinite(currentAnchor.x) || !Double.isFinite(currentAnchor.y)
+            || !Double.isFinite(currentAnchor.z)) return null;
+        Vec3 travel = currentAnchor.subtract(oldAnchor);
+        // An actor teleported by another mod or a stale saved shot must not
+        // drag the spectator across an unobserved area.
+        if (travel.lengthSqr() > 16.0) return null;
+        Vec3 lens = new Vec3(previous.x(), previous.y(), previous.z()).add(travel);
+        double distanceSq = lens.distanceToSqr(currentAnchor);
+        if (distanceSq < 4.0 || distanceSq > 121.0
+            || !clearLens.test(lens) || !visible.test(lens)) return null;
+        Vec3 focus = currentAnchor.add(0, -0.32, 0);
+        double dx = focus.x - lens.x, dz = focus.z - lens.z;
+        float yaw = (float) (Math.toDegrees(Math.atan2(dz, dx)) - 90);
+        float pitch = (float) -Math.toDegrees(
+            Math.atan2(focus.y - lens.y, Math.sqrt(dx * dx + dz * dz)));
+        return new CameraPose(lens.x, lens.y, lens.z, yaw, pitch);
+    }
+
+    /** A safe moving lens can exist between the finite orbit samples.
+     * If every freshly sampled position is obstructed, revalidate the last
+     * real-world shot before forcing the spectator into face-filling POV.
+     * The previous shot is never trusted without CURRENT body and sight checks.
+     */
+    @Nullable
+    public static CameraPose preferSafeRetained(@Nullable CameraPose fresh,
+            @Nullable CameraPose previous, Vec3 oldAnchor, Vec3 currentAnchor,
+            Predicate<Vec3> clearLens, Predicate<Vec3> visible) {
+        CameraPose retained = retainSafeShot(previous, oldAnchor, currentAnchor,
+            clearLens, visible);
+        return retained != null ? retained : fresh;
+    }
+
     /** Vanilla server teleport positions the FEET, not the eye camera.
      * Never silently substitute eye coordinates for player feet.
      */
@@ -257,6 +327,52 @@ public final class NpcCameraController {
         return true;
     }
 
+    /** A spectator has no normal entity collision: a geometrically legal
+     *  lens can sit INSIDE a moving citizen's head, producing the face-filling
+     *  foreground seen in real GUI footage. Reject those candidate eyes using
+     *  ACTUAL loaded NPC bounding boxes, without moving any NPC or chunk.
+     *  The nearby list is collected once per camera update, not per orbit ray.
+     */
+    public static boolean lensClearOfNpcBodies(Vec3 lensEye,
+            Iterable<PlayerNpcEntity> citizens, double clearance) {
+        if (lensEye == null || !Double.isFinite(lensEye.x)
+            || !Double.isFinite(lensEye.y) || !Double.isFinite(lensEye.z)
+            || !Double.isFinite(clearance) || clearance < 0.0
+            || citizens == null) return false;
+        for (PlayerNpcEntity citizen : citizens)
+            if (citizen != null && citizen.isAlive()
+                && citizen.getBoundingBox().inflate(clearance).contains(lensEye))
+                return false;
+        return true;
+    }
+
+    /** Spectator eyes may be outside a citizen's head while the camera's
+     *  FEET or torso still intersect that citizen. Native spectator mode
+     *  ignores entity collisions, so validate the whole camera body against
+     *  actual loaded NPC bounding boxes. No entity is moved or chunk loaded.
+     */
+    public static boolean spectatorBodyClearOfNpcBodies(Vec3 lensEye,
+            double eyeHeight, double bodyWidth, double bodyHeight,
+            Iterable<PlayerNpcEntity> citizens, double clearance) {
+        if (lensEye == null || !Double.isFinite(lensEye.x)
+            || !Double.isFinite(lensEye.y) || !Double.isFinite(lensEye.z)
+            || !Double.isFinite(eyeHeight) || eyeHeight <= 0.0
+            || !Double.isFinite(bodyWidth) || bodyWidth <= 0.0
+            || !Double.isFinite(bodyHeight) || bodyHeight <= 0.0
+            || !Double.isFinite(clearance) || clearance < 0.0
+            || citizens == null) return false;
+        double half = bodyWidth * 0.5;
+        double feetY = lensEye.y - eyeHeight;
+        net.minecraft.world.phys.AABB spectator = new net.minecraft.world.phys.AABB(
+            lensEye.x - half, feetY, lensEye.z - half,
+            lensEye.x + half, feetY + bodyHeight, lensEye.z + half);
+        for (PlayerNpcEntity citizen : citizens)
+            if (citizen != null && citizen.isAlive()
+                && spectator.intersects(citizen.getBoundingBox().inflate(clearance)))
+                return false;
+        return true;
+    }
+
     /** Never teleport the NPC or force-load a chunk to make a pretty shot.
      * If no valid lens exists, use genuine entity POV until space reopens.
      */
@@ -275,9 +391,16 @@ public final class NpcCameraController {
                 ? target.getUUID().equals(other.escortedPrisoner())
                 : target.getUUID().equals(other.custodyOfficer()))
             ? other : null;
+        // Sample actual citizens once: spectator mode ignores their collision
+        // boxes, so a block-clear lens can otherwise be INSIDE a bystander's
+        // face. Never force-load distant chunks to clear the frame.
+        var nearbyCitizens = level.getEntitiesOfClass(PlayerNpcEntity.class,
+            target.getBoundingBox().inflate(18.0), PlayerNpcEntity::isAlive);
         Predicate<Vec3> clearLens = lens -> spectatorBodyClearInWorld(
             level, lens, player.getEyeHeight(),
-            player.getBbWidth(), player.getBbHeight());
+            player.getBbWidth(), player.getBbHeight())
+            && spectatorBodyClearOfNpcBodies(lens, player.getEyeHeight(),
+                player.getBbWidth(), player.getBbHeight(), nearbyCitizens, 0.75);
         Predicate<Vec3> targetVisible = lens -> level.clip(new ClipContext(
             eye, lens, ClipContext.Block.COLLIDER,
             ClipContext.Fluid.NONE, target)).getType() == HitResult.Type.MISS;
@@ -296,6 +419,61 @@ public final class NpcCameraController {
             chosen = selectClearView(eye, target.getYRot(),
                 clearLens, targetVisible);
         }
+        // Keep a safe previous camera-relative orbit through ordinary turns.
+        // If a wall, iron door or partner occludes it, immediately use the
+        // freshly raycast candidate above instead. Never trust stale geometry.
+        UUID partnerIdForShot = partner == null ? null : partner.getUUID();
+        Vec3 anchor = sharedLens
+            ? eye.add(partner.getEyePosition()).scale(0.5) : eye;
+        StableShot previous = STABLE_SHOTS.get(player.getUUID());
+        if (previous != null
+            && java.util.Objects.equals(previous.partnerId(), partnerIdForShot)
+            && (chosen == null || previous.sharedLens() == sharedLens)) {
+            // Even if the discrete orbit has NO candidate, a previously
+            // filmed lens may remain physically safe between sample angles.
+            // Recheck BOTH actors when retaining a shared custody view.
+            boolean retainingShared = previous.sharedLens();
+            Vec3 retainingAnchor = retainingShared
+                ? eye.add(partner.getEyePosition()).scale(0.5) : eye;
+            Predicate<Vec3> currentSight = targetVisible;
+            if (retainingShared) {
+                Vec3 officerEye = partner.getEyePosition();
+                currentSight = lens -> targetVisible.test(lens)
+                    && level.clip(new ClipContext(officerEye, lens,
+                        ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE,
+                        partner)).getType() == HitResult.Type.MISS;
+            }
+            CameraPose retained = preferSafeRetained(null, previous.pose(),
+                previous.anchor(), retainingAnchor, clearLens, currentSight);
+            if (retained != null) {
+                chosen = retained;
+                sharedLens = retainingShared;
+                anchor = retainingAnchor;
+            }
+        }
+        if (chosen == null) {
+            // Real GUI footage still reported no_clear_lens inside the jail
+            // after normal orbit and retained-shot checks. Try a compact
+            // body-clear solo view with a smaller NPC personal-space margin:
+            // the normal 0.75 margin is too wide for a three-block room.
+            // Native block collision and target raycasts remain mandatory;
+            // a partner hidden by walls is never claimed to share this shot.
+            Predicate<Vec3> compactClear = lens -> spectatorBodyClearInWorld(
+                level, lens, player.getEyeHeight(),
+                player.getBbWidth(), player.getBbHeight())
+                && spectatorBodyClearOfNpcBodies(lens, player.getEyeHeight(),
+                    player.getBbWidth(), player.getBbHeight(),
+                    nearbyCitizens, 0.20);
+            chosen = selectCompactView(eye, target.getYRot(),
+                compactClear, targetVisible);
+            if (chosen != null) {
+                anchor = eye;
+                sharedLens = false;
+            }
+        }
+        if (chosen == null) STABLE_SHOTS.remove(player.getUUID());
+        else STABLE_SHOTS.put(player.getUUID(),
+            new StableShot(anchor, chosen, partnerIdForShot, sharedLens));
         if (partner != null && player.tickCount % 40 == 0) {
             com.mojang.logging.LogUtils.getLogger().info(
                 "REME_NPC_CAMERA_PAIR_VIEW observer={} target={} partner={} "

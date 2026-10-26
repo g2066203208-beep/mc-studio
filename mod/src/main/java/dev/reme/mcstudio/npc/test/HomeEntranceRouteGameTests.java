@@ -4,11 +4,16 @@ import dev.reme.mcstudio.StudioMod;
 import dev.reme.mcstudio.npc.NpcRegistry;
 import dev.reme.mcstudio.npc.PlayerNpcEntity;
 import dev.reme.mcstudio.npc.life.HomeEntranceRoute;
+import dev.reme.mcstudio.npc.life.UrbanServiceJobs;
+import dev.reme.mcstudio.npc.life.ShopCounter;
+import dev.reme.mcstudio.npc.life.NpcOpenedDoorData;
 import dev.reme.mcstudio.npc.life.LivingPlanner;
 import dev.reme.mcstudio.npc.life.RestPolicy;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.gametest.framework.GameTest;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.block.BedBlock;
@@ -152,6 +157,604 @@ public final class HomeEntranceRouteGameTests {
                     +"pos="+npc.blockPosition()+" moved="+moved[0]
                     +" crossed="+crossed[0]+" sleeping="+npc.isSleeping()
                     +" action="+npc.lastAction(),npc.blockPosition());
+            else helper.succeed();
+        });
+    }
+
+    /** A real wooden home door starts CLOSED. Only an NPC actually at its
+     * physical entrance may open it; iron gates are never silently unlocked.
+     * DoorBlock.setOpen must update both halves as vanilla would.
+     */
+    @GameTest(template="empty",timeoutTicks=120)
+    public static void resident_opens_real_closed_wooden_door_only_when_nearby(
+        GameTestHelper helper) {
+        ServerLevel level=helper.getLevel();
+        BlockPos center=house(helper,false);
+        BlockPos door=center.south(3);
+        PlayerNpcEntity npc=NpcRegistry.PLAYER_NPC.get().create(level);
+        if(npc==null)throw new AssertionError("NPC registration missing");
+        BlockPos far=center.south(8);
+        npc.moveTo(far.getX()+0.5,far.getY(),far.getZ()+0.5,0,0);
+        npc.setMode(PlayerNpcEntity.Mode.LIVE);
+        npc.setProfession(PlayerNpcEntity.Profession.RESIDENT);
+        npc.setHomePos(center.north());
+        if(!level.addFreshEntity(npc))throw new AssertionError("Cannot spawn real resident");
+        HomeEntranceRoute.moveTowardEntrance(npc,level,center.north(),1.0);
+        if(level.getBlockState(door).getValue(DoorBlock.OPEN))
+            throw new AssertionError("Distant NPC remotely opened a closed door");
+        BlockPos outside=center.south(4);
+        npc.moveTo(outside.getX()+0.5,outside.getY(),
+            outside.getZ()+0.5,0,0);
+        HomeEntranceRoute.moveTowardEntrance(npc,level,center.north(),1.0);
+        if(!level.getBlockState(door).getValue(DoorBlock.OPEN)
+            ||!level.getBlockState(door.above()).getValue(DoorBlock.OPEN))
+            throw new AssertionError("Nearby NPC failed to physically open both wooden door halves");
+        // A locked iron door is not an acceptable replacement home entrance.
+        level.setBlock(door,Blocks.IRON_DOOR.defaultBlockState()
+            .setValue(DoorBlock.FACING,Direction.SOUTH)
+            .setValue(DoorBlock.HALF,DoubleBlockHalf.LOWER)
+            .setValue(DoorBlock.OPEN,false),3);
+        level.setBlock(door.above(),Blocks.IRON_DOOR.defaultBlockState()
+            .setValue(DoorBlock.FACING,Direction.SOUTH)
+            .setValue(DoorBlock.HALF,DoubleBlockHalf.UPPER)
+            .setValue(DoorBlock.OPEN,false),3);
+        HomeEntranceRoute.moveTowardEntrance(npc,level,center.north(),1.0);
+        if(level.getBlockState(door).getValue(DoorBlock.OPEN))
+            throw new AssertionError("NPC illegally opened a real iron security door");
+        helper.succeed();
+    }
+
+    /** Full in-world regression: unlike an already-open showcase entrance,
+     * this door starts shut. A tired resident must open the VANILLA wooden
+     * block, physically cross its threshold and sleep in the actual bed.
+     */
+    @GameTest(template="empty",timeoutTicks=400)
+    public static void exhausted_resident_opens_closed_door_walks_and_sleeps(
+        GameTestHelper helper) {
+        ServerLevel level=helper.getLevel();
+        BlockPos center=house(helper,false);
+        BlockPos door=center.south(3);
+        BlockPos bed=center.north().west();
+        PlayerNpcEntity npc=NpcRegistry.PLAYER_NPC.get().create(level);
+        if(npc==null)throw new AssertionError("NPC registration missing");
+        BlockPos start=center.south(5);
+        npc.moveTo(start.getX()+0.5,start.getY(),start.getZ()+0.5,0,0);
+        npc.setMode(PlayerNpcEntity.Mode.LIVE);
+        npc.setProfession(PlayerNpcEntity.Profession.RESIDENT);
+        npc.setHomePos(center.north());
+        npc.setAssignedBedPos(bed);
+        npc.changeNeeds(0,-95,0);
+        npc.setDecision(new LivingPlanner.Decision(
+            LivingPlanner.Intent.SLEEP,1000,"physical night rest"));
+        if(!level.addFreshEntity(npc))throw new AssertionError("Cannot spawn real resident");
+        final boolean[] opened={false}, crossed={false}, moved={false};
+        final double[] last={npc.getZ()};
+        for(int t=5;t<=280;t+=5)helper.runAfterDelay(t,()->{
+            if(!npc.isAlive())helper.fail("Resident vanished on closed-door route",start);
+            if(level.getBlockState(door).getValue(DoorBlock.OPEN))opened[0]=true;
+            double z=npc.getZ();
+            if(Math.abs(z-last[0])>3.0)
+                helper.fail("Resident jumped rather than walking through the door",
+                    npc.blockPosition());
+            if(Math.abs(z-last[0])>.04)moved[0]=true;
+            if(z<center.south(3).getZ()+.1)crossed[0]=true;
+            last[0]=z;
+        });
+        helper.runAfterDelay(290,()->{
+            if(!opened[0]||!moved[0]||!crossed[0]||!npc.isSleeping()
+                ||!npc.getSleepingPos().orElse(BlockPos.ZERO).equals(bed))
+                helper.fail("Closed wooden door was not opened and crossed into real bed: "
+                    +"pos="+npc.blockPosition()+" opened="+opened[0]
+                    +" moved="+moved[0]+" crossed="+crossed[0]
+                    +" sleeping="+npc.isSleeping()+" action="+npc.lastAction(),
+                    npc.blockPosition());
+        });
+        helper.runAfterDelay(340,()->{
+            if(level.getBlockState(door).getValue(DoorBlock.OPEN))
+                helper.fail("Resident reached real bed but left its own wooden home door open",
+                    door);
+            else helper.succeed();
+        });
+    }
+
+    /** A second citizen physically occupying the entrance prevents closure.
+     * Once both have cleared it, the NPC-opened vanilla door closes again.
+     * Entity relocation below is TEST SETUP only, never production travel.
+     */
+    @GameTest(template="empty",timeoutTicks=190)
+    public static void npc_door_waits_for_bystander_then_closes(GameTestHelper helper) {
+        ServerLevel level=helper.getLevel();
+        BlockPos center=house(helper,false);
+        BlockPos door=center.south(3);
+        BlockPos outside=center.south(4);
+        BlockPos inside=center.south(2);
+        PlayerNpcEntity opener=NpcRegistry.PLAYER_NPC.get().create(level);
+        PlayerNpcEntity bystander=NpcRegistry.PLAYER_NPC.get().create(level);
+        if(opener==null||bystander==null)
+            throw new AssertionError("NPC registration missing");
+        opener.moveTo(outside.getX()+.5,outside.getY(),outside.getZ()+.5,0,0);
+        bystander.moveTo(inside.getX()+.5,inside.getY(),inside.getZ()+.5,0,0);
+        opener.setMode(PlayerNpcEntity.Mode.STAY);
+        bystander.setMode(PlayerNpcEntity.Mode.STAY);
+        opener.setHomePos(center.north());
+        bystander.setHomePos(center.north());
+        if(!level.addFreshEntity(opener)||!level.addFreshEntity(bystander))
+            throw new AssertionError("Could not spawn both real doorway users");
+        HomeEntranceRoute.moveTowardEntrance(opener,level,center.north(),1.0);
+        opener.getNavigation().stop();
+        if(!level.getBlockState(door).getValue(DoorBlock.OPEN))
+            throw new AssertionError("Resident never opened its wooden door");
+        helper.runAfterDelay(80,()->{
+            if(!level.getBlockState(door).getValue(DoorBlock.OPEN))
+                helper.fail("Door shut on the real second resident standing in threshold",door);
+            opener.getNavigation().stop();
+            bystander.getNavigation().stop();
+            BlockPos farOutside=center.south(6);
+            BlockPos farInside=center.north();
+            opener.moveTo(farOutside.getX()+.5,farOutside.getY(),
+                farOutside.getZ()+.5,0,0);
+            bystander.moveTo(farInside.getX()+.5,farInside.getY(),
+                farInside.getZ()+.5,0,0);
+        });
+        helper.runAfterDelay(145,()->{
+            if(level.getBlockState(door).getValue(DoorBlock.OPEN)
+                ||level.getBlockState(door.above()).getValue(DoorBlock.OPEN))
+                helper.fail("NPC-opened door did not close after both residents left",door);
+            else helper.succeed();
+        });
+    }
+
+    /** Regression for a real long-lived doorway obstruction. Previously the
+     * pending auto-close entry expired at 2,400 ticks while an NPC still
+     * occupied the threshold. When the NPC finally left, the wooden door
+     * remained open forever. The watch must survive until it can close safely.
+     */
+    @GameTest(template="empty",timeoutTicks=2700)
+    public static void occupied_wooden_door_still_closes_after_2400_ticks(
+        GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos center = house(helper,false);
+        BlockPos door = center.south(3);
+        BlockPos outside = center.south(4);
+        BlockPos inside = center.south(2);
+        PlayerNpcEntity opener = NpcRegistry.PLAYER_NPC.get().create(level);
+        PlayerNpcEntity bystander = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (opener == null || bystander == null)
+            throw new AssertionError("NPC registration missing");
+        opener.moveTo(outside.getX()+.5,outside.getY(),outside.getZ()+.5,0,0);
+        bystander.moveTo(inside.getX()+.5,inside.getY(),inside.getZ()+.5,0,0);
+        opener.setMode(PlayerNpcEntity.Mode.STAY);
+        bystander.setMode(PlayerNpcEntity.Mode.STAY);
+        opener.setHomePos(center.north());
+        bystander.setHomePos(center.north());
+        if (!level.addFreshEntity(opener) || !level.addFreshEntity(bystander))
+            throw new AssertionError("Cannot spawn real doorway occupants");
+        HomeEntranceRoute.moveTowardEntrance(opener,level,center.north(),1.0);
+        opener.getNavigation().stop();
+        bystander.getNavigation().stop();
+        if (!level.getBlockState(door).getValue(DoorBlock.OPEN))
+            throw new AssertionError("NPC did not open actual wooden door");
+        helper.runAfterDelay(2450,()->{
+            if (!level.getBlockState(door).getValue(DoorBlock.OPEN))
+                helper.fail("Door closed on living doorway occupants",door);
+        });
+        // TEST teardown only: production code never teleports occupants.
+        helper.runAfterDelay(2460,()->{
+            opener.discard();
+            bystander.discard();
+        });
+        helper.runAfterDelay(2550,()->{
+            if (level.getBlockState(door).getValue(DoorBlock.OPEN)
+                || level.getBlockState(door.above()).getValue(DoorBlock.OPEN))
+                helper.fail("Door watch expired while occupied; abandoned door stayed open",door);
+            else helper.succeed();
+        });
+    }
+
+    /** Do not claim ownership of an already open player-controlled door. */
+    @GameTest(template="empty",timeoutTicks=130)
+    public static void already_open_wooden_door_is_not_auto_closed(GameTestHelper helper) {
+        ServerLevel level=helper.getLevel();
+        BlockPos center=house(helper,true);
+        BlockPos door=center.south(3);
+        PlayerNpcEntity npc=NpcRegistry.PLAYER_NPC.get().create(level);
+        if(npc==null)throw new AssertionError("NPC registration missing");
+        BlockPos far=center.south(6);
+        npc.moveTo(far.getX()+.5,far.getY(),far.getZ()+.5,0,0);
+        npc.setMode(PlayerNpcEntity.Mode.STAY);
+        if(!level.addFreshEntity(npc))throw new AssertionError("Cannot spawn resident");
+        helper.runAfterDelay(90,()->{
+            if(!level.getBlockState(door).getValue(DoorBlock.OPEN))
+                helper.fail("Untracked, already-open wooden door was modified",door);
+            else helper.succeed();
+        });
+    }
+
+    /** Door maintenance must not depend on a living NPC ticking. A resident
+     * can open its home door, then die/despawn or leave the dimension before
+     * the 50-tick grace period ends. The server-level tick must still close
+     * the actual wooden door when its threshold is empty.
+     */
+    @GameTest(template="empty",timeoutTicks=150)
+    public static void npc_opened_door_closes_even_after_last_resident_disappears(
+        GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos center = house(helper,false);
+        BlockPos door = center.south(3);
+        BlockPos outside = center.south(4);
+        PlayerNpcEntity resident = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (resident == null) throw new AssertionError("NPC registration missing");
+        resident.moveTo(outside.getX()+.5,outside.getY(),outside.getZ()+.5,0,0);
+        resident.setMode(PlayerNpcEntity.Mode.STAY);
+        resident.setHomePos(center.north());
+        if (!level.addFreshEntity(resident))
+            throw new AssertionError("Cannot spawn actual resident");
+        HomeEntranceRoute.moveTowardEntrance(resident,level,center.north(),1.0);
+        resident.getNavigation().stop();
+        if (!level.getBlockState(door).getValue(DoorBlock.OPEN))
+            throw new AssertionError("Resident did not physically open the door");
+        // Test-only entity removal, not production NPC navigation.
+        resident.discard();
+        helper.runAfterDelay(90,()->{
+            if (resident.isAlive() || level.getBlockState(door).getValue(DoorBlock.OPEN)
+                || level.getBlockState(door.above()).getValue(DoorBlock.OPEN))
+                helper.fail("NPC-opened home door stayed open after its last resident vanished",door);
+            else helper.succeed();
+        });
+    }
+
+    /**
+     * When a human uses either half of a door, it is no longer NPC-owned:
+     * the 50-tick auto-closer must not undo the player's choice. This
+     * exercises the same handoff method used by the real NeoForge
+     * RightClickBlock listener, on an actual two-block vanilla door.
+     */
+    @GameTest(template="empty",timeoutTicks=150)
+    public static void player_takes_ownership_of_npc_opened_door_by_upper_half(
+        GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos center = house(helper,false);
+        BlockPos door = center.south(3);
+        BlockPos outside = center.south(4);
+        PlayerNpcEntity opener = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (opener == null) throw new AssertionError("NPC registration missing");
+        opener.moveTo(outside.getX()+.5,outside.getY(),outside.getZ()+.5,0,0);
+        opener.setMode(PlayerNpcEntity.Mode.STAY);
+        opener.setHomePos(center.north());
+        if (!level.addFreshEntity(opener))
+            throw new AssertionError("Cannot spawn real NPC opener");
+        HomeEntranceRoute.moveTowardEntrance(opener,level,center.north(),1.0);
+        if (!level.getBlockState(door).getValue(DoorBlock.OPEN))
+            throw new AssertionError("NPC did not open real wooden door");
+        HomeEntranceRoute.relinquishNpcDoorForPlayer(level,door.above());
+        opener.discard();
+        helper.runAfterDelay(95,()->{
+            if (!level.getBlockState(door).getValue(DoorBlock.OPEN)
+                || !level.getBlockState(door.above()).getValue(DoorBlock.OPEN))
+                helper.fail("NPC auto-closer overrode a player's door ownership",door);
+            else helper.succeed();
+        });
+    }
+
+    /** An unrelated block click cannot cancel the NPC's real door cleanup. */
+    @GameTest(template="empty",timeoutTicks=150)
+    public static void unrelated_player_click_does_not_abandon_npc_door(
+        GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos center = house(helper,false);
+        BlockPos door = center.south(3);
+        BlockPos outside = center.south(4);
+        PlayerNpcEntity opener = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (opener == null) throw new AssertionError("NPC registration missing");
+        opener.moveTo(outside.getX()+.5,outside.getY(),outside.getZ()+.5,0,0);
+        opener.setMode(PlayerNpcEntity.Mode.STAY);
+        opener.setHomePos(center.north());
+        if (!level.addFreshEntity(opener))
+            throw new AssertionError("Cannot spawn real NPC opener");
+        HomeEntranceRoute.moveTowardEntrance(opener,level,center.north(),1.0);
+        if (!level.getBlockState(door).getValue(DoorBlock.OPEN))
+            throw new AssertionError("NPC did not open real wooden door");
+        HomeEntranceRoute.relinquishNpcDoorForPlayer(level,center.north(3));
+        opener.discard();
+        helper.runAfterDelay(95,()->{
+            if (level.getBlockState(door).getValue(DoorBlock.OPEN)
+                || level.getBlockState(door.above()).getValue(DoorBlock.OPEN))
+                helper.fail("Unrelated block click canceled NPC's own auto-close",door);
+            else helper.succeed();
+        });
+    }
+
+    /** Vanilla normalizes a door's facing when one half changes. Replacing
+     * the upper half with a real solid block instead models a genuinely
+     * damaged entrance; the route must not target the missing doorway.
+     */
+    @GameTest(template="empty",timeoutTicks=80)
+    public static void missing_upper_door_half_is_not_a_real_home_entrance(
+        GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos center = house(helper,true);
+        BlockPos door = center.south(3);
+        level.setBlock(door.above(),Blocks.STONE.defaultBlockState(),3);
+        if (!level.getBlockState(door.above()).is(Blocks.STONE))
+            throw new AssertionError("Broken-door test fixture did not persist");
+        if (HomeEntranceRoute.nearestOpenDoor(level,center.north()) != null)
+            throw new AssertionError("Damaged door was accepted as a real open entrance");
+        PlayerNpcEntity npc = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (npc == null) throw new AssertionError("NPC registration missing");
+        BlockPos outside = center.south(4);
+        npc.moveTo(outside.getX()+.5,outside.getY(),outside.getZ()+.5,0,0);
+        npc.setMode(PlayerNpcEntity.Mode.STAY);
+        npc.setHomePos(center.north());
+        if (!level.addFreshEntity(npc)) throw new AssertionError("Cannot spawn resident");
+        if (HomeEntranceRoute.moveTowardEntrance(npc,level,center.north(),1.0))
+            throw new AssertionError("Resident routed into a damaged two-block doorway");
+        helper.succeed();
+    }
+
+    /** A powered, still-closed wooden door is not NPC-owned or safe to
+     * operate. The fixture simulates a transient inconsistent redstone state
+     * without spawning a synthetic door or bypassing the normal route code.
+     */
+    @GameTest(template="empty",timeoutTicks=80)
+    public static void powered_closed_wooden_door_is_not_forced_open_by_npc(
+        GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos center = house(helper,false);
+        BlockPos door = center.south(3);
+        level.setBlock(door,level.getBlockState(door)
+            .setValue(DoorBlock.POWERED,true),2);
+        level.setBlock(door.above(),level.getBlockState(door.above())
+            .setValue(DoorBlock.POWERED,true),2);
+        PlayerNpcEntity npc = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (npc == null) throw new AssertionError("NPC registration missing");
+        BlockPos outside = center.south(4);
+        npc.moveTo(outside.getX()+.5,outside.getY(),outside.getZ()+.5,0,0);
+        npc.setMode(PlayerNpcEntity.Mode.STAY);
+        npc.setHomePos(center.north());
+        if (!level.addFreshEntity(npc)) throw new AssertionError("Cannot spawn resident");
+        if (HomeEntranceRoute.moveTowardEntrance(npc,level,center.north(),1.0)
+            || level.getBlockState(door).getValue(DoorBlock.OPEN))
+            throw new AssertionError("Resident forced a powered closed wooden door open");
+        helper.succeed();
+    }
+
+    /** Native SavedData roundtrip + REAL door close. Test-only removal of the
+     * original watch simulates a restarted server without moving any NPC in
+     * production. A separate full process restart is still required for E2E.
+     */
+    @GameTest(template="empty",timeoutTicks=160)
+    public static void saved_npc_door_watch_restores_and_closes_real_door(
+        GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos center = house(helper,false);
+        BlockPos door = center.south(3);
+        BlockPos outside = center.south(4);
+        PlayerNpcEntity resident = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (resident == null) throw new AssertionError("NPC registration missing");
+        resident.moveTo(outside.getX()+.5,outside.getY(),outside.getZ()+.5,0,0);
+        resident.setMode(PlayerNpcEntity.Mode.STAY);
+        resident.setHomePos(center.north());
+        if (!level.addFreshEntity(resident))
+            throw new AssertionError("Could not spawn real door opener");
+        HomeEntranceRoute.moveTowardEntrance(resident,level,center.north(),1.0);
+        if (!level.getBlockState(door).getValue(DoorBlock.OPEN))
+            throw new AssertionError("NPC did not open real wooden door");
+        NpcOpenedDoorData live = NpcOpenedDoorData.get(level);
+        if (!live.has(door)) throw new AssertionError("Opened door was not recorded");
+        CompoundTag saved = live.save(new CompoundTag(),level.registryAccess());
+        NpcOpenedDoorData restored = NpcOpenedDoorData.load(saved,level.registryAccess());
+        if (!restored.has(door) || restored.pendingCount() != live.pendingCount())
+            throw new AssertionError("SavedData roundtrip lost door ownership");
+        live.relinquish(door);
+        resident.discard();
+        helper.runAfterDelay(90,()->{
+            restored.tickOpenedDoors(level);
+            if (level.getBlockState(door).getValue(DoorBlock.OPEN)
+                || level.getBlockState(door.above()).getValue(DoorBlock.OPEN)
+                || restored.has(door))
+                helper.fail("Restored NPC door watch did not close actual wooden door",door);
+            else helper.succeed();
+        });
+    }
+
+    /**
+     * A restored level.dat can have a lower game clock than separately
+     * persisted door SavedData. A future-dated pending watch must NOT be
+     * discarded: preserve the real NPC-opened wooden door, restart its
+     * 50-tick grace period, and close it after the entrance is clear.
+     * This exercises the real server-level tick and vanilla door blocks.
+     */
+    @GameTest(template="empty",timeoutTicks=150)
+    public static void restored_world_clock_does_not_abandon_npc_opened_door(
+        GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos center = house(helper, false);
+        BlockPos door = center.south(3);
+        BlockPos outside = center.south(4);
+        PlayerNpcEntity resident = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (resident == null) throw new AssertionError("NPC registration missing");
+        resident.moveTo(outside.getX() + .5, outside.getY(),
+            outside.getZ() + .5, 0, 0);
+        resident.setMode(PlayerNpcEntity.Mode.STAY);
+        resident.setHomePos(center.north());
+        if (!level.addFreshEntity(resident))
+            throw new AssertionError("Cannot spawn real NPC door opener");
+        HomeEntranceRoute.moveTowardEntrance(resident, level, center.north(), 1.0);
+        NpcOpenedDoorData data = NpcOpenedDoorData.get(level);
+        if (!level.getBlockState(door).getValue(DoorBlock.OPEN) || !data.has(door))
+            throw new AssertionError("NPC did not open and track actual wooden door");
+        // Simulate a persisted clock from a newer save than level.dat.
+        // This changes ONLY the watch timestamp, not Minecraft world time.
+        if (!data.remember(door, level.getGameTime() + 500))
+            throw new AssertionError("Cannot prepare restored-clock watch");
+        resident.discard();
+        helper.runAfterDelay(5, () -> {
+            if (!data.has(door) || !level.getBlockState(door).getValue(DoorBlock.OPEN))
+                helper.fail("Clock rollback discarded the real door cleanup watch", door);
+        });
+        helper.runAfterDelay(95, () -> {
+            if (data.has(door)
+                || level.getBlockState(door).getValue(DoorBlock.OPEN)
+                || level.getBlockState(door.above()).getValue(DoorBlock.OPEN))
+                helper.fail("Restored-clock NPC door never closed after grace period", door);
+            else helper.succeed();
+        });
+    }
+    /**
+     * A corrupted or imported SavedData file may contain 256 impossible door
+     * positions (e.g. Y=2047). Those chunks cannot ever load. The server
+     * must reclaim the bounded watches rather than permanently refusing to
+     * track a legitimate home door. A merely unloaded, in-bounds chunk is
+     * intentionally NOT deleted by the production cleanup.
+     */
+    @GameTest(template="empty",timeoutTicks=130)
+    public static void invalid_saved_door_heights_do_not_block_real_home_doors(
+        GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        CompoundTag saved = new CompoundTag();
+        ListTag entries = new ListTag();
+        for (int i = 0; i < NpcOpenedDoorData.MAX_TRACKED; i++) {
+            BlockPos impossible = new BlockPos(i, 2047, 0);
+            if (level.isInWorldBounds(impossible))
+                throw new AssertionError("Malformed fixture unexpectedly in build bounds");
+            CompoundTag entry = new CompoundTag();
+            entry.putLong("Pos", impossible.asLong());
+            entry.putLong("OpenedAt", 0L);
+            entries.add(entry);
+        }
+        saved.put("Doors", entries);
+        NpcOpenedDoorData restored =
+            NpcOpenedDoorData.load(saved, level.registryAccess());
+        if (restored.pendingCount() != NpcOpenedDoorData.MAX_TRACKED)
+            throw new AssertionError("Malformed persisted fixture was not loaded");
+        restored.tickOpenedDoors(level);
+        if (restored.pendingCount() != 0)
+            throw new AssertionError("Impossible saved positions exhausted NPC door capacity");
+
+        BlockPos center = house(helper, true);
+        BlockPos door = center.south(3);
+        if (!restored.remember(door, level.getGameTime()))
+            throw new AssertionError("Valid real door could not reclaim watch capacity");
+        helper.runAfterDelay(75, () -> {
+            restored.tickOpenedDoors(level);
+            if (restored.has(door)
+                || level.getBlockState(door).getValue(DoorBlock.OPEN)
+                || level.getBlockState(door.above()).getValue(DoorBlock.OPEN))
+                helper.fail("Reclaimed watch did not safely close real wooden door", door);
+            else helper.succeed();
+        });
+    }
+
+
+    /**
+     * Real registered teacher, real closed oak workplace door and real
+     * native foot navigation. A direct road goal to an indoor lectern can
+     * stop at the outside wall; the commute must first open the door and
+     * cross its threshold. No test-only moveTo after entity spawn.
+     */
+    @GameTest(template="empty",timeoutTicks=420)
+    public static void teacher_physically_opens_closed_school_door_and_commutes_inside(
+        GameTestHelper helper) {
+        ServerLevel level=helper.getLevel();
+        BlockPos center=house(helper,false);
+        BlockPos door=center.south(3);
+        BlockPos job=center.north();
+        BlockPos start=center.south(5);
+        PlayerNpcEntity teacher=NpcRegistry.PLAYER_NPC.get().create(level);
+        if(teacher==null)throw new AssertionError("Registered teacher NPC unavailable");
+        teacher.moveTo(start.getX()+.5,start.getY(),start.getZ()+.5,0,0);
+        teacher.setMode(PlayerNpcEntity.Mode.LIVE);
+        teacher.setProfession(PlayerNpcEntity.Profession.TEACHER);
+        teacher.setHomePos(job);
+        teacher.setWorkPos(job);
+        teacher.setRoamingRadius(64);
+        teacher.setDecision(new LivingPlanner.Decision(
+            LivingPlanner.Intent.WORK,1000,"real classroom commute"));
+        if(!level.addFreshEntity(teacher))
+            throw new AssertionError("Could not spawn physical school employee");
+        final boolean[] opened={false}, crossed={false}, moved={false};
+        final double[] previousZ={teacher.getZ()};
+        for(int t=5;t<=290;t+=5)helper.runAfterDelay(t,()->{
+            if(!teacher.isAlive()){
+                helper.fail("Real teacher disappeared on school commute",start);
+                return;
+            }
+            if(level.getBlockState(door).getValue(DoorBlock.OPEN))opened[0]=true;
+            double z=teacher.getZ();
+            if(Math.abs(z-previousZ[0])>3.0)
+                helper.fail("Teacher jumped instead of walking to school",
+                    teacher.blockPosition());
+            if(Math.abs(z-previousZ[0])>.04)moved[0]=true;
+            if(z<center.south(3).getZ()+.1)crossed[0]=true;
+            previousZ[0]=z;
+        });
+        for(int t=1;t<=280;t+=20)helper.runAfterDelay(t,()->{
+            if(teacher.isAlive() && teacher.blockPosition().distSqr(job)>9)
+                UrbanServiceJobs.commuteToWork(teacher,level);
+        });
+        helper.runAfterDelay(310,()->{
+            if(!opened[0]||!crossed[0]||!moved[0]
+                ||teacher.blockPosition().distSqr(job)>9)
+                helper.fail("School shift never physically entered closed workplace door: "
+                    +"teacher="+teacher.blockPosition()+" doorOpened="+opened[0]
+                    +" crossed="+crossed[0]+" moved="+moved[0]
+                    +" action="+teacher.lastAction(),teacher.blockPosition());
+            else helper.succeed();
+        });
+    }
+
+    /**
+     * Store staff cannot sell through a solid exterior facade. Exercise the
+     * production commuteToCounter method on a real closed vanilla oak door
+     * with a real registered shopkeeper and physical vanilla path movement.
+     */
+    @GameTest(template="empty",timeoutTicks=420)
+    public static void shopkeeper_opens_real_closed_store_door_before_shift(
+        GameTestHelper helper) {
+        ServerLevel level=helper.getLevel();
+        BlockPos center=house(helper,false);
+        BlockPos door=center.south(3);
+        BlockPos counter=center.north();
+        BlockPos start=center.south(5);
+        PlayerNpcEntity clerk=NpcRegistry.PLAYER_NPC.get().create(level);
+        if(clerk==null)throw new AssertionError("Registered store clerk missing");
+        clerk.moveTo(start.getX()+.5,start.getY(),start.getZ()+.5,0,0);
+        clerk.setMode(PlayerNpcEntity.Mode.LIVE);
+        clerk.setProfession(PlayerNpcEntity.Profession.SHOPKEEPER);
+        clerk.setHomePos(counter);
+        clerk.setWorkPos(counter);
+        clerk.setRoamingRadius(64);
+        clerk.setDecision(new LivingPlanner.Decision(
+            LivingPlanner.Intent.WORK,1000,"physical shop shift"));
+        if(!level.addFreshEntity(clerk))
+            throw new AssertionError("Could not spawn actual shop employee");
+        final boolean[] opened={false}, crossed={false}, moved={false};
+        final double[] previousZ={clerk.getZ()};
+        for(int t=5;t<=290;t+=5)helper.runAfterDelay(t,()->{
+            if(!clerk.isAlive()){
+                helper.fail("Store employee disappeared before opening",start);
+                return;
+            }
+            if(level.getBlockState(door).getValue(DoorBlock.OPEN))opened[0]=true;
+            double z=clerk.getZ();
+            if(Math.abs(z-previousZ[0])>3.0)
+                helper.fail("Store employee jumped rather than walked",
+                    clerk.blockPosition());
+            if(Math.abs(z-previousZ[0])>.04)moved[0]=true;
+            if(z<center.south(3).getZ()+.1)crossed[0]=true;
+            previousZ[0]=z;
+        });
+        for(int t=1;t<=280;t+=20)helper.runAfterDelay(t,()->{
+            if(clerk.isAlive() && clerk.blockPosition().distSqr(counter)>9)
+                ShopCounter.commuteToCounter(clerk,level);
+        });
+        helper.runAfterDelay(310,()->{
+            if(!opened[0]||!crossed[0]||!moved[0]
+                ||clerk.blockPosition().distSqr(counter)>9)
+                helper.fail("Store employee did not open and enter actual workplace: "
+                    +"clerk="+clerk.blockPosition()+" doorOpened="+opened[0]
+                    +" crossed="+crossed[0]+" moved="+moved[0]
+                    +" action="+clerk.lastAction(),clerk.blockPosition());
             else helper.succeed();
         });
     }

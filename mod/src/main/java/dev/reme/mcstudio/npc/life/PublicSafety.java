@@ -237,6 +237,17 @@ public final class PublicSafety {
             guard.clearPrisonerEscort();
             return false;
         }
+        // A stale guard-side escort UUID must not acknowledge another
+        // officer's custody at the cell. Require the reciprocal identity
+        // before touching either the prisoner's link or the real gate.
+        // Legacy prisoners with no officer UUID retain their old route.
+        UUID assignedOfficer = prisoner.custodyOfficer();
+        if (assignedOfficer != null && !assignedOfficer.equals(guard.getUUID())) {
+            guard.getNavigation().stop();
+            guard.clearPrisonerEscort();
+            guard.setAction("escort cancelled: prisoner belongs to another officer");
+            return false;
+        }
         if (!level.hasChunkAt(prisoner.blockPosition())) {
             guard.getNavigation().stop();
             guard.setTarget(null);
@@ -278,7 +289,12 @@ public final class PublicSafety {
         // A cell arrival is not an escorted handoff while the officer is
         // still five or six blocks away. Use the same four-block reciprocal
         // leash enforced during the walk, including at the final cell.
-        if (prisonerAtCell && guard.distanceToSqr(prisoner) <= 16.0) {
+        // A nearby officer behind a solid station wall has not physically
+        // reached the prisoner. The real open intake must be visible before
+        // acknowledging custody; proximity through blocks is insufficient.
+        boolean officerCanSeePrisoner = guard.hasLineOfSight(prisoner);
+        if (prisonerAtCell && guard.distanceToSqr(prisoner) <= 16.0
+            && officerCanSeePrisoner) {
             guard.getNavigation().stop();
             guard.setAction("on-foot escort completed: prisoner reached REAL iron-bar cell");
             System.out.println("REME_NPC_STORY stage=jail_reached tick=" + tick
@@ -293,7 +309,51 @@ public final class PublicSafety {
             return true;
         }
         if (!MovementPolicy.due(tick, guard.getId(), 10)) return true;
-        if (guard.distanceToSqr(prisoner) > 5.0) {
+        if (prisonerAtCell && !officerCanSeePrisoner) {
+            // Do not stop behind a wall just because the Euclidean gap is
+            // under two blocks. Follow the same real street/door detour as
+            // the prisoner, then approach the open SOUTH intake on foot.
+            BlockPos waypoint = custodyCityDetourWaypoint(
+                level, jail, guard.blockPosition());
+            if (waypoint.equals(jail)) waypoint = jail.south(1);
+            if (level.hasChunkAt(waypoint)
+                && RoadNavigator.moveToward(guard, level, waypoint, 0.98)) {
+                guard.setAction("walking around real station wall toward visible cell intake");
+            } else {
+                guard.setAction("cell handoff blocked by wall; waiting for reachable intake");
+            }
+        } else if (CityJailGate.isGate(level, jail)
+            && prisoner.blockPosition().distSqr(jail) <= 16
+            && guard.distanceToSqr(prisoner) > 5.0) {
+            // The filmed officer remained diagonally outside the SOUTH intake
+            // while the prisoner occupied the open iron-gate tile. Routing
+            // toward the OCCUPIED gate tile repeatedly left the officer
+            // outside the three-block walking leash, so neither actor moved.
+            // Approach the PUBLIC SIDEWALK one block south of the oak door,
+            // not the door's own collision-sensitive block. Native A* in the
+            // real GUI and the enclosed-door GameTest rejected the door tile
+            // itself as a destination, despite the gate being open. The
+            // sidewalk is a separate physical standing tile, within the
+            // four-block handoff leash when the prisoner reaches the cell.
+            BlockPos intake = jail.south(4);
+            if (!guard.blockPosition().equals(intake)) {
+                // RoadNavigator deliberately ignores destinations within
+                // sqrt(5) blocks. That is correct for city commutes, but
+                // insufficient for a four-block custody HANDOFF: stopping
+                // one tile diagonally from the sidewalk leaves the officer
+                // sqrt(17) blocks from a prisoner inside the cell. Use
+                // validated native A* for this final short approach.
+                var approach = guard.getNavigation().createPath(intake, 0);
+                if (approach != null && approach.canReach()
+                    && guard.getNavigation().moveTo(approach, 0.98))
+                    guard.setAction("walking last real sidewalk steps for custody handoff");
+                else
+                    guard.setAction("rear sidewalk approach blocked; waiting for physical path");
+            } else {
+                guard.getNavigation().stop();
+                guard.setAction("holding on rear sidewalk while prisoner enters iron gate");
+            }
+        } else if (guard.distanceToSqr(prisoner) > 5.0) {
             RoadNavigator.moveToward(guard, level, prisoner.blockPosition(), 0.98);
             guard.setAction("escorting handcuffed resident ON FOOT along loaded streets");
         } else {
@@ -342,7 +402,26 @@ public final class PublicSafety {
      */
     public static boolean escortedPrisonerMayWalk(PlayerNpcEntity prisoner,
                                                    ServerLevel level, long tick) {
-        return linkedOfficerWithin(prisoner, level, tick, 9.0);
+        if (linkedOfficerWithin(prisoner, level, tick, 9.0)) return true;
+        // Real GUI + native GameTest: the officer correctly waits on the
+        // PUBLIC sidewalk at cell+4, while the detainee reaches the inner
+        // aisle at cell+1. Their physical separation can be slightly above
+        // three blocks, leaving the last step permanently frozen. Permit
+        // ONLY this final one-block step under the existing four-block
+        // custody authorization, through a visibly OPEN real iron gate.
+        // This does not weaken the three-block leash on streets, permit a
+        // different officer, or move an entity without native pathfinding.
+        BlockPos jail = prisoner.detentionJail();
+        UUID officerId = prisoner.custodyOfficer();
+        if (jail == null || officerId == null
+            || !prisoner.blockPosition().equals(jail.south(1))
+            || !CityJailGate.isOpen(level, jail)
+            || !linkedOfficerWithin(prisoner, level, tick, 16.0))
+            return false;
+        var found = level.getEntity(officerId);
+        return found instanceof PlayerNpcEntity officer
+            && officer.blockPosition().equals(jail.south(4))
+            && officer.hasLineOfSight(prisoner);
     }
 
     /** Real-world physical walk to a recognized holding spot (not a teleport).
@@ -385,9 +464,14 @@ public final class PublicSafety {
             // until the reciprocal four-block handoff completes. Otherwise
             // the prisoner can lock the officer outside while the officer
             // is still navigating around the station.
-            if (suspect.custodyOfficer() != null
-                && !escortedPrisonerMayAdvance(suspect, level, tick)) {
-                suspect.setAction("inside real cell; waiting for arresting officer before gate lock");
+            // Proximity alone is not a handoff. The prisoner may tick before
+            // the officer on the same server tick, even when the officer is
+            // already within four blocks. Only tickEscortGuard may clear the
+            // persisted custody UUID after verifying the reciprocal link,
+            // live officer, real holding block and physical distance. Until
+            // that acknowledgement, do not lock the officer outside.
+            if (suspect.custodyOfficer() != null) {
+                suspect.setAction("inside real cell; waiting for officer handoff acknowledgement");
                 return true;
             }
             CityJailGate.setOpen(level, jail, false);

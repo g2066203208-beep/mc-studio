@@ -7,6 +7,7 @@ This checks native integrated-server stdout, not GameTest fixture output.
 """
 from __future__ import annotations
 
+import math
 import pathlib
 import re
 import sys
@@ -88,17 +89,96 @@ def verify(text: str) -> str:
     cell = xyz(jail.group(), "cell")
     if holding is None or cell != holding:
         fail("Filmed prisoner never reached his originally assigned real cell")
+    # A filmed booking is not evidence of a physical escort by itself.
+    # Require time-ordered, same-UUID positions of BOTH moving actors from
+    # the integrated Minecraft server, strictly inside this video's window.
+    # Bounded 40-tick trace samples are evidence, not per-frame animation.
+    escort_samples = []
+    for line in lines:
+        if not (arrest.start() < line.start() < jail.start()):
+            continue
+        record = line.group()
+        if "REME_NPC_ESCORT_PAIR" not in record:
+            continue
+        if key(record, "officer") != key(arrest.group(), "guard") or key(record, "prisoner") != target:
+            continue
+        officer_feet = xyz(record, "officerFeet")
+        prisoner_feet = xyz(record, "prisonerFeet")
+        sample_tick = key(record, "tick")
+        distance = key(record, "distanceSq")
+        if officer_feet is None or prisoner_feet is None or sample_tick is None or distance is None:
+            fail("Same-UUID escort trace missing real positions, distance or tick")
+        try:
+            parsed_tick = int(sample_tick)
+            parsed_distance_sq = float(distance)
+        except ValueError:
+            fail("Same-UUID escort trace contains invalid numeric evidence")
+        if (not math.isfinite(parsed_distance_sq) or parsed_distance_sq > 16.0
+                or parsed_distance_sq < 0.0):
+            fail("Real escort exceeded four-block officer-prisoner leash")
+        # The server logs precise entity distanceSq alongside integer
+        # BlockPos feet. Each floored coordinate differs from the precise
+        # coordinate by <1, so the pair's Euclidean distance can differ by
+        # at most sqrt(3). Reject a fake 'close escort' number that disagrees
+        # with the two actors' real block positions.
+        block_distance = math.dist(officer_feet, prisoner_feet)
+        if abs(block_distance - math.sqrt(parsed_distance_sq)) > math.sqrt(3.0) + 1e-6:
+            fail("Escort distanceSq contradicts real officer/prisoner coordinates")
+        escort_samples.append((parsed_tick, officer_feet, prisoner_feet,
+                               parsed_distance_sq, key(record, "prisonerMayAdvance")))
+    if len(escort_samples) < 3:
+        fail("Filmed custody lacks three same-UUID physical escort position samples")
+    try:
+        arrest_tick = int(key(arrest.group(), "tick"))
+        jail_tick = int(key(jail.group(), "tick"))
+    except (TypeError, ValueError):
+        fail("Arrest or jail event lacks a valid game tick")
+    # The last 40-tick trace may be emitted earlier in the SAME server tick
+    # as jail_reached. Log ordering above already requires each trace line
+    # to precede jail_reached; rejecting an equal tick incorrectly fails a
+    # genuine, physically filmed handoff. A later tick is still invalid.
+    if jail_tick <= arrest_tick or any(
+        not arrest_tick < sample[0] <= jail_tick for sample in escort_samples
+    ):
+        fail("Physical escort trace game ticks outside arrest-to-jail window")
+    if not any(sample[4] == "true" for sample in escort_samples):
+        fail("No filmed prisoner movement authorized by the real escort officer")
+    for before, after in zip(escort_samples, escort_samples[1:]):
+        elapsed = after[0] - before[0]
+        if elapsed <= 0:
+            fail("Physical escort trace ticks are not strictly increasing")
+        # The floor-position trace is sampled every ~40 game ticks. Permit
+        # normal native navigation plus block-coordinate quantization, but
+        # reject implausibly large leaps masquerading as continuous walking.
+        max_step = 0.25 * elapsed + 1.5
+        if math.dist(before[1], after[1]) > max_step or math.dist(before[2], after[2]) > max_step:
+            fail("Physical escort trace has an implausible position jump")
+    first, last = escort_samples[0], escort_samples[-1]
+    if math.dist(first[1], last[1]) < 6.0 or math.dist(first[2], last[2]) < 6.0:
+        fail("Filmed guard and prisoner did not both walk a meaningful distance")
+    if math.dist(first[2], holding) - math.dist(last[2], holding) < 4.0:
+        fail("Filmed prisoner did not make physical progress toward assigned cell")
     locked_at = (holding[0], holding[1], holding[2] + 2)
+    # The real officer acknowledges custody at jail_reached BEFORE the
+    # prisoner's subsequent server tick locks the iron gate. PR #154's
+    # previously correct Minecraft GUI failed because this verifier still
+    # required the unsafe pre-handoff locking order.
+    premature = [m for m in events.get("jail_gate_locked", ())
+                 if arrest.start() < m.start() < jail.start()
+                 and xyz(m.group(), "location") == locked_at]
+    if premature:
+        fail("Real iron gate locked before officer acknowledged cell handoff")
     locked = [m for m in events.get("jail_gate_locked", ())
-              if arrest.start() < m.start() < jail.start()
+              if m.start() > jail.start()
               and xyz(m.group(), "location") == locked_at]
     if not locked:
-        fail("Real iron door at this prisoner's SOUTH cell gate never locked")
+        fail("Real iron door at this prisoner's SOUTH cell gate never locked after officer handoff during filming")
     ticks = [key(m.group(), "tick") for m in (pickup, report, arrest, jail)]
     return ("REME_NPC_REAL_CLIENT_FULL_CASE_RECORDING_OK thief=" + target
             + " ticks=" + ",".join(str(t) for t in ticks)
             + " three_real_hits=true same_guard=true actual_cell=true"
-            + " locked_iron_gate=true camera_before_arrest=true")
+            + " locked_iron_gate=true camera_before_arrest=true"
+            + " physical_pair=true escort_samples=" + str(len(escort_samples)))
 
 
 def main() -> int:

@@ -1,0 +1,104 @@
+# Isolated NPC branch only. Do not trigger WorldSeam, PEAK or boss jobs.
+name: NPC three fresh 24k city-day regression
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - fix/npc-cell-lock-requires-ack-v116
+
+permissions:
+  contents: read
+
+concurrency:
+  group: npc-24k-repeat-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  three-independent-days:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Pin game, loader, and Java 21
+        shell: bash
+        run: |
+          set -euo pipefail
+          java -version 2>&1 | grep -Eq 'version "21[.]'
+          grep -Fxq 'minecraft_version=1.21.1' mod/gradle.properties
+          grep -Fxq 'neo_version=21.1.262' mod/gradle.properties
+          python3 scripts/check-npc-animation-assets.py
+          python3 scripts/prepare-gametest-arena.py
+      - name: Three fresh real GameTest servers, no green-on-retry
+        shell: bash
+        run: |
+          set -uo pipefail
+          mkdir -p npc-city-repeat-evidence
+          failures=0
+          for attempt in 1 2 3; do
+            echo "::group::Independent 24000-tick city day ${attempt}/3"
+            # Ephemeral CI only: remove the PREVIOUS TEST SERVER's world so
+            # each attempt gets a fresh seed and fresh resident UUIDs.
+            # Never run this cleanup against a user's local save.
+            rm -rf mod/runs mod/run
+            log="$PWD/npc-city-repeat-evidence/day-${attempt}.log"
+            (
+              cd mod
+              timeout --signal=TERM --kill-after=20s 480s \
+                ./gradlew runGameTestServer --no-daemon --stacktrace
+            ) 2>&1 | tee "$log"
+            gradle_status=${PIPESTATUS[0]}
+            export NPC_RUN_LOG="$log"
+            python3 - <<'PY'
+          import os
+          import pathlib
+          import re
+          import sys
+
+          log = pathlib.Path(os.environ["NPC_RUN_LOG"]).read_text(errors="replace")
+          diagnostics = re.findall(
+              r"REME_NPC_CITY_DAY_24K_DIAGNOSTIC residents=(\d+) "
+              r"nativeSleepers=(\d+) workers=(\d+) nightRoaming=(\d+)", log
+          )
+          all_pass = re.search(r"All (\d+) required tests passed", log)
+          ok = (
+              len(diagnostics) == 1
+              and diagnostics[0][0] == "15"
+              and diagnostics[0][1] == "15"
+              and int(diagnostics[0][2]) >= 10
+              and diagnostics[0][3] == "0"
+              and all_pass is not None
+              and int(all_pass.group(1)) >= 155
+              and "REME_NPC_REAL_STORE_DAYSOAK ticks=24000" in log
+              and "REME_NPC_REAL_BED_DAYSOAK ticks=24000" in log
+              and "REME_NPC_CITY_INSOMNIA" not in log
+          )
+          print(f"NPC_REPEAT_DAY_DIAGNOSTIC={diagnostics} "
+                f"passed_tests={all_pass.group(1) if all_pass else 'MISSING'} "
+                f"accepted={ok}")
+          sys.exit(0 if ok else 1)
+          PY
+            audit_status=$?
+            printf 'attempt=%s gradle_exit=%s audit_exit=%s\n' \
+              "$attempt" "$gradle_status" "$audit_status" \
+              | tee -a npc-city-repeat-evidence/summary.txt
+            if (( gradle_status != 0 || audit_status != 0 )); then
+              failures=$((failures + 1))
+            fi
+            echo "::endgroup::"
+          done
+          echo "Independent failed days: $failures / 3"
+          test "$failures" -eq 0
+      - name: Preserve all raw logs, including failures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: npc-three-fresh-city-days-raw-logs
+          if-no-files-found: warn
+          path: |
+            npc-city-repeat-evidence/
+            mod/runs/**/logs/*.log
+            mod/run/**/logs/*.log

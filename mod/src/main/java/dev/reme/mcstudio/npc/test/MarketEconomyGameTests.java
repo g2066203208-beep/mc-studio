@@ -10,6 +10,8 @@ import dev.reme.mcstudio.npc.life.ResidentMemory;
 import dev.reme.mcstudio.npc.life.ShopCounter;
 import dev.reme.mcstudio.npc.life.SocietyRules;
 import net.minecraft.core.BlockPos;
+import net.minecraft.world.InteractionHand;
+import net.neoforged.neoforge.common.util.FakePlayerFactory;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.nbt.CompoundTag;
@@ -47,6 +49,87 @@ public final class MarketEconomyGameTests {
 
     private static void work(PlayerNpcEntity npc) {
         npc.setDecision(new LivingPlanner.Decision(LivingPlanner.Intent.WORK, 100, "day shift"));
+    }
+
+    /** A two-block solid facade must prevent selling to a customer outside.
+     * Once removed, the SAME real stock and emerald must exchange normally.
+     * No simulated inventory or event-only transaction is accepted.
+     */
+    @GameTest(template = "empty", timeoutTicks = 120)
+    public static void solid_store_wall_blocks_resident_purchase_until_opened(
+        GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos counter = helper.absolutePos(new BlockPos(5, 9, 5));
+        BlockPos wall = counter.east();
+        for (int dx = 0; dx <= 2; dx++)
+            level.setBlock(counter.east(dx).below(), Blocks.STONE.defaultBlockState(), 3);
+        level.setBlock(wall, Blocks.STONE.defaultBlockState(), 3);
+        level.setBlock(wall.above(), Blocks.STONE.defaultBlockState(), 3);
+        PlayerNpcEntity shop = spawn(level, counter, PlayerNpcEntity.Profession.SHOPKEEPER);
+        PlayerNpcEntity customer = spawn(level, counter.east(2),
+            PlayerNpcEntity.Profession.RESIDENT);
+        work(shop);
+        shop.backpack().addItem(new ItemStack(Items.BREAD, 1));
+        customer.backpack().addItem(new ItemStack(Items.EMERALD, 1));
+        long tick = level.getGameTime();
+        if (shop.hasLineOfSight(customer))
+            throw new AssertionError("Test wall did not block actual vanilla sight ray");
+        if (ShopCounter.purchaseByResident(shop, customer, tick)
+            || shop.backpack().countItem(Items.BREAD) != 1
+            || shop.backpack().countItem(Items.EMERALD) != 0
+            || customer.backpack().countItem(Items.BREAD) != 0
+            || customer.backpack().countItem(Items.EMERALD) != 1)
+            throw new AssertionError("Shop sold items through a solid exterior wall");
+        level.setBlock(wall, Blocks.AIR.defaultBlockState(), 3);
+        level.setBlock(wall.above(), Blocks.AIR.defaultBlockState(), 3);
+        if (!shop.hasLineOfSight(customer)
+            || !ShopCounter.purchaseByResident(shop, customer, tick)
+            || shop.backpack().countItem(Items.BREAD) != 0
+            || shop.backpack().countItem(Items.EMERALD) != 1
+            || customer.backpack().countItem(Items.BREAD) != 1
+            || customer.backpack().countItem(Items.EMERALD) != 0)
+            throw new AssertionError("Open counter failed exact one-item paid exchange");
+        helper.succeed();
+    }
+
+    /** Wholesale carrot pickup must also require physical access; a farmer
+     * cannot transfer harvest through a closed building wall.
+     */
+    @GameTest(template = "empty", timeoutTicks = 120)
+    public static void solid_warehouse_wall_blocks_farmer_delivery_until_opened(
+        GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos counter = helper.absolutePos(new BlockPos(5, 9, 5));
+        BlockPos wall = counter.north();
+        for (int dz = 0; dz <= 2; dz++)
+            level.setBlock(counter.north(dz).below(), Blocks.STONE.defaultBlockState(), 3);
+        level.setBlock(wall, Blocks.STONE.defaultBlockState(), 3);
+        level.setBlock(wall.above(), Blocks.STONE.defaultBlockState(), 3);
+        PlayerNpcEntity shop = spawn(level, counter, PlayerNpcEntity.Profession.SHOPKEEPER);
+        PlayerNpcEntity farmer = spawn(level, counter.north(2),
+            PlayerNpcEntity.Profession.FARMER);
+        work(shop);
+        shop.backpack().addItem(new ItemStack(Items.EMERALD, 1));
+        farmer.backpack().addItem(new ItemStack(Items.CARROT, 3));
+        long tick = level.getGameTime();
+        if (shop.hasLineOfSight(farmer))
+            throw new AssertionError("Test warehouse wall did not obstruct line of sight");
+        if (ShopCounter.buyHarvestFromFarmer(shop, farmer, tick)
+            || shop.backpack().countItem(Items.EMERALD) != 1
+            || shop.backpack().countItem(Items.CARROT) != 0
+            || farmer.backpack().countItem(Items.EMERALD) != 0
+            || farmer.backpack().countItem(Items.CARROT) != 3)
+            throw new AssertionError("Farmer delivered physical goods through solid wall");
+        level.setBlock(wall, Blocks.AIR.defaultBlockState(), 3);
+        level.setBlock(wall.above(), Blocks.AIR.defaultBlockState(), 3);
+        if (!shop.hasLineOfSight(farmer)
+            || !ShopCounter.buyHarvestFromFarmer(shop, farmer, tick)
+            || shop.backpack().countItem(Items.EMERALD) != 0
+            || shop.backpack().countItem(Items.CARROT) != 3
+            || farmer.backpack().countItem(Items.EMERALD) != 1
+            || farmer.backpack().countItem(Items.CARROT) != 0)
+            throw new AssertionError("Open warehouse exchange broke real goods conservation");
+        helper.succeed();
     }
 
     @GameTest(template = "empty", timeoutTicks = 120)
@@ -254,5 +337,53 @@ public final class MarketEconomyGameTests {
                 helper.fail("Autonomous vanilla-world customer did not pay shop for real bread", origin);
             else helper.succeed();
         });
+    }
+
+    /**
+     * Server-side player-interaction regression. FakePlayer is used ONLY as
+     * a test caller, not as an NPC actor or a substitute for GUI acceptance.
+     * No time-of-day mutation escapes this synchronous test.
+     */
+    @GameTest(template = "empty", timeoutTicks = 120)
+    public static void player_shop_interaction_requires_real_shift_and_held_payment(
+        GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos at = helper.absolutePos(new BlockPos(5, 9, 5));
+        PlayerNpcEntity clerk = spawn(level, at, PlayerNpcEntity.Profession.SHOPKEEPER);
+        var buyer = FakePlayerFactory.getMinecraft(level);
+        buyer.moveTo(at.getX() + 1.5, at.getY(), at.getZ() + 0.5, 0, 0);
+        buyer.getInventory().clearContent();
+        buyer.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.EMERALD, 3));
+        clerk.backpack().addItem(new ItemStack(Items.BREAD, 3));
+        long oldDayTime = level.getDayTime();
+        try {
+            work(clerk);
+            level.setDayTime(13000);
+            if (ShopCounter.purchase(clerk, buyer, buyer.getMainHandItem()))
+                throw new AssertionError("Human customer bought from a CLOSED night shop");
+            level.setDayTime(1000);
+            clerk.setDecision(new LivingPlanner.Decision(
+                LivingPlanner.Intent.SLEEP, 100, "clerk off duty"));
+            if (ShopCounter.purchase(clerk, buyer, buyer.getMainHandItem()))
+                throw new AssertionError("Human customer bought from a SLEEPING clerk");
+            work(clerk);
+            if (ShopCounter.purchase(clerk, buyer, new ItemStack(Items.EMERALD, 1)))
+                throw new AssertionError("Detached payment minted a physical shop item");
+            if (clerk.backpack().countItem(Items.BREAD) != 3
+                || clerk.backpack().countItem(Items.EMERALD) != 0
+                || buyer.getMainHandItem().getCount() != 3
+                || buyer.getInventory().countItem(Items.BREAD) != 0)
+                throw new AssertionError("Refused player sale mutated goods or currency");
+            if (!ShopCounter.purchase(clerk, buyer, buyer.getMainHandItem())
+                || clerk.backpack().countItem(Items.BREAD) != 2
+                || clerk.backpack().countItem(Items.EMERALD) != 1
+                || buyer.getMainHandItem().getCount() != 2
+                || buyer.getInventory().countItem(Items.BREAD) != 1)
+                throw new AssertionError("Real held emerald did not buy exactly one stocked bread");
+        } finally {
+            level.setDayTime(oldDayTime);
+            buyer.getInventory().clearContent();
+        }
+        helper.succeed();
     }
 }

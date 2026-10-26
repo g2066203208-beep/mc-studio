@@ -28,6 +28,8 @@ public final class LivingWorldActions {
     private LivingWorldActions() {}
 
     public static void tick(PlayerNpcEntity npc, ServerLevel level) {
+        // Close only NPC-opened wooden doors when every real doorway user has
+        // cleared the threshold; this also runs while residents are sleeping.
         if (npc.mode() != PlayerNpcEntity.Mode.LIVE) {
             if (npc.isSleeping()) npc.stopSleeping();
             return;

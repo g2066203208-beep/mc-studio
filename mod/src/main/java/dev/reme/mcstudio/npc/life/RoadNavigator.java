@@ -5,10 +5,63 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.Vec3;
+import java.util.Map;
+import java.util.WeakHashMap;
 
 /** Local, bounded road preference over vanilla pathfinding (not a global road network). */
 public final class RoadNavigator {
     private RoadNavigator() {}
+
+    // Transient per-entity watchdog: no world save schema changes, and weak
+    // keys cannot retain unloaded NPCs. Access only from the server tick.
+    private static final Map<PlayerNpcEntity, TravelProgress> TRAVEL = new WeakHashMap<>();
+    private static final int STALLED_PATH_TICKS = 80;
+    private static final double MIN_MOVEMENT_SQR = 0.0625;
+
+    private static final class TravelProgress {
+        BlockPos destination;
+        Vec3 lastPosition;
+        long lastMovedTick;
+
+        TravelProgress(BlockPos destination, Vec3 position, long tick) {
+            this.destination = destination.immutable();
+            this.lastPosition = position;
+            this.lastMovedTick = tick;
+        }
+    }
+
+    /**
+     * Vanilla navigation may still report an active partial path when the
+     * entity has remained physically stationary at a facade for many ticks.
+     * Never treat that state as proof of successful walking. Stop the stale
+     * path so the next normal planner invocation can try another route.
+     */
+    private static boolean stopStalledPath(PlayerNpcEntity npc, BlockPos destination, long tick) {
+        TravelProgress progress = TRAVEL.get(npc);
+        if (progress == null || !progress.destination.equals(destination)
+                || tick < progress.lastMovedTick) {
+            TRAVEL.put(npc, new TravelProgress(destination, npc.position(), tick));
+            return false;
+        }
+        if (npc.position().distanceToSqr(progress.lastPosition) >= MIN_MOVEMENT_SQR) {
+            progress.lastPosition = npc.position();
+            progress.lastMovedTick = tick;
+            return false;
+        }
+        if (npc.getNavigation().isDone()) {
+            // A new journey must not inherit idle time from an old path.
+            progress.lastMovedTick = tick;
+            return false;
+        }
+        if (tick - progress.lastMovedTick >= STALLED_PATH_TICKS) {
+            npc.getNavigation().stop();
+            npc.setAction("stalled native path stopped; physical route needs replanning");
+            progress.lastMovedTick = tick;
+            return true;
+        }
+        return false;
+    }
 
     public static boolean moveToward(PlayerNpcEntity npc, ServerLevel level,
                                      BlockPos destination, double speed) {
@@ -47,6 +100,7 @@ public final class RoadNavigator {
             return false;
         }
         long tick = level.getGameTime();
+        if (stopStalledPath(npc, destination, tick)) return false;
         // Failed paths must be retried: never report movement solely because
         // a cooldown is active. Delay replanning only while a path actually runs.
         if (!npc.getNavigation().isDone() && !npc.canRepath(destination, tick)) return true;
@@ -104,15 +158,38 @@ public final class RoadNavigator {
             // Actual vanilla A* must accept a reachable route. The first
             // candidate can be behind real blocks despite sharing a sidewalk
             // height. Never declare a ghost route just for its lower distance.
-            if (npc.getNavigation().moveTo(waypoint.getX()+0.5,
-                    waypoint.getY(),waypoint.getZ()+0.5,speed)) {
-                npc.setAction("following accessible real paved street waypoint");
+            // PathNavigation.moveTo(double,...) can accept a PARTIAL path
+            // ending at a wall. Such a path looked active (isDone=false)
+            // even though the resident stood on the same tile all night.
+            // A street waypoint must be reachable by native A* before
+            // claiming that this leg of the journey is underway.
+            var path = npc.getNavigation().createPath(waypoint, 0);
+            if (path != null && path.canReach()
+                && npc.getNavigation().moveTo(path, speed)) {
+                npc.setAction("following reachable real paved street waypoint");
                 return true;
             }
         }
-        boolean direct = npc.getNavigation().moveTo(destination.getX()+0.5,
-            destination.getY(),destination.getZ()+0.5,speed);
-        if(direct)npc.setAction("navigating direct loaded-world vanilla route");
+        // Distant jobs can legitimately require several short native A*
+        // legs. Keep a PARTIAL route only when its real final path node is
+        // substantially closer (>=5 blocks squared-distance margin AND
+        // >=3 blocks of actual travel). Reject the zero-progress partial
+        // paths that previously held a guard at a facade all night.
+        var directPath = npc.getNavigation().createPath(destination, 0);
+        if (directPath == null) return false;
+        boolean complete = directPath.canReach();
+        boolean advancing = false;
+        if (!complete && directPath.getNodeCount() > 1) {
+            BlockPos end = directPath.getNode(directPath.getNodeCount()-1).asBlockPos();
+            advancing = npc.blockPosition().distSqr(destination)
+                    - end.distSqr(destination) >= 25
+                && npc.blockPosition().distSqr(end) >= 9;
+        }
+        if (!complete && !advancing) return false;
+        boolean direct = npc.getNavigation().moveTo(directPath, speed);
+        if (direct) npc.setAction(complete
+            ? "navigating fully reachable vanilla route"
+            : "walking a measurable native A-star leg toward distant destination");
         return direct;
     }
 }

@@ -298,4 +298,184 @@ public final class NpcEscortPairCameraGameTests {
             throw new AssertionError("Camera claims both separated actors visible through stone");
         helper.succeed();
     }
+
+    /** Keep a safe moving lens through turns; reject stale/blocked positions. */
+    @GameTest(template="empty", timeoutTicks=100)
+    public static void safe_chase_lens_tracks_walking_actor_without_orbit_cut(
+            GameTestHelper helper) {
+        Vec3 oldEye = new Vec3(5.5, 5.5, 5.5);
+        Vec3 newEye = oldEye.add(0.45, 0, 0.65);
+        var previous = NpcCameraController.selectClearView(oldEye, 0,
+            p -> true, p -> true);
+        if (previous == null) throw new AssertionError("No initial camera");
+        var retained = NpcCameraController.retainSafeShot(previous,
+            oldEye, newEye, p -> true, p -> true);
+        if (retained == null) throw new AssertionError("Safe walking lens discarded");
+        Vec3 oldRelative = new Vec3(previous.x(), previous.y(), previous.z())
+            .subtract(oldEye);
+        Vec3 newRelative = new Vec3(retained.x(), retained.y(), retained.z())
+            .subtract(newEye);
+        if (oldRelative.distanceToSqr(newRelative) > 0.000001)
+            throw new AssertionError("Camera jumped to a new orbit on actor turn");
+        if (NpcCameraController.retainSafeShot(previous,
+                oldEye, newEye, p -> false, p -> true) != null
+            || NpcCameraController.retainSafeShot(previous,
+                oldEye, newEye, p -> true, p -> false) != null
+            || NpcCameraController.retainSafeShot(previous,
+                oldEye, oldEye.add(5, 0, 0), p -> true, p -> true) != null)
+            throw new AssertionError("Unsafe or stale camera was retained");
+        helper.succeed();
+    }
+
+    /** A real stone block must invalidate a previously safe moving camera. */
+    @GameTest(template="empty", timeoutTicks=100)
+    public static void stable_chase_lens_rechecks_real_stone_collision(
+            GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos base = helper.absolutePos(new BlockPos(8, 3, 8));
+        for (int dx = -6; dx <= 6; dx++)
+            for (int dz = -8; dz <= 6; dz++) {
+                BlockPos floor = base.offset(dx, -1, dz);
+                level.setBlock(floor, Blocks.SMOOTH_STONE.defaultBlockState(), 2);
+                for (int dy = 0; dy < 5; dy++)
+                    level.setBlock(floor.above(dy + 1), Blocks.AIR.defaultBlockState(), 2);
+            }
+        Vec3 eye = new Vec3(base.getX() + 0.5, base.getY() + 1.62,
+            base.getZ() + 0.5);
+        var previous = NpcCameraController.selectClearView(eye, 0,
+            p -> true, p -> true);
+        if (previous == null) throw new AssertionError("No initial street lens");
+        Vec3 next = eye.add(0.25, 0, 0.25);
+        java.util.function.Predicate<Vec3> realBody = p ->
+            NpcCameraController.spectatorBodyClearInWorld(
+                level, p, 1.62, 0.6, 1.8);
+        var safe = NpcCameraController.retainSafeShot(previous, eye, next,
+            realBody, p -> true);
+        if (safe == null) throw new AssertionError("Open street lens rejected");
+        BlockPos obstruction = BlockPos.containing(
+            new Vec3(safe.x(), safe.y() - 1.0, safe.z()));
+        level.setBlock(obstruction, Blocks.STONE.defaultBlockState(), 2);
+        if (NpcCameraController.retainSafeShot(previous, eye, next,
+                realBody, p -> true) != null)
+            throw new AssertionError("Old camera passed through a real stone block");
+        helper.succeed();
+    }
+
+    /** Real GUI regression: spectator mode has no entity collision, so the
+     *  previous "block-clear" orbit could park INSIDE a moving NPC's head.
+     *  Use a genuinely spawned citizen and its vanilla bounding box; a
+     *  different, still clear third-person angle must be selected instead.
+     */
+    @GameTest(template="empty", timeoutTicks=100)
+    public static void real_npc_body_blocks_face_filling_spectator_lens(
+            GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos origin = helper.absolutePos(new BlockPos(8, 3, 8));
+        Vec3 targetEye = new Vec3(origin.getX() + 0.5,
+            origin.getY() + 1.62, origin.getZ() + 0.5);
+        var first = NpcCameraController.selectClearView(
+            targetEye, 0, p -> true, p -> true);
+        if (first == null) throw new AssertionError("Missing baseline chase lens");
+        PlayerNpcEntity bystander = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (bystander == null) throw new AssertionError("NPC registry unavailable");
+        bystander.moveTo(first.x(), first.y() - bystander.getEyeHeight(),
+            first.z(), 0, 0);
+        if (!level.addFreshEntity(bystander))
+            throw new AssertionError("Could not spawn real camera-occluding NPC");
+        var nearby = level.getEntitiesOfClass(PlayerNpcEntity.class,
+            bystander.getBoundingBox().inflate(12), PlayerNpcEntity::isAlive);
+        Vec3 firstEye = new Vec3(first.x(), first.y(), first.z());
+        if (NpcCameraController.lensClearOfNpcBodies(firstEye, nearby, 0.75))
+            throw new AssertionError("Spectator lens accepted NPC face collision");
+        var recovered = NpcCameraController.selectClearView(
+            targetEye, 0,
+            p -> NpcCameraController.lensClearOfNpcBodies(p, nearby, 0.75),
+            p -> true);
+        if (recovered == null)
+            throw new AssertionError("Safe alternative third-person lens missed");
+        Vec3 recoveredEye = new Vec3(recovered.x(), recovered.y(), recovered.z());
+        if (recoveredEye.distanceToSqr(firstEye) < 0.1
+            || !NpcCameraController.lensClearOfNpcBodies(recoveredEye, nearby, 0.75))
+            throw new AssertionError("Camera still clips the real bystander");
+        if (NpcCameraController.lensClearOfNpcBodies(
+                new Vec3(Double.NaN, 2, 3), nearby, 0.75))
+            throw new AssertionError("Non-finite camera lens accepted");
+        helper.succeed();
+    }
+
+    /** A clear camera EYE is insufficient when its torso intersects a real
+     * citizen standing just to the side. Spectator collision must use the
+     * entire player volume, including the feet, before accepting a lens.
+     */
+    @GameTest(template="empty", timeoutTicks=100)
+    public static void real_citizen_blocks_spectator_torso_even_when_eye_clear(
+            GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos origin = helper.absolutePos(new BlockPos(8, 3, 8));
+        Vec3 eye = new Vec3(origin.getX() + 0.5,
+            origin.getY() + 1.62, origin.getZ() + 0.5);
+        PlayerNpcEntity bystander = NpcRegistry.PLAYER_NPC.get().create(level);
+        if (bystander == null)
+            throw new AssertionError("Real citizen entity registration missing");
+        bystander.moveTo(eye.x + 0.7, eye.y - 1.62, eye.z, 0, 0);
+        if (!level.addFreshEntity(bystander))
+            throw new AssertionError("Could not spawn real bystander");
+        var citizens = level.getEntitiesOfClass(PlayerNpcEntity.class,
+            bystander.getBoundingBox().inflate(4), PlayerNpcEntity::isAlive);
+        // The bystander's expanded box misses the lens eye itself, but
+        // intersects the spectator's 0.6-block-wide torso.
+        if (!NpcCameraController.lensClearOfNpcBodies(eye, citizens, 0.2))
+            throw new AssertionError("Test precondition: camera eye is occluded");
+        if (NpcCameraController.spectatorBodyClearOfNpcBodies(
+                eye, 1.62, 0.6, 1.8, citizens, 0.2))
+            throw new AssertionError("Camera torso clipped a real citizen");
+        bystander.moveTo(eye.x + 4, eye.y - 1.62, eye.z, 0, 0);
+        if (!NpcCameraController.spectatorBodyClearOfNpcBodies(
+                eye, 1.62, 0.6, 1.8, citizens, 0.2))
+            throw new AssertionError("Unobstructed spectator body was rejected");
+        if (NpcCameraController.spectatorBodyClearOfNpcBodies(
+                eye, 1.62, Double.NaN, 1.8, citizens, 0.2)
+            || NpcCameraController.spectatorBodyClearOfNpcBodies(
+                eye, 1.62, 0.6, 1.8, citizens, -1.0))
+            throw new AssertionError("Invalid spectator geometry was accepted");
+        helper.succeed();
+    }
+    /** Real GUI failure mode: no NEW discrete orbit sample fits a narrow
+     * corridor, but the last collision-checked moving lens remains clear.
+     * Preserve third-person tracking rather than needlessly snapping to POV.
+     * Both geometry and line-of-sight must be revalidated each tick.
+     */
+    @GameTest(template="empty", timeoutTicks=100)
+    public static void revalidated_stable_lens_prevents_unnecessary_pov_fallback(
+            GameTestHelper helper) {
+        Vec3 oldEye = new Vec3(8.5, 5.62, 8.5);
+        Vec3 nextEye = oldEye.add(0.2, 0, 0.15);
+        // This safe prior orbit is BETWEEN the fixed sampled azimuths.
+        var previous = new NpcCameraController.CameraPose(
+            oldEye.x + 1.9, oldEye.y + 0.32, oldEye.z - 1.7, 0, 0);
+        Vec3 expected = new Vec3(
+            previous.x() + 0.2, previous.y(), previous.z() + 0.15);
+        java.util.function.Predicate<Vec3> corridor =
+            p -> p.distanceToSqr(expected) < 0.0025;
+        var freshlySampled = NpcCameraController.selectClearView(
+            nextEye, 0, corridor, p -> true);
+        if (freshlySampled != null)
+            throw new AssertionError("Test fixture accidentally matched an orbit sample");
+        var recovered = NpcCameraController.preferSafeRetained(
+            freshlySampled, previous, oldEye, nextEye, corridor, p -> true);
+        if (recovered == null || new Vec3(
+                recovered.x(), recovered.y(), recovered.z())
+                .distanceToSqr(expected) > 0.000001)
+            throw new AssertionError("Safe previous lens was lost to needless POV");
+        if (NpcCameraController.preferSafeRetained(
+                null, previous, oldEye, nextEye, p -> false, p -> true) != null
+            || NpcCameraController.preferSafeRetained(
+                null, previous, oldEye, nextEye, p -> true, p -> false) != null
+            || NpcCameraController.preferSafeRetained(
+                null, previous, oldEye, oldEye.add(5, 0, 0),
+                p -> true, p -> true) != null)
+            throw new AssertionError("Unsafe, occluded or stale lens was retained");
+        helper.succeed();
+    }
+
 }

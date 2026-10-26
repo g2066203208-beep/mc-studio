@@ -25,9 +25,16 @@ def episode(who: str, start: int, complete: bool = True) -> list[str]:
         f"REME_NPC_STORY stage=police_contact tick={start+40} guard={GUARD} suspect={who} blows=2 stunned=false",
         f"REME_NPC_STORY stage=police_contact tick={start+50} guard={GUARD} suspect={who} blows=3 stunned=true",
         f"REME_NPC_STORY stage=post_stun_arrest tick={start+70} guard={GUARD} suspect={who} holding=-22, 65, 14",
+    ] + [
+        # Same-UUID integrated-server positions: BOTH actors walk toward the
+        # real cell. No synthetic GameTest result can substitute for GUI logs.
+        f"REME_NPC_ESCORT_PAIR tick={start+80} officer={GUARD} prisoner={who} officerFeet=-8, 65, 14 prisonerFeet=-10, 65, 14 distanceSq=4.0 prisonerMayAdvance=true officerPathDone=false",
+        f"REME_NPC_ESCORT_PAIR tick={start+100} officer={GUARD} prisoner={who} officerFeet=-12, 65, 14 prisonerFeet=-14, 65, 14 distanceSq=4.0 prisonerMayAdvance=true officerPathDone=false",
+        f"REME_NPC_ESCORT_PAIR tick={start+115} officer={GUARD} prisoner={who} officerFeet=-17, 65, 14 prisonerFeet=-19, 65, 14 distanceSq=4.0 prisonerMayAdvance=true officerPathDone=false",
     ] + ([
+        # Both events may happen in one server tick; log ORDER still matters.
+        f"REME_NPC_STORY stage=jail_reached tick={start+120} guard={GUARD} prisoner={who} cell=-22, 65, 14",
         f"REME_NPC_STORY stage=jail_gate_locked tick={start+120} location=-22, 65, 16",
-        f"REME_NPC_STORY stage=jail_reached tick={start+121} guard={GUARD} prisoner={who} cell=-22, 65, 14",
     ] if complete else [])
 
 
@@ -51,7 +58,7 @@ class GenuineGuiCaseRegression(unittest.TestCase):
 
     def test_wrong_cell_gate_is_not_real_custody(self):
         lines = episode(A, 100)
-        lines[-2] = lines[-2].replace("location=-22, 65, 16", "location=20, 65, 16")
+        lines[-1] = lines[-1].replace("location=-22, 65, 16", "location=20, 65, 16")
         with self.assertRaisesRegex(ValueError, "never locked"):
             case.verify(filmed(lines))
 
@@ -63,7 +70,7 @@ class GenuineGuiCaseRegression(unittest.TestCase):
 
     def test_arresting_guard_must_match_jail_officer(self):
         lines = episode(A, 100)
-        lines[-1] = lines[-1].replace("guard=" + GUARD, "guard=" + B)
+        lines[-2] = lines[-2].replace("guard=" + GUARD, "guard=" + B)
         with self.assertRaisesRegex(ValueError, "not the escorting"):
             case.verify(filmed(lines))
 
@@ -81,9 +88,108 @@ class GenuineGuiCaseRegression(unittest.TestCase):
 
     def test_jail_arrival_after_mp4_end_is_not_filmed(self):
         lines = episode(A, 100)
-        late_arrival = lines.pop()
+        late_arrival = lines.pop(-2)
         with self.assertRaisesRegex(ValueError, "missing jail_reached"):
             case.verify(filmed(lines) + late_arrival + "\n")
+
+    def test_lock_before_officer_handoff_is_rejected(self):
+        lines = episode(A, 100)
+        lines[-2], lines[-1] = lines[-1], lines[-2]
+        with self.assertRaisesRegex(ValueError, "before officer acknowledged"):
+            case.verify(filmed(lines))
+
+    def test_jail_arrival_without_gate_lock_is_not_complete(self):
+        lines = episode(A, 100)[:-1]
+        with self.assertRaisesRegex(ValueError, "never locked after officer handoff"):
+            case.verify(filmed(lines))
+
+    def test_gate_lock_after_video_end_is_not_filmed(self):
+        lines = episode(A, 100)
+        late_lock = lines.pop()
+        with self.assertRaisesRegex(ValueError, "never locked after officer handoff"):
+            case.verify(filmed(lines) + late_lock + "\n")
+
+    def test_same_tick_handoff_then_lock_is_valid(self):
+        # Event order is authoritative when two events share a game tick.
+        self.assertIn("locked_iron_gate=true", case.verify(filmed(episode(A, 100))))
+
+    def test_missing_real_pair_positions_cannot_claim_escort(self):
+        lines = [line for line in episode(A, 100)
+                 if "REME_NPC_ESCORT_PAIR" not in line]
+        with self.assertRaisesRegex(ValueError, "three same-UUID"):
+            case.verify(filmed(lines))
+
+    def test_other_officer_trace_cannot_rescue_filmed_prisoner(self):
+        lines = [line.replace("officer=" + GUARD, "officer=" + B)
+                 if "REME_NPC_ESCORT_PAIR" in line else line
+                 for line in episode(A, 100)]
+        with self.assertRaisesRegex(ValueError, "three same-UUID"):
+            case.verify(filmed(lines))
+
+    def test_both_actors_must_actually_walk(self):
+        lines = [line.replace("officerFeet=-12, 65, 14", "officerFeet=-8, 65, 14")
+                     .replace("officerFeet=-17, 65, 14", "officerFeet=-8, 65, 14")
+                     .replace("prisonerFeet=-14, 65, 14", "prisonerFeet=-10, 65, 14")
+                     .replace("prisonerFeet=-19, 65, 14", "prisonerFeet=-10, 65, 14")
+                 for line in episode(A, 100)]
+        with self.assertRaisesRegex(ValueError, "did not both walk"):
+            case.verify(filmed(lines))
+
+    def test_implausible_jump_cannot_masquerade_as_native_walk(self):
+        lines = [line.replace("officerFeet=-12, 65, 14", "officerFeet=50, 65, 14")
+                     .replace("prisonerFeet=-14, 65, 14", "prisonerFeet=48, 65, 14")
+                 for line in episode(A, 100)]
+        with self.assertRaisesRegex(ValueError, "implausible position jump"):
+            case.verify(filmed(lines))
+
+    def test_officer_more_than_four_blocks_is_not_close_escort(self):
+        lines = [line.replace("distanceSq=4.0", "distanceSq=25.0")
+                 if "tick=180" in line else line
+                 for line in episode(A, 100)]
+        with self.assertRaisesRegex(ValueError, "four-block"):
+            case.verify(filmed(lines))
+
+    def test_forged_close_distance_cannot_hide_separated_entities(self):
+        lines = episode(A, 100)
+        lines = [line.replace("distanceSq=4.0", "distanceSq=0.0")
+                 if "tick=180" in line else line for line in lines]
+        with self.assertRaisesRegex(ValueError, "contradicts real"):
+            case.verify(filmed(lines))
+
+    def test_forged_far_distance_cannot_disagree_with_block_positions(self):
+        lines = episode(A, 100)
+        lines = [line.replace("distanceSq=4.0", "distanceSq=15.0")
+                 if "tick=180" in line else line for line in lines]
+        with self.assertRaisesRegex(ValueError, "contradicts real"):
+            case.verify(filmed(lines))
+
+    def test_final_escort_sample_same_tick_as_jail_handoff_is_valid(self):
+        # Real integrated-server logging can sample both actors and book the
+        # prisoner later in the SAME tick. Textual order, not strict tick
+        # inequality, proves the sample preceded the actual handoff.
+        lines = [line.replace("tick=215", "tick=220")
+                 if "REME_NPC_ESCORT_PAIR" in line else line
+                 for line in episode(A, 100)]
+        self.assertIn("physical_pair=true escort_samples=3",
+                      case.verify(filmed(lines)))
+
+    def test_same_tick_trace_after_handoff_does_not_count(self):
+        lines = episode(A, 100)
+        last_trace = lines.pop(9)
+        lines.insert(10, last_trace.replace("tick=215", "tick=220"))
+        with self.assertRaisesRegex(ValueError, "three same-UUID"):
+            case.verify(filmed(lines))
+
+    def test_escort_tick_outside_arrest_to_jail_cannot_count_as_walk(self):
+        lines = episode(A, 100)
+        lines = [line.replace("tick=180", "tick=221")
+                 if "REME_NPC_ESCORT_PAIR" in line else line for line in lines]
+        with self.assertRaisesRegex(ValueError, "outside arrest-to-jail"):
+            case.verify(filmed(lines))
+
+    def test_physical_pair_evidence_is_reported(self):
+        result = case.verify(filmed(episode(A, 100)))
+        self.assertIn("physical_pair=true escort_samples=3", result)
 
     def test_missing_video_end_marker_is_not_proof(self):
         with self.assertRaisesRegex(ValueError, "video start/end"):

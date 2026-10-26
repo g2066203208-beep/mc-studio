@@ -6,6 +6,7 @@ import dev.reme.mcstudio.npc.NpcCameraController;
 import dev.reme.mcstudio.npc.NpcRegistry;
 import dev.reme.mcstudio.npc.NpcItems;
 import dev.reme.mcstudio.npc.life.NaturalResidentSpawn;
+import dev.reme.mcstudio.npc.life.HomeEntranceRoute;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
@@ -25,6 +26,8 @@ public final class StudioMod {
         modBus.addListener(NaturalResidentSpawn::register);
         NeoForge.EVENT_BUS.addListener(NpcCommands::register);
         NeoForge.EVENT_BUS.addListener(NpcCameraController::onTick);
+        NeoForge.EVENT_BUS.addListener(HomeEntranceRoute::onLevelTick);
+        NeoForge.EVENT_BUS.addListener(HomeEntranceRoute::onPlayerUseDoor);
         NeoForge.EVENT_BUS.addListener(NpcCameraController::onLogout);
         NeoForge.EVENT_BUS.addListener(StudioMod::onPlayerLogin);
         LogUtils.getLogger().info("REME NPC {} CONSTRUCTED on NeoForge 21.1.262 baseline (Minecraft 1.21.1); commands register when the SERVER dispatcher is created, not at mod construction", VERSION);

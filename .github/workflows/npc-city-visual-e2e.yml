@@ -43,6 +43,7 @@ on:
       - fix/npc-camera-pair-to-safe-single-v113
       - fix/npc-escort-walking-slack-v114
       - fix/npc-jail-lock-after-officer-handoff-v115
+      - fix/npc-cell-lock-requires-ack-v116
   pull_request:
     branches:
       - feat/npc-economy-market-fair-v069

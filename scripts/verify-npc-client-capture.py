@@ -2,8 +2,9 @@
 """Verify *actual* Minecraft client video artifacts, not a successful Gradle build.
 
 This complements verify-npc-gui-case.py's same-UUID crime chronology.
-A successful CI job must contain two decodable, non-frozen, continuous
-1280x720 H.264 recordings and genuine client RGB screenshots. It must
+A successful CI job must contain two original decodable, non-frozen,
+continuous 1280x720 H.264 recordings plus one contiguous HUD-free cut
+of the original crime recording and genuine client RGB screenshots. It must
 also have no PlayerAnimator "wrong directory" runtime warnings.
 """
 import argparse
@@ -20,6 +21,9 @@ VIDEO_CONTRACT = {
     # markers, not a padded 90s wall-clock minimum. The real crime-to-cell
     # sequence can complete sooner; preserve enough continuous frames.
     "client-gui-city-full-crime-to-locked-jail.mp4": 35.0,
+    # Derived by trimming consecutive genuine frames AFTER F1; the uncut
+    # source remains the authoritative same-UUID chronology evidence.
+    "client-gui-city-clean-chase-to-cell.mp4": 15.0,
     "client-gui-city-physical-npc-follow.mp4": 45.0,
 }
 SCREENSHOTS = (

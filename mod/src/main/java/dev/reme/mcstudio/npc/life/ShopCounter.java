@@ -30,13 +30,22 @@ public final class ShopCounter {
 
     public static boolean purchase(PlayerNpcEntity clerk, Player buyer,
                                    ItemStack payment) {
+        // Human players use the SAME physical opening hours and counter
+        // location as autonomous residents. Never sell from a sleeping or
+        // off-duty NPC, or charge a detached ItemStack supplied by a caller.
         if (!samePhysicalWorld(clerk, buyer)
+            || !openForResidentSales(clerk)
+            || (payment != buyer.getMainHandItem()
+                && payment != buyer.getOffhandItem())
+            || !(clerk.level() instanceof ServerLevel serverLevel)
+            || !serverLevel.getServer().isSameThread()
             || clerk.profession() != PlayerNpcEntity.Profession.SHOPKEEPER
             || clerk.mode() != PlayerNpcEntity.Mode.LIVE
             || clerk.isDetained(clerk.level().getGameTime())
             || !clerk.isAlive() || !buyer.isAlive()
             || !payment.is(Items.EMERALD) || payment.isEmpty()
             || buyer.distanceToSqr(clerk) > 16.0
+            || !clerk.hasLineOfSight(buyer)
             || clerk.memory().trust(buyer.getUUID()) <= -25
             || clerk.civic().standing(buyer.getUUID(), clerk.character().justice())
                 == CivicMind.Standing.WANTED
@@ -76,10 +85,39 @@ public final class ShopCounter {
     }
 
     /**
+     * Sales and wholesale exchanges also require an unobstructed vanilla
+     * line of sight: a customer across a solid shop wall cannot exchange
+     * real items just because the two entities are within three blocks.
+     */
+
+    /**
      * A genuine autonomous NPC customer pays a genuine emerald from their own
      * 36-slot NBT backpack. Both bags are checked and committed together.
      * Nothing goes via FakePlayer inventory, and no item or currency is minted.
      */
+    /**
+     * A shop counter is often behind a real closed wooden entrance. Walking
+     * straight toward its coordinates may stop against the exterior wall;
+     * approach and hand-open a genuine intact wooden door first. Reuse the
+     * same bounded, loaded-only entrance path as school/hospital employees.
+     * Stores with no matching entrance retain the old road fallback.
+     */
+    public static boolean commuteToCounter(PlayerNpcEntity clerk, ServerLevel level) {
+        if (!level.getServer().isSameThread() || !clerk.isAlive()
+            || !level.hasChunkAt(clerk.workPos())
+            || !DailyRoaming.inRange(clerk, clerk.workPos())) return false;
+        if (HomeEntranceRoute.moveTowardEntrance(
+                clerk, level, clerk.workPos(), 0.83)) {
+            clerk.setAction("walking through real wooden shop entrance to counter");
+            return true;
+        }
+        if (RoadNavigator.moveToward(clerk, level, clerk.workPos(), 0.83)) {
+            clerk.setAction("walking on real streets to shop counter");
+            return true;
+        }
+        return false;
+    }
+
     public static boolean scheduledAt(long dayTime, int shift) {
         long clock = Math.floorMod(dayTime + shift, 24000L);
         return clock < 11000L;
@@ -118,6 +156,7 @@ public final class ShopCounter {
             || shop.hostileTo(customer) || customer.hostileTo(shop)
             || shop.memory().trust(customer.getUUID()) <= -25
             || customer.distanceToSqr(shop) > 9.0
+            || !shop.hasLineOfSight(customer)
             || !shop.level().getServer().isSameThread()
             || !shop.level().hasChunkAt(shop.blockPosition())
             || !shop.level().hasChunkAt(customer.blockPosition())) return false;
@@ -166,6 +205,7 @@ public final class ShopCounter {
             || shop.hostileTo(farmer) || farmer.hostileTo(shop)
             || shop.memory().trust(farmer.getUUID()) <= -25
             || shop.distanceToSqr(farmer) > 9.0
+            || !shop.hasLineOfSight(farmer)
             || !shop.level().getServer().isSameThread()
             || !shop.level().hasChunkAt(shop.blockPosition())
             || !shop.level().hasChunkAt(farmer.blockPosition())
@@ -306,7 +346,9 @@ public final class ShopCounter {
                 && MovementPolicy.due(tick, clerk.getId(), 40)
                 && level.hasChunkAt(clerk.homePos())
                 && DailyRoaming.inRange(clerk, clerk.homePos())
-                && RoadNavigator.moveToward(clerk, level, clerk.homePos(), 0.88)) {
+                && (HomeEntranceRoute.moveTowardEntrance(
+                        clerk, level, clerk.homePos(), 0.88)
+                    || RoadNavigator.moveToward(clerk, level, clerk.homePos(), 0.88))) {
                 clerk.setAction("finished convenience-store shift; commuting home by road");
                 return true;
             }
@@ -336,8 +378,7 @@ public final class ShopCounter {
         }
         if (NeighborhoodMarket.tickSupplier(clerk, level, tick)) return true;
         if (clerk.blockPosition().distSqr(clerk.workPos()) > 6) {
-            RoadNavigator.moveToward(clerk, level, clerk.workPos(), 0.83);
-            clerk.setAction("walking to shop counter for real daytime shift");
+            commuteToCounter(clerk, level);
         } else {
             clerk.getNavigation().stop();
             clerk.setAction(firstStock(clerk.backpack()) == null
