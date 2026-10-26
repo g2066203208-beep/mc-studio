@@ -19,6 +19,9 @@ final class SeamBoundedRetryQueue<T> {
     private final ArrayDeque<T> pending = new ArrayDeque<>();
     private final Set<T> queued = new HashSet<>();
     private final Set<T> overflow = new LinkedHashSet<>();
+    // Native collider callbacks can mark the section dirty while its JNI
+    // upload is still on the stack. Replay after complete(), never lose it.
+    private final Set<T> replayAfterUpload = new HashSet<>();
 
     SeamBoundedRetryQueue(int capacity) {
         if (capacity < 1) throw new IllegalArgumentException("capacity");
@@ -36,6 +39,37 @@ final class SeamBoundedRetryQueue<T> {
         pending.addLast(item);
     }
 
+    /**
+     * A real block edit or native witness must not wait behind the entire
+     * initial 5x5x4 foreign terrain window. Promote that actual section to
+     * the next available JNI upload slot; displace only queued work, never
+     * discard it. This does NOT alter the authoritative Rapier body.
+     *
+     * If Sable reenters while this section is already polled for JNI, keep
+     * a replay request so the newer real block state is uploaded afterwards.
+     */
+    void promote(T item) {
+        if (item == null) throw new IllegalArgumentException("item");
+        if (queued.contains(item)) {
+            if (pending.remove(item)) {
+                pending.addFirst(item);
+            } else {
+                replayAfterUpload.add(item);
+            }
+            return;
+        }
+        overflow.remove(item);
+        if (pending.size() == capacity) {
+            T displaced = pending.removeLast();
+            if (!queued.remove(displaced))
+                throw new IllegalStateException("Displaced section not queued");
+            overflow.add(displaced);
+        }
+        if (!queued.add(item))
+            throw new IllegalStateException("Duplicate promoted section");
+        pending.addFirst(item);
+    }
+
     T poll() {
         return pending.pollFirst();
     }
@@ -50,6 +84,9 @@ final class SeamBoundedRetryQueue<T> {
     void defer(T item) {
         if (item == null || !queued.remove(item))
             throw new IllegalStateException("Cannot defer a nonqueued section");
+        // An unloaded section is already scheduled for retry; a second
+        // replay would only multiply native work when it finally loads.
+        replayAfterUpload.remove(item);
         if (pending.size() >= capacity) {
             queued.add(item);
             throw new IllegalStateException("Retry queue capacity exceeded");
@@ -72,12 +109,14 @@ final class SeamBoundedRetryQueue<T> {
     void complete(T item) {
         if (!queued.remove(item))
             throw new IllegalStateException("Cannot complete a nonqueued section");
+        boolean replay = replayAfterUpload.remove(item);
         while (pending.size() < capacity && !overflow.isEmpty()) {
             var it = overflow.iterator();
             T deferred = it.next();
             it.remove();
             if (queued.add(deferred)) pending.addLast(deferred);
         }
+        if (replay) promote(item);
     }
 
     int size() { return pending.size(); }
@@ -87,5 +126,6 @@ final class SeamBoundedRetryQueue<T> {
         pending.clear();
         queued.clear();
         overflow.clear();
+        replayAfterUpload.clear();
     }
 }

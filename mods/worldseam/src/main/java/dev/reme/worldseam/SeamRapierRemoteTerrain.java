@@ -149,7 +149,7 @@ public final class SeamRapierRemoteTerrain {
             // Re-upload the exact native section if the witness is registered
             // after a section was already baked. Never alter other obsidian.
             if(active && level==target)
-                enqueue(new NativeSection(Math.floorDiv(pos.getX(),16),
+                UPLOAD_QUEUE.promote(new NativeSection(Math.floorDiv(pos.getX(),16),
                     Math.floorDiv(pos.getY(),16),Math.floorDiv(pos.getZ(),16)));
         } else {
             throw new IllegalArgumentException(
@@ -173,23 +173,25 @@ public final class SeamRapierRemoteTerrain {
         int cx=Math.floorDiv(p.getX(),16),cz=Math.floorDiv(p.getZ(),16);
         if(Math.abs(cx-centerX)>WINDOW_RADIUS ||
            Math.abs(cz-centerZ)>WINDOW_RADIUS)return;
-        enqueueIfResident(cx,cy,cz);
+        promoteIfResident(cx,cy,cz);
         // Native neighborhood classification depends on both sides of a
         // section face. Re-bake a loaded adjacent section when the edit
         // touches that face, rather than leaving stale native contacts.
-        if(Math.floorMod(p.getX(),16)==0)enqueueIfResident(cx-1,cy,cz);
-        if(Math.floorMod(p.getX(),16)==15)enqueueIfResident(cx+1,cy,cz);
-        if(Math.floorMod(p.getY(),16)==0)enqueueIfResident(cx,cy-1,cz);
-        if(Math.floorMod(p.getY(),16)==15)enqueueIfResident(cx,cy+1,cz);
-        if(Math.floorMod(p.getZ(),16)==0)enqueueIfResident(cx,cy,cz-1);
-        if(Math.floorMod(p.getZ(),16)==15)enqueueIfResident(cx,cy,cz+1);
+        if(Math.floorMod(p.getX(),16)==0)promoteIfResident(cx-1,cy,cz);
+        if(Math.floorMod(p.getX(),16)==15)promoteIfResident(cx+1,cy,cz);
+        if(Math.floorMod(p.getY(),16)==0)promoteIfResident(cx,cy-1,cz);
+        if(Math.floorMod(p.getY(),16)==15)promoteIfResident(cx,cy+1,cz);
+        if(Math.floorMod(p.getZ(),16)==0)promoteIfResident(cx,cy,cz-1);
+        if(Math.floorMod(p.getZ(),16)==15)promoteIfResident(cx,cy,cz+1);
     }
 
-    private static void enqueueIfResident(int cx,int cy,int cz) {
+    private static void promoteIfResident(int cx,int cy,int cz) {
         if(cy>windowTopSection || cy<windowBottomSection ||
            Math.abs((long)cx-centerX)>WINDOW_RADIUS ||
            Math.abs((long)cz-centerZ)>WINDOW_RADIUS)return;
-        enqueue(new NativeSection(cx,cy,cz));
+        // This is a REAL edited target section, not speculative terrain.
+        // Refresh its Rapier voxels before distant first-time uploads.
+        UPLOAD_QUEUE.promote(new NativeSection(cx,cy,cz));
     }
 
     private static void enqueue(NativeSection s) {

@@ -85,6 +85,58 @@ final class SeamBoundedRetryQueueTest {
     }
 
     @Test
+    void actualTargetBlockEditPreemptsDistantInitialNativeUploads() {
+        var q = new SeamBoundedRetryQueue<String>(2);
+        q.enqueue("center");
+        q.enqueue("far-a");
+        q.enqueue("far-b");
+        q.enqueue("edited-native-section");
+        q.promote("edited-native-section");
+        assertEquals(2, q.size());
+        assertEquals(2, q.deferredCount());
+        assertEquals("edited-native-section", q.poll());
+        q.complete("edited-native-section");
+        assertEquals("center", q.poll());
+        q.complete("center");
+        var remaining = new java.util.HashSet<String>();
+        remaining.add(q.poll());
+        remaining.add(q.poll());
+        assertEquals(java.util.Set.of("far-a", "far-b"), remaining);
+        for (var item : remaining) q.complete(item);
+        assertNull(q.poll());
+    }
+
+    @Test
+    void secondRealEditDuringNativeUploadIsReplayedAfterJniReturns() {
+        var q = new SeamBoundedRetryQueue<String>(1);
+        q.enqueue("nether:0,7,0");
+        assertEquals("nether:0,7,0", q.poll());
+        // A synchronous Sable callback may notify a block edit while the
+        // first JNI upload is still in flight on this server thread.
+        q.promote("nether:0,7,0");
+        q.complete("nether:0,7,0");
+        assertEquals("nether:0,7,0", q.poll());
+        q.complete("nether:0,7,0");
+        assertNull(q.poll());
+    }
+
+    @Test
+    void promotedMissingSectionStillDefersWithoutDroppingWork() {
+        var q = new SeamBoundedRetryQueue<String>(1);
+        q.enqueue("unloaded");
+        q.enqueue("loaded");
+        q.promote("loaded");
+        assertEquals("loaded", q.poll());
+        q.complete("loaded");
+        assertEquals("unloaded", q.poll());
+        q.promote("unloaded"); // callback before getChunkNow failure
+        q.defer("unloaded");
+        assertEquals("unloaded", q.poll());
+        q.complete("unloaded");
+        assertNull(q.poll());
+    }
+
+    @Test
     void worldOrShipWindowChangeDiscardsAllOldRetries() {
         var q = new SeamBoundedRetryQueue<Integer>(1);
         q.enqueue(1);
