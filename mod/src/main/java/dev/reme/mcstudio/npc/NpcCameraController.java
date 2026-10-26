@@ -125,6 +125,21 @@ public final class NpcCameraController {
             new double[]{0.32, 0.05, -0.20});
     }
 
+    /**
+     * A narrow, real stone room can have no safe 1.85-block camera orbit:
+     * even a diagonal 1.85-block shot clips a three-block-wide room's walls.
+     * Only try this shorter, body-checked orbit after the ordinary shot and
+     * any still-valid retained lens fail. This is a CAMERA position only;
+     * it never moves or force-loads the filmed citizen.
+     */
+    @Nullable
+    public static CameraPose selectCompactView(Vec3 targetEye, float targetYaw,
+            Predicate<Vec3> clearLens, Predicate<Vec3> unobstructed) {
+        return selectClearViewWithRadii(targetEye, targetYaw, clearLens,
+            unobstructed, new double[]{1.55, 1.35},
+            new double[]{0.32, 0.05, -0.20});
+    }
+
     /** Frame two ACTUAL mutually linked escort actors rather than filming
      * only the prisoner or pointing into a nearby wall. The midpoint is a
      * camera focus, never a teleport destination for either NPC.
@@ -434,6 +449,26 @@ public final class NpcCameraController {
                 chosen = retained;
                 sharedLens = retainingShared;
                 anchor = retainingAnchor;
+            }
+        }
+        if (chosen == null) {
+            // Real GUI footage still reported no_clear_lens inside the jail
+            // after normal orbit and retained-shot checks. Try a compact
+            // body-clear solo view with a smaller NPC personal-space margin:
+            // the normal 0.75 margin is too wide for a three-block room.
+            // Native block collision and target raycasts remain mandatory;
+            // a partner hidden by walls is never claimed to share this shot.
+            Predicate<Vec3> compactClear = lens -> spectatorBodyClearInWorld(
+                level, lens, player.getEyeHeight(),
+                player.getBbWidth(), player.getBbHeight())
+                && spectatorBodyClearOfNpcBodies(lens, player.getEyeHeight(),
+                    player.getBbWidth(), player.getBbHeight(),
+                    nearbyCitizens, 0.20);
+            chosen = selectCompactView(eye, target.getYRot(),
+                compactClear, targetVisible);
+            if (chosen != null) {
+                anchor = eye;
+                sharedLens = false;
             }
         }
         if (chosen == null) STABLE_SHOTS.remove(player.getUUID());
