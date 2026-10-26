@@ -1,5 +1,45 @@
 # WorldSeam · 界缝
 
+### 2026-10-22 — Sable / Aeronautics real-mod gate (P2 prototype)
+
+- Pinned current actual compatible NeoForge 1.21.1 release versions: **Sable 2.0.6** (Modrinth `fg9dTRz9`), **Create 6.0.10** (`UjX6dr61`), **Create Aeronautics 1.3.2** (`44pLdPGg`). Official JARs are downloaded **only by CI** using Modrinth API, recursively resolving required dependencies and **verifying SHA-256**; these files are not copied into this repository or re-distributed as artifacts.
+- New workflow `WorldSeam Real Sable Aeronautics Integration` is separate from standalone WorldSeam's NeoForge GameTests. It starts a real game-test server with official mod jars and confirms that Sable + Create + Aeronautics were loaded and the real Sable 2.x sublevel reflection API can be accessed. This test is *not* a fabricated test-double API.
+- `SeamSableObserver` reads authentic sub-level UUID, `boundingBox()` in world coordinates and the saved dimension stack once every 10 server ticks while the feature is enabled. `/worldseam ships status` reports live body count and the number of hulls intersecting an actual seam. It **does not** alter velocity, move the sublevel, spawn a duplicate physics body, or issue a teleport.
+- `SeamShipChartBounds` provides an immutable exact horizontal plane clipping model of **one** physical ship hull across the current dimension and mapped neighbor dimension, with coordinate invertibility tests and 64-block example. The rigid body identity lives in Sable only.
+- **Blocking release gates:** live assembled Aeronautics ship must straddle world/Nether with correct **simultaneous** model clipping in both native renderers; ONE authoritative Rapier body must receive contacts from **both** world's terrain, applying torques, joints, motor shafts and riders without transferring or duplicating bodies; all actual CI and many mod configurations must be tested. Neither the observer nor pinned-JAR smoke test proves those gates. DO NOT publish as a finished continuous physics implementation.
+
+## WorldSeam 0.13.0-dev — 连续接缝渲染的第一项真实改造
+
+**验收目标不是整船瞬移，也不把原版维度传送当作合格结果。**
+本分支明确取消了 v0.12 实验分支的 Sable/AeroPortals 全船原子搬运、
+`/worldseam physics enable` 和自动刚体搬迁：这种方式无法让一艘船的
+两个部分同时碰撞不同维度的原生地形。
+
+本阶段在原生 NeoForge 1.21.1 GPU 区块网格编译中增加：
+- **读穿边界的原生只读 BlockAndTintGetter**：真实 target ClientLevel 的
+  BlockState/FluidState 在 WorldSeam 边界外向真实 source ClientLevel 查询
+  相邻方块、含水状态、颜色及灯光，不再把接缝邻居统一视为空气；
+  目标区块仍在原本 ClientLevel 中，绝不挪移或复制存档方块。
+- **原生流体网格渲染**：扫描水、岩浆和含水方块，
+  用 `BlockRenderDispatcher.renderLiquid` / `ItemBlockRenderTypes.getRenderLayer`
+  在正确的目标维度模型/光照数据上构建永久 GPU VBO，
+  而不是把水绘制为静止物品方块。旧代码会完全跳过 `RenderShape.INVISIBLE` 液体。
+- **自定义高度与双向映射**：不假设世界 Y 是 16 的倍数，不套用下界的
+  8:1 常规传送门坐标缩放；边界映射经过纯算法双向/溢出测试。
+
+**仍不支持**：Sable 单刚体跨双维碰撞、红石与流体真正跨界传播、完整方块实体
+渲染、透明混合的完整排序、阴影与天空统一光照、模组渲染器全面兼容。
+上述功能未通过真实双维度 E2E 验收前不声称“已完美”。
+
+参考上游代码：
+- [IPSable Atlas multi-chart / image collider](https://github.com/r2smith141/IPSable)（根许可证 Apache 2.0；其依赖需单独核对）；
+- [AeroPortals atomic transfer](https://github.com/breakinblocks/AeroPortals)（仅作*不适用方案*对比，许可证为 PolyForm Shield + PolyForm Perimeter，**非 MIT**）；
+- [NeoForge BlockRenderDispatcher 1.21.1 Javadoc](https://aldak.netlify.app/javadoc/1.21.1-21.1.x/net/minecraft/client/renderer/block/blockrenderdispatcher)。
+
+---
+
+
+
 ## v0.11.2 开发修复：远端地形改用世界区块模型绘制
 
 在独立 WorldSeam 的 GPU section cache（v0.11.1/PR #86）上进一步修正：

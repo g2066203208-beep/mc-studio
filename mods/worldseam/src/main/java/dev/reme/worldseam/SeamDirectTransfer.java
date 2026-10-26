@@ -30,8 +30,17 @@ public final class SeamDirectTransfer {
         player.setPos(pos.x(),pos.y(),pos.z());
         player.setYRot(yaw);
         player.setXRot(pitch);
-        target.addDuringTeleport(player);
 
+        // PACKET ORDER IS CRITICAL: registering the player with the target
+        // ServerLevel can itself begin entity tracking, before the explicit
+        // ServerChunkCache.move() below. In the 2026-10-25 exact-head 240
+        // handoff JVM log, vanilla AddEntity packets were received before
+        // WorldSeam retired foreign ClientLevel mirrors at promotion; 66
+        // Duplicate entity UUID warnings remained. Send the handoff BEFORE
+        // target.addDuringTeleport(), not merely before move(). The client
+        // must switch its packet listener to the prewarmed target world before
+        // any target-world entity/chunk tracking packet can be enqueued.
+        // The server-side player already points to target at this point.
         // PACKET ORDER IS CRITICAL: the new ServerChunkCache may synchronously
         // enqueue normal ClientboundAddEntity/Chunk/Light packets as soon as
         // it begins tracking the player. Those belong to the TARGET world,
@@ -40,6 +49,10 @@ public final class SeamDirectTransfer {
         PacketDistributor.sendToPlayer(player,new SeamHandoffPayload(
             original,destination,pos.x(),pos.y(),pos.z(),yaw,pitch
         ));
+        // Register the authoritative player in the destination only AFTER
+        // the handoff packet is queued on this same connection. Both the
+        // entity manager and ServerChunkCache may start vanilla tracking.
+        target.addDuringTeleport(player);
         // Now trigger VANILLA chunk/entity tracking. Reversing these two
         // sends puts freshly spawned Nether entities into the Overworld
         // client registry and can cause disappearing mobs or crashes.

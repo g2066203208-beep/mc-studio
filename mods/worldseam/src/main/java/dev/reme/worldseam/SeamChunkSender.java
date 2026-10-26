@@ -34,26 +34,21 @@ public final class SeamChunkSender {
     private static final int INTERVAL=10;
     private static final int REFRESH_TICKS=1200;
     private static final int DIRTY_COOLDOWN=20;
-    private static final int WINDOW_RADIUS=2;
-    private static final int TICKET_DISTANCE=3;
+    // Preserve the proven 5x5 default; expand only in explicitly opted-in
+    // disposable full-native GUI/film tests. Clamp server-owned tickets.
+    private static final int WINDOW_RADIUS=Math.max(2,Math.min(
+        SeamChunkPriority.MAX_RADIUS,
+        Integer.getInteger("worldseam.foreignNativeViewRadius",2)));
+    private static final int TICKET_DISTANCE=WINDOW_RADIUS+1;
     // Residency state uses independent enter/release radii. Never pin both
     // Nether connection planes simply because the player is near Y64.
     private static final TicketType<ChunkPos> VIEW_TICKET=TicketType.create(
         "worldseam_dual_view", Comparator.comparingLong(ChunkPos::toLong)
     );
-    private static final int[][] OFFSETS=offsets();
+    private static final int[][] OFFSETS=
+        SeamChunkPriority.centerFirstOffsets(WINDOW_RADIUS);
     private static MinecraftServer lastServer;
     private static final Map<UUID,Session> sessions=new HashMap<>();
-
-    private static int[][] offsets() {
-        var list=new java.util.ArrayList<int[]>();
-        for(int z=-WINDOW_RADIUS;z<=WINDOW_RADIUS;z++)
-            for(int x=-WINDOW_RADIUS;x<=WINDOW_RADIUS;x++)
-                list.add(new int[]{x,z});
-        list.sort(Comparator.comparingInt((int[] a) ->
-            Math.max(Math.abs(a[0]),Math.abs(a[1]))*100+a[0]*a[0]+a[1]*a[1]));
-        return list.toArray(new int[0][]);
-    }
 
     private static final class Session {
         String scope="";
@@ -67,6 +62,7 @@ public final class SeamChunkSender {
         final Map<Long,Long> lastSent=new HashMap<>();
         final Set<Long> dirty=new HashSet<>();
         long changeResends;
+        long lastWorldStateTick = Long.MIN_VALUE;
 
         void release() {
             if(ticketLevel!=null && ticketCenter!=null)
@@ -98,6 +94,7 @@ public final class SeamChunkSender {
             release();
             scope="";
             selectedLink=null;
+            lastWorldStateTick = Long.MIN_VALUE;
             lastSent.clear();
             dirty.clear();
         }
@@ -156,31 +153,60 @@ public final class SeamChunkSender {
         int centerX=Math.floorDiv(player.blockPosition().getX(),16);
         int centerZ=Math.floorDiv(player.blockPosition().getZ(),16);
         session.updateTicket(target,new ChunkPos(centerX,centerZ));
+        // Native chunk/light snapshots do NOT contain the destination
+        // dimension's day/night cycle or weather. The real secondary
+        // ClientLevel needs authoritative target ServerLevel state even when
+        // all chunks are clean and no chunk packets are being sent.
+        // Send immediately on a new chart and then at 1 Hz (20 server ticks).
+        if (session.lastWorldStateTick == Long.MIN_VALUE ||
+            tick < session.lastWorldStateTick ||
+            tick - session.lastWorldStateTick >= 20) {
+            PacketDistributor.sendToPlayer(player, new SeamWorldStatePayload(
+                sourceId, selected.target(), target.getGameTime(),
+                target.getDayTime(), target.getRainLevel(1.0F),
+                target.getThunderLevel(1.0F)));
+            session.lastWorldStateTick = tick;
+        }
+        // A second native ClientLevel does not receive vanilla entity
+        // tracking packets from the other ServerLevel automatically.
+        // Stream bounded real server entity snapshots independently of
+        // chunk refresh; no server-side clone or extra physics authority.
+        SeamRemoteEntitySender.tick(player,sourceId,selected,target,tick);
 
-        // Warm the crossing-critical 3x3 rapidly, then the 5x5 visual
-        // window. Once resident, send only bounded dirty-block updates or
-        // infrequent 1200-tick refreshes. No permanent full-chunk stream.
-        int cadence=session.lastSent.size()<9?2:
-            (session.lastSent.size()<OFFSETS.length?5:INTERVAL);
+        // Native second-LevelRenderer pixels are genuinely absent until
+        // their real target chunks arrive. The former 3x3/5x5 2/5-tick
+        // throttle took ~5 seconds to send 25 ready chunks, exposing large
+        // empty regions while the player approached the seam. Stream at
+        // most ONE actual resident chunk per server tick until the window
+        // is complete; keep the old 10-tick cadence for dirty/refresh work.
+        // This never fabricates a chunk, blocks on generation or bypasses
+        // the ticket/center-first/dirty ordering below.
+        int cadence=SeamChunkPriority.sendCadence(
+            session.lastSent.size(),OFFSETS.length,INTERVAL);
         if(tick%cadence!=0)return;
 
         int slot=SeamChunkPriority.chooseSlot(centerX,centerZ,OFFSETS,
             session.lastSent,session.dirty,tick,REFRESH_TICKS,DIRTY_COOLDOWN);
-        if(slot<0)return; // ALL targets still resident/fresh
+        if(slot<0)return; // No new, changed or expired chunks.
         int cx=centerX+OFFSETS[slot][0],cz=centerZ+OFFSETS[slot][1];
-        long key=((long)cx<<32)|(cz&0xffffffffL);
 
-        // A controlled, bounded one-chunk fetch occurs only for unsent/stale
-        // data. Temporary residency keeps the remaining chunks loaded.
+        // Region tickets schedule actual chunk loads asynchronously. Their
+        // completion order is not center-first: one unavailable inner chunk
+        // previously blocked ALL other ready chunks because chooseSlot kept
+        // returning the same unready slot every scheduler tick. Stream the
+        // nearest resident alternative instead, still at ONE packet/tick.
+        // Never synchronously generate an unready target chunk.
         if(!target.hasChunk(cx,cz)) {
-            // The region ticket has already requested this chunk from the
-            // NORMAL server chunk scheduler. Synchronous getChunk() here
-            // forces expensive terrain generation or disk I/O on the server
-            // main thread. Wait for the ticket to complete asynchronously;
-            // leave the item unsent so it is revisited next tick.
             session.waitingForAsyncChunks++;
-            return;
+            slot=SeamChunkPriority.chooseSlot(centerX,centerZ,OFFSETS,
+                session.lastSent,session.dirty,tick,REFRESH_TICKS,
+                DIRTY_COOLDOWN,index -> target.hasChunk(
+                    centerX+OFFSETS[index][0],centerZ+OFFSETS[index][1]));
+            if(slot<0)return; // All eligible chunks are still loading.
+            cx=centerX+OFFSETS[slot][0];
+            cz=centerZ+OFFSETS[slot][1];
         }
+        long key=((long)cx<<32)|(cz&0xffffffffL);
         ClientboundLevelChunkWithLightPacket vanilla =
             new ClientboundLevelChunkWithLightPacket(
                 target.getChunk(cx,cz),target.getLightEngine(),null,null);
@@ -190,10 +216,11 @@ public final class SeamChunkSender {
         session.lastSent.put(key,tick);
         if(session.dirty.remove(key))session.changeResends++;
         session.packetsSent++;
-        if(slot==8 || slot==24)
-            LOG.info("WorldSeam dual-world target={} center={},{} cached-window={}/25 sent={} forcedFetches={} ticketMoves={}",
+        if(slot==8 || slot==24 || slot==OFFSETS.length-1)
+            LOG.info("WorldSeam dual-world target={} center={},{} cached-window={}/{} nativeRadius={} sent={} forcedFetches={} ticketMoves={}",
                 selected.target(),centerX,centerZ,session.lastSent.size(),
-                session.packetsSent,session.chunkFetches,session.ticketChanges);
+                OFFSETS.length,WINDOW_RADIUS,session.packetsSent,
+                session.chunkFetches,session.ticketChanges);
     }
 
     public record StreamStats(boolean ticketActive,int resident,int transmitted,
@@ -216,6 +243,9 @@ public final class SeamChunkSender {
      * including dynamic block and block-entity state from native packet.
      */
     public static void markBlockChanged(ServerLevel level,BlockPos pos) {
+        // Keep already-projected target blocks in the ONE Sable Rapier solver
+        // up-to-date when real gameplay mutates the other ServerLevel.
+        SeamRapierRemoteTerrain.markBlockChanged(level,pos);
         int x=Math.floorDiv(pos.getX(),16),z=Math.floorDiv(pos.getZ(),16);
         long key=((long)x<<32)|(z&0xffffffffL);
         for(Session s:sessions.values()) {
@@ -244,8 +274,9 @@ public final class SeamChunkSender {
         if(session==null||session.ticketLevel==null||session.ticketCenter==null)
             return 0;
         int count=0;
-        for(int z=-WINDOW_RADIUS;z<=WINDOW_RADIUS;z++)
-            for(int x=-WINDOW_RADIUS;x<=WINDOW_RADIUS;x++)
+        // This readiness metric intentionally remains crossing-critical 5x5.
+        for(int z=-2;z<=2;z++)
+            for(int x=-2;x<=2;x++)
                 if(session.ticketLevel.hasChunk(session.ticketCenter.x+x,
                     session.ticketCenter.z+z))count++;
         return count;

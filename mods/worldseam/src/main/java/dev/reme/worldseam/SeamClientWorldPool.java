@@ -11,6 +11,8 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.network.PacketDistributor;
 import dev.reme.worldseam.mixin.SeamMinecraftAccess;
+import dev.reme.worldseam.mixin.SeamGameRendererAccess;
+import net.minecraft.client.renderer.RenderBuffers;
 import dev.reme.worldseam.mixin.SeamPacketListenerAccess;
 import dev.reme.worldseam.mixin.SeamEntityAccess;
 import dev.reme.worldseam.mixin.SeamClientPlayerAccess;
@@ -51,6 +53,11 @@ public final class SeamClientWorldPool {
     // direct handoff exchanges the active and remote LevelRenderers.
     private static final Map<LevelRenderer,SeamOwnedLevelRenderBuffers> OWNED_RENDERERS=
         new IdentityHashMap<>();
+    // Vanilla's original renderer does not belong to OWNED_RENDERERS. After
+    // a no-respawn handoff it becomes the *foreign* renderer; preserve its
+    // existing native buffer identity without taking ownership or closing it.
+    private static final Map<LevelRenderer,RenderBuffers> BORROWED_RENDERERS=
+        new IdentityHashMap<>();
     private static int dedicatedCreated;
     private static int dedicatedReleased;
     private static int peakDedicatedActive;
@@ -59,10 +66,20 @@ public final class SeamClientWorldPool {
     private static boolean failed;
     private static int constructedCount;
     private static long lastReadySent = Long.MIN_VALUE / 2;
+    private static int lastReadyChunkX = Integer.MIN_VALUE;
+    private static int lastReadyChunkZ = Integer.MIN_VALUE;
     private static int receivedChunkCount;
     private static int remoteViewDistance;
     private static int lastActiveViewDistance;
     private static int nativeHandoffCount;
+    // A real secondary ClientLevel must advance its own weather/time, block
+    // entities and native client actors. Vanilla only ticks Minecraft.level.
+    // The full-native experiment fails closed if this independent tick fails.
+    private static long nativeForeignTicks;
+    private static long nativeWorldStatePackets;
+    private static boolean nativeForeignTickFailed;
+    public static boolean nativeForeignTickHealthy() { return !nativeForeignTickFailed; }
+    public static long nativeForeignTicks() { return nativeForeignTicks; }
 
     private SeamClientWorldPool() {}
 
@@ -130,6 +147,8 @@ public final class SeamClientWorldPool {
             remoteViewDistance=SeamNativeViewDistance.normalize(
                 mc.options.renderDistance().get());
             failed = false;
+            nativeForeignTickFailed = false;
+            nativeForeignTicks = 0;
             lastReadySent = Long.MIN_VALUE / 2;
             constructedCount++;
             LOG.info("WorldSeam prewarmed real secondary ClientLevel {} from {} with native client viewDistance={} (seam prefetch remains 5x5)",to,from,remoteViewDistance);
@@ -138,6 +157,37 @@ public final class SeamClientWorldPool {
             failed = true;
             LOG.warn("WorldSeam secondary ClientLevel not ready for {}", to, error);
         }
+    }
+
+    /**
+     * Apply the REAL destination ServerLevel's clock/weather to its own
+     * secondary ClientLevel. Vanilla only sends time/weather to the active
+     * dimension; rendering the other dimension with the source sky would
+     * show the wrong sun, moon, rain and lightning. Do not change mc.level,
+     * its LevelData, or any source-world rendering state.
+     */
+    public static void acceptWorldState(SeamWorldStatePayload packet) {
+        if (!SeamStackClient.enabled()) return;
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.level == null || mc.getConnection() == null ||
+            !mc.level.dimension().location().toString().equals(packet.source()))
+            return;
+        hint(packet.source(), packet.target());
+        if (remote == null || !SeamWorldStateGuard.accepts(
+                source, target, packet.source(), packet.target(),
+                packet.rainLevel(), packet.thunderLevel()) ||
+            !remote.dimension().location().toString().equals(packet.target()))
+            return;
+        remote.setGameTime(packet.gameTime());
+        remote.setDayTime(packet.dayTime());
+        remote.setRainLevel(packet.rainLevel());
+        remote.setThunderLevel(packet.thunderLevel());
+        nativeWorldStatePackets++;
+        if (nativeWorldStatePackets == 1 || nativeWorldStatePackets % 120 == 0)
+            LOG.info("WORLDSEAM_NATIVE_REMOTE_ATMOSPHERE: updates={}, source={}, target={}, targetDayTime={}, targetGameTime={}, targetRain={}, targetThunder={}, realSecondaryClientLevel=true, finalAcceptance=false",
+                nativeWorldStatePackets, packet.source(), packet.target(),
+                packet.dayTime(), packet.gameTime(),
+                packet.rainLevel(), packet.thunderLevel());
     }
 
     /**
@@ -234,15 +284,23 @@ public final class SeamClientWorldPool {
             < SeamReadiness.REQUIRED_CHUNKS) return;
         int cx = Math.floorDiv(mc.player.blockPosition().getX(), 16);
         int cz = Math.floorDiv(mc.player.blockPosition().getZ(), 16);
-        for (int dx = -1; dx <= 1; dx++)
-            for (int dz = -1; dz <= 1; dz++)
-                if (!remote.getChunkSource().hasChunk(cx+dx,cz+dz)) return;
+        // Count alone is insufficient: stale chunks from a previous camera
+        // center can make a partially empty arrival window look ready.
+        if (!SeamChunkPriority.criticalWindowReady(cx, cz,
+            (x,z) -> remote.getChunkSource().hasChunk(x,z))) return;
         long tick = mc.level.getGameTime();
-        if (tick - lastReadySent < 40) return;
+        // A completed window is valid only for its actual center. When the
+        // player enters another chunk, send a fresh ACK immediately rather
+        // than waiting 40 ticks with a stale center-bound server grant.
+        if (cx == lastReadyChunkX && cz == lastReadyChunkZ &&
+            tick - lastReadySent < 40) return;
         PacketDistributor.sendToServer(new SeamReadyPayload(
-            source, target, remote.getChunkSource().getLoadedChunksCount()
+            source, target, remote.getChunkSource().getLoadedChunksCount(),
+            cx, cz
         ));
         lastReadySent = tick;
+        lastReadyChunkX = cx;
+        lastReadyChunkZ = cz;
     }
 
     /**
@@ -262,6 +320,17 @@ public final class SeamClientWorldPool {
                 instruction.to());
             return false;
         }
+        // Revalidate the exact destination 5x5 at handoff, not merely the
+        // aggregate loaded count reported earlier. A moving player may
+        // cross a chunk boundary after the readiness ACK was sent.
+        int arrivalChunkX = Math.floorDiv((int)Math.floor(instruction.x()), 16);
+        int arrivalChunkZ = Math.floorDiv((int)Math.floor(instruction.z()), 16);
+        if (!SeamChunkPriority.criticalWindowReady(arrivalChunkX, arrivalChunkZ,
+            (x,z) -> remote.getChunkSource().hasChunk(x,z))) {
+            LOG.error("WorldSeam refused handoff: incomplete real destination 5x5 around {},{}",
+                arrivalChunkX, arrivalChunkZ);
+            return false;
+        }
         // Promote the prewarmed ClientLevel into a FULL native Minecraft
         // world. A fixed viewDistance=3 truncates the vanilla 8/12/16+
         // render-distance chunk stream after teleport, causing the
@@ -277,8 +346,28 @@ public final class SeamClientWorldPool {
         LevelRenderer oldRenderer = mc.levelRenderer;
         ClientLevel newWorld = remote;
         LevelRenderer newRenderer = remoteRenderer;
+        RenderBuffers oldBuffers=mc.renderBuffers();
+        RenderBuffers nextBuffers=buffersForRenderer(newRenderer);
+        if(nextBuffers==null) {
+            LOG.error("WorldSeam cannot hand off: destination LevelRenderer has no live native buffer owner");
+            return false;
+        }
+        // The original vanilla renderer has no WorldSeam-owned allocation.
+        // Preserve its buffers by identity so the *reverse* handoff and
+        // foreign actor draws can reuse them without an extra allocation.
+        if(!OWNED_RENDERERS.containsKey(oldRenderer))
+            BORROWED_RENDERERS.putIfAbsent(oldRenderer,oldBuffers);
         LocalPlayer player = mc.player;
 
+        // Snapshot mirrors belong only to the SECOND ClientLevel. Before
+        // promotion, retire them by their tracked ID+UUID so vanilla entity
+        // tracking can register the real ServerLevel entities without
+        // duplicate-UUID conflicts. Never touch a Sable native body.
+        SeamRemoteEntityClient.retireBeforePromotion(newWorld);
+
+        // A promoted secondary world must not retain a second lightmap
+        // once the active GameRenderer takes over its normal lightmap.
+        SeamRemoteLightmaps.release();
         oldWorld.removeEntity(player.getId(), Entity.RemovalReason.CHANGED_DIMENSION);
         ((SeamEntityAccess) player).worldseam$unsetRemoved();
         ((SeamEntityAccess) player).worldseam$setLevel(newWorld);
@@ -294,17 +383,28 @@ public final class SeamClientWorldPool {
         ((SeamPacketListenerAccess) mc.getConnection()).worldseam$setLevel(newWorld);
         mc.level = newWorld;
         ((SeamMinecraftAccess) mc).worldseam$setLevelRenderer(newRenderer);
+        // The active renderer's CPU/GPU draw queues must follow its world.
+        // Previously both fields still referenced the OLD renderer's buffers
+        // after the ClientLevel swap, contaminating cross-dimension batches.
+        ((SeamMinecraftAccess) mc).worldseam$setRenderBuffers(nextBuffers);
+        ((SeamGameRendererAccess) mc.gameRenderer).worldseam$setRenderBuffers(nextBuffers);
         mc.particleEngine.setLevel(newWorld);
         mc.getBlockEntityRenderDispatcher().setLevel(newWorld);
 
         // Retain the source world as the secondary world for reverse crossings.
         remote = oldWorld;
         remoteRenderer = oldRenderer;
+        nativeForeignTickFailed = false;
+        nativeForeignTicks = 0;
         // Keep the old world cache intact for reverse handoff, but do not
         // redirect vanilla active-world packets into a 5x5-only storage map.
         remoteViewDistance=nativeDistance;
         lastActiveViewDistance=nativeDistance;
         nativeHandoffCount++;
+        if(!activeBuffersMatchRenderer())
+            throw new IllegalStateException("WorldSeam active LevelRenderer native buffers diverged after handoff");
+        LOG.info("WORLDSEAM_NATIVE_HANDOFF_BUFFERS: handoffs={}, activeRendererBuffersMatch=true, reverseRendererBuffersKnown={}",
+            nativeHandoffCount,buffersForRenderer(oldRenderer)!=null);
         source = instruction.to();
         target = instruction.from();
         failed = false;
@@ -361,6 +461,40 @@ public final class SeamClientWorldPool {
         return found;
     }
 
+    /** Only expose the actual secondary ClientLevel for dimension-scoped
+     * native entity tracking; never confuse it with Minecraft.level. */
+    static ClientLevel remoteFor(String from,String to) {
+        Minecraft mc=Minecraft.getInstance();
+        return remote!=null && mc.level!=null &&
+            mc.level.dimension().location().toString().equals(from) &&
+            source.equals(from) && target.equals(to) ? remote : null;
+    }
+
+    /** Renderer-specific native buffers, including the borrowed vanilla owner. */
+    static RenderBuffers renderBuffersFor(ClientLevel level) {
+        return buffersForRenderer(rendererFor(level));
+    }
+
+    private static RenderBuffers buffersForRenderer(LevelRenderer renderer) {
+        if(renderer==null)return null;
+        SeamOwnedLevelRenderBuffers owner=OWNED_RENDERERS.get(renderer);
+        if(owner!=null)return owner.released()?null:owner.buffers();
+        return BORROWED_RENDERERS.get(renderer);
+    }
+
+    /** Actual Minecraft/GameRenderer buffer identity after a direct handoff. */
+    public static boolean activeBuffersMatchRenderer() {
+        Minecraft mc=Minecraft.getInstance();
+        RenderBuffers expected=buffersForRenderer(mc.levelRenderer);
+        return expected!=null && mc.renderBuffers()==expected &&
+            ((SeamGameRendererAccess)mc.gameRenderer).worldseam$getRenderBuffers()==expected;
+    }
+
+    /** Renderer owned by exactly this secondary ClientLevel; never the active one. */
+    static LevelRenderer rendererFor(ClientLevel level) {
+        return level!=null && level==remote ? remoteRenderer : null;
+    }
+
     public static boolean hasPrewarmed(String destination) {
         return remote != null && target.equals(destination);
     }
@@ -384,8 +518,50 @@ public final class SeamClientWorldPool {
                 remoteViewDistance=desired;
             }
             maybeReportReady(mc);
-            if (remoteRenderer != null && remoteRenderer != mc.levelRenderer)
+            if (remoteRenderer != null && remoteRenderer != mc.levelRenderer) {
+                if (SeamNativeGeometryClient.fullNativeEnabled() &&
+                    remote != null && remote != mc.level && !nativeForeignTickFailed)
+                    tickNativeForeignWorld(mc);
                 remoteRenderer.tick();
+            }
+        }
+    }
+
+    /**
+     * Vanilla advances ONLY its active ClientLevel. Without this opt-in
+     * second tick, the real foreign sky/weather, block-entity tickers and
+     * entity interpolation freeze despite LevelRenderer drawing frames.
+     * Scope the actual foreign world/renderer/particle/BE identities and
+     * packet-listener level together; never tick the active world twice.
+     * A failed foreign tick is a native-render acceptance failure, not a
+     * reason to silently render stale secondary-world state.
+     */
+    private static void tickNativeForeignWorld(Minecraft mc) {
+        ClientLevel packetWorld = mc.getConnection() == null ? null :
+            mc.getConnection().getLevel();
+        if (packetWorld == null) return;
+        SeamPacketListenerAccess packets =
+            (SeamPacketListenerAccess) mc.getConnection();
+        try (SeamForeignActorWorldScope.Scope ignored =
+                 SeamForeignActorWorldScope.bind(remote,
+                     mc.gameRenderer.getMainCamera())) {
+            if (!SeamForeignActorWorldScope.active())
+                throw new IllegalStateException("Foreign native tick context unavailable");
+            try {
+                packets.worldseam$setLevel(remote);
+                remote.tick(() -> true);
+                remote.tickEntities();
+                nativeForeignTicks++;
+                if (nativeForeignTicks == 1 || nativeForeignTicks % 120 == 0)
+                    LOG.info("WORLDSEAM_NATIVE_FOREIGN_LEVEL_TICK: ticks={}, dimension={}, clientEntities={}, activeWorldUntouched=true, finalAcceptance=false",
+                        nativeForeignTicks, remote.dimension().location(),
+                        remote.getEntityCount());
+            } finally {
+                packets.worldseam$setLevel(packetWorld);
+            }
+        } catch (RuntimeException | Error failure) {
+            nativeForeignTickFailed = true;
+            LOG.error("WORLDSEAM_NATIVE_FOREIGN_LEVEL_TICK_FAILED: disabling experimental full secondary render rather than showing stale entities/BE/sky", failure);
         }
     }
 
@@ -415,9 +591,15 @@ public final class SeamClientWorldPool {
         // operation. Once disconnected, its buffers can be reclaimed too.
         for(var renderer:java.util.List.copyOf(OWNED_RENDERERS.keySet()))
             releaseDedicated(renderer);
+        BORROWED_RENDERERS.clear();
     }
 
     public static void clear() {
+        nativeForeignTickFailed = false;
+        nativeForeignTicks = 0;
+        nativeWorldStatePackets = 0;
+        SeamRemoteLightmaps.release();
+        SeamRemoteEntityClient.reset();
         if (remoteRenderer != null) {
             LevelRenderer detached=remoteRenderer;
             // During a handoff, a formerly remote renderer can become the
@@ -429,6 +611,7 @@ public final class SeamClientWorldPool {
                     detached.close();
                 } finally {
                     releaseDedicated(detached);
+                    BORROWED_RENDERERS.remove(detached);
                 }
             }
         }

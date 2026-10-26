@@ -19,7 +19,6 @@ import org.slf4j.Logger;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -61,12 +60,17 @@ public final class SeamServer {
                 && active.near(player.getY(),
                     SeamStackRuntime.bottom(player.serverLevel()),
                     SeamStackRuntime.top(player.serverLevel()),48)
-                && SeamReadiness.isReady(player.getUUID(),dim,active.target(),tick);
+                && SeamReadiness.isReadyAt(player.getUUID(),dim,active.target(),tick,
+                    Math.floorDiv(player.blockPosition().getX(),16),
+                    Math.floorDiv(player.blockPosition().getZ(),16));
             // Avoid duplicate legacy previews once native chunks are ready.
             SeamPreviewSender.tick(server, player, tick, enabled && !ready);
             SeamSectionSender.tick(server, player, tick, enabled && !ready);
         }
         seamEnabled = enabled;
+        // READ-ONLY observation of live Sable sublevels. Actual Rapier
+        // two-chart impulse coupling is not active and cannot be faked.
+        SeamSableObserver.tick(server,tick,enabled);
         terrainEnabled = enabled && SeamSettings.get(server).carveNewChunks();
         // Release any ticket held by disconnected players within five seconds,
         // even if world-seam was subsequently disabled.
@@ -105,8 +109,10 @@ public final class SeamServer {
                     "WORLDSEAM_STRESS_SERVER_TRACE: dim={}, to={}, y={}, yo={}, vy={}, min={}, max={}, targetEdge={}, targetBoundary={}, cachedReady={}, cooldownLeft={}",
                     dim,link.target(),player.getY(),player.yo,
                     player.getDeltaMovement().y(),min,max,link.entry(),
-                    targetBoundaryY,SeamReadiness.isReady(player.getUUID(),
-                        dim,link.target(),tick),
+                    targetBoundaryY,SeamReadiness.isReadyAt(player.getUUID(),
+                        dim,link.target(),tick,
+                        Math.floorDiv(player.blockPosition().getX(),16),
+                        Math.floorDiv(player.blockPosition().getZ(),16)),
                     Math.max(0,COOLDOWN_TICKS-(tick-lastCross.getOrDefault(
                         player.getUUID(),Long.MIN_VALUE/2))));
                 // A freshly arrived player must enter the new world before
@@ -157,8 +163,10 @@ public final class SeamServer {
                     break;
                 }
                 boolean useExperimental = SeamSettings.get(server).experimentalNoRespawn();
-                boolean ready = SeamReadiness.isReady(player.getUUID(),
-                    dim, link.target(), tick);
+                boolean ready = SeamReadiness.isReadyAt(player.getUUID(),
+                    dim, link.target(), tick,
+                    Math.floorDiv(player.blockPosition().getX(),16),
+                    Math.floorDiv(player.blockPosition().getZ(),16));
                 // Do not synchronously load the destination on EACH tick
                 // before the client has even acknowledged its dual cache.
                 // This was a second repeated-loading hotspot.
@@ -185,29 +193,28 @@ public final class SeamServer {
                         landingCx,landingCz,link.target());
                     break;
                 }
-                if (!SeamArrival.hasClearance(target, arrival, player)) {
+                if (!SeamArrival.hasJoinedClearance(
+                    source,target,link,sourceBoundary,targetBoundary,
+                    player.getX(),nextY,player.getZ(),player)) {
                     if(trace)LOG.warn("WORLDSEAM_STRESS_SERVER_BLOCKED: destination has COLLISION at {} in {}",
                         arrival,link.target());
                     break;
                 }
-                boolean success;
-                if (useExperimental) {
-                    SeamDirectTransfer.move(player, target,
-                        new Vec3(player.getX(),nextY,player.getZ()),
-                        player.getYRot(),player.getXRot());
-                    success = true;
-                } else {
-                    success = player.teleportTo(target, player.getX(), nextY,
-                        player.getZ(), Set.of(), player.getYRot(), player.getXRot());
+                // Seam continuity is a HARD requirement. If the native
+                // client-world handoff is disabled, refuse the crossing;
+                // NEVER silently fall back to ServerPlayer.teleportTo
+                // (vanilla respawn/loading screen, lost remote world mesh).
+                if (!useExperimental) {
+                    if(trace) LOG.warn("WORLDSEAM_SEAM_BLOCKED: native continuous handoff disabled, loading-screen teleport strictly forbidden");
+                    break;
                 }
-                if (success) {
-                    player.setDeltaMovement(previousVelocity);
-                    player.fallDistance = previousFall;
-                    lastCross.put(player.getUUID(), tick);
-                    RETURN_GUARD.landed(player.getUUID(), link.target(), link.entry());
-                } else {
-                    LOG.warn("Seam teleport rejected: {} -> {}", dim, link.target());
-                }
+                SeamDirectTransfer.move(player,target,
+                    new Vec3(player.getX(),nextY,player.getZ()),
+                    player.getYRot(),player.getXRot());
+                player.setDeltaMovement(previousVelocity);
+                player.fallDistance = previousFall;
+                lastCross.put(player.getUUID(), tick);
+                RETURN_GUARD.landed(player.getUUID(), link.target(), link.entry());
                 break;
             }
         }
@@ -269,7 +276,9 @@ public final class SeamServer {
             // not currently loaded, defer the entity migration until it is.
             if(!target.hasChunk(Math.floorDiv(dest.getX(),16),
                                 Math.floorDiv(dest.getZ(),16)))return;
-            if (!SeamArrival.hasClearance(target, dest, entity)) return;
+            if (!SeamArrival.hasJoinedClearance(
+                source,target,link,sourceBoundary,targetBoundary,
+                entity.getX(),y,entity.getZ(),entity)) return;
             Vec3 motion = entity.getDeltaMovement();
             float fall = entity.fallDistance;
             Entity moved = entity.changeDimension(new DimensionTransition(

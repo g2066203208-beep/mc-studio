@@ -13,6 +13,40 @@ class SeamChunkPriorityTest {
     private static int choose(Map<Long,Long> sent,Set<Long> dirty,long tick) {
         return SeamChunkPriority.chooseSlot(0,0,OFFSETS,sent,dirty,tick,1200,20);
     }
+    @Test void nativeReadinessRequiresEveryCoordinateOfTheActualArrivalFiveByFive() {
+        Set<Long> resident = new HashSet<>();
+        for (int dz=-2; dz<=2; dz++)
+            for (int dx=-2; dx<=2; dx++)
+                resident.add(k(-7+dx, 11+dz));
+        assertTrue(SeamChunkPriority.criticalWindowReady(-7, 11,
+            (x,z) -> resident.contains(k(x,z))));
+        resident.remove(k(-9,9));
+        // A total of 25 chunks is NOT enough if one belongs to an
+        // old center outside the actual destination 5x5.
+        resident.add(k(100,100));
+        assertEquals(25, resident.size());
+        assertFalse(SeamChunkPriority.criticalWindowReady(-7, 11,
+            (x,z) -> resident.contains(k(x,z))));
+        assertThrows(IllegalArgumentException.class,
+            () -> SeamChunkPriority.criticalWindowReady(0,0,null));
+    }
+
+    @Test void realNativeWindowStreamsAtMostOneResidentChunkPerTickUntilComplete() {
+        assertEquals(1, SeamChunkPriority.sendCadence(0,25,10));
+        assertEquals(1, SeamChunkPriority.sendCadence(8,25,10));
+        assertEquals(1, SeamChunkPriority.sendCadence(9,25,10));
+        assertEquals(1, SeamChunkPriority.sendCadence(24,25,10));
+        assertEquals(10, SeamChunkPriority.sendCadence(25,25,10));
+        assertEquals(1, SeamChunkPriority.sendCadence(25,81,10));
+        assertEquals(10, SeamChunkPriority.sendCadence(81,81,10));
+        assertThrows(IllegalArgumentException.class,
+            () -> SeamChunkPriority.sendCadence(-1,25,10));
+        assertThrows(IllegalArgumentException.class,
+            () -> SeamChunkPriority.sendCadence(26,25,10));
+        assertThrows(IllegalArgumentException.class,
+            () -> SeamChunkPriority.sendCadence(0,0,10));
+    }
+
     @Test void unseenOuterChunkAlwaysWinsOverDirtyCenter() {
         var sent=new HashMap<Long,Long>();
         for(int i=0;i<OFFSETS.length-1;i++)
@@ -39,10 +73,96 @@ class SeamChunkPriorityTest {
             sent,Set.of(k(1,0)),250,1200,20);
         assertEquals(1,slot);
     }
+    @Test void nativeOuterRingsNeverPreemptCrossingCriticalFiveByFive() {
+        int[][] offsets=SeamChunkPriority.centerFirstOffsets(8);
+        assertEquals(289,offsets.length);
+        assertArrayEquals(new int[]{0,0},offsets[0]);
+        for(int i=0;i<offsets.length;i++) {
+            int ring=Math.max(Math.abs(offsets[i][0]),Math.abs(offsets[i][1]));
+            if(i<25)assertTrue(ring<=2);
+            if(i>=25)assertTrue(ring>=3);
+        }
+        var sent=new HashMap<Long,Long>();
+        for(int i=0;i<25;i++)
+            sent.put(k(offsets[i][0],offsets[i][1]),10L);
+        // A live edit in the already-loaded crossing 5x5 is more urgent
+        // than an optional first-time outer-ring packet.
+        assertEquals(0,SeamChunkPriority.chooseSlot(
+            0,0,offsets,sent,Set.of(k(0,0)),200,1200,20));
+    }
+    @Test void missingCriticalChunkStillPreemptsDirtyCriticalEdit() {
+        int[][] offsets=SeamChunkPriority.centerFirstOffsets(4);
+        var sent=new HashMap<Long,Long>();
+        // 24 of the 25 critical chunks arrived. A dirty center must not
+        // hide the last missing critical native section.
+        for(int i=0;i<24;i++)
+            sent.put(k(offsets[i][0],offsets[i][1]),10L);
+        assertEquals(24,SeamChunkPriority.chooseSlot(0,0,offsets,
+            sent,Set.of(k(0,0)),100,1200,20));
+    }
+
+    @Test void liveCriticalEditDoesNotWaitForSixteenChunkRadiusOuterRing() {
+        int[][] offsets=SeamChunkPriority.centerFirstOffsets(16);
+        var sent=new HashMap<Long,Long>();
+        for(int i=0;i<25;i++)
+            sent.put(k(offsets[i][0],offsets[i][1]),10L);
+        int chosen=SeamChunkPriority.chooseSlot(0,0,offsets,
+            sent,Set.of(k(0,0)),100,1200,20,
+            slot -> slot==0 || slot>=25);
+        assertEquals(0,chosen);
+        // A non-resident dirty center must not stall resident outer work.
+        assertEquals(25,SeamChunkPriority.chooseSlot(0,0,offsets,
+            sent,Set.of(k(0,0)),100,1200,20,slot -> slot>=25));
+    }
+
+    @Test void nativeViewRadiusIsBoundedAndComplete() {
+        assertEquals(25,SeamChunkPriority.centerFirstOffsets(2).length);
+        assertEquals(1089,SeamChunkPriority.centerFirstOffsets(16).length);
+        assertThrows(IllegalArgumentException.class,
+            () -> SeamChunkPriority.centerFirstOffsets(1));
+        assertThrows(IllegalArgumentException.class,
+            () -> SeamChunkPriority.centerFirstOffsets(17));
+    }
     @Test void earliestRefreshOnlyAfterDeadline() {
         var sent=new HashMap<Long,Long>();
         for(var p:OFFSETS)sent.put(k(p[0],p[1]),100L);
         assertEquals(-1,choose(sent,Set.of(),1299));
         assertEquals(0,choose(sent,Set.of(),1300));
     }
+    @Test void pendingCenterNeverStarvesResidentNativeOuterSections() {
+        int[][] offsets=SeamChunkPriority.centerFirstOffsets(4);
+        var sent=new HashMap<Long,Long>();
+        var dirty=new HashSet<Long>();
+        assertEquals(0,SeamChunkPriority.chooseSlot(0,0,offsets,
+            sent,dirty,100,1200,20));
+        // Ticketed center is not yet loaded, but its neighbor and an outer
+        // section are already resident: send the nearest ready one.
+        int available=SeamChunkPriority.chooseSlot(0,0,offsets,
+            sent,dirty,100,1200,20,
+            i -> (offsets[i][0]==1 && offsets[i][1]==0) ||
+                 (offsets[i][0]==4 && offsets[i][1]==0));
+        assertTrue(available>0);
+        assertArrayEquals(new int[]{1,0},offsets[available]);
+        sent.put(k(1,0),100L);
+        int next=SeamChunkPriority.chooseSlot(0,0,offsets,
+            sent,dirty,101,1200,20,
+            i -> offsets[i][0]==4 && offsets[i][1]==0);
+        assertArrayEquals(new int[]{4,0},offsets[next]);
+        // All candidates still loading must NOT trigger a blocking fetch.
+        assertEquals(-1,SeamChunkPriority.chooseSlot(0,0,offsets,
+            sent,dirty,102,1200,20,i -> false));
+        // Once the center completes, it regains priority.
+        assertEquals(0,SeamChunkPriority.chooseSlot(0,0,offsets,
+            sent,dirty,103,1200,20,i -> i==0));
+    }
+
+    @Test void readyDirtyChunkMayProgressWhenNewChunksAreAllPending() {
+        int[][] offsets=SeamChunkPriority.centerFirstOffsets(2);
+        var sent=new HashMap<Long,Long>();
+        sent.put(k(0,0),0L);
+        var dirty=Set.of(k(0,0));
+        assertEquals(0,SeamChunkPriority.chooseSlot(0,0,offsets,
+            sent,dirty,100,1200,20,i -> i==0));
+    }
+
 }

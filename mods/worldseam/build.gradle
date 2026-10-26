@@ -56,10 +56,39 @@ neoForge {
             client()
             if (project.hasProperty('worldseamE2E')) {
                 systemProperty 'worldseam.e2e', 'true'
+                // Exercise actual foreign depth pixels against native source depth
+                // in a disposable GUI test; NOT a final seamlessness gate.
+                systemProperty 'worldseam.experimentalOffscreenTerrain', 'true'
+                systemProperty 'worldseam.experimentalDepthComposite', 'true'
+            }
+            if (project.hasProperty('worldseamFullNativeE2E')) {
+                // Exercise actual target LevelRenderer.renderLevel in a disposable
+                // graphical client; a passing smoke test is NOT seamlessness.
+                systemProperty 'worldseam.experimentalFullNativeLevel', 'true'
+                // Native geometry clip BEFORE target depth; never use on ordinary clients until verified.
+                systemProperty 'worldseam.experimentalNativeSeamClip', 'true'
+                // Real GUI regression experiment: composite foreign native
+                // color/depth before the source's transparent stage. Never
+                // enable this unverified ordering on normal clients.
+                systemProperty 'worldseam.experimentalEarlyNativeComposite', 'true'
+                systemProperty 'worldseam.foreignNativeViewRadius', '4'
             }
             if (project.hasProperty('worldseamStress')) {
                 systemProperty 'worldseam.e2e', 'true'
                 systemProperty 'worldseam.stress', 'true'
+            }
+            if (project.hasProperty('worldseamShipFilm')) {
+                systemProperty 'worldseam.shipFilm', 'true'
+                systemProperty 'worldseam.experimentalOffscreenTerrain', 'true'
+                systemProperty 'worldseam.experimentalDepthComposite', 'true'
+                // Disposable native-only validation: map actual Nether physics
+                // voxels into ONE authoritative Overworld Sable Rapier scene.
+                systemProperty 'worldseam.experimentalRemoteRapier', 'true'
+                // Film and GUI must exercise the SAME genuine second renderer.
+                systemProperty 'worldseam.experimentalFullNativeLevel', 'true'
+                // Native geometry clip BEFORE target depth; never use on ordinary clients until verified.
+                systemProperty 'worldseam.experimentalNativeSeamClip', 'true'
+                systemProperty 'worldseam.foreignNativeViewRadius', '4'
             }
             // Comma-separated list of namespaces to load gametests from. Empty = all namespaces.
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
@@ -77,6 +106,9 @@ neoForge {
         gameTestServer {
             type = "gameTestServer"
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+            if (project.hasProperty('worldseamRequireExternalMods')) {
+                systemProperty 'worldseam.requireExternalMods', 'true'
+            }
         }
 
         data {
@@ -128,6 +160,9 @@ configurations {
 
 dependencies {
     testImplementation 'org.junit.jupiter:junit-jupiter:5.11.4'
+    // Standalone JUnit compilation does not inherit Minecraft's runtime JOML.
+    // Match the JOML version used by the NeoForge 1.21.1 runtime.
+    testImplementation 'org.joml:joml:1.10.5'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
     // Example optional mod dependency with JEI
     // The JEI API is declared for compile time use, while the full JEI artifact is used at runtime

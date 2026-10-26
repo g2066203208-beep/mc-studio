@@ -10,10 +10,14 @@
   ],
   "client": [
     "SeamMinecraftAccess",
+    "SeamGameRendererAccess",
+    "SeamParticleEngineAccess",
     "SeamPacketListenerAccess",
     "SeamClientPlayerAccess",
+    "SeamClientBlockUpdateMixin",
     "SeamBufferSourceAccess",
-    "SeamCreateWorldMixin"
+    "SeamCreateWorldMixin",
+    "SeamLevelRendererSkyMixin"
   ],
   "injectors": {
     "defaultRequire": 1
